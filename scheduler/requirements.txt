@@ -1,0 +1,11 @@
+# Agendamento de jobs
+APScheduler>=3.10.4
+# Cliente AMI do Asterisk
+panoramisk>=1.2
+# Banco de dados PostgreSQL
+psycopg2-binary>=2.9.9
+SQLAlchemy>=2.0.30
+# HTTP para comunicação com backend e Zabbix
+httpx>=0.27.0
+# Variáveis de ambiente
+python-dotenv>=1.0.0

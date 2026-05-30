@@ -1,0 +1,116 @@
+"""
+protocol.py — Parser do Protocolo Audiosocket
+Implementa a leitura e escrita de frames do protocolo Audiosocket
+conforme especificação do Asterisk.
+
+Formato do frame:
+  [1 byte: tipo] [2 bytes: comprimento big-endian] [N bytes: payload]
+
+Tipos de mensagem:
+  0x00 = Hangup (encerramento)
+  0x01 = UUID   (identificador da chamada, enviado pelo Asterisk na conexão)
+  0x10 = Áudio  (payload PCM 8kHz 16bit signed little-endian mono)
+  0xFF = Erro
+"""
+
+import struct
+import asyncio
+from src.config import (
+    AUDIOSOCKET_HEADER_SIZE,
+    MSG_TYPE_UUID,
+    MSG_TYPE_AUDIO,
+    MSG_TYPE_HANGUP,
+    MSG_TYPE_ERROR,
+)
+
+
+class AudiosocketFrame:
+    """Representa um frame do protocolo Audiosocket."""
+
+    def __init__(self, msg_type: int, payload: bytes):
+        self.msg_type = msg_type
+        self.payload = payload
+
+    @property
+    def is_audio(self) -> bool:
+        return self.msg_type == MSG_TYPE_AUDIO
+
+    @property
+    def is_uuid(self) -> bool:
+        return self.msg_type == MSG_TYPE_UUID
+
+    @property
+    def is_hangup(self) -> bool:
+        return self.msg_type == MSG_TYPE_HANGUP
+
+    @property
+    def is_error(self) -> bool:
+        return self.msg_type == MSG_TYPE_ERROR
+
+    @property
+    def call_uuid(self) -> str | None:
+        """Retorna o UUID da chamada se for frame do tipo UUID."""
+        if self.is_uuid and len(self.payload) == 16:
+            # Converte 16 bytes raw para string UUID formatada
+            raw = self.payload.hex()
+            return f"{raw[0:8]}-{raw[8:12]}-{raw[12:16]}-{raw[16:20]}-{raw[20:32]}"
+        return None
+
+
+async def read_frame(reader: asyncio.StreamReader) -> AudiosocketFrame | None:
+    """
+    Lê um frame completo do stream Audiosocket.
+
+    Args:
+        reader: asyncio.StreamReader conectado ao Asterisk
+
+    Returns:
+        AudiosocketFrame ou None em caso de EOF
+    """
+    try:
+        # Lê cabeçalho de 3 bytes
+        header = await reader.readexactly(AUDIOSOCKET_HEADER_SIZE)
+    except asyncio.IncompleteReadError:
+        return None  # Conexão encerrada
+
+    msg_type = header[0]
+    payload_length = struct.unpack(">H", header[1:3])[0]  # Big-endian unsigned short
+
+    # Lê payload se houver comprimento > 0
+    payload = b""
+    if payload_length > 0:
+        try:
+            payload = await reader.readexactly(payload_length)
+        except asyncio.IncompleteReadError:
+            return None
+
+    return AudiosocketFrame(msg_type, payload)
+
+
+async def write_audio(writer: asyncio.StreamWriter, pcm_data: bytes) -> None:
+    """
+    Envia um frame de áudio PCM de volta para o Asterisk via Audiosocket.
+
+    O Asterisk espera áudio no formato: PCM 8kHz, 16bit, signed, little-endian, mono.
+    Frames devem ter exatamente 320 bytes (20ms de áudio a 8kHz/16bit).
+
+    Args:
+        writer: asyncio.StreamWriter conectado ao Asterisk
+        pcm_data: Bytes de áudio PCM a enviar
+    """
+    FRAME_SIZE = 320  # 20ms a 8kHz/16bit
+
+    # Quebra o áudio em frames de 320 bytes
+    for i in range(0, len(pcm_data), FRAME_SIZE):
+        chunk = pcm_data[i:i + FRAME_SIZE]
+
+        # Preenche o último frame com silêncio se necessário
+        if len(chunk) < FRAME_SIZE:
+            chunk = chunk + b'\x00' * (FRAME_SIZE - len(chunk))
+
+        # Monta e envia o frame: [0x10][len big-endian][payload]
+        length_bytes = struct.pack(">H", len(chunk))
+        frame = bytes([MSG_TYPE_AUDIO]) + length_bytes + chunk
+        writer.write(frame)
+
+    await writer.drain()

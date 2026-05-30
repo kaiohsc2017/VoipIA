@@ -1,0 +1,241 @@
+# =============================================================
+# AsteriskIA — Docker Compose
+# Orquestra todos os serviços do stack.
+# Uso: docker-compose up -d
+# =============================================================
+
+version: '3.9'
+
+networks:
+  asteriskia-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  asterisk_recordings:
+  prometheus_data:
+  grafana_data:
+
+services:
+
+  # -----------------------------------------------------------
+  # PostgreSQL 16 — Banco de dados principal
+  # -----------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: asteriskia-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Scripts de migração executados na primeira inicialização
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - asteriskia-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -----------------------------------------------------------
+  # Asterisk 21 LTS — PBX principal
+  # -----------------------------------------------------------
+  asterisk:
+    build:
+      context: ./asterisk
+      dockerfile: Dockerfile
+    container_name: asteriskia-asterisk
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AST_AMI_USER: ${AST_AMI_USER}
+      AST_AMI_PASSWORD: ${AST_AMI_PASSWORD}
+      SIP_TRUNK_HOST: ${SIP_TRUNK_HOST}
+      SIP_TRUNK_USER: ${SIP_TRUNK_USER}
+      SIP_TRUNK_PASSWORD: ${SIP_TRUNK_PASSWORD}
+    volumes:
+      - ./asterisk/config:/etc/asterisk:ro
+      - asterisk_recordings:/var/spool/asterisk/monitor
+    ports:
+      - "5060:5060/udp"       # SIP UDP
+      - "5060:5060/tcp"       # SIP TCP
+      - "5038:5038/tcp"       # AMI (Asterisk Manager Interface)
+      - "10000-10100:10000-10100/udp"  # RTP media
+    networks:
+      - asteriskia-net
+    healthcheck:
+      test: ["CMD", "asterisk", "-rx", "core show uptime"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # -----------------------------------------------------------
+  # Agente de IA — Python Audiosocket Server
+  # Processa áudio das chamadas: STT → LLM → TTS via Gemini
+  # -----------------------------------------------------------
+  ai-agent:
+    build:
+      context: ./ai-agent
+      dockerfile: Dockerfile
+    container_name: asteriskia-ai-agent
+    restart: unless-stopped
+    depends_on:
+      - asterisk
+      - postgres
+    environment:
+      AUDIOSOCKET_PORT: ${AUDIOSOCKET_PORT:-9092}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL_STT: ${GEMINI_MODEL_STT}
+      GEMINI_MODEL_LLM: ${GEMINI_MODEL_LLM}
+      GEMINI_MODEL_TTS: ${GEMINI_MODEL_TTS}
+      BACKEND_URL: http://backend:${BACKEND_PORT:-8080}
+      AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH}
+    volumes:
+      - asterisk_recordings:${AUDIO_STORAGE_PATH}
+    ports:
+      - "${AUDIOSOCKET_PORT:-9092}:9092"
+    networks:
+      - asteriskia-net
+
+  # -----------------------------------------------------------
+  # Scheduler — Python APScheduler
+  # Motor de agendamento para Módulo 2 (testes de conectividade)
+  # e Módulo 3 (polling Zabbix)
+  # -----------------------------------------------------------
+  scheduler:
+    build:
+      context: ./scheduler
+      dockerfile: Dockerfile
+    container_name: asteriskia-scheduler
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      asterisk:
+        condition: service_healthy
+    environment:
+      AST_AMI_HOST: asterisk
+      AST_AMI_PORT: ${AST_AMI_PORT:-5038}
+      AST_AMI_USER: ${AST_AMI_USER}
+      AST_AMI_PASSWORD: ${AST_AMI_PASSWORD}
+      BACKEND_URL: http://backend:${BACKEND_PORT:-8080}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      ZABBIX_API_URL: ${ZABBIX_API_URL}
+      ZABBIX_USER: ${ZABBIX_USER}
+      ZABBIX_PASSWORD: ${ZABBIX_PASSWORD}
+      ZABBIX_MIN_SEVERITY: ${ZABBIX_MIN_SEVERITY:-4}
+      ZABBIX_POLL_INTERVAL_MINUTES: ${ZABBIX_POLL_INTERVAL_MINUTES:-5}
+    networks:
+      - asteriskia-net
+
+  # -----------------------------------------------------------
+  # Backend — Spring Boot 3 (WAR no Tomcat 11 embutido)
+  # API REST principal do sistema
+  # -----------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: asteriskia-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      BACKEND_JWT_SECRET: ${BACKEND_JWT_SECRET}
+      BACKEND_ALLOWED_ORIGINS: ${BACKEND_ALLOWED_ORIGINS}
+      JIRA_BASE_URL: ${JIRA_BASE_URL}
+      JIRA_USER_EMAIL: ${JIRA_USER_EMAIL}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN}
+      JIRA_PROJECT_KEY: ${JIRA_PROJECT_KEY}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH}
+      AST_AMI_HOST: asterisk
+      AST_AMI_PORT: ${AST_AMI_PORT:-5038}
+      AST_AMI_USER: ${AST_AMI_USER}
+      AST_AMI_PASSWORD: ${AST_AMI_PASSWORD}
+    volumes:
+      - asterisk_recordings:${AUDIO_STORAGE_PATH}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    networks:
+      - asteriskia-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # -----------------------------------------------------------
+  # Frontend — React SPA servida por Nginx
+  # -----------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8080/api/v1}
+    container_name: asteriskia-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - asteriskia-net
+
+  # -----------------------------------------------------------
+  # Prometheus — Coleta de métricas
+  # -----------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: asteriskia-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - asteriskia-net
+
+  # -----------------------------------------------------------
+  # Grafana — Dashboards de monitoração
+  # -----------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: asteriskia-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    networks:
+      - asteriskia-net
