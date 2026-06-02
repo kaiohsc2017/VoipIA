@@ -91,7 +91,9 @@ RUN apt-get update && apt-get install -y \
     libspeexdsp1 \
     libpq5 \
     curl \
+    gettext-base \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Copia os binários compilados do builder
 COPY --from=builder /usr /usr

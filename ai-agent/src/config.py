@@ -20,6 +20,8 @@ GEMINI_MODEL_TTS: str = os.getenv("GEMINI_MODEL_TTS", "gemini-2.5-flash-preview-
 
 # --- Backend ---
 BACKEND_URL: str = os.getenv("BACKEND_URL", "http://backend:8080")
+# Chave compartilhada para auth interna — deve ser igual ao INTERNAL_API_KEY do backend
+INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "internal_changeme_dev")
 
 # --- Áudio ---
 AUDIO_STORAGE_PATH: str = os.getenv("AUDIO_STORAGE_PATH", "/var/asteriskia/recordings")

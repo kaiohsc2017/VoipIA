@@ -61,8 +61,9 @@ services:
       SIP_TRUNK_HOST: ${SIP_TRUNK_HOST}
       SIP_TRUNK_USER: ${SIP_TRUNK_USER}
       SIP_TRUNK_PASSWORD: ${SIP_TRUNK_PASSWORD}
+      SIP_TRUNK_FROM_DOMAIN: ${SIP_TRUNK_FROM_DOMAIN:-asteriskia.local}
     volumes:
-      - ./asterisk/config:/etc/asterisk:ro
+      - ./asterisk/config:/etc/asterisk
       - asterisk_recordings:/var/spool/asterisk/monitor
     ports:
       - "5060:5060/udp"       # SIP UDP
@@ -97,6 +98,7 @@ services:
       GEMINI_MODEL_LLM: ${GEMINI_MODEL_LLM}
       GEMINI_MODEL_TTS: ${GEMINI_MODEL_TTS}
       BACKEND_URL: http://backend:${BACKEND_PORT:-8080}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH}
     volumes:
       - asterisk_recordings:${AUDIO_STORAGE_PATH}
@@ -127,6 +129,7 @@ services:
       AST_AMI_USER: ${AST_AMI_USER}
       AST_AMI_PASSWORD: ${AST_AMI_PASSWORD}
       BACKEND_URL: http://backend:${BACKEND_PORT:-8080}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB}
@@ -159,6 +162,9 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       BACKEND_JWT_SECRET: ${BACKEND_JWT_SECRET}
       BACKEND_ALLOWED_ORIGINS: ${BACKEND_ALLOWED_ORIGINS}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       JIRA_BASE_URL: ${JIRA_BASE_URL}
       JIRA_USER_EMAIL: ${JIRA_USER_EMAIL}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN}
@@ -170,6 +176,11 @@ services:
       AST_AMI_PORT: ${AST_AMI_PORT:-5038}
       AST_AMI_USER: ${AST_AMI_USER}
       AST_AMI_PASSWORD: ${AST_AMI_PASSWORD}
+      ZABBIX_API_URL: ${ZABBIX_API_URL}
+      ZABBIX_USER: ${ZABBIX_USER}
+      ZABBIX_PASSWORD: ${ZABBIX_PASSWORD}
+      ZABBIX_MIN_SEVERITY: ${ZABBIX_MIN_SEVERITY:-4}
+      ZABBIX_POLL_INTERVAL_MINUTES: ${ZABBIX_POLL_INTERVAL_MINUTES:-5}
     volumes:
       - asterisk_recordings:${AUDIO_STORAGE_PATH}
     ports:
@@ -190,11 +201,12 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8080/api/v1}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080/api/v1}
     container_name: asteriskia-frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "80:80"
     networks:

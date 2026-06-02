@@ -1,18 +1,23 @@
 """
-gemini_service.py — Serviço de IA via Google Gemini
+gemini_service.py — Serviço de IA via Google Gemini (SDK google-genai)
+
 Encapsula STT (Speech-to-Text), LLM e TTS (Text-to-Speech).
 
-Todos os métodos trabalham com áudio no formato:
+Formatos de áudio:
   - Entrada (STT): PCM 8kHz 16bit signed little-endian mono (formato Asterisk)
-  - Saída (TTS): PCM 8kHz 16bit signed little-endian mono (formato Asterisk)
+  - Saída (TTS):   PCM 8kHz 16bit signed little-endian mono (formato Asterisk)
+
+Nota: usa o novo SDK `google-genai` (pip install google-genai),
+não o legado `google-generativeai`.
 """
 
 import io
 import logging
 import asyncio
+import struct
 import numpy as np
-import soundfile as sf
-import google.generativeai as genai
+import google.genai as genai
+import google.genai.types as genai_types
 from src.config import GEMINI_API_KEY, GEMINI_MODEL_STT, GEMINI_MODEL_LLM, GEMINI_MODEL_TTS
 
 logger = logging.getLogger("asteriskia.gemini")
@@ -29,14 +34,11 @@ class GeminiService:
     """
 
     def __init__(self):
-        genai.configure(api_key=GEMINI_API_KEY)
-        self._stt_model = genai.GenerativeModel(GEMINI_MODEL_STT)
-        self._llm_model = genai.GenerativeModel(GEMINI_MODEL_LLM)
-        self._tts_model = genai.GenerativeModel(GEMINI_MODEL_TTS)
+        self._client = genai.Client(api_key=GEMINI_API_KEY)
 
     async def transcribe(self, pcm_data: bytes) -> str:
         """
-        Converte áudio PCM (formato Asterisk) em texto via Gemini STT.
+        Converte áudio PCM (formato Asterisk) em texto via Gemini.
 
         Args:
             pcm_data: Áudio bruto PCM 8kHz/16bit/mono do Asterisk
@@ -45,17 +47,16 @@ class GeminiService:
             Texto transcrito ou string vazia em caso de erro
         """
         try:
-            # Converte PCM bruto para WAV (formato aceito pelo Gemini)
-            wav_bytes = self._pcm_to_wav(pcm_data, sample_rate=8000)
+            # Converte PCM bruto para WAV em memória
+            wav_bytes = _pcm_to_wav(pcm_data, sample_rate=8000)
 
-            # Executa STT em thread separada para não bloquear o event loop
+            # Executa STT em thread separada (API síncrona)
             result = await asyncio.to_thread(
-                self._call_stt_api,
-                wav_bytes
+                self._transcribe_sync, wav_bytes
             )
             return result.strip()
         except Exception as e:
-            logger.error(f"Erro no STT: {e}")
+            logger.error("Erro no STT: %s", e)
             return ""
 
     async def synthesize_speech(self, text: str) -> bytes:
@@ -69,27 +70,23 @@ class GeminiService:
             Bytes de áudio PCM 8kHz/16bit/mono compatível com Asterisk
         """
         try:
-            # Executa TTS em thread separada para não bloquear o event loop
-            audio_wav = await asyncio.to_thread(
-                self._call_tts_api,
-                text
+            audio_pcm = await asyncio.to_thread(
+                self._tts_sync, text
             )
-            # Converte WAV resultante para PCM 8kHz (formato Asterisk)
-            return self._wav_to_pcm8k(audio_wav)
+            return audio_pcm
         except Exception as e:
-            logger.error(f"Erro no TTS: {e}")
-            # Retorna silêncio em caso de erro (320 bytes = 20ms)
+            logger.error("Erro no TTS: %s", e)
+            # Retorna silêncio em caso de erro (320 bytes = 20ms @ 8kHz)
             return b'\x00' * 320
 
     async def generate_response(self, prompt: str, context: str = "") -> str:
         """
         Gera uma resposta de texto via Gemini LLM.
-        Usado para interpretar respostas do usuário e mapear
-        aos campos do Jira.
+        Usado para interpretar respostas do usuário e mapear aos campos do Jira.
 
         Args:
             prompt: Instrução para o modelo
-            context: Contexto adicional (histórico da conversa, etc.)
+            context: Contexto adicional (histórico da conversa)
 
         Returns:
             Resposta gerada pelo LLM
@@ -97,103 +94,124 @@ class GeminiService:
         try:
             full_prompt = f"{context}\n\n{prompt}" if context else prompt
             result = await asyncio.to_thread(
-                self._llm_model.generate_content,
-                full_prompt
+                self._llm_sync, full_prompt
             )
-            return result.text.strip()
+            return result.strip()
         except Exception as e:
-            logger.error(f"Erro no LLM: {e}")
+            logger.error("Erro no LLM: %s", e)
             return ""
 
     # ------------------------------------------------------------------
-    # Métodos privados — Conversão de formatos de áudio
+    # Métodos privados síncronos (executados em thread pool)
     # ------------------------------------------------------------------
 
-    def _pcm_to_wav(self, pcm_data: bytes, sample_rate: int = 8000) -> bytes:
+    def _transcribe_sync(self, wav_bytes: bytes) -> str:
+        """STT via Gemini — envia WAV e retorna transcrição."""
+        response = self._client.models.generate_content(
+            model=GEMINI_MODEL_STT,
+            contents=[
+                genai_types.Content(parts=[
+                    genai_types.Part(text=(
+                        "Transcreva exatamente o que foi dito neste áudio em português do Brasil. "
+                        "Retorne apenas o texto transcrito, sem pontuação adicional."
+                    )),
+                    genai_types.Part(inline_data=genai_types.Blob(
+                        mime_type="audio/wav",
+                        data=wav_bytes
+                    )),
+                ])
+            ]
+        )
+        return response.text or ""
+
+    def _tts_sync(self, text: str) -> bytes:
         """
-        Converte áudio PCM 16bit little-endian para WAV em memória.
+        TTS via Gemini — retorna áudio PCM 8kHz/16bit/mono.
 
-        Args:
-            pcm_data: Bytes PCM brutos
-            sample_rate: Taxa de amostragem (padrão Asterisk = 8000Hz)
-
-        Returns:
-            Bytes do arquivo WAV
+        O modelo TTS do Gemini retorna áudio em formato PCM L16 24kHz.
+        Fazemos o resample para 8kHz (formato Asterisk).
         """
-        # Interpreta bytes como array de inteiros 16bit signed
-        samples = np.frombuffer(pcm_data, dtype=np.int16)
-        # Normaliza para float32 [-1.0, 1.0]
-        float_samples = samples.astype(np.float32) / 32768.0
-
-        buffer = io.BytesIO()
-        sf.write(buffer, float_samples, sample_rate, format='WAV', subtype='PCM_16')
-        buffer.seek(0)
-        return buffer.read()
-
-    def _wav_to_pcm8k(self, wav_bytes: bytes) -> bytes:
-        """
-        Converte WAV para PCM 8kHz/16bit/mono (formato Asterisk).
-
-        Args:
-            wav_bytes: Conteúdo do arquivo WAV
-
-        Returns:
-            Bytes PCM 8kHz/16bit/mono
-        """
-        buffer = io.BytesIO(wav_bytes)
-        data, sample_rate = sf.read(buffer, dtype='float32')
-
-        # Converte para mono se necessário
-        if data.ndim > 1:
-            data = data.mean(axis=1)
-
-        # Resample para 8kHz se necessário
-        if sample_rate != 8000:
-            from scipy.signal import resample
-            num_samples = int(len(data) * 8000 / sample_rate)
-            data = resample(data, num_samples)
-
-        # Converte de float32 para int16 (PCM 16bit)
-        pcm_int16 = (data * 32767).clip(-32768, 32767).astype(np.int16)
-        return pcm_int16.tobytes()
-
-    def _call_stt_api(self, wav_bytes: bytes) -> str:
-        """Chamada síncrona ao Gemini STT (executada em thread separada)."""
-        import tempfile, os
-        # Salva WAV temporariamente para upload ao Gemini
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-            f.write(wav_bytes)
-            tmp_path = f.name
-
-        try:
-            audio_file = genai.upload_file(tmp_path, mime_type="audio/wav")
-            response = self._stt_model.generate_content([
-                "Transcreva exatamente o que foi dito neste áudio em português do Brasil. "
-                "Retorne apenas o texto transcrito, sem pontuação adicional.",
-                audio_file
-            ])
-            return response.text
-        finally:
-            os.unlink(tmp_path)
-
-    def _call_tts_api(self, text: str) -> bytes:
-        """
-        Chamada síncrona ao Gemini TTS (executada em thread separada).
-        Retorna áudio em formato WAV.
-        """
-        response = self._tts_model.generate_content(
-            text,
-            generation_config=genai.GenerationConfig(
+        response = self._client.models.generate_content(
+            model=GEMINI_MODEL_TTS,
+            contents=text,
+            config=genai_types.GenerateContentConfig(
                 response_modalities=["AUDIO"],
-                speech_config=genai.SpeechConfig(
-                    voice_config=genai.VoiceConfig(
-                        prebuilt_voice_config=genai.PrebuiltVoiceConfig(
-                            voice_name="Aoede"  # Voz feminina natural em PT-BR
+                speech_config=genai_types.SpeechConfig(
+                    voice_config=genai_types.VoiceConfig(
+                        prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
+                            voice_name="Aoede"  # Voz feminina, boa para PT-BR
                         )
                     )
                 )
             )
         )
-        # Extrai bytes de áudio da resposta
+
+        # Extrai dados de áudio bruto da resposta
         audio_data = response.candidates[0].content.parts[0].inline_data.data
-        return audio_data
+
+        # O Gemini TTS retorna PCM L16 @ 24kHz — resample para 8kHz (Asterisk)
+        return _resample_pcm(audio_data, from_hz=24000, to_hz=8000)
+
+    def _llm_sync(self, prompt: str) -> str:
+        """LLM via Gemini — gera resposta de texto."""
+        response = self._client.models.generate_content(
+            model=GEMINI_MODEL_LLM,
+            contents=prompt,
+        )
+        return response.text or ""
+
+
+# ------------------------------------------------------------------
+# Funções utilitárias de conversão de áudio
+# (sem dependência de soundfile — usa apenas numpy + stdlib)
+# ------------------------------------------------------------------
+
+def _pcm_to_wav(pcm_data: bytes, sample_rate: int = 8000) -> bytes:
+    """
+    Converte PCM 16bit little-endian para WAV em memória.
+    Usa apenas stdlib struct (sem soundfile).
+    """
+    num_samples = len(pcm_data) // 2  # 2 bytes por sample (16bit)
+    num_channels = 1
+    bits_per_sample = 16
+    byte_rate = sample_rate * num_channels * bits_per_sample // 8
+    block_align = num_channels * bits_per_sample // 8
+    data_size = len(pcm_data)
+    header_size = 44
+
+    buf = io.BytesIO()
+    # RIFF header
+    buf.write(b'RIFF')
+    buf.write(struct.pack('<I', header_size - 8 + data_size))
+    buf.write(b'WAVE')
+    # fmt chunk
+    buf.write(b'fmt ')
+    buf.write(struct.pack('<I', 16))           # chunk size
+    buf.write(struct.pack('<H', 1))            # PCM format
+    buf.write(struct.pack('<H', num_channels))
+    buf.write(struct.pack('<I', sample_rate))
+    buf.write(struct.pack('<I', byte_rate))
+    buf.write(struct.pack('<H', block_align))
+    buf.write(struct.pack('<H', bits_per_sample))
+    # data chunk
+    buf.write(b'data')
+    buf.write(struct.pack('<I', data_size))
+    buf.write(pcm_data)
+
+    return buf.getvalue()
+
+
+def _resample_pcm(pcm_data: bytes, from_hz: int, to_hz: int) -> bytes:
+    """
+    Resample PCM 16bit little-endian de from_hz para to_hz.
+    Usa interpolação linear via numpy (sem scipy).
+    """
+    if from_hz == to_hz:
+        return pcm_data
+
+    samples = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32)
+    num_out = int(len(samples) * to_hz / from_hz)
+    x_old = np.linspace(0, 1, len(samples))
+    x_new = np.linspace(0, 1, num_out)
+    resampled = np.interp(x_new, x_old, samples)
+    return resampled.astype(np.int16).tobytes()

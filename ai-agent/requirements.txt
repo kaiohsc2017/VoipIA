@@ -1,11 +1,8 @@
-# Servidor assíncrono Audiosocket
-asyncio-core>=3.4.3
 # Google Gemini SDK
-google-generativeai>=0.8.0
-# Processamento de áudio
-soundfile>=0.12.1
-numpy>=1.26.0
+google-genai>=1.0.0
 # HTTP para comunicação com o backend
 httpx>=0.27.0
+# Processamento de áudio
+numpy>=1.26.0
 # Variáveis de ambiente
 python-dotenv>=1.0.0

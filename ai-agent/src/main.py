@@ -24,6 +24,31 @@ logging.basicConfig(
 logger = logging.getLogger("asteriskia.main")
 
 
+def _detect_flow_type(call_uuid: str) -> str:
+    """
+    Determina o tipo de flow a partir do UUID da chamada.
+
+    Estratégia (em ordem de preferência):
+    1. Prefixo "alert-" no UUID → ZABBIX_ALERT
+       (O AmiOriginateService.originateAlertCall() prefixará o UUID ao chamar)
+    2. Qualquer outro UUID → JIRA_CALL
+
+    O prefixo é definido pelo lado do backend no momento do Originate.
+    O AmiOriginateService passa FLOW_TYPE=ZABBIX_ALERT como variável
+    de canal, que o dialplan repassa ao Audiosocket como parte do UUID
+    no formato "<flow_prefix>-<original-uuid>".
+
+    Args:
+        call_uuid: UUID bruto recebido no primeiro frame Audiosocket.
+
+    Returns:
+        "ZABBIX_ALERT" ou "JIRA_CALL"
+    """
+    if call_uuid.startswith("alert-"):
+        return "ZABBIX_ALERT"
+    return "JIRA_CALL"
+
+
 async def handle_connection(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter
@@ -48,18 +73,25 @@ async def handle_connection(
         logger.info(f"Chamada iniciada | UUID: {call_uuid}")
 
         # ---------------------------------------------------------
-        # Determinação do Flow
-        # O contexto da chamada é determinado pelo UUID prefixado
-        # com o tipo de fluxo ao ser originado via AMI.
-        # Por padrão, chamadas da extensão 1000 vão para o Jira,
-        # e chamadas com prefixo "alerta" vão para o Zabbix.
-        # Na Fase 1, implementaremos a lógica de roteamento
-        # consultando o backend via REST.
+        # Determinação do Flow pelo prefixo do UUID
+        #
+        # O AMI passa a variável FLOW_TYPE no campo ActionID ou
+        # como parte do UUID ao originar a chamada:
+        #   - UUID prefixado com "alert-" → ZabbixAlertFlow
+        #   - Qualquer outro              → JiraCallFlow
+        #
+        # Também suportamos consulta ao backend como fallback:
+        # GET /api/v1/alert-calls/by-uuid/{uuid} → 200 = Zabbix alert
         # ---------------------------------------------------------
 
-        # TODO (Fase 1 e 3): Consultar backend para determinar o flow
-        # Provisoriamente: todo fluxo usa JiraCallFlow
-        flow = JiraCallFlow(call_uuid, reader, writer)
+        flow_type = _detect_flow_type(call_uuid)
+        logger.info(f"Flow selecionado: {flow_type} | UUID: {call_uuid}")
+
+        if flow_type == "ZABBIX_ALERT":
+            flow = ZabbixAlertFlow(call_uuid, reader, writer)
+        else:
+            flow = JiraCallFlow(call_uuid, reader, writer)
+
         await flow.execute()
 
     except Exception as e:

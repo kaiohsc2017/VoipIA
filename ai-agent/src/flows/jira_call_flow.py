@@ -8,10 +8,9 @@ para abrir o chamado no Jira ao final.
 
 import asyncio
 import logging
-import httpx
-from src.config import BACKEND_URL
 from src.protocol import read_frame, write_audio
 from src.services.gemini_service import GeminiService
+from src.services import backend_client as bc
 
 logger = logging.getLogger("asteriskia.flow.jira")
 
@@ -166,31 +165,19 @@ class JiraCallFlow:
         return b"".join(audio_chunks)
 
     async def _fetch_questions(self) -> list[dict]:
-        """Busca perguntas ativas da URA no backend."""
+        """Busca perguntas ativas da URA no backend (autenticado)."""
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(f"{BACKEND_URL}/api/v1/ura/questions")
-                response.raise_for_status()
-                return response.json()
+            return await bc.get("/api/v1/ura/questions")
         except Exception as e:
             logger.error(f"[{self.call_uuid}] Erro ao buscar perguntas URA: {e}")
             return []
 
     async def _create_jira_issue(self) -> str | None:
-        """Envia dados coletados ao backend para criação do chamado no Jira."""
+        """Envia dados coletados ao backend para criação do chamado no Jira (autenticado)."""
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                payload = {
-                    "callUuid": self.call_uuid,
-                    "fields": self.collected_answers
-                }
-                response = await client.post(
-                    f"{BACKEND_URL}/api/v1/calls/register",
-                    json=payload
-                )
-                response.raise_for_status()
-                data = response.json()
-                return data.get("jiraIssueKey")
+            payload = {"callUuid": self.call_uuid, "fields": self.collected_answers}
+            data = await bc.post("/api/v1/calls/register", json=payload)
+            return data.get("jiraIssueKey")
         except Exception as e:
             logger.error(f"[{self.call_uuid}] Erro ao criar chamado Jira: {e}")
             return None

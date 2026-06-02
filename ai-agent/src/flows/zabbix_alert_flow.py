@@ -7,10 +7,9 @@ sintetiza em voz via TTS e reproduz para o destinatário.
 
 import asyncio
 import logging
-import httpx
-from src.config import BACKEND_URL
 from src.protocol import read_frame, write_audio
 from src.services.gemini_service import GeminiService
+from src.services import backend_client as bc
 
 logger = logging.getLogger("asteriskia.flow.zabbix")
 
@@ -24,6 +23,10 @@ class ZabbixAlertFlow:
       2. Sintetizar o conteúdo do incidente em voz (TTS)
       3. Reproduzir o alerta ao destinatário
       4. Notificar backend sobre o status da chamada
+
+    Nota: o call_uuid recebido pelo Audiosocket tem prefixo "alert-".
+    O backend armazena o UUID SEM o prefixo em asterisk_call_id,
+    então precisamos strip do prefixo antes de consultar.
     """
 
     def __init__(
@@ -33,6 +36,8 @@ class ZabbixAlertFlow:
         writer: asyncio.StreamWriter
     ):
         self.call_uuid = call_uuid
+        # Remove prefixo "alert-" para consultar o backend
+        self.backend_uuid = call_uuid.removeprefix("alert-")
         self.reader = reader
         self.writer = writer
         self.gemini = GeminiService()
@@ -76,25 +81,19 @@ class ZabbixAlertFlow:
         logger.info(f"[{self.call_uuid}] Fluxo de alerta Zabbix concluído")
 
     async def _fetch_alert_data(self) -> dict | None:
-        """Busca dados do alerta no backend pelo UUID da chamada."""
+        """Busca dados do alerta no backend pelo UUID da chamada (autenticado)."""
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    f"{BACKEND_URL}/api/v1/alert-calls/by-uuid/{self.call_uuid}"
-                )
-                response.raise_for_status()
-                return response.json()
+            return await bc.get(f"/api/v1/alert-calls/by-uuid/{self.backend_uuid}")
         except Exception as e:
             logger.error(f"[{self.call_uuid}] Erro ao buscar dados do alerta: {e}")
             return None
 
     async def _update_call_status(self, status: str) -> None:
-        """Atualiza o status da chamada de alerta no backend."""
+        """Atualiza o status da chamada de alerta no backend (autenticado)."""
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                await client.patch(
-                    f"{BACKEND_URL}/api/v1/alert-calls/by-uuid/{self.call_uuid}",
-                    json={"callStatus": status}
-                )
+            await bc.patch(
+                f"/api/v1/alert-calls/by-uuid/{self.backend_uuid}",
+                json={"callStatus": status}
+            )
         except Exception as e:
             logger.error(f"[{self.call_uuid}] Erro ao atualizar status do alerta: {e}")

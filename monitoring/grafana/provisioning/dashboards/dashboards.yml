@@ -1,0 +1,16 @@
+# =============================================================
+# dashboards.yml — Grafana dashboard provisioning
+# Carrega dashboards do diretório local automaticamente.
+# =============================================================
+
+apiVersion: 1
+
+providers:
+  - name: AsteriskIA
+    orgId: 1
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
