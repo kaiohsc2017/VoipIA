@@ -1,26 +1,153 @@
 """
 gemini_service.py — Serviço de IA via Google Gemini (SDK google-genai)
 
-Encapsula STT (Speech-to-Text), LLM e TTS (Text-to-Speech).
+Encapsula STT (Speech-to-Text), LLM com Function Calling e TTS (Text-to-Speech).
 
 Formatos de áudio:
   - Entrada (STT): PCM 8kHz 16bit signed little-endian mono (formato Asterisk)
   - Saída (TTS):   PCM 8kHz 16bit signed little-endian mono (formato Asterisk)
+
+Function Calling (Gemini Tools):
+  O Gemini pode invocar funções locais durante uma conversa para buscar dados
+  em tempo real (ex: status de pedido, consulta de saldo, protocolo de atendimento).
+  O ciclo é: LLM → identifica intenção → tool_call → executa função local → 
+  resposta final com dados reais.
 
 Nota: usa o novo SDK `google-genai` (pip install google-genai),
 não o legado `google-generativeai`.
 """
 
 import io
+import json
 import logging
 import asyncio
 import struct
+from typing import Any
 import numpy as np
 import google.genai as genai
 import google.genai.types as genai_types
 from src.config import GEMINI_API_KEY, GEMINI_MODEL_STT, GEMINI_MODEL_LLM, GEMINI_MODEL_TTS
 
 logger = logging.getLogger("asteriskia.gemini")
+
+
+# ─── Tool definitions (declaradas para o Gemini) ────────────────────────────────
+
+_TOOLS = genai_types.Tool(
+    function_declarations=[
+        genai_types.FunctionDeclaration(
+            name="consultar_status_pedido",
+            description=(
+                "Consulta o status de um pedido pelo número de protocolo ou CPF do cliente. "
+                "Use quando o cliente mencionar um protocolo, número de pedido ou seu CPF."
+            ),
+            parameters=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={
+                    "identificador": genai_types.Schema(
+                        type=genai_types.Type.STRING,
+                        description="CPF (somente números) ou número de protocolo do pedido",
+                    )
+                },
+                required=["identificador"],
+            ),
+        ),
+        genai_types.FunctionDeclaration(
+            name="abrir_protocolo_suporte",
+            description=(
+                "Abre um novo protocolo de suporte para o cliente. "
+                "Use quando o cliente solicitar abertura de chamado ou suporte técnico."
+            ),
+            parameters=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={
+                    "descricao": genai_types.Schema(
+                        type=genai_types.Type.STRING,
+                        description="Descrição resumida do problema informado pelo cliente",
+                    ),
+                    "prioridade": genai_types.Schema(
+                        type=genai_types.Type.STRING,
+                        enum=["BAIXA", "MEDIA", "ALTA", "CRITICA"],
+                        description="Prioridade do chamado",
+                    ),
+                },
+                required=["descricao"],
+            ),
+        ),
+    ]
+)
+
+
+# ─── Mock de banco de dados local ─────────────────────────────────────────────
+# Em produção, substituir por chamadas reais à API REST ou ao banco de dados.
+
+_PEDIDOS_DB: dict[str, dict[str, Any]] = {
+    "12345678900": {
+        "status": "Em Trânsito",
+        "protocolo": "PED-2024-001",
+        "produto": "Equipamento VoIP Cisco SPA504G",
+        "previsao": "03/06/2026",
+        "transportadora": "Correios",
+    },
+    "PED-2024-001": {
+        "status": "Em Trânsito",
+        "protocolo": "PED-2024-001",
+        "produto": "Equipamento VoIP Cisco SPA504G",
+        "previsao": "03/06/2026",
+        "transportadora": "Correios",
+    },
+    "98765432100": {
+        "status": "Entregue",
+        "protocolo": "PED-2024-002",
+        "produto": "Central IP Yealink T54W",
+        "previsao": "Entregue em 01/06/2026",
+        "transportadora": "Jadlog",
+    },
+}
+
+_protocolo_counter = 3000
+
+
+def _execute_tool(tool_name: str, args: dict[str, Any]) -> str:
+    """
+    Executa a função solicitada pelo Gemini e retorna o resultado como string JSON.
+    Esta é a camada de integração entre o LLM e o mundo real.
+    """
+    global _protocolo_counter
+
+    if tool_name == "consultar_status_pedido":
+        ident = args.get("identificador", "").strip().replace(".", "").replace("-", "")
+        pedido = _PEDIDOS_DB.get(ident)
+        if pedido:
+            return json.dumps({
+                "encontrado": True,
+                "protocolo": pedido["protocolo"],
+                "produto": pedido["produto"],
+                "status": pedido["status"],
+                "previsao_entrega": pedido["previsao"],
+                "transportadora": pedido["transportadora"],
+            }, ensure_ascii=False)
+        else:
+            return json.dumps({
+                "encontrado": False,
+                "mensagem": f"Não foi encontrado nenhum pedido para o identificador '{ident}'.",
+            }, ensure_ascii=False)
+
+    elif tool_name == "abrir_protocolo_suporte":
+        _protocolo_counter += 1
+        protocolo = f"SUP-{_protocolo_counter}"
+        descricao = args.get("descricao", "Sem descrição")
+        prioridade = args.get("prioridade", "MEDIA")
+        logger.info("Protocolo de suporte aberto: %s — %s [%s]", protocolo, descricao, prioridade)
+        return json.dumps({
+            "sucesso": True,
+            "protocolo": protocolo,
+            "descricao": descricao,
+            "prioridade": prioridade,
+            "mensagem": f"Protocolo {protocolo} aberto com sucesso. Nossa equipe entrará em contato em até 2 horas úteis.",
+        }, ensure_ascii=False)
+
+    return json.dumps({"erro": f"Função '{tool_name}' não reconhecida."})
 
 
 class GeminiService:
@@ -31,6 +158,7 @@ class GeminiService:
       - transcribe(pcm_data: bytes) -> str
       - synthesize_speech(text: str) -> bytes
       - generate_response(prompt: str, context: str) -> str
+      - generate_response_with_tools(system: str, history: list) -> str  [com Function Calling]
     """
 
     def __init__(self):
@@ -38,7 +166,7 @@ class GeminiService:
 
     async def transcribe(self, pcm_data: bytes) -> str:
         """
-        Converte áudio PCM (formato Asterisk) em texto via Gemini.
+        Converte áudio PCM (formato Asterisk) em texto via Gemini STT.
 
         Args:
             pcm_data: Áudio bruto PCM 8kHz/16bit/mono do Asterisk
@@ -47,13 +175,8 @@ class GeminiService:
             Texto transcrito ou string vazia em caso de erro
         """
         try:
-            # Converte PCM bruto para WAV em memória
             wav_bytes = _pcm_to_wav(pcm_data, sample_rate=8000)
-
-            # Executa STT em thread separada (API síncrona)
-            result = await asyncio.to_thread(
-                self._transcribe_sync, wav_bytes
-            )
+            result = await asyncio.to_thread(self._transcribe_sync, wav_bytes)
             return result.strip()
         except Exception as e:
             logger.error("Erro no STT: %s", e)
@@ -70,35 +193,50 @@ class GeminiService:
             Bytes de áudio PCM 8kHz/16bit/mono compatível com Asterisk
         """
         try:
-            audio_pcm = await asyncio.to_thread(
-                self._tts_sync, text
-            )
-            return audio_pcm
+            return await asyncio.to_thread(self._tts_sync, text)
         except Exception as e:
             logger.error("Erro no TTS: %s", e)
-            # Retorna silêncio em caso de erro (320 bytes = 20ms @ 8kHz)
-            return b'\x00' * 320
+            return b'\x00' * 320  # silêncio (20ms @ 8kHz)
 
     async def generate_response(self, prompt: str, context: str = "") -> str:
         """
-        Gera uma resposta de texto via Gemini LLM.
-        Usado para interpretar respostas do usuário e mapear aos campos do Jira.
-
-        Args:
-            prompt: Instrução para o modelo
-            context: Contexto adicional (histórico da conversa)
-
-        Returns:
-            Resposta gerada pelo LLM
+        Gera uma resposta de texto via Gemini LLM (sem Function Calling).
+        Usado para respostas simples de mapeamento de campos.
         """
         try:
             full_prompt = f"{context}\n\n{prompt}" if context else prompt
-            result = await asyncio.to_thread(
-                self._llm_sync, full_prompt
-            )
-            return result.strip()
+            return (await asyncio.to_thread(self._llm_sync, full_prompt)).strip()
         except Exception as e:
             logger.error("Erro no LLM: %s", e)
+            return ""
+
+    async def generate_response_with_tools(
+        self,
+        system_instruction: str,
+        history: list[dict[str, str]],
+    ) -> str:
+        """
+        Gera uma resposta via Gemini com Function Calling habilitado.
+
+        O ciclo completo:
+          1. Envia histórico + tools ao Gemini
+          2. Se o modelo retornar uma function_call → executa localmente
+          3. Envia o resultado de volta ao Gemini para gerar resposta final em texto
+          4. Retorna o texto final
+
+        Args:
+            system_instruction: Prompt de sistema (papel do agente)
+            history: Lista de turnos [{"role": "user"|"model", "text": "..."}]
+
+        Returns:
+            Resposta final do Gemini (texto puro, já com os dados da função)
+        """
+        try:
+            return await asyncio.to_thread(
+                self._llm_with_tools_sync, system_instruction, history
+            )
+        except Exception as e:
+            logger.error("Erro no LLM+Tools: %s", e)
             return ""
 
     # ------------------------------------------------------------------
@@ -127,9 +265,7 @@ class GeminiService:
     def _tts_sync(self, text: str) -> bytes:
         """
         TTS via Gemini — retorna áudio PCM 8kHz/16bit/mono.
-
-        O modelo TTS do Gemini retorna áudio em formato PCM L16 24kHz.
-        Fazemos o resample para 8kHz (formato Asterisk).
+        O modelo retorna PCM L16 24kHz; fazemos resample para 8kHz (Asterisk).
         """
         response = self._client.models.generate_content(
             model=GEMINI_MODEL_TTS,
@@ -139,26 +275,98 @@ class GeminiService:
                 speech_config=genai_types.SpeechConfig(
                     voice_config=genai_types.VoiceConfig(
                         prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
-                            voice_name="Aoede"  # Voz feminina, boa para PT-BR
+                            voice_name="Aoede"
                         )
                     )
                 )
             )
         )
-
-        # Extrai dados de áudio bruto da resposta
         audio_data = response.candidates[0].content.parts[0].inline_data.data
-
-        # O Gemini TTS retorna PCM L16 @ 24kHz — resample para 8kHz (Asterisk)
         return _resample_pcm(audio_data, from_hz=24000, to_hz=8000)
 
     def _llm_sync(self, prompt: str) -> str:
-        """LLM via Gemini — gera resposta de texto."""
+        """LLM via Gemini — gera resposta de texto simples (sem tools)."""
         response = self._client.models.generate_content(
             model=GEMINI_MODEL_LLM,
             contents=prompt,
         )
         return response.text or ""
+
+    def _llm_with_tools_sync(
+        self,
+        system_instruction: str,
+        history: list[dict[str, str]],
+    ) -> str:
+        """
+        LLM com Function Calling — ciclo completo em modo síncrono.
+        Suporta múltiplos turnos de function_call antes da resposta final.
+        """
+        # Converte histórico para o formato genai_types.Content
+        contents: list[genai_types.Content] = []
+        for turn in history:
+            role = turn["role"]  # "user" ou "model"
+            contents.append(genai_types.Content(
+                role=role,
+                parts=[genai_types.Part(text=turn["text"])]
+            ))
+
+        config = genai_types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            tools=[_TOOLS],
+            tool_config=genai_types.ToolConfig(
+                function_calling_config=genai_types.FunctionCallingConfig(
+                    mode=genai_types.FunctionCallingConfig.Mode.AUTO,
+                )
+            ),
+        )
+
+        # Ciclo de agentic loop (máx. 5 iterações para evitar loops infinitos)
+        for _ in range(5):
+            response = self._client.models.generate_content(
+                model=GEMINI_MODEL_LLM,
+                contents=contents,
+                config=config,
+            )
+
+            candidate = response.candidates[0]
+
+            # Verifica se há function_call(s) na resposta
+            tool_calls = [
+                p.function_call
+                for p in candidate.content.parts
+                if p.function_call is not None
+            ]
+
+            if not tool_calls:
+                # Sem function_call — resposta final de texto
+                return response.text or ""
+
+            # Adiciona a resposta do modelo ao histórico
+            contents.append(candidate.content)
+
+            # Executa cada função e adiciona os resultados ao histórico
+            function_results = []
+            for fc in tool_calls:
+                logger.info("Gemini solicitou função: %s(%s)", fc.name, fc.args)
+                result_str = _execute_tool(fc.name, dict(fc.args))
+                logger.info("Resultado da função %s: %s", fc.name, result_str)
+
+                function_results.append(
+                    genai_types.Part(
+                        function_response=genai_types.FunctionResponse(
+                            name=fc.name,
+                            response={"result": result_str},
+                        )
+                    )
+                )
+
+            contents.append(genai_types.Content(
+                role="user",
+                parts=function_results,
+            ))
+
+        logger.warning("Máximo de iterações atingido no agentic loop")
+        return "Desculpe, não consegui processar sua solicitação no momento."
 
 
 # ------------------------------------------------------------------
@@ -171,7 +379,6 @@ def _pcm_to_wav(pcm_data: bytes, sample_rate: int = 8000) -> bytes:
     Converte PCM 16bit little-endian para WAV em memória.
     Usa apenas stdlib struct (sem soundfile).
     """
-    num_samples = len(pcm_data) // 2  # 2 bytes por sample (16bit)
     num_channels = 1
     bits_per_sample = 16
     byte_rate = sample_rate * num_channels * bits_per_sample // 8
@@ -180,20 +387,17 @@ def _pcm_to_wav(pcm_data: bytes, sample_rate: int = 8000) -> bytes:
     header_size = 44
 
     buf = io.BytesIO()
-    # RIFF header
     buf.write(b'RIFF')
     buf.write(struct.pack('<I', header_size - 8 + data_size))
     buf.write(b'WAVE')
-    # fmt chunk
     buf.write(b'fmt ')
-    buf.write(struct.pack('<I', 16))           # chunk size
-    buf.write(struct.pack('<H', 1))            # PCM format
+    buf.write(struct.pack('<I', 16))
+    buf.write(struct.pack('<H', 1))
     buf.write(struct.pack('<H', num_channels))
     buf.write(struct.pack('<I', sample_rate))
     buf.write(struct.pack('<I', byte_rate))
     buf.write(struct.pack('<H', block_align))
     buf.write(struct.pack('<H', bits_per_sample))
-    # data chunk
     buf.write(b'data')
     buf.write(struct.pack('<I', data_size))
     buf.write(pcm_data)

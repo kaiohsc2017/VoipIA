@@ -69,6 +69,7 @@ services:
       - "5060:5060/udp"       # SIP UDP
       - "5060:5060/tcp"       # SIP TCP
       - "5038:5038/tcp"       # AMI (Asterisk Manager Interface)
+      - "8088:8088/tcp"       # HTTP/WS para WebRTC
       - "10000-10100:10000-10100/udp"  # RTP media
     networks:
       - asteriskia-net

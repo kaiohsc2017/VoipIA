@@ -4,6 +4,11 @@ jira_call_flow.py — Fluxo URA para abertura de chamado no Jira (Módulo 1)
 Conduz a conversa com o cliente via TTS/STT usando Google Gemini,
 coleta respostas para cada pergunta da URA e notifica o backend
 para abrir o chamado no Jira ao final.
+
+Com Function Calling habilitado, o Gemini pode:
+  - Consultar status de pedido por CPF/protocolo
+  - Abrir protocolos de suporte autonomamente
+  - Responder perguntas contextuais durante a conversa
 """
 
 import asyncio
@@ -42,34 +47,59 @@ class JiraCallFlow:
         """Executa o fluxo completo da URA."""
         logger.info(f"[{self.call_uuid}] Iniciando fluxo URA Jira")
 
-        # 1. Busca perguntas configuradas no backend
-        questions = await self._fetch_questions()
-        if not questions:
-            await self._speak("Desculpe, ocorreu um erro ao carregar o sistema. Tente novamente.")
-            return
-
-        # 2. Boas-vindas
+        # 1. Boas-vindas
         await self._speak(
-            "Bem-vindo ao sistema de abertura de chamados. "
-            "Vou fazer algumas perguntas para registrar seu atendimento."
+            "Bem-vindo ao sistema de atendimento AsteriskIA. "
+            "Posso ajudar com consultas de pedidos, abertura de chamados ou suporte. "
+            "Como posso te ajudar hoje?"
         )
 
-        # 3. Para cada pergunta: fala → ouve → transcreve → armazena
+        # 2. Turno conversacional livre com Function Calling
+        #    O cliente pode perguntar sobre pedido, abrir chamado, etc.
+        user_audio = await self._capture_audio(silence_timeout=4.0, max_duration=20.0)
+        if user_audio:
+            user_text = await self.gemini.transcribe(user_audio)
+            if user_text:
+                logger.info(f"[{self.call_uuid}] Cliente disse: '{user_text}'")
+
+                system_prompt = (
+                    "Você é uma assistente virtual de atendimento ao cliente do sistema AsteriskIA. "
+                    "Responda de forma breve, clara e em português do Brasil. "
+                    "Quando o cliente solicitar informações sobre um pedido, use a função disponibilizada. "
+                    "Ao abrir um protocolo, confirme o número gerado para o cliente."
+                )
+
+                response_text = await self.gemini.generate_response_with_tools(
+                    system_instruction=system_prompt,
+                    history=[{"role": "user", "text": user_text}],
+                )
+
+                if response_text:
+                    await self._speak(response_text)
+                    self.collected_answers["description"] = user_text
+
+        # 3. Busca perguntas estruturadas da URA
+        questions = await self._fetch_questions()
+        if not questions:
+            await self._speak("Desculpe, ocorreu um erro ao carregar as perguntas. Tente novamente.")
+            return
+
+        # 4. Para cada pergunta: fala → ouve → transcreve → armazena
         for question in questions:
             answer = await self._ask_question(question["question_text"])
             if answer:
                 self.collected_answers[question["jira_field_key"]] = answer
                 logger.info(f"[{self.call_uuid}] Campo '{question['jira_field_key']}' = '{answer}'")
 
-        # 4. Confirmação antes de abrir
+        # 5. Confirmação antes de abrir
         await self._speak(
             "Obrigado! Estou registrando seu chamado. Por favor, aguarde um momento."
         )
 
-        # 5. Notifica backend para criar o chamado
+        # 6. Notifica backend para criar o chamado
         issue_key = await self._create_jira_issue()
 
-        # 6. Confirma para o cliente
+        # 7. Confirma para o cliente
         if issue_key:
             await self._speak(
                 f"Seu chamado foi aberto com sucesso. O número do seu protocolo é "

@@ -8,6 +8,8 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- SockJS como global UMD (sockjs-client não tem tipos TS oficiais) -->
+    <script src="/node_modules/sockjs-client/dist/sockjs.min.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

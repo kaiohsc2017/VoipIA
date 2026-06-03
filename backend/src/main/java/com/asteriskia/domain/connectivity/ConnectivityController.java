@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.List;
 
@@ -33,6 +34,7 @@ public class ConnectivityController {
 
     private final NumberTestRepository numberTestRepo;
     private final TestResultRepository testResultRepo;
+    private final SimpMessagingTemplate messagingTemplate;
 
     // -----------------------------------------------------------------------
     // NumberTest — CRUD
@@ -118,7 +120,15 @@ public class ConnectivityController {
         log.info("Resultado de teste registrado: numberTest={} status={}",
                 result.getNumberTest() != null ? result.getNumberTest().getId() : "?",
                 result.getStatus());
-        return ResponseEntity.status(HttpStatus.CREATED).body(testResultRepo.save(result));
+        
+        TestResult saved = testResultRepo.save(result);
+        try {
+            messagingTemplate.convertAndSend("/topic/test-results", saved);
+        } catch (Exception e) {
+            log.warn("Erro ao enviar WebSocket de TestResult: {}", e.getMessage());
+        }
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 }
 

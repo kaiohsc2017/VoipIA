@@ -114,6 +114,14 @@
         </dependency>
 
         <!-- ============================================================
+             WEBSOCKETS — Tempo real para o frontend
+             ============================================================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
+        <!-- ============================================================
              AGENDAMENTO — Para polling do Zabbix (Módulo 3)
              ============================================================ -->
         <!-- Spring Schedule nativo já está incluído no spring-boot-starter -->

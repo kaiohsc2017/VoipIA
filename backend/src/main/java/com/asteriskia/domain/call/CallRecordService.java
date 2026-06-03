@@ -12,6 +12,8 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+
 /**
  * CallRecordService — Lógica de negócio dos registros de chamada.
  *
@@ -27,6 +29,7 @@ public class CallRecordService {
 
     private final CallRecordRepository repository;
     private final JiraIntegrationService jiraService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * Registra uma nova chamada e cria o issue correspondente no Jira.
@@ -77,6 +80,13 @@ public class CallRecordService {
             }
         } catch (Exception e) {
             log.error("Erro na integração Jira para chamada {}: {}", callUuid, e.getMessage());
+        }
+
+        // Envia notificação WebSocket em tempo real para o Frontend
+        try {
+            messagingTemplate.convertAndSend("/topic/calls", record);
+        } catch (Exception e) {
+            log.warn("Erro ao enviar WebSocket de nova chamada: {}", e.getMessage());
         }
 
         return record;

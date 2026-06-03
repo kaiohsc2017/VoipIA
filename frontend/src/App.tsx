@@ -6,6 +6,7 @@ import Dashboard from './components/Dashboard';
 import ModuloURA from './components/ModuloURA';
 import ModuloConectividade from './components/ModuloConectividade';
 import ModuloAlertas from './components/ModuloAlertas';
+import Softphone from './components/Softphone';
 
 export default function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('asteriskia_token'));
@@ -53,6 +54,9 @@ export default function App() {
         {page === 'modulo2'    && <ModuloConectividade />}
         {page === 'modulo3'    && <ModuloAlertas />}
       </main>
+
+      {/* Softphone WebRTC — flutuante em todas as páginas */}
+      <Softphone />
     </div>
   );
 }
