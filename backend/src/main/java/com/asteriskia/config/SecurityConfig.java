@@ -17,6 +17,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  *   - POST /api/v1/auth/login        → obter token JWT (frontend)
  *   - /swagger-ui/**, /api-docs/**   → documentação
  *   - /actuator/health, /prometheus  → monitoração
+ *   - /ws/**                         → WebSocket STOMP/SockJS (handshake inicial sem token)
+ *
+ * Nota sobre /ws: o SockJS faz um GET em /ws/info antes do upgrade WebSocket.
+ * Sem liberar /ws/**, o Spring Security retorna 401 nessa requisição e
+ * a conexão do Dashboard em tempo real falha. A autenticação de mensagens
+ * STOMP pode ser adicionada via WebSocketSecurityConfig se necessário.
  *
  * Serviços internos (AI Agent, Scheduler) autenticam via X-Internal-Key header.
  * Frontend e usuários autenticam via Bearer JWT.
@@ -43,7 +49,8 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/api-docs/**",
                                 "/actuator/health",
-                                "/actuator/prometheus"
+                                "/actuator/prometheus",
+                                "/ws/**"            // SockJS handshake (GET /ws/info) e upgrade WebSocket
                         ).permitAll()
                         // Todos os demais endpoints exigem autenticação (JWT ou InternalKey)
                         .anyRequest().authenticated()
