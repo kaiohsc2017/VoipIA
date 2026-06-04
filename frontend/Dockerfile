@@ -15,8 +15,21 @@ RUN npm ci --silent
 
 # Copia restante e builda
 COPY . .
+
+# Variáveis de build injetadas pelo docker-compose (via .env)
+# ⚠️  Todas as variáveis VITE_ precisam ser ARGs/ENVs — são resolvidas em BUILD TIME,
+#    não em runtime. Sem isso, o valor padrão do código é usado (ex: localhost).
 ARG VITE_API_URL=http://localhost:8080/api/v1
 ENV VITE_API_URL=$VITE_API_URL
+
+ARG VITE_ASTERISK_WS=ws://localhost:8088/ws
+ENV VITE_ASTERISK_WS=$VITE_ASTERISK_WS
+
+ARG VITE_SIP_URI=sip:9001@localhost
+ENV VITE_SIP_URI=$VITE_SIP_URI
+
+ARG VITE_SIP_PASSWORD=webrtc9001pass
+ENV VITE_SIP_PASSWORD=$VITE_SIP_PASSWORD
 
 RUN npm run build
 

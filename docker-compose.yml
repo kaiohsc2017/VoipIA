@@ -203,6 +203,9 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8080/api/v1}
+        VITE_ASTERISK_WS: ${VITE_ASTERISK_WS:-ws://localhost:8088/ws}
+        VITE_SIP_URI: ${VITE_SIP_URI:-sip:9001@localhost}
+        VITE_SIP_PASSWORD: ${VITE_SIP_PASSWORD:-webrtc9001pass}
     container_name: asteriskia-frontend
     restart: unless-stopped
     depends_on:
