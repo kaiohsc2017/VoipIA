@@ -4,12 +4,14 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>AsteriskIA</title>
   </head>
   <body>
     <div id="root"></div>
-    <!-- SockJS como global UMD (sockjs-client não tem tipos TS oficiais) -->
-    <script src="/node_modules/sockjs-client/dist/sockjs.min.js"></script>
+    <!-- SockJS como global UMD (sockjs-client não tem tipos TS oficiais)
+         IMPORTANTE: o arquivo sockjs.min.js fica em frontend/public/ para ser
+         servido corretamente pelo Nginx em produção. Nunca use /node_modules/. -->
+    <script src="/sockjs.min.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
