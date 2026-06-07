@@ -30,19 +30,19 @@ public class NumberTest {
     @Column(name = "phone_number", nullable = false, length = 20)
     private String phoneNumber;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "business_unit_id", nullable = false)
     private BusinessUnit businessUnit;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "client_id", nullable = false)
     private Client client;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "operation_id", nullable = false)
     private Operation operation;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "segment_id", nullable = false)
     private Segment segment;
 

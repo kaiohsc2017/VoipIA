@@ -1,6 +1,5 @@
 package com.asteriskia.domain.masterdata;
 
-import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +32,7 @@ public class MasterDataController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/business-units")
-    @Operation(summary = "Lista Business Units")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Lista Business Units")
     public ResponseEntity<List<BusinessUnit>> listBUs(@RequestParam(required = false) Boolean active) {
         List<BusinessUnit> result = active != null
                 ? buRepo.findByIsActive(active)
@@ -42,20 +41,20 @@ public class MasterDataController {
     }
 
     @PostMapping("/business-units")
-    @Operation(summary = "Cria Business Unit")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Cria Business Unit")
     public ResponseEntity<BusinessUnit> createBU(@Valid @RequestBody BusinessUnit bu) {
         return ResponseEntity.status(HttpStatus.CREATED).body(buRepo.save(bu));
     }
 
     @PutMapping("/business-units/{id}")
-    @Operation(summary = "Atualiza Business Unit")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Atualiza Business Unit")
     public ResponseEntity<BusinessUnit> updateBU(@PathVariable Integer id, @Valid @RequestBody BusinessUnit bu) {
         bu.setId(id);
         return ResponseEntity.ok(buRepo.save(bu));
     }
 
     @DeleteMapping("/business-units/{id}")
-    @Operation(summary = "Remove Business Unit")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Remove Business Unit")
     public ResponseEntity<Void> deleteBU(@PathVariable Integer id) {
         buRepo.deleteById(id);
         return ResponseEntity.noContent().build();
@@ -66,7 +65,7 @@ public class MasterDataController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/segments")
-    @Operation(summary = "Lista Segmentos")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Lista Segmentos")
     public ResponseEntity<List<Segment>> listSegments(@RequestParam(required = false) Boolean active) {
         List<Segment> result = active != null
                 ? segRepo.findByIsActive(active)
@@ -75,20 +74,20 @@ public class MasterDataController {
     }
 
     @PostMapping("/segments")
-    @Operation(summary = "Cria Segmento")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Cria Segmento")
     public ResponseEntity<Segment> createSegment(@Valid @RequestBody Segment seg) {
         return ResponseEntity.status(HttpStatus.CREATED).body(segRepo.save(seg));
     }
 
     @PutMapping("/segments/{id}")
-    @Operation(summary = "Atualiza Segmento")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Atualiza Segmento")
     public ResponseEntity<Segment> updateSegment(@PathVariable Integer id, @Valid @RequestBody Segment seg) {
         seg.setId(id);
         return ResponseEntity.ok(segRepo.save(seg));
     }
 
     @DeleteMapping("/segments/{id}")
-    @Operation(summary = "Remove Segmento")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Remove Segmento")
     public ResponseEntity<Void> deleteSegment(@PathVariable Integer id) {
         segRepo.deleteById(id);
         return ResponseEntity.noContent().build();
@@ -99,7 +98,7 @@ public class MasterDataController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/clients")
-    @Operation(summary = "Lista Clientes")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Lista Clientes")
     public ResponseEntity<List<Client>> listClients(@RequestParam(required = false) Boolean active) {
         List<Client> result = active != null
                 ? clientRepo.findByIsActive(active)
@@ -108,20 +107,20 @@ public class MasterDataController {
     }
 
     @PostMapping("/clients")
-    @Operation(summary = "Cria Cliente")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Cria Cliente")
     public ResponseEntity<Client> createClient(@Valid @RequestBody Client client) {
         return ResponseEntity.status(HttpStatus.CREATED).body(clientRepo.save(client));
     }
 
     @PutMapping("/clients/{id}")
-    @Operation(summary = "Atualiza Cliente")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Atualiza Cliente")
     public ResponseEntity<Client> updateClient(@PathVariable Integer id, @Valid @RequestBody Client client) {
         client.setId(id);
         return ResponseEntity.ok(clientRepo.save(client));
     }
 
     @DeleteMapping("/clients/{id}")
-    @Operation(summary = "Remove Cliente")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Remove Cliente")
     public ResponseEntity<Void> deleteClient(@PathVariable Integer id) {
         clientRepo.deleteById(id);
         return ResponseEntity.noContent().build();
@@ -129,7 +128,7 @@ public class MasterDataController {
 
     /** Vincula operação a cliente (N:N). */
     @PostMapping("/clients/{clientId}/operations/{operationId}")
-    @Operation(summary = "Vincula operação ao cliente")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Vincula operação ao cliente")
     @Transactional
     public ResponseEntity<Void> addOperation(@PathVariable Integer clientId, @PathVariable Integer operationId) {
         Client client = clientRepo.findById(clientId)
@@ -143,7 +142,7 @@ public class MasterDataController {
 
     /** Lista operações disponíveis para um cliente. */
     @GetMapping("/clients/{clientId}/operations")
-    @Operation(summary = "Lista operações vinculadas ao cliente")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Lista operações vinculadas ao cliente")
     public ResponseEntity<List<Operation>> getClientOperations(@PathVariable Integer clientId) {
         Client client = clientRepo.findById(clientId)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado: " + clientId));
@@ -155,33 +154,29 @@ public class MasterDataController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/operations")
-    @Operation(summary = "Lista Operações")
-    public ResponseEntity<List<com.asteriskia.domain.masterdata.Operation>> listOps(
-            @RequestParam(required = false) Boolean active) {
-        List<com.asteriskia.domain.masterdata.Operation> result = active != null
+    @io.swagger.v3.oas.annotations.Operation(summary = "Lista Operações")
+    public ResponseEntity<List<Operation>> listOps(@RequestParam(required = false) Boolean active) {
+        List<Operation> result = active != null
                 ? opRepo.findByIsActive(active)
                 : opRepo.findAll();
         return ResponseEntity.ok(result);
     }
 
     @PostMapping("/operations")
-    @Operation(summary = "Cria Operação")
-    public ResponseEntity<com.asteriskia.domain.masterdata.Operation> createOp(
-            @Valid @RequestBody com.asteriskia.domain.masterdata.Operation op) {
+    @io.swagger.v3.oas.annotations.Operation(summary = "Cria Operação")
+    public ResponseEntity<Operation> createOp(@Valid @RequestBody Operation op) {
         return ResponseEntity.status(HttpStatus.CREATED).body(opRepo.save(op));
     }
 
     @PutMapping("/operations/{id}")
-    @Operation(summary = "Atualiza Operação")
-    public ResponseEntity<com.asteriskia.domain.masterdata.Operation> updateOp(
-            @PathVariable Integer id,
-            @Valid @RequestBody com.asteriskia.domain.masterdata.Operation op) {
+    @io.swagger.v3.oas.annotations.Operation(summary = "Atualiza Operação")
+    public ResponseEntity<Operation> updateOp(@PathVariable Integer id, @Valid @RequestBody Operation op) {
         op.setId(id);
         return ResponseEntity.ok(opRepo.save(op));
     }
 
     @DeleteMapping("/operations/{id}")
-    @Operation(summary = "Remove Operação")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Remove Operação")
     public ResponseEntity<Void> deleteOp(@PathVariable Integer id) {
         opRepo.deleteById(id);
         return ResponseEntity.noContent().build();

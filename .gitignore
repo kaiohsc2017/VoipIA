@@ -5,6 +5,15 @@
 # Variáveis de ambiente (NUNCA commitar)
 .env
 
+# Diretório de secrets de produção — NÃO É PARTE DO REPOSITÓRIO
+# Fica em /opt/AsteriskIA/env/ na VPS (fora do git working tree)
+env/
+
+# Configs Asterisk COM credenciais reais (versionadas como .template)
+# O arquivo .template fica no git; o real fica no servidor ou é gerado
+asterisk/config/pjsip.conf
+asterisk/config/manager.conf
+
 # --- Java / Maven ---
 backend/target/
 backend/.mvn/

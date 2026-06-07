@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -17,12 +18,6 @@ import java.util.List;
 
 /**
  * InternalKeyFilter — Autenticação de serviços internos via X-Internal-Key.
- *
- * Usado pelo AI Agent Python e pelo Scheduler para se autenticar no backend
- * sem precisar de um token JWT por usuário. A chave é compartilhada via
- * variável de ambiente INTERNAL_API_KEY.
- *
- * Segurança: a chave só trafega na rede Docker interna (sem exposição externa).
  */
 @Slf4j
 @Component
@@ -41,6 +36,7 @@ public class InternalKeyFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         String key = request.getHeader(HEADER);
+        log.info("InternalKeyFilter: key received = [{}], configured internalApiKey = [{}]", key, internalApiKey);
 
         if (key != null && key.equals(internalApiKey)
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -49,10 +45,12 @@ public class InternalKeyFilter extends OncePerRequestFilter {
                     new UsernamePasswordAuthenticationToken(
                             "internal-service",
                             null,
-                            List.of()
+                            List.of(new SimpleGrantedAuthority("ROLE_INTERNAL"))
                     );
             SecurityContextHolder.getContext().setAuthentication(auth);
-            log.debug("Requisição autenticada via InternalKey: {}", request.getRequestURI());
+            log.info("Requisição autenticada com sucesso via InternalKey (ROLE_INTERNAL) para URI: {}", request.getRequestURI());
+        } else if (key != null) {
+            log.warn("Falha de autenticação InternalKey. Recebido: [{}], Esperado: [{}]", key, internalApiKey);
         }
 
         filterChain.doFilter(request, response);

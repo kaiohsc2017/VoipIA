@@ -22,7 +22,7 @@ public class TestResult {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "number_test_id", nullable = false)
     private NumberTest numberTest;
 
