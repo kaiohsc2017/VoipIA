@@ -211,8 +211,8 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    ports:
-      - "80:80"
+    # Sem mapeamento de porta no host — o Caddy acessa via rede Docker interna
+    # (asteriskia-frontend:80). Expor 80:80 conflitaria com o caddy-proxy.
     networks:
       - asteriskia-net
 
