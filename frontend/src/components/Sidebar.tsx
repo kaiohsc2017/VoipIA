@@ -1,4 +1,4 @@
-type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users';
+type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings';
 
 interface SidebarProps {
   currentPage: Page;
@@ -14,6 +14,7 @@ const NAV_ITEMS: { page: Page; icon: string; label: string; section: string }[] 
   { page: 'modulo3',    icon: '🚨', label: 'Alertas Zabbix',    section: 'MÓDULOS' },
   { page: 'masterdata', icon: '⚙️',  label: 'Dados Mestres',     section: 'CADASTROS' },
   { page: 'users',      icon: '👥', label: 'Usuários e Ramais',  section: 'CADASTROS' },
+  { page: 'settings',   icon: '🔧', label: 'Configurações',      section: 'SISTEMA' },
 ];
 
 export default function Sidebar({ currentPage, onNavigate, username, onLogout }: SidebarProps) {

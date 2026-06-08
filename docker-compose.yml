@@ -182,8 +182,17 @@ services:
       ZABBIX_PASSWORD: ${ZABBIX_PASSWORD}
       ZABBIX_MIN_SEVERITY: ${ZABBIX_MIN_SEVERITY:-4}
       ZABBIX_POLL_INTERVAL_MINUTES: ${ZABBIX_POLL_INTERVAL_MINUTES:-5}
+      # Settings Manager — permite ao backend reescrever .env e reiniciar containers
+      SETTINGS_FILE_PATH: /opt/asteriskia/env/.env
+      SETTINGS_COMPOSE_DIR: /opt/AsteriskIA
     volumes:
       - asterisk_recordings:${AUDIO_STORAGE_PATH}
+      # Acesso ao .env para leitura/escrita via SettingsService
+      - /opt/AsteriskIA/env:/opt/asteriskia/env
+      # Docker socket — necessário para executar 'docker compose up -d' no apply
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Diretório raiz do projeto — necessário para docker compose encontrar o compose.yml
+      - /opt/AsteriskIA:/opt/AsteriskIA:ro
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     networks:
