@@ -8,6 +8,7 @@ import ModuloConectividade from './components/ModuloConectividade';
 import ModuloAlertas from './components/ModuloAlertas';
 import Softphone from './components/Softphone';
 import MasterData from './components/MasterData';
+import Users from './components/Users';
 
 // ─── ErrorBoundary ─────────────────────────────────────────────────────────────
 // Evita que erros em componentes filhos desmontem toda a árvore React (tela em branco).
@@ -109,6 +110,7 @@ export default function App() {
           {page === 'modulo2'     && <ErrorBoundary><ModuloConectividade /></ErrorBoundary>}
           {page === 'modulo3'     && <ErrorBoundary><ModuloAlertas /></ErrorBoundary>}
           {page === 'masterdata'  && <ErrorBoundary><MasterData /></ErrorBoundary>}
+          {page === 'users'       && <ErrorBoundary><Users /></ErrorBoundary>}
         </main>
 
         {/* Softphone WebRTC — flutuante em todas as páginas */}

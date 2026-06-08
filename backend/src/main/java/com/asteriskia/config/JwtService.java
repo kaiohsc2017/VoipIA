@@ -34,18 +34,33 @@ public class JwtService {
     /**
      * Gera um token JWT para o usuário informado.
      *
-     * @param username Nome de usuário (subject do token)
+     * @param username  Nome de usuário (subject do token)
      * @return Token JWT assinado
      */
     public String generateToken(String username) {
+        return generateToken(username, null);
+    }
+
+    /**
+     * Gera um token JWT com claim de ramal SIP.
+     *
+     * @param username  Nome de usuário (subject do token)
+     * @param extension Ramal SIP do usuário (ex: 9001)
+     * @return Token JWT assinado com claim "extension"
+     */
+    public String generateToken(String username, Integer extension) {
         long nowMs = System.currentTimeMillis();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(username)
                 .issuedAt(new Date(nowMs))
                 .expiration(new Date(nowMs + (long) expirationHours * 3600 * 1000))
-                .signWith(key(), Jwts.SIG.HS256)
-                .compact();
+                .signWith(key(), Jwts.SIG.HS256);
+        if (extension != null) {
+            builder.claim("extension", extension);
+        }
+        return builder.compact();
     }
+
 
     /**
      * Extrai o username (subject) de um token válido.

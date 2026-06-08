@@ -1,4 +1,4 @@
-type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata';
+type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users';
 
 interface SidebarProps {
   currentPage: Page;
@@ -8,11 +8,12 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: { page: Page; icon: string; label: string; section: string }[] = [
-  { page: 'dashboard',  icon: '📊', label: 'Dashboard',      section: 'GERAL' },
-  { page: 'modulo1',    icon: '🎫', label: 'URA / Jira',     section: 'MÓDULOS' },
-  { page: 'modulo2',    icon: '📞', label: 'Conectividade',  section: 'MÓDULOS' },
-  { page: 'modulo3',    icon: '🚨', label: 'Alertas Zabbix', section: 'MÓDULOS' },
-  { page: 'masterdata', icon: '⚙️',  label: 'Dados Mestres',  section: 'CADASTROS' },
+  { page: 'dashboard',  icon: '📊', label: 'Dashboard',         section: 'GERAL' },
+  { page: 'modulo1',    icon: '🎫', label: 'URA / Jira',        section: 'MÓDULOS' },
+  { page: 'modulo2',    icon: '📞', label: 'Conectividade',     section: 'MÓDULOS' },
+  { page: 'modulo3',    icon: '🚨', label: 'Alertas Zabbix',    section: 'MÓDULOS' },
+  { page: 'masterdata', icon: '⚙️',  label: 'Dados Mestres',     section: 'CADASTROS' },
+  { page: 'users',      icon: '👥', label: 'Usuários e Ramais',  section: 'CADASTROS' },
 ];
 
 export default function Sidebar({ currentPage, onNavigate, username, onLogout }: SidebarProps) {
