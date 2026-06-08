@@ -28,6 +28,113 @@ const EMPTY_CONTACT: Partial<AlertContact> = {
   name: '', phoneNumber: '', isActive: true, priorityOrder: 1,
 };
 
+// ─── KPI cards do Módulo 3 ────────────────────────────────────────────────────
+
+interface AlertStats {
+  totalAlerts: number;
+  answered: number;
+  notAnswered: number;
+  failed: number;
+  telegramSent: number;
+  answeredRatePct: number;
+  telegramSuccessRatePct: number;
+}
+
+function KpiBar() {
+  const [stats, setStats] = useState<AlertStats | null>(null);
+  const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
+
+  const load = (p: typeof period) => {
+    api.get<AlertStats>(`/stats/alerts?period=${p}`).then(r => setStats(r.data));
+  };
+
+  useEffect(() => { load('today'); }, []);
+
+  if (!stats) return null;
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div className="flex gap-1" style={{ marginBottom: 12 }}>
+        {(['today', 'week', 'month'] as const).map(p => (
+          <button key={p} className={`btn btn-sm ${period === p ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => { setPeriod(p); load(p); }}>
+            {p === 'today' ? 'Hoje' : p === 'week' ? 'Esta semana' : 'Este mês'}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+        {[
+          { label: 'Total Alertas',   value: stats.totalAlerts,              color: '#7c3aed' },
+          { label: 'Atendidas',       value: stats.answered,                 color: '#68d391' },
+          { label: 'Não Atendidas',   value: stats.notAnswered,              color: '#f6ad55' },
+          { label: 'Falhas',          value: stats.failed,                   color: '#fc8181' },
+          { label: 'Taxa Atendimento',value: `${stats.answeredRatePct}%`,    color: '#68d391' },
+          { label: 'Telegram OK',     value: `${stats.telegramSuccessRatePct}%`, color: '#3b82f6' },
+        ].map(kpi => (
+          <div key={kpi.label} className="stat-card" style={{ padding: '14px 18px' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>{kpi.label}</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: kpi.color }}>{kpi.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Player de áudio inline para alertas ─────────────────────────────────────
+
+function AlertAudioPlayer({ alertId }: { alertId: number }) {
+  const [show, setShow] = useState(false);
+  if (!show) {
+    return (
+      <button
+        className="btn btn-ghost btn-sm btn-icon"
+        onClick={() => setShow(true)}
+        title="Ouvir gravação"
+      >▶️</button>
+    );
+  }
+  return (
+    <audio
+      controls
+      autoPlay
+      src={`/api/v1/alert-calls/${alertId}/audio`}
+      style={{ height: 28, minWidth: 180, maxWidth: 240 }}
+      onError={() => setShow(false)}
+    />
+  );
+}
+
+// ─── Modal mensagem Telegram ──────────────────────────────────────────────────
+
+function TelegramMessageModal({ message, onClose }: { message: string; onClose: () => void }) {
+  return (
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal modal-sm">
+        <div className="modal-header">
+          <h2>📨 Mensagem Telegram</h2>
+          <button className="btn-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <pre style={{
+            background: 'rgba(0,0,0,0.2)', padding: 16, borderRadius: 8,
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.6,
+            maxHeight: 400, overflowY: 'auto',
+          }}>
+            {message}
+          </pre>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Módulo Alertas principal ─────────────────────────────────────────────────
+
 export default function ModuloAlertas() {
   const [tab, setTab] = useState<'alerts' | 'contacts'>('alerts');
   const [alerts, setAlerts] = useState<AlertCall[]>([]);
@@ -37,6 +144,7 @@ export default function ModuloAlertas() {
   const [totalPages, setTotalPages] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editContact, setEditContact] = useState<Partial<AlertContact>>({ ...EMPTY_CONTACT });
+  const [telegramMsg, setTelegramMsg] = useState<string | null>(null);
 
   const loadAlerts = (p = 0) => {
     setLoading(true);
@@ -72,20 +180,14 @@ export default function ModuloAlertas() {
   };
 
   const saveContact = async () => {
-    if (editContact.id) {
-      await api.put(`/alert-contacts/${editContact.id}`, editContact);
-    } else {
-      await api.post('/alert-contacts', editContact);
-    }
+    if (editContact.id) { await api.put(`/alert-contacts/${editContact.id}`, editContact); }
+    else { await api.post('/alert-contacts', editContact); }
     setShowModal(false);
     loadContacts();
   };
 
   const deleteContact = async (id: number) => {
-    if (confirm('Remover este contato de plantão?')) {
-      await api.delete(`/alert-contacts/${id}`);
-      loadContacts();
-    }
+    if (confirm('Remover este contato de plantão?')) { await api.delete(`/alert-contacts/${id}`); loadContacts(); }
   };
 
   return (
@@ -95,6 +197,9 @@ export default function ModuloAlertas() {
         <p>Histórico de alertas de infraestrutura e contatos de plantão</p>
       </div>
       <div className="page-body">
+
+        {/* KPIs — sempre visíveis no topo */}
+        <KpiBar />
 
         {/* Tabs */}
         <div className="flex gap-1" style={{ marginBottom: 20 }}>
@@ -123,13 +228,14 @@ export default function ModuloAlertas() {
                       <th>Severidade</th>
                       <th>Host</th>
                       <th>Incidente</th>
+                      <th>Áudio</th>
                       <th>Telegram</th>
                       <th>Trigger ID</th>
                     </tr>
                   </thead>
                   <tbody>
                     {alerts.length === 0 ? (
-                      <tr><td colSpan={9} className="table-empty">Nenhum alerta registrado ainda</td></tr>
+                      <tr><td colSpan={10} className="table-empty">Nenhum alerta registrado ainda</td></tr>
                     ) : alerts.map(a => (
                       <tr key={a.id}>
                         <td className="td-muted">{a.id}</td>
@@ -142,21 +248,33 @@ export default function ModuloAlertas() {
                         </td>
                         <td>
                           {a.zabbixSeverity
-                            ? <span className={`badge ${SEVERITY_CLASS[a.zabbixSeverity] ?? 'badge-gray'}`}>
-                                {a.zabbixSeverity}
-                              </span>
+                            ? <span className={`badge ${SEVERITY_CLASS[a.zabbixSeverity] ?? 'badge-gray'}`}>{a.zabbixSeverity}</span>
                             : <span className="text-muted">—</span>}
                         </td>
-                        <td>
-                          <span className="chip">{a.zabbixHost || '—'}</span>
-                        </td>
+                        <td><span className="chip">{a.zabbixHost || '—'}</span></td>
                         <td style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           <span title={a.zabbixIncidentSummary}>{a.zabbixIncidentSummary}</span>
                         </td>
                         <td>
-                          {a.telegramSentAt
-                            ? <span className="badge badge-success">✓ Enviado</span>
-                            : <span className="badge badge-gray">Não enviado</span>}
+                          {a.audioFilePath
+                            ? <AlertAudioPlayer alertId={a.id} />
+                            : <span className="text-muted">—</span>}
+                        </td>
+                        <td>
+                          {a.telegramSentAt ? (
+                            <div className="flex gap-1" style={{ alignItems: 'center' }}>
+                              <span className="badge badge-success">✓ Enviado</span>
+                              {a.telegramMessageContent && (
+                                <button
+                                  className="btn btn-ghost btn-sm btn-icon"
+                                  onClick={() => setTelegramMsg(a.telegramMessageContent!)}
+                                  title="Ver mensagem"
+                                >👁️</button>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="badge badge-gray">Não enviado</span>
+                          )}
                         </td>
                         <td className="mono td-muted" style={{ fontSize: '0.72rem' }}>
                           {a.zabbixTriggerId?.slice(0, 10)}…
@@ -217,9 +335,7 @@ export default function ModuloAlertas() {
                       .sort((a, b) => a.priorityOrder - b.priorityOrder)
                       .map(c => (
                         <tr key={c.id}>
-                          <td style={{ textAlign: 'center' }}>
-                            <span className="chip">#{c.priorityOrder}</span>
-                          </td>
+                          <td style={{ textAlign: 'center' }}><span className="chip">#{c.priorityOrder}</span></td>
                           <td>{c.name}</td>
                           <td className="mono">{c.phoneNumber}</td>
                           <td>
@@ -254,37 +370,27 @@ export default function ModuloAlertas() {
             <div className="modal-body">
               <div className="form-group">
                 <label className="form-label">Nome</label>
-                <input
-                  type="text" className="form-input"
-                  placeholder="João Silva"
+                <input type="text" className="form-input" placeholder="João Silva"
                   value={editContact.name ?? ''}
-                  onChange={e => setEditContact(c => ({ ...c, name: e.target.value }))}
-                />
+                  onChange={e => setEditContact(c => ({ ...c, name: e.target.value }))} />
               </div>
               <div className="form-group">
                 <label className="form-label">Telefone</label>
-                <input
-                  type="tel" className="form-input"
-                  placeholder="+5511999999999"
+                <input type="tel" className="form-input" placeholder="+5511999999999"
                   value={editContact.phoneNumber ?? ''}
-                  onChange={e => setEditContact(c => ({ ...c, phoneNumber: e.target.value }))}
-                />
+                  onChange={e => setEditContact(c => ({ ...c, phoneNumber: e.target.value }))} />
               </div>
               <div className="form-group">
                 <label className="form-label">Ordem de Prioridade</label>
-                <input
-                  type="number" className="form-input" min={1}
+                <input type="number" className="form-input" min={1}
                   value={editContact.priorityOrder ?? 1}
-                  onChange={e => setEditContact(c => ({ ...c, priorityOrder: +e.target.value }))}
-                />
+                  onChange={e => setEditContact(c => ({ ...c, priorityOrder: +e.target.value }))} />
               </div>
               <div className="form-group">
                 <label className="form-label">Status</label>
-                <select
-                  className="form-select"
+                <select className="form-select"
                   value={editContact.isActive ? 'true' : 'false'}
-                  onChange={e => setEditContact(c => ({ ...c, isActive: e.target.value === 'true' }))}
-                >
+                  onChange={e => setEditContact(c => ({ ...c, isActive: e.target.value === 'true' }))}>
                   <option value="true">Ativo</option>
                   <option value="false">Inativo</option>
                 </select>
@@ -298,6 +404,11 @@ export default function ModuloAlertas() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal mensagem Telegram */}
+      {telegramMsg && (
+        <TelegramMessageModal message={telegramMsg} onClose={() => setTelegramMsg(null)} />
       )}
     </>
   );

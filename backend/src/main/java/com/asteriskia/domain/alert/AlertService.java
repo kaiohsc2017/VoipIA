@@ -125,6 +125,13 @@ public class AlertService {
         return alertCallRepo.findByAsteriskCallId(uuid);
     }
 
+
+    /** Busca AlertCall por ID primário (endpoints de áudio/detalhe). */
+    @Transactional(readOnly = true)
+    public Optional<AlertCall> findById(Long id) {
+        return alertCallRepo.findById(id);
+    }
+
     @Transactional(readOnly = true)
     public Page<AlertCall> findAll(Pageable pageable) {
         return alertCallRepo.findAllByOrderByCallDateDesc(pageable);

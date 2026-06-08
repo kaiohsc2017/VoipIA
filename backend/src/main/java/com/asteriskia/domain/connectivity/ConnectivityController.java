@@ -9,6 +9,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Repository;
@@ -16,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -95,16 +99,26 @@ public class ConnectivityController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/test-results")
-    @Operation(summary = "Lista resultados de testes (paginado)")
+    @Operation(summary = "Lista resultados de testes (paginado, com filtros de período e status)")
     public ResponseEntity<Page<TestResult>> listResults(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             @RequestParam(required = false) Long numberTestId,
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateTo) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("executedAt").descending());
         Page<TestResult> result;
         if (numberTestId != null) {
-            result = testResultRepo.findByNumberTestId(numberTestId, pageable);
+            if (dateFrom != null && dateTo != null) {
+                result = testResultRepo.findByNumberTestIdAndExecutedAtBetween(numberTestId, dateFrom, dateTo, pageable);
+            } else {
+                result = testResultRepo.findByNumberTestId(numberTestId, pageable);
+            }
+        } else if (dateFrom != null && dateTo != null && status != null) {
+            result = testResultRepo.findByStatusAndExecutedAtBetween(status, dateFrom, dateTo, pageable);
+        } else if (dateFrom != null && dateTo != null) {
+            result = testResultRepo.findByExecutedAtBetween(dateFrom, dateTo, pageable);
         } else if (status != null) {
             result = testResultRepo.findByStatus(status, pageable);
         } else {
@@ -145,4 +159,14 @@ interface NumberTestRepository extends JpaRepository<NumberTest, Long> {
 interface TestResultRepository extends JpaRepository<TestResult, Long> {
     Page<TestResult> findByNumberTestId(Long numberTestId, org.springframework.data.domain.Pageable pageable);
     Page<TestResult> findByStatus(String status, org.springframework.data.domain.Pageable pageable);
+    Page<TestResult> findByExecutedAtBetween(LocalDateTime from, LocalDateTime to, org.springframework.data.domain.Pageable pageable);
+    Page<TestResult> findByStatusAndExecutedAtBetween(String status, LocalDateTime from, LocalDateTime to, org.springframework.data.domain.Pageable pageable);
+    Page<TestResult> findByNumberTestIdAndExecutedAtBetween(Long numberTestId, LocalDateTime from, LocalDateTime to, org.springframework.data.domain.Pageable pageable);
+
+    // Estatísticas para o dashboard
+    @Query("SELECT COUNT(r) FROM TestResult r WHERE r.executedAt BETWEEN :from AND :to")
+    long countByPeriod(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    @Query("SELECT COUNT(r) FROM TestResult r WHERE r.status = :status AND r.executedAt BETWEEN :from AND :to")
+    long countByStatusAndPeriod(@Param("status") String status, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 }

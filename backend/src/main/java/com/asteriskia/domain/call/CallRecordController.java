@@ -5,12 +5,19 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.File;
 import java.util.Map;
 
 /**
@@ -19,7 +26,9 @@ import java.util.Map;
  * POST /api/v1/calls/register — consumido pelo agente Python (JiraCallFlow)
  * GET  /api/v1/calls           — lista paginada de chamadas
  * GET  /api/v1/calls/{id}      — detalhe de uma chamada
+ * GET  /api/v1/calls/{id}/audio — streaming do áudio gravado
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/calls")
 @RequiredArgsConstructor
@@ -27,6 +36,9 @@ import java.util.Map;
 public class CallRecordController {
 
     private final CallRecordService service;
+
+    @Value("${app.audio.storage-path:/var/asteriskia/recordings}")
+    private String audioStoragePath;
 
     /**
      * Registra chamada da URA e cria issue no Jira.
@@ -63,6 +75,41 @@ public class CallRecordController {
     @Operation(summary = "Detalhe de uma chamada")
     public ResponseEntity<CallRecord> getCall(@PathVariable Long id) {
         return ResponseEntity.ok(service.findById(id));
+    }
+
+    /**
+     * Faz streaming do arquivo de áudio gravado pelo Asterisk.
+     * O caminho é relativo ao storage configurado (app.audio.storage-path).
+     */
+    @GetMapping("/{id}/audio")
+    @Operation(summary = "Streaming do áudio gravado da chamada URA")
+    public ResponseEntity<Resource> getAudio(@PathVariable Long id) {
+        CallRecord record = service.findById(id);
+        if (record.getAudioFilePath() == null || record.getAudioFilePath().isBlank()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        File audioFile = new File(record.getAudioFilePath());
+        if (!audioFile.isAbsolute()) {
+            audioFile = new File(audioStoragePath, record.getAudioFilePath());
+        }
+
+        if (!audioFile.exists() || !audioFile.canRead()) {
+            log.warn("Arquivo de áudio não encontrado: {}", audioFile.getAbsolutePath());
+            return ResponseEntity.notFound().build();
+        }
+
+        Resource resource = new FileSystemResource(audioFile);
+        String filename = audioFile.getName();
+        MediaType mediaType = filename.endsWith(".mp3") ? MediaType.valueOf("audio/mpeg")
+                : filename.endsWith(".ogg") ? MediaType.valueOf("audio/ogg")
+                : MediaType.valueOf("audio/wav");
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                .contentType(mediaType)
+                .body(resource);
     }
 
     // ---------------------------------------------------------------------------

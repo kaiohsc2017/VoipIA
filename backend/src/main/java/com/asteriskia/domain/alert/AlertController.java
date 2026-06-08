@@ -5,22 +5,25 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.File;
 import java.util.List;
 
 /**
  * AlertController — Endpoints REST para alertas Zabbix e contatos de plantão (Módulo 3).
- *
- * GET  /api/v1/alert-calls/by-uuid/{uuid}  → consumido pelo agente Python (ZabbixAlertFlow)
- * PATCH /api/v1/alert-calls/by-uuid/{uuid} → agente Python atualiza status após chamada
- * GET  /api/v1/alert-calls                 → histórico de alertas (frontend)
- * GET/POST/DELETE /api/v1/alert-contacts   → CRUD de contatos de plantão
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
@@ -28,6 +31,9 @@ import java.util.List;
 public class AlertController {
 
     private final AlertService service;
+
+    @Value("${app.audio.storage-path:/var/asteriskia/recordings}")
+    private String audioStoragePath;
 
     // -----------------------------------------------------------------------
     // Alert Calls
@@ -58,6 +64,45 @@ public class AlertController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(service.findAll(PageRequest.of(page, size)));
+    }
+
+    @GetMapping("/alert-calls/{id}")
+    @Operation(summary = "Detalhe de um alerta")
+    public ResponseEntity<AlertCall> getAlert(@PathVariable Long id) {
+        return service.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Faz streaming do arquivo de áudio gravado pelo Asterisk para alertas.
+     */
+    @GetMapping("/alert-calls/{id}/audio")
+    @Operation(summary = "Streaming do áudio gravado do alerta Zabbix")
+    public ResponseEntity<Resource> getAudio(@PathVariable Long id) {
+        return service.findById(id).map(record -> {
+            if (record.getAudioFilePath() == null || record.getAudioFilePath().isBlank()) {
+                return ResponseEntity.<Resource>notFound().build();
+            }
+            File audioFile = new File(record.getAudioFilePath());
+            if (!audioFile.isAbsolute()) {
+                audioFile = new File(audioStoragePath, record.getAudioFilePath());
+            }
+            if (!audioFile.exists() || !audioFile.canRead()) {
+                log.warn("Arquivo de áudio do alerta não encontrado: {}", audioFile.getAbsolutePath());
+                return ResponseEntity.<Resource>notFound().build();
+            }
+            Resource resource = new FileSystemResource(audioFile);
+            String filename = audioFile.getName();
+            MediaType mediaType = filename.endsWith(".mp3") ? MediaType.valueOf("audio/mpeg")
+                    : filename.endsWith(".ogg") ? MediaType.valueOf("audio/ogg")
+                    : MediaType.valueOf("audio/wav");
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                    .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                    .contentType(mediaType)
+                    .<Resource>body(resource);
+        }).orElse(ResponseEntity.notFound().build());
     }
 
     // -----------------------------------------------------------------------

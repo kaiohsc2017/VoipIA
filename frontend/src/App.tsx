@@ -7,6 +7,7 @@ import ModuloURA from './components/ModuloURA';
 import ModuloConectividade from './components/ModuloConectividade';
 import ModuloAlertas from './components/ModuloAlertas';
 import Softphone from './components/Softphone';
+import MasterData from './components/MasterData';
 
 // ─── ErrorBoundary ─────────────────────────────────────────────────────────────
 // Evita que erros em componentes filhos desmontem toda a árvore React (tela em branco).
@@ -103,10 +104,11 @@ export default function App() {
         />
 
         <main className="main-content">
-          {page === 'dashboard'  && <ErrorBoundary><Dashboard /></ErrorBoundary>}
-          {page === 'modulo1'    && <ErrorBoundary><ModuloURA /></ErrorBoundary>}
-          {page === 'modulo2'    && <ErrorBoundary><ModuloConectividade /></ErrorBoundary>}
-          {page === 'modulo3'    && <ErrorBoundary><ModuloAlertas /></ErrorBoundary>}
+          {page === 'dashboard'   && <ErrorBoundary><Dashboard /></ErrorBoundary>}
+          {page === 'modulo1'     && <ErrorBoundary><ModuloURA /></ErrorBoundary>}
+          {page === 'modulo2'     && <ErrorBoundary><ModuloConectividade /></ErrorBoundary>}
+          {page === 'modulo3'     && <ErrorBoundary><ModuloAlertas /></ErrorBoundary>}
+          {page === 'masterdata'  && <ErrorBoundary><MasterData /></ErrorBoundary>}
         </main>
 
         {/* Softphone WebRTC — flutuante em todas as páginas */}

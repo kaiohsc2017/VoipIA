@@ -9,6 +9,87 @@ function formatDate(iso: string) {
   });
 }
 
+// ─── KPI cards do Módulo 1 ────────────────────────────────────────────────────
+
+interface CallStats {
+  totalCalls: number;
+  callsWithJira: number;
+  callsWithTranscription: number;
+  jiraSuccessRatePct: number;
+  avgDurationSecs: number;
+}
+
+function KpiBar() {
+  const [stats, setStats] = useState<CallStats | null>(null);
+  const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
+
+  const load = (p: typeof period) => {
+    api.get<CallStats>(`/stats/calls?period=${p}`).then(r => setStats(r.data));
+  };
+
+  useEffect(() => { load('today'); }, []);
+
+  const handlePeriod = (p: typeof period) => { setPeriod(p); load(p); };
+
+  if (!stats) return null;
+
+  const avgMin = stats.avgDurationSecs > 0
+    ? `${Math.floor(stats.avgDurationSecs / 60)}m ${stats.avgDurationSecs % 60}s`
+    : '—';
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div className="flex gap-1" style={{ marginBottom: 12 }}>
+        {(['today', 'week', 'month'] as const).map(p => (
+          <button key={p} className={`btn btn-sm ${period === p ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => handlePeriod(p)}>
+            {p === 'today' ? 'Hoje' : p === 'week' ? 'Esta semana' : 'Este mês'}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+        {[
+          { label: 'Chamadas URA',     value: stats.totalCalls,             color: '#7c3aed' },
+          { label: 'Chamados Jira',    value: stats.callsWithJira,          color: '#3b82f6' },
+          { label: 'Taxa Jira',        value: `${stats.jiraSuccessRatePct}%`, color: '#68d391' },
+          { label: 'Duração Média',    value: avgMin,                       color: '#f6ad55' },
+        ].map(kpi => (
+          <div key={kpi.label} className="stat-card" style={{ padding: '14px 18px' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>{kpi.label}</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: kpi.color }}>{kpi.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Player de áudio inline ───────────────────────────────────────────────────
+
+function AudioPlayer({ callId }: { callId: number }) {
+  const [show, setShow] = useState(false);
+  if (!show) {
+    return (
+      <button
+        className="btn btn-ghost btn-sm btn-icon"
+        onClick={() => setShow(true)}
+        title="Ouvir gravação"
+      >▶️</button>
+    );
+  }
+  return (
+    <audio
+      controls
+      autoPlay
+      src={`/api/v1/calls/${callId}/audio`}
+      style={{ height: 28, minWidth: 180, maxWidth: 240 }}
+      onError={() => setShow(false)}
+    />
+  );
+}
+
+// ─── Módulo URA principal ─────────────────────────────────────────────────────
+
 export default function ModuloURA() {
   const [tab, setTab] = useState<'calls' | 'questions'>('calls');
   const [calls, setCalls] = useState<CallRecord[]>([]);
@@ -45,10 +126,7 @@ export default function ModuloURA() {
     else loadQuestions();
   }, [tab]);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    loadCalls(0);
-  };
+  const handleSearchSubmit = (e: React.FormEvent) => { e.preventDefault(); loadCalls(0); };
 
   const toggleActive = async (q: UraQuestion) => {
     await api.patch(`/ura/questions/${q.id}/active?active=${!q.isActive}`);
@@ -61,20 +139,14 @@ export default function ModuloURA() {
   };
 
   const saveQuestion = async () => {
-    if (editQ.id) {
-      await api.put(`/ura/questions/${editQ.id}`, editQ);
-    } else {
-      await api.post('/ura/questions', editQ);
-    }
+    if (editQ.id) { await api.put(`/ura/questions/${editQ.id}`, editQ); }
+    else { await api.post('/ura/questions', editQ); }
     setShowModal(false);
     loadQuestions();
   };
 
   const deleteQuestion = async (id: number) => {
-    if (confirm('Remover esta pergunta?')) {
-      await api.delete(`/ura/questions/${id}`);
-      loadQuestions();
-    }
+    if (confirm('Remover esta pergunta?')) { await api.delete(`/ura/questions/${id}`); loadQuestions(); }
   };
 
   return (
@@ -85,16 +157,17 @@ export default function ModuloURA() {
       </div>
       <div className="page-body">
 
+        {/* KPIs — sempre visíveis no topo */}
+        <KpiBar />
+
         {/* Tabs */}
         <div className="flex gap-1 mb-2" style={{ marginBottom: 20 }}>
-          <button
-            className={`btn ${tab === 'calls' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setTab('calls')}
-          >📋 Chamadas</button>
-          <button
-            className={`btn ${tab === 'questions' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setTab('questions')}
-          >❓ Perguntas URA</button>
+          <button className={`btn ${tab === 'calls' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('calls')}>
+            📋 Chamadas
+          </button>
+          <button className={`btn ${tab === 'questions' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('questions')}>
+            ❓ Perguntas URA
+          </button>
         </div>
 
         {/* ---- CALLS TAB ---- */}
@@ -104,12 +177,8 @@ export default function ModuloURA() {
               <form className="toolbar-left" onSubmit={handleSearchSubmit}>
                 <div className="search-wrapper">
                   <span className="search-icon">🔍</span>
-                  <input
-                    className="search-input"
-                    placeholder="Filtrar por número..."
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                  />
+                  <input className="search-input" placeholder="Filtrar por número..."
+                    value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
                 <button type="submit" className="btn btn-ghost btn-sm">Buscar</button>
               </form>
@@ -129,12 +198,13 @@ export default function ModuloURA() {
                       <th>Chamado Jira</th>
                       <th>Status</th>
                       <th>Duração</th>
+                      <th>Áudio</th>
                       <th>Transcrição</th>
                     </tr>
                   </thead>
                   <tbody>
                     {calls.length === 0 ? (
-                      <tr><td colSpan={8} className="table-empty">Nenhuma chamada registrada</td></tr>
+                      <tr><td colSpan={9} className="table-empty">Nenhuma chamada registrada</td></tr>
                     ) : calls.map(c => (
                       <tr key={c.id}>
                         <td className="td-muted">{c.id}</td>
@@ -148,6 +218,11 @@ export default function ModuloURA() {
                         </td>
                         <td><span className="badge badge-info">{c.jiraIssueStatus || 'Aberto'}</span></td>
                         <td className="td-muted">{c.callDurationSecs}s</td>
+                        <td>
+                          {c.audioFilePath
+                            ? <AudioPlayer callId={c.id} />
+                            : <span className="text-muted">—</span>}
+                        </td>
                         <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {c.transcription
                             ? <span title={c.transcription} className="td-muted">{c.transcription}</span>
@@ -180,9 +255,7 @@ export default function ModuloURA() {
             <div className="toolbar">
               <div className="toolbar-left" />
               <div className="toolbar-right">
-                <button className="btn btn-primary" onClick={() => openEditModal()}>
-                  ＋ Nova Pergunta
-                </button>
+                <button className="btn btn-primary" onClick={() => openEditModal()}>＋ Nova Pergunta</button>
               </div>
             </div>
 
@@ -247,41 +320,26 @@ export default function ModuloURA() {
             <div className="modal-body">
               <div className="form-group">
                 <label className="form-label">Ordem</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  value={editQ.questionOrder ?? ''}
-                  onChange={e => setEditQ(q => ({ ...q, questionOrder: +e.target.value }))}
-                />
+                <input type="number" className="form-input" value={editQ.questionOrder ?? ''}
+                  onChange={e => setEditQ(q => ({ ...q, questionOrder: +e.target.value }))} />
               </div>
               <div className="form-group">
                 <label className="form-label">Texto da Pergunta (TTS)</label>
-                <textarea
-                  className="form-textarea"
-                  value={editQ.questionText ?? ''}
+                <textarea className="form-textarea" value={editQ.questionText ?? ''}
                   onChange={e => setEditQ(q => ({ ...q, questionText: e.target.value }))}
-                  placeholder="Qual é o seu nome completo?"
-                />
+                  placeholder="Qual é o seu nome completo?" />
               </div>
               <div className="form-group">
                 <label className="form-label">Campo do Jira (field key)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={editQ.jiraFieldKey ?? ''}
+                <input type="text" className="form-input" value={editQ.jiraFieldKey ?? ''}
                   onChange={e => setEditQ(q => ({ ...q, jiraFieldKey: e.target.value }))}
-                  placeholder="customfield_nome_cliente"
-                />
+                  placeholder="customfield_nome_cliente" />
               </div>
               <div className="form-group">
                 <label className="form-label">Valores Válidos (separados por vírgula)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={editQ.expectedValues ?? ''}
+                <input type="text" className="form-input" value={editQ.expectedValues ?? ''}
                   onChange={e => setEditQ(q => ({ ...q, expectedValues: e.target.value }))}
-                  placeholder="Baixa,Média,Alta (deixe em branco para livre)"
-                />
+                  placeholder="Baixa,Média,Alta (deixe em branco para livre)" />
               </div>
             </div>
             <div className="modal-footer">

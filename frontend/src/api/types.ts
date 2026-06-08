@@ -106,12 +106,24 @@ export interface NumberTestCreate {
 
 export interface TestResult {
   id: number;
-  numberTest: { id: number };
+  numberTest: {
+    id: number;
+    phoneNumber: string;
+    businessUnit: BusinessUnit;
+    client: Client;
+    operation: Operation;
+    segment: Segment;
+    startTime: string;
+    intervalMinutes: number;
+    quantity: number;
+    isActive: boolean;
+  };
   executedAt: string;
   sipResponseCode?: number;
   sipResponseReason?: string;
   status: string;
   executionOrder: number;
+  nextScheduledAt?: string;
   asteriskCallId?: string;
 }
 
@@ -128,6 +140,7 @@ export interface AlertCall {
   zabbixIncidentSummary: string;
   zabbixSeverity?: string;
   zabbixHost?: string;
+  audioFilePath?: string;
   telegramMessageContent?: string;
   telegramSentAt?: string;
   asteriskCallId?: string;
