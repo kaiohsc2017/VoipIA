@@ -1,15 +1,37 @@
 /**
  * Softphone.tsx — Softphone WebRTC embutido no navegador usando JsSIP.
- * Conecta ao ramal 9001 do Asterisk via WebSocket (ws://asterisk:8088/ws).
+ * Conecta ao Asterisk via proxy WebSocket do Nginx (/asterisk-ws).
+ * Em produção: wss://app.voiphash.com.br/asterisk-ws
+ * Em dev local: ws://localhost:8088/ws
  */
 import { useEffect, useRef, useState } from 'react';
 import JsSIP from 'jssip';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
-const ASTERISK_WS   = import.meta.env.VITE_ASTERISK_WS  ?? 'ws://localhost:8088/ws';
-const SIP_URI       = import.meta.env.VITE_SIP_URI       ?? 'sip:9001@localhost';
-const SIP_PASSWORD  = import.meta.env.VITE_SIP_PASSWORD  ?? 'webrtc9001pass';
-const SIP_DISPLAY   = 'AsteriskIA WebRTC';
+// Em produção o Nginx faz proxy /asterisk-ws → asterisk:8088/ws
+// Detecta automaticamente o protocolo (wss em HTTPS, ws em HTTP)
+const getWsUrl = () => {
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const host  = window.location.host;
+  return import.meta.env.VITE_ASTERISK_WS ?? `${proto}://${host}/asterisk-ws`;
+};
+
+const getSipDomain = () => window.location.hostname;
+
+
+/** Obtém ramal do usuário logado ou usa 9001 como padrão */
+const getUserExtension = (): string => {
+  try {
+    const token = localStorage.getItem('asteriskia_token');
+    if (!token) return '9001';
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.extension ? String(payload.extension) : '9001';
+  } catch { return '9001'; }
+};
+
+/** Senha do ramal baseada no número (padrão: webrtcXXXXpass) */
+const getExtPassword = (ext: string) =>
+  import.meta.env.VITE_SIP_PASSWORD ?? `webrtc${ext}pass`;
 
 type CallState = 'idle' | 'calling' | 'incoming' | 'active' | 'ended';
 type RegState  = 'unregistered' | 'registering' | 'registered' | 'failed';
@@ -19,6 +41,12 @@ type RegState  = 'unregistered' | 'registering' | 'registered' | 'failed';
 type SipSession = any;
 
 export default function Softphone() {
+  const extension   = getUserExtension();
+  const wsUrl       = getWsUrl();
+  const sipDomain   = getSipDomain();
+  const sipUri      = `sip:${extension}@${sipDomain}`;
+  const sipPassword = getExtPassword(extension);
+
   const [open,      setOpen]      = useState(false);
   const [callState, setCallState] = useState<CallState>('idle');
   const [regState,  setRegState]  = useState<RegState>('unregistered');
@@ -39,13 +67,15 @@ export default function Softphone() {
 
   useEffect(() => {
     JsSIP.debug.disable('JsSIP:*');
-    const socket = new JsSIP.WebSocketInterface(ASTERISK_WS);
+    const socket = new JsSIP.WebSocketInterface(wsUrl);
     const ua = new JsSIP.UA({
       sockets: [socket],
-      uri: SIP_URI,
-      password: SIP_PASSWORD,
-      display_name: SIP_DISPLAY,
+      uri: sipUri,
+      password: sipPassword,
+      display_name: `Ramal ${extension}`,
       register: true,
+      register_expires: 300,
+      user_agent: 'AsteriskIA-Softphone/1.0',
     });
 
     ua.on('registered',   () => { setRegState('registered');    log('Ramal registrado ✓'); });
@@ -102,7 +132,7 @@ export default function Softphone() {
 
   function dial() {
     if (!uaRef.current || !dialInput.trim() || callState !== 'idle') return;
-    const sipHost = SIP_URI.split('@')[1] ?? 'localhost';
+    const sipHost = sipDomain;
     const target = dialInput.trim().includes('@')
       ? `sip:${dialInput.trim()}`
       : `sip:${dialInput.trim()}@${sipHost}`;
@@ -110,6 +140,9 @@ export default function Softphone() {
     const session: SipSession = uaRef.current.call(target, {
       mediaConstraints: { audio: true, video: false },
       rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false },
+      pcConfig: {
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      },
     });
 
     sessionRef.current = session;
@@ -123,6 +156,7 @@ export default function Softphone() {
     session.on('failed', (e: any) => endSession(`Falhou: ${e.cause}`));
     attachRemoteAudio(session);
   }
+
 
   function answer() {
     if (!sessionRef.current) return;
@@ -210,7 +244,7 @@ export default function Softphone() {
           }}>
             <div>
               <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#e2e8f0' }}>
-                📞 Softphone
+                📞 Ramal {extension}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
                 <div style={{ width: 7, height: 7, borderRadius: '50%', background: regBadge.color }} />

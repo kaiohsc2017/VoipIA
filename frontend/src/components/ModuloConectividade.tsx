@@ -422,11 +422,20 @@ export default function ModuloConectividade() {
   };
 
   const save = async () => {
+    if (!form.phoneNumber?.trim()) { alert('Informe o número de telefone.'); return; }
+    if (!form.businessUnit?.id) { alert('Selecione a Business Unit.'); return; }
+    if (!form.client?.id) { alert('Selecione o Cliente.'); return; }
+    if (!form.operation?.id) { alert('Selecione a Operação.'); return; }
+    if (!form.segment?.id) { alert('Selecione o Segmento.'); return; }
+    if (!form.startTime) { alert('Informe o horário inicial.'); return; }
+    if (!form.intervalMinutes || form.intervalMinutes < 1) { alert('Intervalo deve ser de ao menos 1 minuto.'); return; }
+    if (!form.quantity || form.quantity < 1) { alert('Quantidade deve ser de ao menos 1.'); return; }
     if (editId) { await api.put(`/number-tests/${editId}`, form); }
     else { await api.post('/number-tests', form); }
     setShowModal(false);
     loadTests();
   };
+
 
   const toggleActive = async (t: NumberTest) => {
     await api.patch(`/number-tests/${t.id}/active?active=${!t.isActive}`);

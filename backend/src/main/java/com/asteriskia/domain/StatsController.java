@@ -16,7 +16,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -114,6 +116,33 @@ public class StatsController {
     }
 
     // -----------------------------------------------------------------------
+    // Módulo 1 — URA Timeseries (gráfico temporal)
+    // -----------------------------------------------------------------------
+
+    @GetMapping("/calls/timeseries")
+    @Operation(summary = "Série temporal de chamadas por dia (Módulo 1)")
+    public ResponseEntity<List<Map<String, Object>>> callsTimeseries(
+            @RequestParam(defaultValue = "week") String period) {
+
+        int days = "month".equals(period) ? 30 : 7;
+        LocalDateTime end = LocalDateTime.now();
+        LocalDateTime start = end.minusDays(days).truncatedTo(ChronoUnit.DAYS);
+
+        List<Object[]> raw = callRepo.countByDay(start, end);
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (Object[] row : raw) {
+            Map<String, Object> point = new HashMap<>();
+            point.put("date", row[0] != null ? row[0].toString() : "");
+            point.put("total", row[1]);
+            point.put("jiraOpened", row[2]);
+            point.put("avgDuration", row[3] != null ? Math.round(((Number) row[3]).doubleValue()) : 0);
+            result.add(point);
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    // -----------------------------------------------------------------------
     // Módulo 3 — Alertas Zabbix
     // -----------------------------------------------------------------------
 
@@ -179,7 +208,15 @@ interface StatsCallRepository extends JpaRepository<CallRecord, Long> {
 
     @Query("SELECT COALESCE(AVG(c.callDurationSecs), 0) FROM CallRecord c WHERE c.callDate BETWEEN :from AND :to")
     double avgDurationByPeriod(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    @Query("SELECT CAST(c.callDate AS date) as day, COUNT(c), " +
+           "SUM(CASE WHEN c.jiraIssueKey IS NOT NULL THEN 1 ELSE 0 END), " +
+           "AVG(c.callDurationSecs) " +
+           "FROM CallRecord c WHERE c.callDate BETWEEN :from AND :to " +
+           "GROUP BY CAST(c.callDate AS date) ORDER BY day")
+    List<Object[]> countByDay(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 }
+
 
 @Repository
 interface StatsTestResultRepository extends JpaRepository<TestResult, Long> {
