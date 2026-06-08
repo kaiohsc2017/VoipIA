@@ -75,34 +75,37 @@ public class AlertController {
     }
 
     /**
-     * Faz streaming do arquivo de áudio gravado pelo Asterisk para alertas.
+     * Faz streaming do arquivo de audio gravado pelo Asterisk para alertas.
      */
     @GetMapping("/alert-calls/{id}/audio")
-    @Operation(summary = "Streaming do áudio gravado do alerta Zabbix")
+    @Operation(summary = "Streaming do audio gravado do alerta Zabbix")
     public ResponseEntity<Resource> getAudio(@PathVariable Long id) {
-        return service.findById(id).map(record -> {
-            if (record.getAudioFilePath() == null || record.getAudioFilePath().isBlank()) {
-                return ResponseEntity.<Resource>notFound().build();
-            }
-            File audioFile = new File(record.getAudioFilePath());
-            if (!audioFile.isAbsolute()) {
-                audioFile = new File(audioStoragePath, record.getAudioFilePath());
-            }
-            if (!audioFile.exists() || !audioFile.canRead()) {
-                log.warn("Arquivo de áudio do alerta não encontrado: {}", audioFile.getAbsolutePath());
-                return ResponseEntity.<Resource>notFound().build();
-            }
-            Resource resource = new FileSystemResource(audioFile);
-            String filename = audioFile.getName();
-            MediaType mediaType = filename.endsWith(".mp3") ? MediaType.valueOf("audio/mpeg")
-                    : filename.endsWith(".ogg") ? MediaType.valueOf("audio/ogg")
-                    : MediaType.valueOf("audio/wav");
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
-                    .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                    .contentType(mediaType)
-                    .<Resource>body(resource);
-        }).orElse(ResponseEntity.notFound().build());
+        var optRecord = service.findById(id);
+        if (optRecord.isEmpty()) {
+            return ResponseEntity.<Resource>notFound().build();
+        }
+        AlertCall record = optRecord.get();
+        if (record.getAudioFilePath() == null || record.getAudioFilePath().isBlank()) {
+            return ResponseEntity.<Resource>notFound().build();
+        }
+        File audioFile = new File(record.getAudioFilePath());
+        if (!audioFile.isAbsolute()) {
+            audioFile = new File(audioStoragePath, record.getAudioFilePath());
+        }
+        if (!audioFile.exists() || !audioFile.canRead()) {
+            log.warn("Arquivo de audio do alerta nao encontrado: {}", audioFile.getAbsolutePath());
+            return ResponseEntity.<Resource>notFound().build();
+        }
+        Resource resource = new FileSystemResource(audioFile);
+        String filename = audioFile.getName();
+        MediaType mediaType = filename.endsWith(".mp3") ? MediaType.valueOf("audio/mpeg")
+                : filename.endsWith(".ogg") ? MediaType.valueOf("audio/ogg")
+                : MediaType.valueOf("audio/wav");
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                .contentType(mediaType)
+                .body(resource);
     }
 
     // -----------------------------------------------------------------------
