@@ -7,16 +7,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.stereotype.Repository;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
  * UserController — CRUD de usuários do sistema AsteriskIA.
@@ -63,12 +59,10 @@ public class UserController {
     @PostMapping
     @Operation(summary = "Cria usuário — atribui próximo ramal disponível automaticamente")
     public ResponseEntity<?> createUser(@Valid @RequestBody CreateUserRequest req) {
-        // Valida username único
         if (userRepo.findByUsername(req.username()).isPresent()) {
             return ResponseEntity.badRequest().body(new ErrorResponse("Username já existe: " + req.username()));
         }
 
-        // Próximo ramal disponível (9001, 9002, ...)
         int extension = userRepo.findNextExtension(EXTENSION_START);
 
         AppUser user = AppUser.builder()
@@ -157,29 +151,4 @@ public class UserController {
     }
 
     public record ErrorResponse(String message) {}
-}
-
-// ---------------------------------------------------------------------------
-// Repository
-// ---------------------------------------------------------------------------
-
-@Repository
-interface AppUserRepository extends JpaRepository<AppUser, Integer> {
-
-    Optional<AppUser> findByUsername(String username);
-
-    Optional<AppUser> findByUsernameAndIsActiveTrue(String username);
-
-    /**
-     * Retorna o próximo ramal disponível a partir de {@code start}.
-     * Se todos estiverem ocupados consecutivamente, usa MAX + 1.
-     */
-    @Query(value = """
-        SELECT COALESCE(
-            (SELECT s.ext FROM generate_series(:start, 9099) AS s(ext)
-             WHERE s.ext NOT IN (SELECT extension FROM app_users) LIMIT 1),
-            (SELECT MAX(extension) + 1 FROM app_users WHERE extension >= :start)
-        )
-        """, nativeQuery = true)
-    int findNextExtension(int start);
 }

@@ -1,15 +1,14 @@
 package com.asteriskia.config;
 
 import com.asteriskia.domain.user.AppUser;
+import com.asteriskia.domain.user.AppUserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -31,19 +30,13 @@ import java.util.Optional;
 public class AuthController {
 
     private final JwtService jwtService;
-
-    /** Repositório de usuários — injetado lazy para evitar circular dependency */
-    @Lazy
-    @Autowired
-    private com.asteriskia.domain.user.AppUserRepository userRepo;
+    private final AppUserRepository userRepo;
 
     private static final BCryptPasswordEncoder ENCODER = new BCryptPasswordEncoder();
 
-    /** Fallback admin — configurado via env ADMIN_USERNAME (padrão: admin) */
     @Value("${app.auth.admin-username:admin}")
     private String adminUsername;
 
-    /** Fallback senha admin — configurado via env ADMIN_PASSWORD */
     @Value("${app.auth.admin-password:changeme}")
     private String adminPassword;
 
