@@ -9,9 +9,9 @@ interface SidebarProps {
 
 const NAV_ITEMS: { page: Page; icon: string; label: string; section: string }[] = [
   { page: 'dashboard',  icon: '📊', label: 'Dashboard',         section: 'GERAL' },
-  { page: 'modulo1',    icon: '🎫', label: 'URA / Jira',        section: 'MÓDULOS' },
+  { page: 'modulo1',    icon: '🎫', label: 'URA',               section: 'MÓDULOS' },
   { page: 'modulo2',    icon: '📞', label: 'Conectividade',     section: 'MÓDULOS' },
-  { page: 'modulo3',    icon: '🚨', label: 'Alertas Zabbix',    section: 'MÓDULOS' },
+  { page: 'modulo3',    icon: '🚨', label: 'Monitoramento',     section: 'MÓDULOS' },
   { page: 'masterdata', icon: '⚙️',  label: 'Dados Mestres',     section: 'CADASTROS' },
   { page: 'users',      icon: '👥', label: 'Usuários e Ramais',  section: 'CADASTROS' },
   { page: 'settings',   icon: '🔧', label: 'Configurações',      section: 'SISTEMA' },

@@ -348,6 +348,10 @@ export default function ModuloConectividade() {
   const [resPage, setResPage] = useState(0);
   const [resTotalPages, setResTotalPages] = useState(1);
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterBu, setFilterBu] = useState('');
+  const [filterClient, setFilterClient] = useState('');
+  const [filterOperation, setFilterOperation] = useState('');
+  const [filterSegment, setFilterSegment] = useState('');
   const [filterPeriod, setFilterPeriod] = useState<'today' | 'week' | 'month' | 'custom'>('month');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -360,22 +364,46 @@ export default function ModuloConectividade() {
       .finally(() => setLoading(false));
   };
 
-  const buildResultParams = (p = 0, status = filterStatus, period = filterPeriod, from = dateFrom, to = dateTo) => {
+  const buildResultParams = (
+    p = 0,
+    status = filterStatus,
+    period = filterPeriod,
+    from = dateFrom,
+    to = dateTo,
+    bu = filterBu,
+    client = filterClient,
+    operation = filterOperation,
+    segment = filterSegment,
+  ) => {
     const params = new URLSearchParams({ page: String(p), size: '30' });
-    if (status) params.set('status', status);
+    if (status)    params.set('status', status);
+    if (bu)        params.set('businessUnitId', bu);
+    if (client)    params.set('clientId', client);
+    if (operation) params.set('operationId', operation);
+    if (segment)   params.set('segmentId', segment);
     let fromVal = from, toVal = to;
     if (period !== 'custom') {
       const r = getPeriodRange(period as 'today' | 'week' | 'month');
       fromVal = r.from; toVal = r.to;
     }
     if (fromVal) params.set('dateFrom', fromVal);
-    if (toVal) params.set('dateTo', toVal);
+    if (toVal)   params.set('dateTo', toVal);
     return params;
   };
 
-  const loadResults = (p = 0, status = filterStatus, period = filterPeriod, from = dateFrom, to = dateTo) => {
+  const loadResults = (
+    p = 0,
+    status = filterStatus,
+    period = filterPeriod,
+    from = dateFrom,
+    to = dateTo,
+    bu = filterBu,
+    client = filterClient,
+    operation = filterOperation,
+    segment = filterSegment,
+  ) => {
     setLoading(true);
-    const params = buildResultParams(p, status, period, from, to);
+    const params = buildResultParams(p, status, period, from, to, bu, client, operation, segment);
     api.get<PageResponse<TestResult>>(`/test-results?${params}`)
       .then(r => {
         setResults(r.data.content ?? []);
@@ -449,13 +477,13 @@ export default function ModuloConectividade() {
   const handlePeriodFilter = (p: 'today' | 'week' | 'month') => {
     setFilterPeriod(p);
     setDateFrom(''); setDateTo('');
-    loadResults(0, filterStatus, p, '', '');
+    loadResults(0, filterStatus, p, '', '', filterBu, filterClient, filterOperation, filterSegment);
   };
 
   const handleCustomFilter = () => {
     if (dateFrom && dateTo) {
       setFilterPeriod('custom');
-      loadResults(0, filterStatus, 'custom', dateFrom, dateTo);
+      loadResults(0, filterStatus, 'custom', dateFrom, dateTo, filterBu, filterClient, filterOperation, filterSegment);
     }
   };
 
@@ -595,11 +623,35 @@ export default function ModuloConectividade() {
                 </div>
                 {/* Filtro status */}
                 <select className="form-select" style={{ width: 160 }} value={filterStatus}
-                  onChange={e => { setFilterStatus(e.target.value); loadResults(0, e.target.value); }}>
+                  onChange={e => { setFilterStatus(e.target.value); loadResults(0, e.target.value, filterPeriod, dateFrom, dateTo, filterBu, filterClient, filterOperation, filterSegment); }}>
                   <option value="">Todos os status</option>
                   {['SUCESSO', 'FALHA', 'OCUPADO', 'TIMEOUT', 'SEM_RESPOSTA', 'INVALIDO', 'INDISPONIVEL', 'RECUSADO'].map(s => (
                     <option key={s} value={s}>{s}</option>
                   ))}
+                </select>
+                {/* Filtro BU */}
+                <select className="form-select" style={{ width: 150 }} value={filterBu}
+                  onChange={e => { setFilterBu(e.target.value); loadResults(0, filterStatus, filterPeriod, dateFrom, dateTo, e.target.value, filterClient, filterOperation, filterSegment); }}>
+                  <option value="">Todas as BUs</option>
+                  {bus.map(b => <option key={b.id} value={String(b.id)}>{b.name}</option>)}
+                </select>
+                {/* Filtro Cliente */}
+                <select className="form-select" style={{ width: 150 }} value={filterClient}
+                  onChange={e => { setFilterClient(e.target.value); loadResults(0, filterStatus, filterPeriod, dateFrom, dateTo, filterBu, e.target.value, filterOperation, filterSegment); }}>
+                  <option value="">Todos os clientes</option>
+                  {clients.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+                </select>
+                {/* Filtro Operação */}
+                <select className="form-select" style={{ width: 150 }} value={filterOperation}
+                  onChange={e => { setFilterOperation(e.target.value); loadResults(0, filterStatus, filterPeriod, dateFrom, dateTo, filterBu, filterClient, e.target.value, filterSegment); }}>
+                  <option value="">Todas as operações</option>
+                  {operations.map(o => <option key={o.id} value={String(o.id)}>{o.name}</option>)}
+                </select>
+                {/* Filtro Segmento */}
+                <select className="form-select" style={{ width: 150 }} value={filterSegment}
+                  onChange={e => { setFilterSegment(e.target.value); loadResults(0, filterStatus, filterPeriod, dateFrom, dateTo, filterBu, filterClient, filterOperation, e.target.value); }}>
+                  <option value="">Todos os segmentos</option>
+                  {segments.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
                 </select>
               </div>
             </div>

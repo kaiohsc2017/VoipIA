@@ -11,7 +11,7 @@ interface GenericEntity {
 }
 
 const TABS: { key: TabKey; label: string; icon: string; endpoint: string }[] = [
-  { key: 'bu',        label: 'Business Units', icon: '🏢', endpoint: 'business-units' },
+  { key: 'bu',        label: 'BU',        icon: '🏢', endpoint: 'business-units' },
   { key: 'client',    label: 'Clientes',       icon: '👤', endpoint: 'clients' },
   { key: 'operation', label: 'Operações',       icon: '⚙️',  endpoint: 'operations' },
   { key: 'segment',   label: 'Segmentos',       icon: '📂', endpoint: 'segments' },
@@ -106,7 +106,7 @@ export default function MasterData() {
           </div>
           <div className="toolbar-right">
             <button className="btn btn-primary" onClick={openCreate}>
-              ＋ Novo{currentTab.label === 'Business Units' ? 'a BU' : currentTab.label === 'Clientes' ? ' Cliente' : currentTab.label === 'Operações' ? ' Operação' : ' Segmento'}
+              ＋ {currentTab.label === 'BU' ? 'Nova BU' : currentTab.label === 'Clientes' ? 'Novo Cliente' : currentTab.label === 'Operações' ? 'Nova Operação' : 'Novo Segmento'}
             </button>
           </div>
         </div>
