@@ -1,5 +1,9 @@
 package com.asteriskia.domain.connectivity;
 
+import com.asteriskia.domain.masterdata.BusinessUnitRepository;
+import com.asteriskia.domain.masterdata.ClientRepository;
+import com.asteriskia.domain.masterdata.OperationRepository;
+import com.asteriskia.domain.masterdata.SegmentRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -8,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -17,7 +22,6 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -142,48 +146,3 @@ public class ConnectivityController {
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 }
-// ---------------------------------------------------------------------------
-
-@Repository
-interface TestResultRepository extends JpaRepository<TestResult, Long> {
-
-    /**
-     * Query unificada com todos os filtros opcionais.
-     * Cada parâmetro é ignorado quando NULL — permite qualquer combinação de filtros
-     * sem explodir em if/else.
-     */
-    @Query("SELECT r FROM TestResult r JOIN r.numberTest nt " +
-           "WHERE (:numberTestId  IS NULL OR nt.id                  = :numberTestId) " +
-           "AND   (:status        IS NULL OR r.status               = :status) " +
-           "AND   (:dateFrom      IS NULL OR r.executedAt           >= :dateFrom) " +
-           "AND   (:dateTo        IS NULL OR r.executedAt           <= :dateTo) " +
-           "AND   (:businessUnitId IS NULL OR nt.businessUnit.id    = :businessUnitId) " +
-           "AND   (:clientId      IS NULL OR nt.client.id           = :clientId) " +
-           "AND   (:operationId   IS NULL OR nt.operation.id        = :operationId) " +
-           "AND   (:segmentId     IS NULL OR nt.segment.id          = :segmentId)")
-    Page<TestResult> findWithFilters(
-            @Param("numberTestId")   Long          numberTestId,
-            @Param("status")         String        status,
-            @Param("dateFrom")       LocalDateTime dateFrom,
-            @Param("dateTo")         LocalDateTime dateTo,
-            @Param("businessUnitId") Long          businessUnitId,
-            @Param("clientId")       Long          clientId,
-            @Param("operationId")    Long          operationId,
-            @Param("segmentId")      Long          segmentId,
-            org.springframework.data.domain.Pageable pageable);
-
-    // Mantidos para compatibilidade com HistoricoModal (filtra por numberTestId + período)
-    Page<TestResult> findByNumberTestId(Long numberTestId, org.springframework.data.domain.Pageable pageable);
-    Page<TestResult> findByNumberTestIdAndExecutedAtBetween(Long numberTestId, LocalDateTime from, LocalDateTime to, org.springframework.data.domain.Pageable pageable);
-
-    // Estatísticas para o dashboard
-    @Query("SELECT COUNT(r) FROM TestResult r WHERE r.executedAt BETWEEN :from AND :to")
-    long countByPeriod(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
-
-    @Query("SELECT COUNT(r) FROM TestResult r WHERE r.status = :status AND r.executedAt BETWEEN :from AND :to")
-    long countByStatusAndPeriod(@Param("status") String status, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
-}
-
-
-
-

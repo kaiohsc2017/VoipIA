@@ -172,19 +172,3 @@ public class AlertService {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Repositories
-// ---------------------------------------------------------------------------
-
-@Repository
-interface AlertCallRepository extends JpaRepository<AlertCall, Long> {
-    Optional<AlertCall> findByAsteriskCallId(String asteriskCallId);
-    boolean existsByZabbixTriggerIdAndCallStatusIn(String triggerId, List<String> statuses);
-    Page<AlertCall> findAllByOrderByCallDateDesc(Pageable pageable);
-}
-
-@Repository
-interface AlertContactRepository extends JpaRepository<AlertContact, Integer> {
-    List<AlertContact> findByIsActiveTrueOrderByPriorityOrderAsc();
-    List<AlertContact> findByIsActiveTrueAndOperationIdOrderByPriorityOrderAsc(Long operationId);
-}
