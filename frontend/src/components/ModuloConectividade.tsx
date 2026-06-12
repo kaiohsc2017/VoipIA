@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -357,6 +358,11 @@ export default function ModuloConectividade() {
   const [dateTo, setDateTo] = useState('');
   const [histTest, setHistTest] = useState<NumberTest | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [showImport, setShowImport]         = useState(false);
+  const [importFile, setImportFile]         = useState<File | null>(null);
+  const [importing, setImporting]           = useState(false);
+  const [importResult, setImportResult]     = useState<{ importados: number; erros: number; detalhes: { linha: number; conteudo: string; erro: string }[] } | null>(null);
+  const fileInputRef                        = useRef<HTMLInputElement>(null);
 
   const loadTests = () => {
     setLoading(true);
@@ -525,6 +531,61 @@ export default function ModuloConectividade() {
     }
   };
 
+
+  // ─── Download do arquivo modelo ────────────────────────────────────────────
+  const downloadTemplate = () => {
+    const wb = XLSX.utils.book_new();
+
+    // Aba 1: Modelo de importação
+    const modelData = [
+      ['numero', 'business_unit', 'cliente', 'operacao', 'segmento', 'horario_inicio', 'intervalo_minutos', 'quantidade', 'ativo'],
+      ['+5511999990001', bus[0]?.name ?? 'Nome da BU', clients[0]?.name ?? 'Nome do Cliente', operations[0]?.name ?? 'Nome da Operação', segments[0]?.name ?? 'Nome do Segmento', '08:00', '60', '3', 'sim'],
+      ['+5511999990002', bus[0]?.name ?? 'Nome da BU', clients[0]?.name ?? 'Nome do Cliente', operations[0]?.name ?? 'Nome da Operação', segments[0]?.name ?? 'Nome do Segmento', '09:00', '120', '5', 'sim'],
+    ];
+    const wsModel = XLSX.utils.aoa_to_sheet(modelData);
+    wsModel['!cols'] = [18, 20, 20, 20, 20, 14, 18, 12, 8].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, wsModel, 'Importação');
+
+    // Aba 2: Valores válidos de referência
+    const maxRows = Math.max(bus.length, clients.length, operations.length, segments.length, 1);
+    const refData = [['business_unit (valores válidos)', 'cliente (valores válidos)', 'operacao (valores válidos)', 'segmento (valores válidos)']];
+    for (let i = 0; i < maxRows; i++) {
+      refData.push([
+        bus[i]?.name ?? '',
+        clients[i]?.name ?? '',
+        operations[i]?.name ?? '',
+        segments[i]?.name ?? '',
+      ]);
+    }
+    const wsRef = XLSX.utils.aoa_to_sheet(refData);
+    wsRef['!cols'] = [30, 30, 30, 30].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, wsRef, 'Valores de Referência');
+
+    XLSX.writeFile(wb, 'modelo_importacao_testes.xlsx');
+  };
+
+  // ─── Upload e importação ──────────────────────────────────────────────────
+  const handleImport = async () => {
+    if (!importFile) return;
+    setImporting(true);
+    setImportResult(null);
+    const formData = new FormData();
+    formData.append('file', importFile);
+    try {
+      const res = await api.post('/number-tests/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setImportResult(res.data);
+      if (res.data.importados > 0) loadTests();
+    } catch (err: any) {
+      setImportResult({ importados: 0, erros: 1, detalhes: [{ linha: 0, conteudo: '', erro: err.response?.data?.error ?? 'Erro ao enviar arquivo.' }] });
+    } finally {
+      setImporting(false);
+      setImportFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <>
       <div className="page-header">
@@ -555,7 +616,11 @@ export default function ModuloConectividade() {
                   {tests.length} número{tests.length !== 1 ? 's' : ''} cadastrado{tests.length !== 1 ? 's' : ''}
                 </span>
               </div>
-              <div className="toolbar-right">
+              <div className="toolbar-right" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setShowImport(true); setImportResult(null); }}
+                  style={{ borderColor: 'rgba(124,58,237,0.4)', color: '#a78bfa' }}>
+                  📥 Importar Planilha
+                </button>
                 <button className="btn btn-primary" onClick={openCreate}>＋ Novo Teste</button>
               </div>
             </div>
@@ -843,6 +908,141 @@ export default function ModuloConectividade() {
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button>
               <button className="btn btn-primary" onClick={save}>{editId ? 'Salvar Alterações' : 'Criar Teste'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de importação */}
+      {showImport && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) { setShowImport(false); setImportResult(null); } }}>
+          <div className="modal" style={{ maxWidth: 600 }}>
+            <div className="modal-header">
+              <h2>📥 Importar Testes em Lote</h2>
+              <button className="btn-close" onClick={() => { setShowImport(false); setImportResult(null); }}>×</button>
+            </div>
+            <div className="modal-body">
+
+              {/* Instruções */}
+              <div style={{
+                background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)',
+                borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: '0.83rem',
+                color: 'var(--text-muted)', lineHeight: 1.7,
+              }}>
+                <div style={{ fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>📋 Instruções</div>
+                <ul style={{ paddingLeft: 16, margin: 0 }}>
+                  <li>Baixe o arquivo modelo e preencha a aba <strong>Importação</strong></li>
+                  <li>Os nomes de BU, Cliente, Operação e Segmento devem ser <strong>exatamente</strong> como cadastrados</li>
+                  <li>A aba <strong>Valores de Referência</strong> lista todos os nomes válidos</li>
+                  <li>Horário no formato <strong>HH:mm</strong> (ex: <code>08:00</code>)</li>
+                  <li>Campo <strong>ativo</strong>: <code>sim</code> ou <code>nao</code></li>
+                  <li>Formatos aceitos: <strong>.xlsx</strong> e <strong>.csv</strong></li>
+                </ul>
+              </div>
+
+              {/* Download do modelo + Upload */}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 20 }}>
+                <button className="btn btn-ghost btn-sm"
+                  onClick={downloadTemplate}
+                  title="Baixar planilha modelo com os campos corretos e valores de referência"
+                  style={{ borderColor: 'rgba(16,185,129,0.4)', color: '#6ee7b7', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  ⬇ Baixar Modelo .xlsx
+                </button>
+
+                <div style={{ flex: 1 }}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    style={{ display: 'none' }}
+                    onChange={e => { setImportFile(e.target.files?.[0] ?? null); setImportResult(null); }}
+                  />
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      border: `2px dashed ${importFile ? 'rgba(124,58,237,0.6)' : 'rgba(255,255,255,0.12)'}`,
+                      borderRadius: 10, padding: '16px 20px', cursor: 'pointer',
+                      textAlign: 'center', transition: 'all .2s',
+                      background: importFile ? 'rgba(124,58,237,0.06)' : 'transparent',
+                    }}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setImportFile(f); setImportResult(null); } }}
+                  >
+                    {importFile ? (
+                      <div>
+                        <div style={{ fontSize: '1.2rem', marginBottom: 4 }}>📄</div>
+                        <div style={{ fontWeight: 500, fontSize: '0.88rem' }}>{importFile.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                          {(importFile.size / 1024).toFixed(1)} KB · Clique para trocar
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>📂</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          Clique para selecionar ou arraste o arquivo aqui
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'rgba(148,163,184,0.5)', marginTop: 4 }}>
+                          .xlsx · .xls · .csv
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Resultado da importação */}
+              {importResult && (
+                <div style={{
+                  background: importResult.erros === 0 ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
+                  border: `1px solid ${importResult.erros === 0 ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'}`,
+                  borderRadius: 10, padding: '14px 18px', fontSize: '0.85rem',
+                }}>
+                  <div style={{ display: 'flex', gap: 20, marginBottom: importResult.detalhes.length > 0 ? 12 : 0 }}>
+                    <div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Importados</div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#68d391' }}>{importResult.importados}</div>
+                    </div>
+                    {importResult.erros > 0 && (
+                      <div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Com erro</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#fc8181' }}>{importResult.erros}</div>
+                      </div>
+                    )}
+                  </div>
+                  {importResult.detalhes.length > 0 && (
+                    <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+                      <div style={{ fontWeight: 500, marginBottom: 6, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        Detalhes dos erros:
+                      </div>
+                      {importResult.detalhes.map((d, i) => (
+                        <div key={i} style={{
+                          background: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: '6px 10px',
+                          marginBottom: 6, fontFamily: 'monospace', fontSize: '0.75rem',
+                        }}>
+                          <span style={{ color: '#fc8181' }}>Linha {d.linha}:</span>{' '}
+                          <span style={{ color: '#fcd34d' }}>{d.erro}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => { setShowImport(false); setImportResult(null); }}>
+                {importResult ? 'Fechar' : 'Cancelar'}
+              </button>
+              {!importResult && (
+                <button className="btn btn-primary" onClick={handleImport}
+                  disabled={!importFile || importing}
+                  style={{ minWidth: 130 }}>
+                  {importing
+                    ? <><span className="spinner" style={{ width: 12, height: 12, margin: '0 6px 0 0' }} />Importando…</>
+                    : '📥 Importar'}
+                </button>
+              )}
             </div>
           </div>
         </div>
