@@ -1,16 +1,20 @@
-import { useState, useEffect, Component, type ReactNode } from 'react';
+import { useState, useEffect, Component, type ReactNode, lazy, Suspense } from 'react';
 import './App.css';
 import Login from './components/Login';
 import Sidebar, { type Page } from './components/Sidebar';
-import Dashboard from './components/Dashboard';
-import ModuloURA from './components/ModuloURA';
-import ModuloConectividade from './components/ModuloConectividade';
-import ModuloAlertas from './components/ModuloAlertas';
-import Softphone from './components/Softphone';
-import MasterData from './components/MasterData';
-import Users from './components/Users';
-import Settings from './components/Settings';
-import Auditoria from './components/Auditoria';
+
+// ─── Lazy imports — cada módulo vira um chunk separado ───────────────────────
+// O React cria um chunk JS separado para cada componente lazy.
+// O chunk só é baixado quando o usuário navega para aquela página.
+const Dashboard          = lazy(() => import('./components/Dashboard'));
+const ModuloURA          = lazy(() => import('./components/ModuloURA'));
+const ModuloConectividade= lazy(() => import('./components/ModuloConectividade'));
+const ModuloAlertas      = lazy(() => import('./components/ModuloAlertas'));
+const Softphone          = lazy(() => import('./components/Softphone'));
+const MasterData         = lazy(() => import('./components/MasterData'));
+const Users              = lazy(() => import('./components/Users'));
+const Settings           = lazy(() => import('./components/Settings'));
+const Auditoria          = lazy(() => import('./components/Auditoria'));
 
 // ─── ErrorBoundary ─────────────────────────────────────────────────────────────
 // Evita que erros em componentes filhos desmontem toda a árvore React (tela em branco).
@@ -57,6 +61,20 @@ class ErrorBoundary extends Component<
     }
     return this.props.children;
   }
+}
+
+// ─── Spinner de carregamento de página ────────────────────────────────────────
+function PageLoader() {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '100%', gap: 12, color: 'var(--text-muted)',
+      fontSize: '0.9rem',
+    }}>
+      <div className="spinner" />
+      Carregando…
+    </div>
+  );
 }
 
 // ─── App ───────────────────────────────────────────────────────────────────────
@@ -107,18 +125,24 @@ export default function App() {
         />
 
         <main className="main-content">
-          {page === 'dashboard'   && <ErrorBoundary><Dashboard /></ErrorBoundary>}
-          {page === 'modulo1'     && <ErrorBoundary><ModuloURA /></ErrorBoundary>}
-          {page === 'modulo2'     && <ErrorBoundary><ModuloConectividade /></ErrorBoundary>}
-          {page === 'modulo3'     && <ErrorBoundary><ModuloAlertas /></ErrorBoundary>}
-          {page === 'masterdata'  && <ErrorBoundary><MasterData /></ErrorBoundary>}
-          {page === 'users'       && <ErrorBoundary><Users /></ErrorBoundary>}
-          {page === 'settings'    && <ErrorBoundary><Settings /></ErrorBoundary>}
-          {page === 'audit'       && <ErrorBoundary><Auditoria /></ErrorBoundary>}
+          <Suspense fallback={<PageLoader />}>
+            <ErrorBoundary>
+              {page === 'dashboard'  && <Dashboard />}
+              {page === 'modulo1'    && <ModuloURA />}
+              {page === 'modulo2'    && <ModuloConectividade />}
+              {page === 'modulo3'    && <ModuloAlertas />}
+              {page === 'masterdata' && <MasterData />}
+              {page === 'users'      && <Users />}
+              {page === 'settings'   && <Settings />}
+              {page === 'audit'      && <Auditoria />}
+            </ErrorBoundary>
+          </Suspense>
         </main>
 
         {/* Softphone WebRTC — flutuante em todas as páginas */}
-        <ErrorBoundary><Softphone /></ErrorBoundary>
+        <Suspense fallback={null}>
+          <ErrorBoundary><Softphone /></ErrorBoundary>
+        </Suspense>
       </div>
     </ErrorBoundary>
   );

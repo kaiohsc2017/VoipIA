@@ -1,5 +1,6 @@
 package com.asteriskia.domain.settings;
 
+import com.asteriskia.domain.audit.AuditService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,6 +35,7 @@ import java.util.Map;
 public class SettingsController {
 
     private final SettingsService settingsService;
+    private final AuditService    auditService;
 
     // -------------------------------------------------------------------------
     // GET — lê configurações atuais
@@ -73,11 +75,15 @@ public class SettingsController {
             settingsService.writeSettings(updates, changedBy, ipAddress);
             log.info("Configurações salvas por {} @ {} ({} chaves)", changedBy, ipAddress, updates.size());
 
+            auditService.log(request, "SETTINGS_CHANGE",
+                    updates.size() + " chave(s) alterada(s): " + String.join(", ", updates.keySet()), true);
+
             return ResponseEntity.ok(new SuccessResponse(
                     "Configurações salvas com sucesso. Clique em 'Aplicar' para reiniciar os serviços."
             ));
         } catch (IOException e) {
             log.error("Erro ao salvar configurações: {}", e.getMessage(), e);
+            auditService.log(request, "SETTINGS_CHANGE", "Falha ao salvar: " + e.getMessage(), false);
             return ResponseEntity.internalServerError()
                     .body(new ErrorResponse("Erro ao gravar arquivo de configuração: " + e.getMessage()));
         }
@@ -89,15 +95,17 @@ public class SettingsController {
 
     @PostMapping("/apply")
     @Operation(summary = "Inicia o apply das configurações (assíncrono). Retorna 202 com jobId.")
-    public ResponseEntity<?> startApply() {
+    public ResponseEntity<?> startApply(HttpServletRequest request) {
         try {
             log.info("Iniciando apply de configurações via API (assíncrono)");
             String jobId = settingsService.startApplyAsync();
+            auditService.log(request, "SETTINGS_CHANGE", "Apply de configurações iniciado (jobId=" + jobId + ")", true);
             return ResponseEntity
                     .status(HttpStatus.ACCEPTED)
                     .body(new ApplyStartResponse(jobId, "Apply iniciado. Use GET /apply/" + jobId + " para acompanhar."));
         } catch (Exception e) {
             log.error("Erro ao iniciar apply: {}", e.getMessage(), e);
+            auditService.log(request, "SETTINGS_CHANGE", "Falha no apply: " + e.getMessage(), false);
             return ResponseEntity.internalServerError()
                     .body(new ErrorResponse("Erro ao iniciar apply: " + e.getMessage()));
         }

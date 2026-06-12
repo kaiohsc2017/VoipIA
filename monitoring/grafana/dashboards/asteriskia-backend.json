@@ -1,71 +1,155 @@
 {
   "annotations": { "list": [] },
   "editable": true,
-  "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "id": null,
+  "refresh": "30s",
   "panels": [
     {
       "type": "stat",
       "title": "Backend UP",
       "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
-      "targets": [
-        {
-          "expr": "up{job=\"asteriskia-backend\"}",
-          "legendFormat": "Backend"
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"] }
-      },
+      "targets": [{ "expr": "up{job=\"asteriskia-backend\"}", "legendFormat": "Backend" }],
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
       "fieldConfig": {
         "defaults": {
-          "mappings": [
-            { "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } }, "type": "value" }
-          ],
-          "thresholds": {
-            "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
-            ]
-          }
+          "mappings": [{ "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } }, "type": "value" }],
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "JVM Heap Usado (%)",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [{
+        "expr": "100 * jvm_memory_used_bytes{area=\"heap\",job=\"asteriskia-backend\"} / jvm_memory_max_bytes{area=\"heap\",job=\"asteriskia-backend\"}",
+        "legendFormat": "Heap %"
+      }],
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 60 }, { "color": "red", "value": 85 }] }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Threads Ativas",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [{ "expr": "jvm_threads_live_threads{job=\"asteriskia-backend\"}", "legendFormat": "Threads" }],
+      "options": { "colorMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }] } } }
+    },
+    {
+      "type": "stat",
+      "title": "Req/s (1min)",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [{
+        "expr": "sum(rate(http_server_requests_seconds_count{job=\"asteriskia-backend\"}[1m]))",
+        "legendFormat": "req/s"
+      }],
+      "options": { "colorMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "type": "stat",
+      "title": "Erros 5xx (1min)",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "targets": [{
+        "expr": "sum(rate(http_server_requests_seconds_count{job=\"asteriskia-backend\",status=~\"5..\"}[1m]))",
+        "legendFormat": "5xx/s"
+      }],
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0.01 }] }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Latência P99 (ms)",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "targets": [{
+        "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"asteriskia-backend\"}[5m])) by (le)) * 1000",
+        "legendFormat": "p99"
+      }],
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 500 }, { "color": "red", "value": 2000 }] }
         }
       }
     },
     {
       "type": "timeseries",
-      "title": "HTTP Requisições / segundo",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "title": "Requisições HTTP por Endpoint",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 4 },
+      "targets": [{
+        "expr": "topk(10, sum by (uri) (rate(http_server_requests_seconds_count{job=\"asteriskia-backend\"}[1m])))",
+        "legendFormat": "{{ uri }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "JVM Heap — Usado vs Máximo",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 4 },
       "targets": [
-        {
-          "expr": "rate(http_server_requests_seconds_count{job=\"asteriskia-backend\"}[1m])",
-          "legendFormat": "{{ uri }} {{ method }}"
-        }
+        { "expr": "jvm_memory_used_bytes{area=\"heap\",job=\"asteriskia-backend\"}", "legendFormat": "Usado" },
+        { "expr": "jvm_memory_max_bytes{area=\"heap\",job=\"asteriskia-backend\"}", "legendFormat": "Máximo" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência HTTP — P50 / P90 / P99",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 13 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{job=\"asteriskia-backend\"}[5m])) by (le)) * 1000", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.90, sum(rate(http_server_requests_seconds_bucket{job=\"asteriskia-backend\"}[5m])) by (le)) * 1000", "legendFormat": "P90" },
+        { "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"asteriskia-backend\"}[5m])) by (le)) * 1000", "legendFormat": "P99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Erros HTTP (4xx / 5xx)",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 13 },
+      "targets": [
+        { "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"asteriskia-backend\",status=~\"4..\"}[1m]))", "legendFormat": "4xx {{ status }}" },
+        { "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"asteriskia-backend\",status=~\"5..\"}[1m]))", "legendFormat": "5xx {{ status }}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Threads JVM — Live / Daemon / Peak",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 22 },
+      "targets": [
+        { "expr": "jvm_threads_live_threads{job=\"asteriskia-backend\"}", "legendFormat": "Live" },
+        { "expr": "jvm_threads_daemon_threads{job=\"asteriskia-backend\"}", "legendFormat": "Daemon" },
+        { "expr": "jvm_threads_peak_threads{job=\"asteriskia-backend\"}", "legendFormat": "Peak" }
       ]
     },
     {
       "type": "timeseries",
-      "title": "JVM Heap Usage",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
-      "targets": [
-        {
-          "expr": "jvm_memory_used_bytes{area=\"heap\", job=\"asteriskia-backend\"}",
-          "legendFormat": "Heap Used"
-        },
-        {
-          "expr": "jvm_memory_max_bytes{area=\"heap\", job=\"asteriskia-backend\"}",
-          "legendFormat": "Heap Max"
-        }
-      ]
+      "title": "GC Pausas — tempo acumulado",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 22 },
+      "targets": [{
+        "expr": "rate(jvm_gc_pause_seconds_sum{job=\"asteriskia-backend\"}[1m])",
+        "legendFormat": "{{ gc }} {{ action }}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "s" } }
     }
   ],
   "schemaVersion": 38,
-  "tags": ["asteriskia"],
-  "title": "AsteriskIA — Backend Overview",
+  "tags": ["asteriskia", "backend", "jvm"],
+  "title": "AsteriskIA — Backend & JVM",
   "uid": "asteriskia-backend",
-  "version": 1
+  "version": 2
 }

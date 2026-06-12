@@ -56,8 +56,10 @@ public class AuditController {
     @Operation(summary = "Lista de tipos de ação disponíveis para filtro")
     public ResponseEntity<List<String>> actions() {
         return ResponseEntity.ok(List.of(
-                "LOGIN", "LOGIN_FAILED", "SETTINGS_CHANGE", "USER_CREATE",
-                "USER_UPDATE", "USER_DELETE", "EXPORT", "RATE_LIMIT_BLOCKED",
+                "LOGIN", "LOGIN_FAILED", "SETTINGS_CHANGE",
+                "USER_CREATE", "USER_UPDATE", "USER_DELETE",
+                "MASTERDATA_CREATE", "MASTERDATA_UPDATE", "MASTERDATA_DELETE",
+                "EXPORT", "RATE_LIMIT_BLOCKED",
                 "TOTP_ENABLED", "TOTP_DISABLED", "TOTP_VERIFY_FAILED"
         ));
     }

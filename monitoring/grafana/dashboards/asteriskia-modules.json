@@ -1,0 +1,126 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "refresh": "1m",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Total Chamadas URA (24h)",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "increase(http_server_requests_seconds_count{job=\"asteriskia-backend\",uri=~\"/api/v1/calls.*\",method=\"POST\"}[24h])",
+        "legendFormat": "chamadas/24h"
+      }],
+      "options": { "colorMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat",
+      "title": "Req Conectividade / min",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [{
+        "expr": "sum(rate(http_server_requests_seconds_count{job=\"asteriskia-backend\",uri=~\"/api/v1/test-results.*\"}[1m]))",
+        "legendFormat": "req/min"
+      }],
+      "options": { "colorMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "type": "stat",
+      "title": "Req Relatórios / hora",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [{
+        "expr": "increase(http_server_requests_seconds_count{job=\"asteriskia-backend\",uri=~\"/api/v1/reports.*\"}[1h])",
+        "legendFormat": "exports/h"
+      }],
+      "options": { "colorMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat",
+      "title": "Erros Gerais 5xx / hora",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [{
+        "expr": "increase(http_server_requests_seconds_count{job=\"asteriskia-backend\",status=~\"5..\"}[1h])",
+        "legendFormat": "5xx/h"
+      }],
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] } }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Conexões DB Ativas",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "targets": [{
+        "expr": "hikaricp_connections_active{job=\"asteriskia-backend\"}",
+        "legendFormat": "ativas"
+      }],
+      "options": { "colorMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat",
+      "title": "CPU Process (%)",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "targets": [{
+        "expr": "process_cpu_usage{job=\"asteriskia-backend\"} * 100",
+        "legendFormat": "cpu%"
+      }],
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 80 }] }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Módulos — Volume de Requisições",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "sum(rate(http_server_requests_seconds_count{job=\"asteriskia-backend\",uri=~\"/api/v1/calls.*\"}[1m]))", "legendFormat": "URA (chamadas)" },
+        { "expr": "sum(rate(http_server_requests_seconds_count{job=\"asteriskia-backend\",uri=~\"/api/v1/test-results.*|/api/v1/number-tests.*\"}[1m]))", "legendFormat": "Conectividade" },
+        { "expr": "sum(rate(http_server_requests_seconds_count{job=\"asteriskia-backend\",uri=~\"/api/v1/alerts.*\"}[1m]))", "legendFormat": "Alertas Zabbix" },
+        { "expr": "sum(rate(http_server_requests_seconds_count{job=\"asteriskia-backend\",uri=~\"/api/v1/reports.*\"}[1m]))", "legendFormat": "Relatórios" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Conexões HikariCP — Pool DB",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "expr": "hikaricp_connections_active{job=\"asteriskia-backend\"}", "legendFormat": "Ativas" },
+        { "expr": "hikaricp_connections_idle{job=\"asteriskia-backend\"}", "legendFormat": "Idle" },
+        { "expr": "hikaricp_connections{job=\"asteriskia-backend\"}", "legendFormat": "Total" },
+        { "expr": "hikaricp_connections_pending{job=\"asteriskia-backend\"}", "legendFormat": "Aguardando" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência por Módulo (P90)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "targets": [
+        { "expr": "histogram_quantile(0.90, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"asteriskia-backend\",uri=~\"/api/v1/calls.*\"}[5m]))) * 1000", "legendFormat": "URA p90" },
+        { "expr": "histogram_quantile(0.90, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"asteriskia-backend\",uri=~\"/api/v1/test-results.*\"}[5m]))) * 1000", "legendFormat": "Conectividade p90" },
+        { "expr": "histogram_quantile(0.90, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"asteriskia-backend\",uri=~\"/api/v1/reports.*\"}[5m]))) * 1000", "legendFormat": "Relatórios p90" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU & Memória do Processo",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "targets": [
+        { "expr": "process_cpu_usage{job=\"asteriskia-backend\"} * 100", "legendFormat": "CPU %" },
+        { "expr": "jvm_memory_used_bytes{area=\"heap\",job=\"asteriskia-backend\"} / 1024 / 1024", "legendFormat": "Heap MB" }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "tags": ["asteriskia", "modules", "overview"],
+  "title": "AsteriskIA — Módulos & Métricas",
+  "uid": "asteriskia-modules",
+  "version": 1
+}
