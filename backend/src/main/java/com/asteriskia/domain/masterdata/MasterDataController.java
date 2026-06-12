@@ -320,7 +320,7 @@ public class MasterDataController {
     }
 
     private static String col(String[] cols, int i) {
-        return (i < cols.length) ? cols[i].trim().replaceAll("^"|"$", "") : "";
+        return (i < cols.length) ? cols[i].trim().replaceAll("^\"|\"$", "") : "";
     }
 
     private static String norm(String s) {
