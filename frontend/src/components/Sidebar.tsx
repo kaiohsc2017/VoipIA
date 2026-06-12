@@ -8,14 +8,14 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: { page: Page; icon: string; label: string; section: string }[] = [
-  { page: 'dashboard',  icon: '📊', label: 'Dashboard',         section: 'GERAL' },
-  { page: 'modulo1',    icon: '🎫', label: 'URA',               section: 'MÓDULOS' },
-  { page: 'modulo2',    icon: '📞', label: 'Conectividade',     section: 'MÓDULOS' },
-  { page: 'modulo3',    icon: '🚨', label: 'Monitoramento',     section: 'MÓDULOS' },
-  { page: 'masterdata', icon: '⚙️',  label: 'Dados Mestres',     section: 'CADASTROS' },
+  { page: 'dashboard',  icon: '📊', label: 'Dashboard',          section: 'GERAL'     },
+  { page: 'modulo1',    icon: '🎫', label: 'URA',                section: 'MÓDULOS'   },
+  { page: 'modulo2',    icon: '📞', label: 'Conectividade',      section: 'MÓDULOS'   },
+  { page: 'modulo3',    icon: '🚨', label: 'Monitoramento',      section: 'MÓDULOS'   },
+  { page: 'masterdata', icon: '👤', label: 'Clientes',           section: 'CADASTROS' },
   { page: 'users',      icon: '👥', label: 'Usuários e Ramais',  section: 'CADASTROS' },
-  { page: 'settings',   icon: '🔧', label: 'Configurações',      section: 'SISTEMA' },
-  { page: 'audit',      icon: '🔐', label: 'Auditoria',          section: 'SISTEMA' },
+  { page: 'settings',   icon: '🔧', label: 'Configurações',      section: 'SISTEMA'   },
+  { page: 'audit',      icon: '🔐', label: 'Auditoria',          section: 'SISTEMA'   },
 ];
 
 export default function Sidebar({ currentPage, onNavigate, username, onLogout }: SidebarProps) {

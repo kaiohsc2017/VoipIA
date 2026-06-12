@@ -79,7 +79,7 @@ export default function MasterData() {
   return (
     <>
       <div className="page-header">
-        <h1>⚙️ Dados Mestres</h1>
+        <h1>👤 Clientes</h1>
         <p>Gerenciar Business Units, Clientes, Operações e Segmentos utilizados no Módulo 2</p>
       </div>
       <div className="page-body">
