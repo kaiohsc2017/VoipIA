@@ -48,27 +48,23 @@ type Tab = 'config' | 'history';
 
 // ─── Seções — cada uma sabe quais serviços afeta ──────────────────────────────
 
+// Seção SIP usa editor de bloco livre — não lista chaves individuais
+interface SipRawSection extends Omit<Section, 'keys'> {
+  rawSip: true;
+  keys: FieldDef[];
+}
+
+const SIP_SECTION: SipRawSection = {
+  id: 'sip',
+  icon: '🔌',
+  title: 'Tronco SIP (Operadora)',
+  description: 'Cole o bloco [tronco-sip] completo. Ao salvar, ele substitui a seção no pjsip.conf.template e recarrega o PJSIP no Asterisk.',
+  affectedServices: ['asterisk'],
+  rawSip: true,
+  keys: [],
+};
+
 const SECTIONS: Section[] = [
-  {
-    id: 'sip',
-    icon: '🔌',
-    title: 'Tronco SIP (Operadora)',
-    description: 'Configurações da operadora de telefonia para receber e realizar chamadas.',
-    testable: true,
-    testKeys: ['SIP_TRUNK_HOST'],
-    requiredKeys: ['SIP_TRUNK_HOST', 'SIP_TRUNK_USER'],
-    affectedServices: ['asterisk'],
-    keys: [
-      { key: 'SIP_TRUNK_HOST',        label: 'Host / IP da Operadora',    placeholder: 'sip.operadora.com.br', required: true },
-      { key: 'SIP_TRUNK_USER',        label: 'Usuário do Tronco',         placeholder: 'usuario_tronco', required: true },
-      { key: 'SIP_TRUNK_PASSWORD',    label: 'Senha do Tronco',           type: 'password' },
-      { key: 'SIP_TRUNK_FROM_DOMAIN', label: 'From Domain (SIP)',         placeholder: 'sip.operadora.com.br',
-        hint: 'Geralmente igual ao Host. Usado no cabeçalho SIP From.' },
-      { key: 'AST_OUTBOUND_TRUNK',    label: 'Nome do Trunk no Asterisk', placeholder: 'tronco-sip',
-        hint: 'Deve corresponder ao nome definido no pjsip.conf.' },
-      { key: 'AST_OUTBOUND_CONTEXT',  label: 'Contexto de Discagem',      placeholder: 'discagem-sainte' },
-    ],
-  },
   {
     id: 'gemini',
     icon: '🤖',
@@ -208,7 +204,7 @@ export default function Settings() {
   const [applyingSection_label, setApplyingLabel] = useState('');
   const [toast, setToast]                   = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [revealedKeys, setRevealedKeys]     = useState<Set<string>>(new Set());
-  const [openSections, setOpenSections]     = useState<Set<string>>(new Set(SECTIONS.map(s => s.id)));
+  const [openSections, setOpenSections]     = useState<Set<string>>(new Set(['sip', ...SECTIONS.map(s => s.id)]));
   const [testingSection, setTestingSection] = useState<Record<string, 'idle' | 'loading' | 'ok' | 'error'>>({});
   const [testResults, setTestResults]       = useState<Record<string, string>>({});
   const [activeTab, setActiveTab]           = useState<Tab>('config');
@@ -216,16 +212,27 @@ export default function Settings() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const logRef = useRef<HTMLPreElement>(null);
 
+  // ── Estado do editor SIP raw ───────────────────────────────────────────────
+  const [sipBlock, setSipBlock]             = useState('');
+  const [sipOriginal, setSipOriginal]       = useState('');
+  const [sipSaving, setSipSaving]           = useState(false);
+  const [sipReloadStatus, setSipReloadStatus] = useState('');
+
   // ── Carrega configurações ──────────────────────────────────────────────────
   const load = async () => {
     setLoading(true);
     try {
-      const res = await api.get<Settings>('/settings');
-      setSettings(res.data);
+      const [settingsRes, sipRes] = await Promise.all([
+        api.get<Settings>('/settings'),
+        api.get<{ block: string }>('/settings/sip-raw').catch(() => ({ data: { block: '' } })),
+      ]);
+      setSettings(settingsRes.data);
       const init: Record<string, string> = {};
-      Object.entries(res.data).forEach(([k, v]) => { init[k] = v.value; });
+      Object.entries(settingsRes.data).forEach(([k, v]) => { init[k] = v.value; });
       setEdits(init);
       setSavedSnapshot(init);
+      setSipBlock(sipRes.data.block);
+      setSipOriginal(sipRes.data.block);
     } catch {
       showToast('error', 'Erro ao carregar configurações.');
     } finally {
@@ -359,6 +366,30 @@ export default function Settings() {
     }
   };
 
+  // ── Salvar bloco SIP raw ───────────────────────────────────────────────────
+  const handleSaveSipRaw = async () => {
+    if (!sipBlock.trim()) { showToast('error', 'O bloco não pode ser vazio.'); return; }
+    setSipSaving(true);
+    setSipReloadStatus('');
+    try {
+      const res = await api.post<{ message: string; reloadStatus: string }>(
+        '/settings/sip-raw', { block: sipBlock }
+      );
+      setSipOriginal(sipBlock);
+      setSipReloadStatus(res.data.reloadStatus ?? '');
+      const reloadOk = res.data.reloadStatus === 'ok';
+      showToast('success',
+        reloadOk
+          ? 'Bloco SIP salvo e PJSIP recarregado com sucesso!'
+          : `Bloco SIP salvo. Reload: ${res.data.reloadStatus} — verifique o Asterisk.`
+      );
+    } catch {
+      showToast('error', 'Erro ao salvar bloco SIP.');
+    } finally {
+      setSipSaving(false);
+    }
+  };
+
   // ── Testar conexão ─────────────────────────────────────────────────────────
   const handleTest = async (section: Section) => {
     if (!section.testable) return;
@@ -452,6 +483,115 @@ export default function Settings() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* ── Painel SIP raw ─────────────────────────────────────────── */}
+              {(() => {
+                const sec = SIP_SECTION;
+                const open = openSections.has(sec.id);
+                const sipChanged = sipBlock !== sipOriginal;
+                return (
+                  <div key="sip" className="stat-card" style={{ padding: 0, overflow: 'hidden' }}>
+                    <button
+                      onClick={() => toggleSection(sec.id)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center',
+                        gap: 12, padding: '16px 20px', background: 'none',
+                        border: 'none', cursor: 'pointer', textAlign: 'left', color: 'var(--text-primary)',
+                      }}
+                    >
+                      <span style={{ fontSize: '1.4rem' }}>{sec.icon}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {sec.title}
+                          {sipChanged && (
+                            <span style={{
+                              fontSize: '0.65rem', padding: '1px 7px', borderRadius: 20,
+                              background: 'rgba(245,158,11,0.15)', color: '#fcd34d',
+                              border: '1px solid rgba(245,158,11,0.3)',
+                            }}>● alterado</span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                          {sec.description}
+                        </div>
+                      </div>
+                      <span style={{
+                        fontSize: '0.65rem', padding: '2px 6px', borderRadius: 6,
+                        background: 'rgba(59,130,246,0.12)', color: '#93c5fd',
+                        border: '1px solid rgba(59,130,246,0.2)',
+                      }}>asterisk</span>
+                      <span style={{ color: 'var(--text-muted)', transition: 'transform .2s', display: 'inline-block', transform: open ? 'rotate(180deg)' : 'rotate(0)' }}>▾</span>
+                    </button>
+
+                    {open && (
+                      <div style={{ padding: '0 20px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+
+                        {/* Dica de uso */}
+                        <div style={{
+                          marginTop: 14, padding: '10px 14px', borderRadius: 8,
+                          background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
+                          fontSize: '0.78rem', color: '#93c5fd', lineHeight: 1.5,
+                        }}>
+                          💡 Cole aqui o bloco <code style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.3)', padding: '1px 5px', borderRadius: 3 }}>[tronco-sip]</code> completo.
+                          Ao salvar, o conteúdo substitui a seção no <code style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.3)', padding: '1px 5px', borderRadius: 3 }}>pjsip.conf.template</code> e
+                          o Asterisk executa <code style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.3)', padding: '1px 5px', borderRadius: 3 }}>module reload res_pjsip</code> automaticamente.
+                        </div>
+
+                        {/* Textarea do bloco */}
+                        <textarea
+                          value={sipBlock}
+                          onChange={e => setSipBlock(e.target.value)}
+                          spellCheck={false}
+                          rows={Math.max(10, sipBlock.split('\n').length + 2)}
+                          style={{
+                            display: 'block', width: '100%', marginTop: 14,
+                            fontFamily: '"JetBrains Mono","Fira Code","Courier New",monospace',
+                            fontSize: '0.82rem', lineHeight: 1.65,
+                            background: '#0d1117', color: '#e6edf3',
+                            border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8,
+                            padding: '14px 16px', resize: 'vertical', boxSizing: 'border-box',
+                            outline: 'none', tabSize: 2,
+                          }}
+                          placeholder={`[tronco-sip]\ntype = endpoint\ntransport = transport-udp\ncontext = from-trunk\ndisallow = all\nallow = ulaw\nallow = alaw\nhost = 186.233.141.64\nqualify = yes`}
+                        />
+
+                        {/* Rodapé */}
+                        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 14 }}>
+                          {sipReloadStatus && (
+                            <span style={{
+                              fontSize: '0.78rem',
+                              color: sipReloadStatus === 'ok' ? '#6ee7b7' : '#fcd34d',
+                            }}>
+                              {sipReloadStatus === 'ok' ? '✅ PJSIP recarregado' : `⚠️ Reload: ${sipReloadStatus}`}
+                            </span>
+                          )}
+                          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => { setSipBlock(sipOriginal); setSipReloadStatus(''); }}
+                              disabled={!sipChanged || sipSaving}
+                              style={{ opacity: !sipChanged ? 0.4 : 1 }}
+                            >
+                              ↩ Descartar
+                            </button>
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={handleSaveSipRaw}
+                              disabled={sipSaving || !sipBlock.trim()}
+                              style={{ minWidth: 160 }}
+                            >
+                              {sipSaving
+                                ? <><span className="spinner" style={{ width: 11, height: 11, margin: '0 5px 0 0', borderTopColor: '#fff' }} />Salvando…</>
+                                : '💾 Salvar e Recarregar PJSIP'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {SECTIONS.map(section => {
                 const open       = openSections.has(section.id);
                 const status     = sectionStatus(section);
