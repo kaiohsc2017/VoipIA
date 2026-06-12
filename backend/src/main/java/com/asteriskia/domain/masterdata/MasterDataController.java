@@ -5,10 +5,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -335,26 +333,4 @@ public class MasterDataController {
 
 }
 
-// ---------------------------------------------------------------------------
-// Repositories — simples, no mesmo arquivo por coesão
-// ---------------------------------------------------------------------------
 
-@Repository
-interface BusinessUnitRepository extends JpaRepository<BusinessUnit, Integer> {
-    List<BusinessUnit> findByIsActive(Boolean isActive);
-}
-
-@Repository
-interface SegmentRepository extends JpaRepository<Segment, Integer> {
-    List<Segment> findByIsActive(Boolean isActive);
-}
-
-@Repository
-interface ClientRepository extends JpaRepository<Client, Integer> {
-    List<Client> findByIsActive(Boolean isActive);
-}
-
-@Repository
-interface OperationRepository extends JpaRepository<Operation, Integer> {
-    List<Operation> findByIsActive(Boolean isActive);
-}
