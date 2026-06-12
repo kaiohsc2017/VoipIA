@@ -124,7 +124,7 @@ remove_existing = yes
 
 [9001]
 type = endpoint
-context = ramais-internos
+context = ramais-webrtc
 disallow = all
 allow = ulaw
 allow = alaw

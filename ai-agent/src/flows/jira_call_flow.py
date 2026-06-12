@@ -169,8 +169,8 @@ class JiraCallFlow:
         FRAME_BYTES = 320           # 20ms de áudio a 8kHz/16bit
 
         silence_frames = 0
-        max_frames = int(max_duration * (SAMPLE_RATE / (FRAME_BYTES / 2)))
-        silence_limit = int(silence_timeout * (SAMPLE_RATE / (FRAME_BYTES / 2)))
+        max_frames = int(max_duration * (SAMPLE_RATE / (FRAME_BYTES // 2)))
+        silence_limit = int(silence_timeout * (SAMPLE_RATE / (FRAME_BYTES // 2)))
 
         for _ in range(max_frames):
             frame = await asyncio.wait_for(read_frame(self.reader), timeout=5.0)

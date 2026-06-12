@@ -78,32 +78,7 @@ _TOOLS = genai_types.Tool(
 )
 
 
-# ─── Mock de banco de dados local ─────────────────────────────────────────────
-# Em produção, substituir por chamadas reais à API REST ou ao banco de dados.
-
-_PEDIDOS_DB: dict[str, dict[str, Any]] = {
-    "12345678900": {
-        "status": "Em Trânsito",
-        "protocolo": "PED-2024-001",
-        "produto": "Equipamento VoIP Cisco SPA504G",
-        "previsao": "03/06/2026",
-        "transportadora": "Correios",
-    },
-    "PED-2024-001": {
-        "status": "Em Trânsito",
-        "protocolo": "PED-2024-001",
-        "produto": "Equipamento VoIP Cisco SPA504G",
-        "previsao": "03/06/2026",
-        "transportadora": "Correios",
-    },
-    "98765432100": {
-        "status": "Entregue",
-        "protocolo": "PED-2024-002",
-        "produto": "Central IP Yealink T54W",
-        "previsao": "Entregue em 01/06/2026",
-        "transportadora": "Jadlog",
-    },
-}
+# Em produção, chamadas REST reais ao backend.
 
 _protocolo_counter = 3000
 
@@ -117,20 +92,32 @@ def _execute_tool(tool_name: str, args: dict[str, Any]) -> str:
 
     if tool_name == "consultar_status_pedido":
         ident = args.get("identificador", "").strip().replace(".", "").replace("-", "")
-        pedido = _PEDIDOS_DB.get(ident)
-        if pedido:
-            return json.dumps({
-                "encontrado": True,
-                "protocolo": pedido["protocolo"],
-                "produto": pedido["produto"],
-                "status": pedido["status"],
-                "previsao_entrega": pedido["previsao"],
-                "transportadora": pedido["transportadora"],
-            }, ensure_ascii=False)
-        else:
+        try:
+            import requests
+            from src.config import BACKEND_URL, INTERNAL_API_KEY
+            headers = {"X-Internal-Key": INTERNAL_API_KEY, "Content-Type": "application/json"}
+            
+            resp = requests.get(f"{BACKEND_URL}/api/v1/pedidos/{ident}", headers=headers, timeout=10.0)
+            if resp.status_code == 200:
+                pedido = resp.json()
+                return json.dumps({
+                    "encontrado": True,
+                    "protocolo": pedido.get("protocolo", "N/A"),
+                    "produto": pedido.get("produto", "N/A"),
+                    "status": pedido.get("status", "N/A"),
+                    "previsao_entrega": pedido.get("previsao", "N/A"),
+                    "transportadora": pedido.get("transportadora", "N/A"),
+                }, ensure_ascii=False)
+            else:
+                return json.dumps({
+                    "encontrado": False,
+                    "mensagem": f"Não foi encontrado nenhum pedido para o identificador '{ident}'.",
+                }, ensure_ascii=False)
+        except Exception as e:
+            logger.error("Erro na chamada REST consultar_status_pedido: %s", e)
             return json.dumps({
                 "encontrado": False,
-                "mensagem": f"Não foi encontrado nenhum pedido para o identificador '{ident}'.",
+                "mensagem": f"Sistema indisponível no momento para consultar o pedido '{ident}'.",
             }, ensure_ascii=False)
 
     elif tool_name == "abrir_protocolo_suporte":
