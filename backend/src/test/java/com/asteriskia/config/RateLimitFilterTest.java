@@ -10,6 +10,10 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+
+import com.asteriskia.domain.audit.AuditService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * RateLimitFilterTest — Testa bloqueio por IP após exceder limite de tentativas.
@@ -20,7 +24,9 @@ class RateLimitFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new RateLimitFilter();
+        AuditService auditServiceMock = mock(AuditService.class);
+        ObjectMapper objectMapperMock = new ObjectMapper();
+        filter = new RateLimitFilter(auditServiceMock, objectMapperMock);
     }
 
     @Test
