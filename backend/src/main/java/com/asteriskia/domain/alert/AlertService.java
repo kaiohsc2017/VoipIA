@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +36,7 @@ public class AlertService {
     private final AlertContactRepository contactRepo;
     private final AmiOriginateService amiService;
     private final TelegramBotService telegramService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * Dispara ligação de alerta para os contatos ativos de plantão.
@@ -82,6 +84,13 @@ public class AlertService {
 
             alertCallRepo.save(alertCall);
 
+            // Publica novo alerta via WebSocket para o Dashboard
+            try {
+                messagingTemplate.convertAndSend("/topic/alerts", alertCall);
+            } catch (Exception e) {
+                log.warn("Erro ao enviar WebSocket de AlertCall: {}", e.getMessage());
+            }
+
             // Origina a chamada no Asterisk
             boolean originated = amiService.originateAlertCall(
                     contact.getPhoneNumber(), callUuid, severity, host, incidentSummary);
@@ -104,6 +113,13 @@ public class AlertService {
             call.setCallStatus(newStatus);
             alertCallRepo.save(call);
             log.info("AlertCall uuid={} status atualizado para {}", callUuid, newStatus);
+
+            // Publica atualização de status via WebSocket
+            try {
+                messagingTemplate.convertAndSend("/topic/alerts", call);
+            } catch (Exception e) {
+                log.warn("Erro ao enviar WebSocket de AlertCall: {}", e.getMessage());
+            }
 
             // Notifica Telegram com resultado final
             String msg = telegramService.sendZabbixAlert(
