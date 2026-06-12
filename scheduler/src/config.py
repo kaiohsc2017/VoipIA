@@ -1,30 +1,46 @@
 """
-config.py — Configurações do Scheduler Python (Módulo 2)
-Todas as configurações via variáveis de ambiente.
+config.py - Configuracoes do Scheduler Python (Modulo 2)
+
+Abordagem 3 - reload dinamico sem restart:
+  INTERNAL_API_KEY, AMI_PASSWORD e demais credenciais sao relidos
+  do .env em disco a cada ciclo de polling via get_config().
+  Alteracoes na tela de Settings refletem sem restart do container.
 """
 
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
+from pathlib import Path
 
-load_dotenv()
+_ENV_PATH = Path(os.getenv("DOTENV_PATH", "/opt/asteriskia/env/.env"))
 
-# Backend REST API
-BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8080")
-# Chave compartilhada para auth interna — deve ser igual ao INTERNAL_API_KEY do backend
-INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "internal_changeme_dev")
+load_dotenv(_ENV_PATH if _ENV_PATH.exists() else None)
 
-# Asterisk AMI
-AMI_HOST = os.getenv("AST_AMI_HOST", "asterisk")
-AMI_PORT = int(os.getenv("AST_AMI_PORT", "5038"))
-AMI_USER = os.getenv("AST_AMI_USER", "admin")
-AMI_PASSWORD = os.getenv("AST_AMI_PASSWORD", "")
+# --- Variaveis estruturais ---
 
-# Configurações do scheduler
-SCHEDULER_POLL_INTERVAL_SECS = int(os.getenv("SCHEDULER_POLL_INTERVAL_SECS", "30"))
-AMI_ORIGINATE_TIMEOUT_MS = int(os.getenv("AMI_ORIGINATE_TIMEOUT_MS", "30000"))
+BACKEND_URL: str  = os.getenv("BACKEND_URL", "http://backend:8080")
+AMI_HOST: str     = os.getenv("AST_AMI_HOST", "asterisk")
+AMI_PORT: int     = int(os.getenv("AST_AMI_PORT", "5038"))
+TRUNK_NAME: str   = os.getenv("AMI_TRUNK_NAME", "trunk-saida")
+DIALPLAN_TEST_CONTEXT: str = os.getenv("DIALPLAN_TEST_CONTEXT", "asteriskia-test")
+SCHEDULER_POLL_INTERVAL_SECS: int = int(os.getenv("SCHEDULER_POLL_INTERVAL_SECS", "30"))
+AMI_ORIGINATE_TIMEOUT_MS: int     = int(os.getenv("AMI_ORIGINATE_TIMEOUT_MS", "30000"))
 
-# Tronco de saída configurado no PJSIP
-TRUNK_NAME = os.getenv("AMI_TRUNK_NAME", "trunk-saida")
 
-# Contexto do dialplan para testes de conectividade
-DIALPLAN_TEST_CONTEXT = os.getenv("DIALPLAN_TEST_CONTEXT", "asteriskia-test")
+# --- Leitura dinamica ---
+
+def get_config(key: str, default: str = "") -> str:
+    if _ENV_PATH.exists():
+        val = dotenv_values(_ENV_PATH).get(key, "")
+        if val:
+            return val
+    return os.getenv(key, default)
+
+# Credenciais que podem mudar sem restart
+def get_internal_api_key() -> str: return get_config("INTERNAL_API_KEY", "internal_changeme_dev")
+def get_ami_user()         -> str: return get_config("AST_AMI_USER", "admin")
+def get_ami_password()     -> str: return get_config("AST_AMI_PASSWORD", "")
+
+# Aliases para compatibilidade com imports existentes
+INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "internal_changeme_dev")
+AMI_USER: str         = os.getenv("AST_AMI_USER", "admin")
+AMI_PASSWORD: str     = os.getenv("AST_AMI_PASSWORD", "")

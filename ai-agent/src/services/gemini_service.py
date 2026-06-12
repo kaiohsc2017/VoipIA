@@ -26,7 +26,7 @@ from typing import Any
 import numpy as np
 import google.genai as genai
 import google.genai.types as genai_types
-from src.config import GEMINI_API_KEY, GEMINI_MODEL_STT, GEMINI_MODEL_LLM, GEMINI_MODEL_TTS
+from src.config import get_gemini_api_key, get_gemini_model_stt, get_gemini_model_llm, get_gemini_model_tts
 
 logger = logging.getLogger("asteriskia.gemini")
 
@@ -157,7 +157,16 @@ class GeminiService:
     """
 
     def __init__(self):
-        self._client = genai.Client(api_key=GEMINI_API_KEY)
+        pass  # client criado dinamicamente em _client() para suportar reload da API key
+
+    def _client(self) -> genai.Client:
+        """Cria cliente Gemini lendo a API key do .env em tempo real."""
+        api_key = get_gemini_api_key()
+        if not api_key:
+            raise RuntimeError(
+                "GEMINI_API_KEY não configurada. Acesse Settings → Google Gemini para configurar."
+            )
+        return genai.Client(api_key=api_key)
 
     async def transcribe(self, pcm_data: bytes) -> str:
         """
@@ -240,8 +249,8 @@ class GeminiService:
 
     def _transcribe_sync(self, wav_bytes: bytes) -> str:
         """STT via Gemini — envia WAV e retorna transcrição."""
-        response = self._client.models.generate_content(
-            model=GEMINI_MODEL_STT,
+        response = self._client().models.generate_content(
+            model=get_gemini_model_stt(),
             contents=[
                 genai_types.Content(parts=[
                     genai_types.Part(text=(
@@ -262,8 +271,8 @@ class GeminiService:
         TTS via Gemini — retorna áudio PCM 8kHz/16bit/mono.
         O modelo retorna PCM L16 24kHz; fazemos resample para 8kHz (Asterisk).
         """
-        response = self._client.models.generate_content(
-            model=GEMINI_MODEL_TTS,
+        response = self._client().models.generate_content(
+            model=get_gemini_model_tts(),
             contents=text,
             config=genai_types.GenerateContentConfig(
                 response_modalities=["AUDIO"],
@@ -281,8 +290,8 @@ class GeminiService:
 
     def _llm_sync(self, prompt: str) -> str:
         """LLM via Gemini — gera resposta de texto simples (sem tools)."""
-        response = self._client.models.generate_content(
-            model=GEMINI_MODEL_LLM,
+        response = self._client().models.generate_content(
+            model=get_gemini_model_llm(),
             contents=prompt,
         )
         return response.text or ""
@@ -317,8 +326,8 @@ class GeminiService:
 
         # Ciclo de agentic loop (máx. 5 iterações para evitar loops infinitos)
         for _ in range(5):
-            response = self._client.models.generate_content(
-                model=GEMINI_MODEL_LLM,
+            response = self._client().models.generate_content(
+                model=get_gemini_model_llm(),
                 contents=contents,
                 config=config,
             )
