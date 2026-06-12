@@ -26,7 +26,7 @@ export default function Sidebar({ currentPage, onNavigate, username, onLogout, c
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
 
-      {/* Logo + botão toggle no mesmo bloco */}
+      {/* Logo */}
       <div className="sidebar-logo">
         <div className="logo-mark">
           <div className="logo-icon">A★</div>
@@ -34,16 +34,6 @@ export default function Sidebar({ currentPage, onNavigate, username, onLogout, c
         </div>
         <div className="logo-version">v1.0 — Painel de Controle</div>
       </div>
-
-      {/* Botão de recuo — dentro da sidebar, alinhado à direita */}
-      <button
-        className="sidebar-toggle-btn"
-        onClick={onToggleCollapse}
-        title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-        aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-      >
-        {collapsed ? '→' : '← Recolher'}
-      </button>
 
       {/* Nav */}
       <nav className="sidebar-nav">
@@ -71,8 +61,18 @@ export default function Sidebar({ currentPage, onNavigate, username, onLogout, c
         })}
       </nav>
 
-      {/* Footer */}
+      {/* Footer: toggle + usuário + sair */}
       <div className="sidebar-footer">
+        {/* Botão de recolher — parte do footer, sem posição absoluta */}
+        <button
+          className="sidebar-toggle-btn"
+          onClick={onToggleCollapse}
+          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+        >
+          <span className="toggle-icon">{collapsed ? '▶' : '◀'}</span>
+          <span className="toggle-label">Recolher</span>
+        </button>
+
         <div className="user-info">
           <div className="user-avatar">
             {username.charAt(0).toUpperCase()}
