@@ -7,6 +7,8 @@ import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -53,6 +55,18 @@ public class AppConfig {
     @Bean
     public WebClient.Builder webClientBuilder() {
         return WebClient.builder();
+    }
+
+    /**
+     * RestTemplate para chamadas HTTP síncronas (usado pelo SettingsTestController).
+     * Timeout de 8s para evitar bloqueio em testes de conectividade.
+     */
+    @Bean
+    public RestTemplate restTemplate(RestTemplateBuilder builder) {
+        return builder
+                .setConnectTimeout(java.time.Duration.ofSeconds(8))
+                .setReadTimeout(java.time.Duration.ofSeconds(8))
+                .build();
     }
 
     /**

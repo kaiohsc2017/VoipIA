@@ -1,32 +1,38 @@
 package com.asteriskia.domain.settings;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * SettingsService — Leitura, escrita e aplicação do arquivo .env do sistema.
  *
- * O arquivo .env fica em SETTINGS_FILE_PATH (montado via volume Docker).
- * O diretório de compose fica em COMPOSE_DIR (também montado).
+ * Fase 12 — adicionado:
+ *  - backupEnv()      → cria .env.bak-YYYYMMDD-HHmmss antes de sobrescrever (máx 10)
+ *  - recordHistory()  → grava alterações de chave na tabela settings_history
  *
- * Campos secretos são mascarados no GET e preservados no PUT caso o
- * cliente envie o valor mascarado ("••••••••").
- *
- * O apply agora é ASSÍNCRONO:
+ * O apply permanece ASSÍNCRONO:
  *   1. startApplyAsync()    → lança Thread virtual, retorna jobId (UUID)
  *   2. getApplyStatus(jobId) → retorna estado + log acumulado
- * Isso evita timeout HTTP em rebuilds longos (ex: backend com Maven ~2 min).
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class SettingsService {
+
+    private final SettingsHistoryRepository historyRepository;
 
     /** Caminho do .env dentro do container (mapeado via volume). */
     @Value("${app.settings.file-path:/opt/asteriskia/env/.env}")
@@ -39,6 +45,9 @@ public class SettingsService {
     /** Token sentinela enviado pelo frontend quando o campo não foi alterado. */
     private static final String MASK_SENTINEL = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
     private static final String MASK_DISPLAY  = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
+
+    /** Máximo de backups do .env a manter. */
+    private static final int MAX_BACKUPS = 10;
 
     /** Conjunto de chaves cujos valores não devem ser expostos no GET. */
     static final Set<String> SECRET_KEYS = Set.of(
@@ -83,7 +92,7 @@ public class SettingsService {
 
     /**
      * Inicia o apply de forma assíncrona via Thread virtual (Java 21).
-     * Retorna o jobId imediatamente — o chamador deve poluir GET /apply/{jobId}/status.
+     * Cria backup do .env antes de reiniciar.
      */
     public String startApplyAsync() {
         String jobId = UUID.randomUUID().toString();
@@ -107,7 +116,6 @@ public class SettingsService {
 
     /**
      * Retorna o estado atual de um job de apply.
-     * Retorna Optional.empty() se o jobId não existir.
      */
     public Optional<ApplyJob> getApplyStatus(String jobId) {
         return Optional.ofNullable(jobs.get(jobId));
@@ -119,8 +127,6 @@ public class SettingsService {
 
     /**
      * Lê o arquivo .env e retorna uma lista ordenada de entradas.
-     * Linhas de comentário e linhas em branco são incluídas com type=COMMENT/BLANK.
-     * Campos secretos são retornados mascarados.
      */
     public List<EnvEntry> readSettings() throws IOException {
         Path path = Path.of(settingsFilePath);
@@ -174,15 +180,21 @@ public class SettingsService {
 
     /**
      * Reescreve o arquivo .env preservando comentários e ordem originais.
+     * Cria backup antes de sobrescrever e registra histórico de alterações.
      *
-     * @param updates  Map de key -> novo valor. Se o valor for o sentinela de
-     *                 máscara, o valor atual é preservado.
+     * @param updates  Map de key -> novo valor
+     * @param changedBy  Usuário que fez a alteração (do JWT)
+     * @param ipAddress  IP de origem da requisição
      */
-    public void writeSettings(Map<String, String> updates) throws IOException {
+    public void writeSettings(Map<String, String> updates, String changedBy, String ipAddress)
+            throws IOException {
         Path path = Path.of(settingsFilePath);
 
         // Lê o estado atual para preservar valores mascarados que não foram alterados
         Map<String, String> current = readCurrentRaw(path);
+
+        // Cria backup antes de modificar
+        backupEnv(path);
 
         // Resolve os valores finais: se o frontend enviou a máscara, usa o atual
         Map<String, String> resolved = new LinkedHashMap<>();
@@ -240,6 +252,101 @@ public class SettingsService {
         Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 
         log.info("Arquivo .env atualizado em {} ({} chaves)", settingsFilePath, resolved.size());
+
+        // Registra histórico de alterações (apenas chaves que mudaram)
+        recordHistory(current, resolved, changedBy, ipAddress);
+    }
+
+    /**
+     * Sobrecarga sem contexto de requisição (compatibilidade).
+     */
+    public void writeSettings(Map<String, String> updates) throws IOException {
+        writeSettings(updates, "admin", "unknown");
+    }
+
+    // -------------------------------------------------------------------------
+    // Histórico de alterações
+    // -------------------------------------------------------------------------
+
+    /**
+     * Registra no banco todas as chaves cujo valor efetivamente mudou.
+     * Campos secretos são gravados mascarados.
+     */
+    private void recordHistory(Map<String, String> current, Map<String, String> resolved,
+                                String changedBy, String ipAddress) {
+        List<SettingsHistory> records = new ArrayList<>();
+        resolved.forEach((key, newVal) -> {
+            String oldVal = current.get(key);
+            // Compara valores; pula se for igual
+            if (!Objects.equals(oldVal, newVal)) {
+                boolean secret = SECRET_KEYS.contains(key);
+                records.add(SettingsHistory.builder()
+                        .changedAt(OffsetDateTime.now())
+                        .changedBy(changedBy != null ? changedBy : "admin")
+                        .envKey(key)
+                        .oldValue(secret ? (oldVal != null ? MASK_DISPLAY : null) : oldVal)
+                        .newValue(secret ? MASK_DISPLAY : newVal)
+                        .ipAddress(ipAddress)
+                        .build());
+            }
+        });
+
+        if (!records.isEmpty()) {
+            historyRepository.saveAll(records);
+            log.info("Histórico: {} alteração(ões) registrada(s) por {}", records.size(), changedBy);
+        }
+    }
+
+    /**
+     * Retorna o histórico de alterações (mais recentes primeiro).
+     */
+    public List<SettingsHistory> getHistory(int limit) {
+        return historyRepository.findAllByOrderByChangedAtDesc(
+                PageRequest.of(0, Math.max(1, Math.min(limit, 200)))
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Backup do .env
+    // -------------------------------------------------------------------------
+
+    /**
+     * Cria uma cópia do .env atual com sufixo timestamp.
+     * Mantém apenas os MAX_BACKUPS mais recentes no diretório.
+     */
+    public void backupEnv(Path envPath) {
+        if (!Files.exists(envPath)) return;
+        try {
+            String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+            Path backup = envPath.resolveSibling(".env.bak-" + ts);
+            Files.copy(envPath, backup, StandardCopyOption.REPLACE_EXISTING);
+            log.info("Backup do .env criado: {}", backup.getFileName());
+            pruneOldBackups(envPath.getParent());
+        } catch (IOException e) {
+            log.warn("Não foi possível criar backup do .env: {}", e.getMessage());
+        }
+    }
+
+    /** Remove backups mais antigos se passar de MAX_BACKUPS. */
+    private void pruneOldBackups(Path dir) {
+        try {
+            List<Path> backups;
+            try (var stream = Files.list(dir)) {
+                backups = stream
+                        .filter(p -> p.getFileName().toString().startsWith(".env.bak-"))
+                        .sorted(Comparator.reverseOrder())
+                        .collect(Collectors.toList());
+            }
+            if (backups.size() > MAX_BACKUPS) {
+                backups.subList(MAX_BACKUPS, backups.size())
+                        .forEach(p -> {
+                            try { Files.deleteIfExists(p); } catch (IOException ignored) {}
+                        });
+                log.info("Backups antigos removidos, mantendo os {} mais recentes", MAX_BACKUPS);
+            }
+        } catch (IOException e) {
+            log.warn("Erro ao limpar backups antigos: {}", e.getMessage());
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -248,6 +355,11 @@ public class SettingsService {
 
     private void runApply(ApplyJob job) throws IOException, InterruptedException {
         log.info("Executando docker compose up -d em {} (jobId={})", composeDir, job.getId());
+
+        // Backup do .env antes de aplicar
+        Path envPath = Path.of(settingsFilePath);
+        backupEnv(envPath);
+
         job.appendLog("\u25b6 Executando: docker compose up -d --remove-orphans\n");
         job.appendLog("\ud83d\udcc1 Diret\u00f3rio: " + composeDir + "\n\n");
 
@@ -257,7 +369,7 @@ public class SettingsService {
                 "up", "-d", "--remove-orphans"
         );
         pb.directory(new File(composeDir));
-        pb.redirectErrorStream(true); // stderr -> stdout
+        pb.redirectErrorStream(true);
 
         Process proc = pb.start();
 
