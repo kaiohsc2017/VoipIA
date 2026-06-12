@@ -194,25 +194,53 @@ export default function Settings() {
     }
   };
 
-  // ── Aplicar (docker compose up) ────────────────────────────────────────────
+  // ── Aplicar (docker compose up — assíncrono com polling) ──────────────────
   const handleApply = async () => {
     if (!confirm('Isso vai salvar as configurações e reiniciar todos os serviços do sistema.\n\nDeseja continuar?')) return;
     setApplying(true);
     setApplyLog('⏳ Salvando configurações...\n');
     try {
-      // Salva primeiro
+      // 1. Salva o .env primeiro
       await api.post('/settings', edits);
-      setApplyLog(prev => prev + '✅ Configurações salvas.\n\n⏳ Reiniciando serviços (docker compose up -d)...\n\n');
+      setApplyLog(prev => prev + '✅ Configurações salvas.\n\n⏳ Iniciando reinicialização dos serviços...\n\n');
 
-      // Aplica
-      const res = await api.post<{ status: string; log: string }>('/settings/apply');
-      setApplyLog(prev => prev + res.data.log);
+      // 2. Dispara o apply assíncrono (retorna 202 + jobId imediatamente)
+      const startRes = await api.post<{ jobId: string; message: string }>('/settings/apply');
+      const jobId = startRes.data.jobId;
+      setApplyLog(prev => prev + `▶ Job iniciado: ${jobId}\n\n`);
 
-      if (res.data.status === 'success') {
-        showToast('success', 'Serviços reiniciados com sucesso!');
-      } else {
-        showToast('error', 'Apply concluído com erros. Veja o log abaixo.');
-      }
+      // 3. Polling a cada 2s - appenda apenas linhas novas
+      let lastLogLength = 0;
+      const poll = async (): Promise<void> => {
+        try {
+          const statusRes = await api.get<{ jobId: string; status: string; log: string }>(
+            `/settings/apply/${jobId}`
+          );
+          const { status, log } = statusRes.data;
+
+          if (log.length > lastLogLength) {
+            const newLines = log.slice(lastLogLength);
+            setApplyLog(prev => prev + newLines);
+            lastLogLength = log.length;
+          }
+
+          if (status === 'running') {
+            await new Promise(r => setTimeout(r, 2000));
+            return poll();
+          }
+
+          if (status === 'done') {
+            showToast('success', 'Serviços reiniciados com sucesso!');
+          } else {
+            showToast('error', 'Apply concluído com erros. Veja o log abaixo.');
+          }
+        } catch {
+          setApplyLog(prev => prev + '\n❌ Erro ao consultar status do apply.');
+          showToast('error', 'Erro ao acompanhar o apply.');
+        }
+      };
+
+      await poll();
     } catch {
       setApplyLog(prev => prev + '\n❌ Erro ao comunicar com o servidor.');
       showToast('error', 'Erro ao aplicar configurações.');

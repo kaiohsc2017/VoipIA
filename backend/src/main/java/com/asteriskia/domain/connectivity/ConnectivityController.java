@@ -99,31 +99,24 @@ public class ConnectivityController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/test-results")
-    @Operation(summary = "Lista resultados de testes (paginado, com filtros de período e status)")
+    @Operation(summary = "Lista resultados de testes (paginado, com filtros de período, status e dados mestres)")
     public ResponseEntity<Page<TestResult>> listResults(
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "50") int size,
-            @RequestParam(required = false) Long numberTestId,
-            @RequestParam(required = false) String status,
+            @RequestParam(required = false)    Long   numberTestId,
+            @RequestParam(required = false)    String status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateFrom,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateTo) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateTo,
+            @RequestParam(required = false)    Long   businessUnitId,
+            @RequestParam(required = false)    Long   clientId,
+            @RequestParam(required = false)    Long   operationId,
+            @RequestParam(required = false)    Long   segmentId) {
+
         PageRequest pageable = PageRequest.of(page, size, Sort.by("executedAt").descending());
-        Page<TestResult> result;
-        if (numberTestId != null) {
-            if (dateFrom != null && dateTo != null) {
-                result = testResultRepo.findByNumberTestIdAndExecutedAtBetween(numberTestId, dateFrom, dateTo, pageable);
-            } else {
-                result = testResultRepo.findByNumberTestId(numberTestId, pageable);
-            }
-        } else if (dateFrom != null && dateTo != null && status != null) {
-            result = testResultRepo.findByStatusAndExecutedAtBetween(status, dateFrom, dateTo, pageable);
-        } else if (dateFrom != null && dateTo != null) {
-            result = testResultRepo.findByExecutedAtBetween(dateFrom, dateTo, pageable);
-        } else if (status != null) {
-            result = testResultRepo.findByStatus(status, pageable);
-        } else {
-            result = testResultRepo.findAll(pageable);
-        }
+        Page<TestResult> result = testResultRepo.findWithFilters(
+                numberTestId, status, dateFrom, dateTo,
+                businessUnitId, clientId, operationId, segmentId,
+                pageable);
         return ResponseEntity.ok(result);
     }
 
@@ -134,7 +127,7 @@ public class ConnectivityController {
         log.info("Resultado de teste registrado: numberTest={} status={}",
                 result.getNumberTest() != null ? result.getNumberTest().getId() : "?",
                 result.getStatus());
-        
+
         TestResult saved = testResultRepo.save(result);
         try {
             messagingTemplate.convertAndSend("/topic/test-results", saved);
@@ -157,10 +150,34 @@ interface NumberTestRepository extends JpaRepository<NumberTest, Long> {
 
 @Repository
 interface TestResultRepository extends JpaRepository<TestResult, Long> {
+
+    /**
+     * Query unificada com todos os filtros opcionais.
+     * Cada parâmetro é ignorado quando NULL — permite qualquer combinação de filtros
+     * sem explodir em if/else.
+     */
+    @Query("SELECT r FROM TestResult r JOIN r.numberTest nt " +
+           "WHERE (:numberTestId  IS NULL OR nt.id                  = :numberTestId) " +
+           "AND   (:status        IS NULL OR r.status               = :status) " +
+           "AND   (:dateFrom      IS NULL OR r.executedAt           >= :dateFrom) " +
+           "AND   (:dateTo        IS NULL OR r.executedAt           <= :dateTo) " +
+           "AND   (:businessUnitId IS NULL OR nt.businessUnit.id    = :businessUnitId) " +
+           "AND   (:clientId      IS NULL OR nt.client.id           = :clientId) " +
+           "AND   (:operationId   IS NULL OR nt.operation.id        = :operationId) " +
+           "AND   (:segmentId     IS NULL OR nt.segment.id          = :segmentId)")
+    Page<TestResult> findWithFilters(
+            @Param("numberTestId")   Long          numberTestId,
+            @Param("status")         String        status,
+            @Param("dateFrom")       LocalDateTime dateFrom,
+            @Param("dateTo")         LocalDateTime dateTo,
+            @Param("businessUnitId") Long          businessUnitId,
+            @Param("clientId")       Long          clientId,
+            @Param("operationId")    Long          operationId,
+            @Param("segmentId")      Long          segmentId,
+            org.springframework.data.domain.Pageable pageable);
+
+    // Mantidos para compatibilidade com HistoricoModal (filtra por numberTestId + período)
     Page<TestResult> findByNumberTestId(Long numberTestId, org.springframework.data.domain.Pageable pageable);
-    Page<TestResult> findByStatus(String status, org.springframework.data.domain.Pageable pageable);
-    Page<TestResult> findByExecutedAtBetween(LocalDateTime from, LocalDateTime to, org.springframework.data.domain.Pageable pageable);
-    Page<TestResult> findByStatusAndExecutedAtBetween(String status, LocalDateTime from, LocalDateTime to, org.springframework.data.domain.Pageable pageable);
     Page<TestResult> findByNumberTestIdAndExecutedAtBetween(Long numberTestId, LocalDateTime from, LocalDateTime to, org.springframework.data.domain.Pageable pageable);
 
     // Estatísticas para o dashboard
