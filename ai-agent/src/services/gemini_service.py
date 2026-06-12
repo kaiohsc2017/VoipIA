@@ -93,11 +93,11 @@ def _execute_tool(tool_name: str, args: dict[str, Any]) -> str:
     if tool_name == "consultar_status_pedido":
         ident = args.get("identificador", "").strip().replace(".", "").replace("-", "")
         try:
-            import requests
+            import httpx
             from src.config import BACKEND_URL, INTERNAL_API_KEY
             headers = {"X-Internal-Key": INTERNAL_API_KEY, "Content-Type": "application/json"}
             
-            resp = requests.get(f"{BACKEND_URL}/api/v1/pedidos/{ident}", headers=headers, timeout=10.0)
+            resp = httpx.get(f"{BACKEND_URL}/api/v1/pedidos/{ident}", headers=headers, timeout=10.0)
             if resp.status_code == 200:
                 pedido = resp.json()
                 return json.dumps({
@@ -121,18 +121,26 @@ def _execute_tool(tool_name: str, args: dict[str, Any]) -> str:
             }, ensure_ascii=False)
 
     elif tool_name == "abrir_protocolo_suporte":
-        _protocolo_counter += 1
-        protocolo = f"SUP-{_protocolo_counter}"
         descricao = args.get("descricao", "Sem descrição")
         prioridade = args.get("prioridade", "MEDIA")
-        logger.info("Protocolo de suporte aberto: %s — %s [%s]", protocolo, descricao, prioridade)
-        return json.dumps({
-            "sucesso": True,
-            "protocolo": protocolo,
-            "descricao": descricao,
-            "prioridade": prioridade,
-            "mensagem": f"Protocolo {protocolo} aberto com sucesso. Nossa equipe entrará em contato em até 2 horas úteis.",
-        }, ensure_ascii=False)
+        
+        try:
+            import httpx
+            from src.config import BACKEND_URL, INTERNAL_API_KEY
+            headers = {"X-Internal-Key": INTERNAL_API_KEY, "Content-Type": "application/json"}
+            payload = {"descricao": descricao, "prioridade": prioridade}
+            
+            resp = httpx.post(f"{BACKEND_URL}/api/v1/suporte/abrir", headers=headers, json=payload, timeout=10.0)
+            if resp.status_code == 200:
+                result = resp.json()
+                logger.info("Protocolo de suporte aberto (backend): %s", result.get("protocolo"))
+                return json.dumps(result, ensure_ascii=False)
+            else:
+                logger.error("Erro do backend ao abrir protocolo: %s", resp.text)
+                return json.dumps({"erro": "Erro do sistema ao abrir o protocolo.", "sucesso": False}, ensure_ascii=False)
+        except Exception as e:
+            logger.error("Falha na chamada REST abrir_protocolo_suporte: %s", e)
+            return json.dumps({"erro": "Sistema indisponível no momento.", "sucesso": False}, ensure_ascii=False)
 
     return json.dumps({"erro": f"Função '{tool_name}' não reconhecida."})
 
