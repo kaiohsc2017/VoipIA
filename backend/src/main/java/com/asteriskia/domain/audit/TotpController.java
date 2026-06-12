@@ -1,6 +1,7 @@
 package com.asteriskia.domain.audit;
 
 import com.asteriskia.config.JwtService;
+import com.asteriskia.config.RefreshTokenService;
 import com.asteriskia.domain.user.AppUser;
 import com.asteriskia.domain.user.AppUserRepository;
 import io.swagger.v3.oas.annotations.Operation;

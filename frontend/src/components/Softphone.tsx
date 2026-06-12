@@ -60,6 +60,12 @@ export default function Softphone() {
   const remoteRef  = useRef<HTMLAudioElement | null>(null);
   const timerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const rtcConfig = {
+    iceServers: [
+      { urls: import.meta.env.VITE_STUN_URL || 'stun:stun.l.google.com:19302' }
+    ]
+  };
+
   const log = (msg: string) => {
     const ts = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setLogLines(prev => [`[${ts}] ${msg}`, ...prev].slice(0, 20));
@@ -77,12 +83,6 @@ export default function Softphone() {
       register_expires: 300,
       user_agent: 'AsteriskIA-Softphone/1.0',
     });
-
-    const rtcConfig = {
-      iceServers: [
-        { urls: import.meta.env.VITE_STUN_URL || 'stun:stun.l.google.com:19302' }
-      ]
-    };
 
     ua.on('registered',   () => { setRegState('registered');    log('Ramal registrado ✓'); });
     ua.on('unregistered', () => { setRegState('unregistered');  log('Ramal desregistrado'); });

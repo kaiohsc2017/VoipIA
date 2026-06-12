@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
-import type { AlertCall, AlertContact, PageResponse } from '../api/types';
+import type { AlertCall, AlertContact, Operation, PageResponse } from '../api/types';
 
 const CALL_STATUS_CLASS: Record<string, string> = {
   ATENDIDA:     'badge-success',

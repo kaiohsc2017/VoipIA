@@ -23,7 +23,7 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
     setLoading(true);
     try {
-      const { data } = await api.post<LoginResponse & { requiresTotp?: boolean; tempToken?: string; displayName?: string }>('/auth/login', form);
+      const { data } = await api.post<LoginResponse & { refreshToken?: string; requiresTotp?: boolean; tempToken?: string; displayName?: string }>('/auth/login', form);
 
       if (data.requiresTotp && data.tempToken) {
         // 2FA ativo → mostra campo de código TOTP
