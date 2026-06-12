@@ -145,11 +145,6 @@ public class ConnectivityController {
 // ---------------------------------------------------------------------------
 
 @Repository
-public interface NumberTestRepository extends JpaRepository<NumberTest, Long> {
-    List<NumberTest> findByIsActive(Boolean isActive);
-}
-
-@Repository
 interface TestResultRepository extends JpaRepository<TestResult, Long> {
 
     /**
