@@ -212,7 +212,7 @@ public class ConnectivityController {
                 String[] cols = line.split("[;,\t]", -1);
                 try {
                     // Mapeia coluna por posição (planilha modelo tem ordem fixa)
-                    String phoneNumber    = col(cols, 0).replaceAll("[^+\d]", "");
+                    String phoneNumber    = col(cols, 0).replaceAll("[^+\\d]", "");
                     String buName         = col(cols, 1);
                     String clientName     = col(cols, 2);
                     String operationName  = col(cols, 3);
