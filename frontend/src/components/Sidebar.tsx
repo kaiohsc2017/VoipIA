@@ -24,18 +24,9 @@ export default function Sidebar({ currentPage, onNavigate, username, onLogout, c
   let lastSection = '';
 
   return (
-    <aside className={`sidebar${collapsed ? ' collapsed' : ''}`} style={{ position: 'relative' }}>
-      {/* Botão toggle */}
-      <button
-        className="sidebar-toggle-btn"
-        onClick={onToggleCollapse}
-        title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-        aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-      >
-        {collapsed ? '›' : '‹'}
-      </button>
+    <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
 
-      {/* Logo */}
+      {/* Logo + botão toggle no mesmo bloco */}
       <div className="sidebar-logo">
         <div className="logo-mark">
           <div className="logo-icon">A★</div>
@@ -43,6 +34,16 @@ export default function Sidebar({ currentPage, onNavigate, username, onLogout, c
         </div>
         <div className="logo-version">v1.0 — Painel de Controle</div>
       </div>
+
+      {/* Botão de recuo — dentro da sidebar, alinhado à direita */}
+      <button
+        className="sidebar-toggle-btn"
+        onClick={onToggleCollapse}
+        title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+        aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+      >
+        {collapsed ? '→' : '← Recolher'}
+      </button>
 
       {/* Nav */}
       <nav className="sidebar-nav">
