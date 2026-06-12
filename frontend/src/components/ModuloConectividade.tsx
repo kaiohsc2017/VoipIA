@@ -356,6 +356,7 @@ export default function ModuloConectividade() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [histTest, setHistTest] = useState<NumberTest | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const loadTests = () => {
     setLoading(true);
@@ -484,6 +485,43 @@ export default function ModuloConectividade() {
     if (dateFrom && dateTo) {
       setFilterPeriod('custom');
       loadResults(0, filterStatus, 'custom', dateFrom, dateTo, filterBu, filterClient, filterOperation, filterSegment);
+    }
+  };
+
+  const exportConnectivity = async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (filterStatus)    params.set('status', filterStatus);
+      if (filterBu)        params.set('businessUnitId', filterBu);
+      if (filterClient)    params.set('clientId', filterClient);
+      if (filterOperation) params.set('operationId', filterOperation);
+      if (filterSegment)   params.set('segmentId', filterSegment);
+      let fromVal = dateFrom, toVal = dateTo;
+      if (filterPeriod !== 'custom') {
+        const r = getPeriodRange(filterPeriod as 'today' | 'week' | 'month');
+        fromVal = r.from; toVal = r.to;
+      }
+      if (fromVal) params.set('dateFrom', fromVal + ':00');
+      if (toVal)   params.set('dateTo', toVal + ':00');
+
+      const response = await api.get(`/reports/connectivity?${params}`, {
+        responseType: 'blob',
+      });
+
+      const url  = URL.createObjectURL(new Blob([response.data], { type: 'text/csv;charset=utf-8;' }));
+      const link = document.createElement('a');
+      link.href = url;
+      const now = new Date().toISOString().slice(0, 10);
+      link.setAttribute('download', `conectividade_${now}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Erro ao exportar. Tente novamente.');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -653,6 +691,21 @@ export default function ModuloConectividade() {
                   <option value="">Todos os segmentos</option>
                   {segments.map(s => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
                 </select>
+              </div>
+              {/* Botão Exportar CSV */}
+              <div className="toolbar-right" style={{ marginLeft: 'auto' }}>
+                <button
+                  id="btn-export-connectivity-csv"
+                  className="btn btn-ghost btn-sm"
+                  onClick={exportConnectivity}
+                  disabled={exporting}
+                  title="Exporta os resultados com os filtros aplicados"
+                  style={{ borderColor: 'rgba(124,58,237,0.4)', color: '#a78bfa', minWidth: 140 }}
+                >
+                  {exporting
+                    ? <><span className="spinner" style={{ width: 12, height: 12, margin: '0 6px 0 0' }} />Exportando…</>
+                    : '⬇ Exportar CSV'}
+                </button>
               </div>
             </div>
 

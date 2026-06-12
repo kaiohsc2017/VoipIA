@@ -5,6 +5,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,4 +21,12 @@ public interface CallRecordRepository extends JpaRepository<CallRecord, Long> {
     Page<CallRecord> findAllByOrderByCallDateDesc(Pageable pageable);
 
     Page<CallRecord> findByCallerNumberContainingOrderByCallDateDesc(String callerNumber, Pageable pageable);
+
+    // --- Métodos de exportação (Fase 11) ---
+
+    /** Todos os registros para exportação CSV (sem paginar). */
+    List<CallRecord> findAllByOrderByCallDateDesc();
+
+    /** Registros filtrados por período para exportação CSV. */
+    List<CallRecord> findByCallDateBetweenOrderByCallDateDesc(LocalDateTime from, LocalDateTime to);
 }

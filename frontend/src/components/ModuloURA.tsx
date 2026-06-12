@@ -173,6 +173,7 @@ export default function ModuloURA() {
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editQ, setEditQ] = useState<Partial<UraQuestion>>({});
+  const [exporting, setExporting] = useState(false);
 
   const loadCalls = (p = 0) => {
     setLoading(true);
@@ -200,6 +201,29 @@ export default function ModuloURA() {
   }, [tab]);
 
   const handleSearchSubmit = (e: React.FormEvent) => { e.preventDefault(); loadCalls(0); };
+
+  const exportUra = async () => {
+    setExporting(true);
+    try {
+      // Exporta o mês atual por padrão
+      const now = new Date();
+      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const response = await api.get(`/reports/ura?month=${month}`, { responseType: 'blob' });
+
+      const url  = URL.createObjectURL(new Blob([response.data], { type: 'text/csv;charset=utf-8;' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `chamadas_ura_${month}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Erro ao exportar chamadas. Tente novamente.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const toggleActive = async (q: UraQuestion) => {
     await api.patch(`/ura/questions/${q.id}/active?active=${!q.isActive}`);
@@ -261,6 +285,20 @@ export default function ModuloURA() {
                 </div>
                 <button type="submit" className="btn btn-ghost btn-sm">Buscar</button>
               </form>
+              <div className="toolbar-right">
+                <button
+                  id="btn-export-ura-csv"
+                  className="btn btn-ghost btn-sm"
+                  onClick={exportUra}
+                  disabled={exporting}
+                  title="Exporta chamadas do mês atual em CSV"
+                  style={{ borderColor: 'rgba(124,58,237,0.4)', color: '#a78bfa', minWidth: 140 }}
+                >
+                  {exporting
+                    ? <><span className="spinner" style={{ width: 12, height: 12, margin: '0 6px 0 0' }} />Exportando…</>
+                    : '⬇ Exportar CSV'}
+                </button>
+              </div>
             </div>
 
             {loading ? (
