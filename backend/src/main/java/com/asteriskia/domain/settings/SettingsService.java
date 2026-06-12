@@ -94,7 +94,11 @@ public class SettingsService {
      * Inicia o apply de forma assíncrona via Thread virtual (Java 21).
      * Cria backup do .env antes de reiniciar.
      */
-    public String startApplyAsync() {
+    /** Reinicia todos os serviços (comportamento legado). */
+    public String startApplyAsync() { return startApplyAsync(List.of()); }
+
+    /** Reinicia apenas os serviços listados (lista vazia = todos). */
+    public String startApplyAsync(List<String> services) {
         String jobId = UUID.randomUUID().toString();
         ApplyJob job = new ApplyJob(jobId);
         jobs.put(jobId, job);
@@ -102,7 +106,7 @@ public class SettingsService {
 
         Thread.ofVirtual().name("apply-" + jobId).start(() -> {
             try {
-                runApply(job);
+                runApply(job, services);
                 job.setStatus(JobStatus.DONE);
             } catch (Exception e) {
                 log.error("Erro no apply assíncrono jobId={}: {}", jobId, e.getMessage(), e);
@@ -353,21 +357,28 @@ public class SettingsService {
     // Apply interno (chamado pela Thread virtual)
     // -------------------------------------------------------------------------
 
-    private void runApply(ApplyJob job) throws IOException, InterruptedException {
+    private void runApply(ApplyJob job, List<String> services) throws IOException, InterruptedException {
         log.info("Executando docker compose up -d em {} (jobId={})", composeDir, job.getId());
 
         // Backup do .env antes de aplicar
         Path envPath = Path.of(settingsFilePath);
         backupEnv(envPath);
 
-        job.appendLog("\u25b6 Executando: docker compose up -d --remove-orphans\n");
-        job.appendLog("\ud83d\udcc1 Diret\u00f3rio: " + composeDir + "\n\n");
+        job.appendLog("\ud83d\udcc1 Diret\u00f3rio: " + composeDir + "\n");
 
-        ProcessBuilder pb = new ProcessBuilder(
-                "docker", "compose",
-                "--env-file", settingsFilePath,
-                "up", "-d", "--remove-orphans"
-        );
+        // Monta o comando: se houver serviços específicos, reinicia só eles
+        List<String> cmd = new java.util.ArrayList<>(List.of(
+                "docker", "compose", "--env-file", settingsFilePath
+        ));
+        if (services != null && !services.isEmpty()) {
+            cmd.add("up"); cmd.add("-d"); cmd.add("--no-deps");
+            cmd.addAll(services);
+            job.appendLog("▶ Reiniciando apenas: " + String.join(", ", services) + "\n\n");
+        } else {
+            cmd.add("up"); cmd.add("-d"); cmd.add("--remove-orphans");
+            job.appendLog("▶ Reiniciando todos os serviços\n\n");
+        }
+        ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.directory(new File(composeDir));
         pb.redirectErrorStream(true);
 
