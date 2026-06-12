@@ -269,16 +269,16 @@ public class MasterDataController {
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
                 if (line.isBlank()) continue;
-                String[] cols = line.split("[;,\t]", -1);
+                String[] cols = line.split("[;,\\t]", -1);
                 try {
-                    String phone   = col(cols, 0).replaceAll("[^+\d]", "");
+                    String phone   = col(cols, 0).replaceAll("[^+\\d]", "");
                     String buName  = col(cols, 1);
                     String cliName = col(cols, 2);
                     String opName  = col(cols, 3);
                     String segName = col(cols, 4);
                     String timeStr = col(cols, 5);
-                    int interval   = Integer.parseInt(col(cols, 6).replaceAll("[^\d]", ""));
-                    int quantity   = Integer.parseInt(col(cols, 7).replaceAll("[^\d]", ""));
+                    int interval   = Integer.parseInt(col(cols, 6).replaceAll("[^\\d]", ""));
+                    int quantity   = Integer.parseInt(col(cols, 7).replaceAll("[^\\d]", ""));
                     String actStr  = col(cols, 8);
 
                     if (phone.isBlank())         throw new IllegalArgumentException("Número vazio");
@@ -292,7 +292,7 @@ public class MasterDataController {
                     if (seg == null) throw new IllegalArgumentException("Segmento não encontrado: '" + segName + "'");
 
                     String t = timeStr.trim();
-                    if (t.matches("\d{1,2}:\d{2}")) t += ":00";
+                    if (t.matches("\\d{1,2}:\\d{2}")) t += ":00";
                     boolean active = !"false".equalsIgnoreCase(actStr.trim())
                                   && !"nao".equals(norm(actStr.trim()))
                                   && !"0".equals(actStr.trim());
@@ -328,8 +328,8 @@ public class MasterDataController {
     private static String norm(String s) {
         if (s == null) return "";
         return Normalizer.normalize(s.trim().toLowerCase(), Normalizer.Form.NFD)
-                .replaceAll("[\p{InCombiningDiacriticalMarks}]", "")
-                .replaceAll("\s+", " ");
+                .replaceAll("[\\p{InCombiningDiacriticalMarks}]", "")
+                .replaceAll("\\s+", " ");
     }
 
 
