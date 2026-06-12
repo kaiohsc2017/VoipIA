@@ -145,6 +145,12 @@ export default function ModuloAlertas() {
   const [showModal, setShowModal] = useState(false);
   const [editContact, setEditContact] = useState<Partial<AlertContact>>({ ...EMPTY_CONTACT });
   const [telegramMsg, setTelegramMsg] = useState<string | null>(null);
+  const [operations, setOperations] = useState<Operation[]>([]);
+  const [filterOperationId, setFilterOperationId] = useState<string>('');
+
+  useEffect(() => {
+    api.get<Operation[]>('/master/operations').then(r => setOperations(r.data.filter(op => op.isActive)));
+  }, []);
 
   const loadAlerts = (p = 0) => {
     setLoading(true);
@@ -159,7 +165,8 @@ export default function ModuloAlertas() {
 
   const loadContacts = () => {
     setLoading(true);
-    api.get<AlertContact[]>('/alert-contacts')
+    const qs = filterOperationId ? `?operationId=${filterOperationId}` : '';
+    api.get<AlertContact[]>(`/alert-contacts${qs}`)
       .then(r => setContacts(r.data))
       .finally(() => setLoading(false));
   };
@@ -167,7 +174,7 @@ export default function ModuloAlertas() {
   useEffect(() => {
     if (tab === 'alerts') loadAlerts();
     else loadContacts();
-  }, [tab]);
+  }, [tab, filterOperationId]);
 
   const openCreate = () => {
     setEditContact({ ...EMPTY_CONTACT, priorityOrder: contacts.length + 1 });
@@ -180,6 +187,11 @@ export default function ModuloAlertas() {
   };
 
   const saveContact = async () => {
+    if (!editContact.name?.trim()) { alert('Informe o nome do contato.'); return; }
+    if (!editContact.phoneNumber?.trim()) { alert('Informe o telefone do contato.'); return; }
+    if (!/^\+?[0-9]{10,15}$/.test(editContact.phoneNumber)) { alert('Telefone inválido. Ex: +5511999999999'); return; }
+    if (!editContact.priorityOrder) { alert('Informe a ordem de prioridade.'); return; }
+    
     if (editContact.id) { await api.put(`/alert-contacts/${editContact.id}`, editContact); }
     else { await api.post('/alert-contacts', editContact); }
     setShowModal(false);
@@ -299,10 +311,19 @@ export default function ModuloAlertas() {
         {tab === 'contacts' && (
           <>
             <div className="toolbar">
-              <div className="toolbar-left">
+              <div className="toolbar-left" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.855rem' }}>
                   {contacts.filter(c => c.isActive).length} contato{contacts.filter(c => c.isActive).length !== 1 ? 's' : ''} ativo{contacts.filter(c => c.isActive).length !== 1 ? 's' : ''}
                 </span>
+                <select 
+                  className="form-select" 
+                  style={{ width: 200 }}
+                  value={filterOperationId} 
+                  onChange={e => setFilterOperationId(e.target.value)}
+                >
+                  <option value="">Todas as Operações</option>
+                  {operations.map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
+                </select>
               </div>
               <div className="toolbar-right">
                 <button className="btn btn-primary" onClick={openCreate}>＋ Novo Contato</button>
@@ -319,6 +340,7 @@ export default function ModuloAlertas() {
                       <th>Prioridade</th>
                       <th>Nome</th>
                       <th>Telefone</th>
+                      <th>Operação</th>
                       <th>Status</th>
                       <th>Ações</th>
                     </tr>
@@ -338,6 +360,11 @@ export default function ModuloAlertas() {
                           <td style={{ textAlign: 'center' }}><span className="chip">#{c.priorityOrder}</span></td>
                           <td>{c.name}</td>
                           <td className="mono">{c.phoneNumber}</td>
+                          <td>
+                            {c.operationId 
+                              ? <span className="chip">{operations.find(o => o.id === c.operationId)?.name || `ID ${c.operationId}`}</span> 
+                              : <span className="text-muted">—</span>}
+                          </td>
                           <td>
                             <span className={`badge ${c.isActive ? 'badge-success' : 'badge-gray'}`}>
                               {c.isActive ? 'Ativo' : 'Inativo'}
@@ -379,6 +406,15 @@ export default function ModuloAlertas() {
                 <input type="tel" className="form-input" placeholder="+5511999999999"
                   value={editContact.phoneNumber ?? ''}
                   onChange={e => setEditContact(c => ({ ...c, phoneNumber: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Operação</label>
+                <select className="form-select"
+                  value={editContact.operationId ?? ''}
+                  onChange={e => setEditContact(c => ({ ...c, operationId: e.target.value ? Number(e.target.value) : undefined }))}>
+                  <option value="">(Global / Todas)</option>
+                  {operations.map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Ordem de Prioridade</label>

@@ -34,10 +34,11 @@ import java.util.Map;
 @Tag(name = "2FA TOTP", description = "Configuração e validação de dois fatores (Fase 13)")
 public class TotpController {
 
-    private final TotpService       totpService;
-    private final AuditService      auditService;
-    private final AppUserRepository userRepo;
-    private final JwtService        jwtService;
+    private final TotpService         totpService;
+    private final AuditService        auditService;
+    private final AppUserRepository   userRepo;
+    private final JwtService          jwtService;
+    private final RefreshTokenService refreshTokenService;
 
     // ── Setup: gera segredo + QR Code (usuário autenticado) ──────────────────
 
@@ -162,12 +163,15 @@ public class TotpController {
 
         // Código válido → emite JWT final
         String jwt = jwtService.generateToken(user.getUsername(), user.getExtension());
+        String newRefreshToken = refreshTokenService.generateRefreshToken(user.getUsername());
+        
         auditService.logAs(request, username, "LOGIN",
                 "Login concluído com 2FA", true);
         log.info("Login 2FA concluído para '{}'", username);
 
         return ResponseEntity.ok(Map.of(
                 "token",        jwt,
+                "refreshToken", newRefreshToken,
                 "type",         "Bearer",
                 "expiresInHours", 8,
                 "extension",    user.getExtension(),

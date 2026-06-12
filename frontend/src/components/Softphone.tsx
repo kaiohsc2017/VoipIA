@@ -78,6 +78,12 @@ export default function Softphone() {
       user_agent: 'AsteriskIA-Softphone/1.0',
     });
 
+    const rtcConfig = {
+      iceServers: [
+        { urls: import.meta.env.VITE_STUN_URL || 'stun:stun.l.google.com:19302' }
+      ]
+    };
+
     ua.on('registered',   () => { setRegState('registered');    log('Ramal registrado ✓'); });
     ua.on('unregistered', () => { setRegState('unregistered');  log('Ramal desregistrado'); });
     ua.on('registrationFailed', () => { setRegState('failed');  log('Falha no registro'); });
@@ -140,9 +146,7 @@ export default function Softphone() {
     const session: SipSession = uaRef.current.call(target, {
       mediaConstraints: { audio: true, video: false },
       rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false },
-      pcConfig: {
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-      },
+      pcConfig: rtcConfig,
     });
 
     sessionRef.current = session;
@@ -160,7 +164,10 @@ export default function Softphone() {
 
   function answer() {
     if (!sessionRef.current) return;
-    sessionRef.current.answer({ mediaConstraints: { audio: true, video: false } });
+    sessionRef.current.answer({ 
+      mediaConstraints: { audio: true, video: false },
+      pcConfig: rtcConfig 
+    });
     sessionRef.current.on('confirmed', () => { setCallState('active'); startTimer(); log('Chamada atendida'); });
     attachRemoteAudio(sessionRef.current);
   }

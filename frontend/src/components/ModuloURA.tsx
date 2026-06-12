@@ -205,15 +205,12 @@ export default function ModuloURA() {
   const exportUra = async () => {
     setExporting(true);
     try {
-      // Exporta o mês atual por padrão
-      const now = new Date();
-      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const response = await api.get(`/reports/ura?month=${month}`, { responseType: 'blob' });
+      const response = await api.get(`/calls/export`, { responseType: 'blob' });
 
-      const url  = URL.createObjectURL(new Blob([response.data], { type: 'text/csv;charset=utf-8;' }));
+      const url  = URL.createObjectURL(new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `chamadas_ura_${month}.csv`);
+      link.setAttribute('download', `chamadas_ura.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();

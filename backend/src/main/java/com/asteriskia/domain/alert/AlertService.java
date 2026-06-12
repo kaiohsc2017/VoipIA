@@ -154,7 +154,10 @@ public class AlertService {
     }
 
     @Transactional(readOnly = true)
-    public List<AlertContact> findActiveContacts() {
+    public List<AlertContact> findActiveContacts(Long operationId) {
+        if (operationId != null) {
+            return contactRepo.findByIsActiveTrueAndOperationIdOrderByPriorityOrderAsc(operationId);
+        }
         return contactRepo.findByIsActiveTrueOrderByPriorityOrderAsc();
     }
 
@@ -183,4 +186,5 @@ interface AlertCallRepository extends JpaRepository<AlertCall, Long> {
 @Repository
 interface AlertContactRepository extends JpaRepository<AlertContact, Integer> {
     List<AlertContact> findByIsActiveTrueOrderByPriorityOrderAsc();
+    List<AlertContact> findByIsActiveTrueAndOperationIdOrderByPriorityOrderAsc(Long operationId);
 }

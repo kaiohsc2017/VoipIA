@@ -36,6 +36,7 @@ import java.util.Map;
 public class CallRecordController {
 
     private final CallRecordService service;
+    private final ExcelExportService excelExportService;
 
     @Value("${app.audio.storage-path:/var/asteriskia/recordings}")
     private String audioStoragePath;
@@ -75,6 +76,20 @@ public class CallRecordController {
     @Operation(summary = "Detalhe de uma chamada")
     public ResponseEntity<CallRecord> getCall(@PathVariable Long id) {
         return ResponseEntity.ok(service.findById(id));
+    }
+
+    @GetMapping("/export")
+    @Operation(summary = "Exportar chamadas para Excel")
+    public ResponseEntity<byte[]> exportCalls() throws java.io.IOException {
+        java.util.List<CallRecord> records = service.findAll(PageRequest.of(0, 10000)).getContent();
+        byte[] excelBytes = excelExportService.exportCallRecordsToExcel(records);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        headers.setContentDispositionFormData("attachment", "chamadas.xlsx");
+        headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+
+        return new ResponseEntity<>(excelBytes, headers, HttpStatus.OK);
     }
 
     /**

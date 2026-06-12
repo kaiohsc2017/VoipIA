@@ -114,8 +114,8 @@ public class AlertController {
 
     @GetMapping("/alert-contacts")
     @Operation(summary = "Lista contatos de plantão ativos")
-    public ResponseEntity<List<AlertContact>> listContacts() {
-        return ResponseEntity.ok(service.findActiveContacts());
+    public ResponseEntity<List<AlertContact>> listContacts(@RequestParam(required = false) Long operationId) {
+        return ResponseEntity.ok(service.findActiveContacts(operationId));
     }
 
     @PostMapping("/alert-contacts")

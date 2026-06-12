@@ -34,9 +34,10 @@ import java.util.Optional;
 @Tag(name = "Auth", description = "Autenticação JWT")
 public class AuthController {
 
-    private final JwtService        jwtService;
-    private final AppUserRepository userRepo;
-    private final AuditService      auditService;
+    private final JwtService          jwtService;
+    private final AppUserRepository   userRepo;
+    private final AuditService        auditService;
+    private final RefreshTokenService refreshTokenService;
 
     private static final BCryptPasswordEncoder ENCODER = new BCryptPasswordEncoder();
 
@@ -67,10 +68,11 @@ public class AuthController {
         // 2. Fallback: credenciais de ambiente (compatibilidade retroativa)
         if (adminUsername.equals(request.username()) && adminPassword.equals(request.password())) {
             String token = jwtService.generateToken(request.username(), 9001);
+            String refreshToken = refreshTokenService.generateRefreshToken(request.username());
             auditService.logAs(httpRequest, request.username(), "LOGIN",
                     "Login via variáveis de ambiente (fallback)", true);
             log.info("Login ENV: '{}' → ramal 9001 (fallback)", request.username());
-            return ResponseEntity.ok(new LoginResponse(token, "Bearer", 8, 9001, "Administrador"));
+            return ResponseEntity.ok(new LoginResponse(token, refreshToken, "Bearer", 8, 9001, "Administrador"));
         }
 
         // 3. Credenciais inválidas
@@ -97,11 +99,58 @@ public class AuthController {
 
         // Login normal (sem 2FA)
         String token = jwtService.generateToken(user.getUsername(), user.getExtension());
+        String refreshToken = refreshTokenService.generateRefreshToken(user.getUsername());
         auditService.logAs(request, user.getUsername(), "LOGIN",
                 "Login bem-sucedido (ramal " + user.getExtension() + ")", true);
         log.info("Login DB: '{}' → ramal {}", user.getUsername(), user.getExtension());
         return ResponseEntity.ok(new LoginResponse(
-                token, "Bearer", 8, user.getExtension(), user.getDisplayName()));
+                token, refreshToken, "Bearer", 8, user.getExtension(), user.getDisplayName()));
+    }
+
+    @PostMapping("/refresh")
+    @Operation(summary = "Renovar token JWT usando o Refresh Token")
+    public ResponseEntity<?> refresh(@RequestBody Map<String, String> body) {
+        String reqRefreshToken = body.get("refreshToken");
+        if (reqRefreshToken == null || reqRefreshToken.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse("Refresh token não fornecido"));
+        }
+
+        Optional<RefreshToken> optToken = refreshTokenService.validateRefreshToken(reqRefreshToken);
+        if (optToken.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse("Refresh token expirado ou inválido"));
+        }
+
+        RefreshToken refreshToken = optToken.get();
+        String username = refreshToken.getUsername();
+        
+        Integer extension = 9001;
+        String displayName = "Administrador";
+        
+        Optional<AppUser> userOpt = userRepo.findByUsernameAndIsActiveTrue(username);
+        if (userOpt.isPresent()) {
+            extension = userOpt.get().getExtension();
+            displayName = userOpt.get().getDisplayName();
+        }
+
+        // Rotação: revoga o antigo e gera um novo
+        refreshTokenService.revokeRefreshToken(reqRefreshToken);
+        String newJwt = jwtService.generateToken(username, extension);
+        String newRefreshToken = refreshTokenService.generateRefreshToken(username);
+
+        log.info("Token renovado via refresh para '{}'", username);
+        return ResponseEntity.ok(new LoginResponse(
+                newJwt, newRefreshToken, "Bearer", 8, extension, displayName));
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Logout (revoga refresh token)")
+    public ResponseEntity<?> logout(@RequestBody Map<String, String> body) {
+        String reqRefreshToken = body.get("refreshToken");
+        if (reqRefreshToken != null && !reqRefreshToken.isBlank()) {
+            refreshTokenService.revokeRefreshToken(reqRefreshToken);
+            log.info("Logout: refresh token revogado");
+        }
+        return ResponseEntity.ok().build();
     }
 
     // ── DTOs ──────────────────────────────────────────────────────────────────
@@ -113,6 +162,7 @@ public class AuthController {
 
     public record LoginResponse(
             String token,
+            String refreshToken,
             String type,
             int expiresInHours,
             Integer extension,

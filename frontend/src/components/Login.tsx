@@ -35,6 +35,7 @@ export default function Login({ onLogin }: LoginProps) {
 
       // Login normal (sem 2FA)
       localStorage.setItem('asteriskia_token', data.token!);
+      localStorage.setItem('asteriskia_refresh_token', data.refreshToken!);
       localStorage.setItem('asteriskia_user', form.username);
       onLogin(data.token!, form.username);
     } catch (err: any) {
@@ -51,11 +52,12 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
     setLoading(true);
     try {
-      const { data } = await api.post<{ token: string; extension: number; displayName: string }>('/auth/totp/verify', {
+      const { data } = await api.post<{ token: string; refreshToken: string; extension: number; displayName: string }>('/auth/totp/verify', {
         tempToken,
         code: totpCode.replace(/\s/g, ''),
       });
       localStorage.setItem('asteriskia_token', data.token);
+      localStorage.setItem('asteriskia_refresh_token', data.refreshToken);
       localStorage.setItem('asteriskia_user', form.username);
       onLogin(data.token, form.username);
     } catch (err: any) {

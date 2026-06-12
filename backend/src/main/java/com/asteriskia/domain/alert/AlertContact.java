@@ -36,6 +36,9 @@ public class AlertContact {
     @Builder.Default
     private Integer priorityOrder = 1;
 
+    @Column(name = "operation_id")
+    private Long operationId;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

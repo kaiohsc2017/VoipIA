@@ -152,6 +152,7 @@ export interface AlertContact {
   phoneNumber: string;
   isActive: boolean;
   priorityOrder: number;
+  operationId?: number;
 }
 
 // ---- Dashboard KPIs ----
