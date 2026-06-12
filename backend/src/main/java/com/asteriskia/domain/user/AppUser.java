@@ -43,6 +43,15 @@ public class AppUser {
     @Builder.Default
     private String role = "USER";
 
+    /** Segredo TOTP em Base32 (null se 2FA não configurado). */
+    @Column(name = "totp_secret", length = 64)
+    private String totpSecret;
+
+    /** Se true, o login exige validação de código TOTP após senha. */
+    @Column(name = "totp_enabled", nullable = false)
+    @Builder.Default
+    private Boolean totpEnabled = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -51,3 +60,4 @@ public class AppUser {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 }
+

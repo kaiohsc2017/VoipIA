@@ -93,4 +93,37 @@ public class JwtService {
             return false;
         }
     }
+
+    /**
+     * Gera um token temporário de 5 minutos com claim totp_pending=true.
+     * Usado na segunda etapa do login quando 2FA está ativo.
+     */
+    public String generateTempToken(String username) {
+        long nowMs = System.currentTimeMillis();
+        return Jwts.builder()
+                .subject(username)
+                .issuedAt(new Date(nowMs))
+                .expiration(new Date(nowMs + 5 * 60_000L))   // 5 minutos
+                .claim("totp_pending", true)
+                .signWith(key(), Jwts.SIG.HS256)
+                .compact();
+    }
+
+    /**
+     * Verifica se o token tem a claim totp_pending=true.
+     */
+    public boolean isTotpPending(String token) {
+        try {
+            Object val = Jwts.parser()
+                    .verifyWith(key())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .get("totp_pending");
+            return Boolean.TRUE.equals(val);
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }
+

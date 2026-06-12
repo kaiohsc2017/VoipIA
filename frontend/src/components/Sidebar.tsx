@@ -1,4 +1,4 @@
-type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings';
+type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings' | 'audit';
 
 interface SidebarProps {
   currentPage: Page;
@@ -15,6 +15,7 @@ const NAV_ITEMS: { page: Page; icon: string; label: string; section: string }[] 
   { page: 'masterdata', icon: '⚙️',  label: 'Dados Mestres',     section: 'CADASTROS' },
   { page: 'users',      icon: '👥', label: 'Usuários e Ramais',  section: 'CADASTROS' },
   { page: 'settings',   icon: '🔧', label: 'Configurações',      section: 'SISTEMA' },
+  { page: 'audit',      icon: '🔐', label: 'Auditoria',          section: 'SISTEMA' },
 ];
 
 export default function Sidebar({ currentPage, onNavigate, username, onLogout }: SidebarProps) {

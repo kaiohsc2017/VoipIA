@@ -10,6 +10,7 @@ import Softphone from './components/Softphone';
 import MasterData from './components/MasterData';
 import Users from './components/Users';
 import Settings from './components/Settings';
+import Auditoria from './components/Auditoria';
 
 // ─── ErrorBoundary ─────────────────────────────────────────────────────────────
 // Evita que erros em componentes filhos desmontem toda a árvore React (tela em branco).
@@ -113,6 +114,7 @@ export default function App() {
           {page === 'masterdata'  && <ErrorBoundary><MasterData /></ErrorBoundary>}
           {page === 'users'       && <ErrorBoundary><Users /></ErrorBoundary>}
           {page === 'settings'    && <ErrorBoundary><Settings /></ErrorBoundary>}
+          {page === 'audit'       && <ErrorBoundary><Auditoria /></ErrorBoundary>}
         </main>
 
         {/* Softphone WebRTC — flutuante em todas as páginas */}

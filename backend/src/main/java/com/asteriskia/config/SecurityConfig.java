@@ -46,6 +46,7 @@ public class SecurityConfig {
                         // Públicos — sem token
                         .requestMatchers(
                                 "/api/v1/auth/login",
+                                "/api/v1/auth/totp/verify", // 2FA: segunda etapa sem JWT
                                 "/api/health",          // health check externo (Caddy, Prometheus, monitoração)
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
