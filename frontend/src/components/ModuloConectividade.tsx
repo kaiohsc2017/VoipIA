@@ -617,8 +617,7 @@ export default function ModuloConectividade() {
                 </span>
               </div>
               <div className="toolbar-right" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <button className="btn btn-ghost btn-sm" onClick={() => { setShowImport(true); setImportResult(null); }}
-                  style={{ borderColor: 'rgba(124,58,237,0.4)', color: '#a78bfa' }}>
+                <button className="btn btn-primary" onClick={() => { setShowImport(true); setImportResult(null); }}>
                   📥 Importar Planilha
                 </button>
                 <button className="btn btn-primary" onClick={openCreate}>＋ Novo Teste</button>

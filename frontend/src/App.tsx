@@ -83,6 +83,7 @@ export default function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('asteriskia_token'));
   const [username, setUsername] = useState<string>(() => localStorage.getItem('asteriskia_user') ?? '');
   const [page, setPage] = useState<Page>('dashboard');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Escuta evento de logout forçado (token expirado / 401)
   useEffect(() => {
@@ -122,9 +123,11 @@ export default function App() {
           onNavigate={setPage}
           username={username}
           onLogout={handleSignOut}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(c => !c)}
         />
 
-        <main className="main-content">
+        <main className={`main-content${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
           <Suspense fallback={<PageLoader />}>
             <ErrorBoundary>
               {page === 'dashboard'  && <Dashboard />}

@@ -5,6 +5,8 @@ interface SidebarProps {
   onNavigate: (page: Page) => void;
   username: string;
   onLogout: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
 const NAV_ITEMS: { page: Page; icon: string; label: string; section: string }[] = [
@@ -18,11 +20,21 @@ const NAV_ITEMS: { page: Page; icon: string; label: string; section: string }[] 
   { page: 'audit',      icon: '🔐', label: 'Auditoria',          section: 'SISTEMA'   },
 ];
 
-export default function Sidebar({ currentPage, onNavigate, username, onLogout }: SidebarProps) {
+export default function Sidebar({ currentPage, onNavigate, username, onLogout, collapsed, onToggleCollapse }: SidebarProps) {
   let lastSection = '';
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${collapsed ? ' collapsed' : ''}`} style={{ position: 'relative' }}>
+      {/* Botão toggle */}
+      <button
+        className="sidebar-toggle-btn"
+        onClick={onToggleCollapse}
+        title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+        aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+      >
+        {collapsed ? '›' : '‹'}
+      </button>
+
       {/* Logo */}
       <div className="sidebar-logo">
         <div className="logo-mark">
@@ -47,6 +59,7 @@ export default function Sidebar({ currentPage, onNavigate, username, onLogout }:
                 onClick={() => onNavigate(item.page)}
                 role="button"
                 tabIndex={0}
+                title={collapsed ? item.label : undefined}
                 onKeyDown={e => e.key === 'Enter' && onNavigate(item.page)}
               >
                 <span className="nav-icon">{item.icon}</span>
