@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import api from '../api/client';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -48,22 +48,8 @@ type Tab = 'config' | 'history';
 
 // ─── Seções — cada uma sabe quais serviços afeta ──────────────────────────────
 
-// Seção SIP usa editor de bloco livre — não lista chaves individuais
-interface SipRawSection extends Omit<Section, 'keys'> {
-  rawSip: true;
-  keys: FieldDef[];
-}
-
-const SIP_SECTION: SipRawSection = {
-  id: 'sip',
-  icon: '🔌',
-  title: 'Tronco SIP (Operadora)',
-  description: 'Cole o bloco [tronco-sip] completo. Ao salvar, ele substitui a seção no pjsip.conf.template e recarrega o PJSIP no Asterisk.',
-  affectedServices: ['asterisk'],
-  rawSip: true,
-  keys: [],
-};
-
+// ─── Seções de formulário (Gemini, Jira, Zabbix…) ────────────────────────────
+// Tronco SIP e Rotas são gerenciados pelos painéis AsteriskFilePanel acima.
 const SECTIONS: Section[] = [
   {
     id: 'gemini',
@@ -192,6 +178,149 @@ function collectErrors(keys: FieldDef[], edits: Record<string, string>): Record<
 
 // ─── Componente Principal ─────────────────────────────────────────────────────
 
+// ─── Estilo inline para código em hints ──────────────────────────────────────
+const codeStyle: React.CSSProperties = {
+  fontFamily: 'monospace',
+  background: 'rgba(0,0,0,0.3)',
+  padding: '1px 5px',
+  borderRadius: 3,
+  fontSize: '0.85em',
+};
+
+// ─── Painel reutilizável para edição de arquivos do Asterisk ─────────────────
+interface AsteriskFilePanelProps {
+  panelId: string;
+  icon: string;
+  title: string;
+  description: React.ReactNode;
+  hint: React.ReactNode;
+  value: string;
+  original: string;
+  saving: boolean;
+  reloadStatus: string;
+  reloadLabel: string;
+  saveLabel: string;
+  open: boolean;
+  minRows?: number;
+  onToggle: () => void;
+  onChange: (v: string) => void;
+  onDiscard: () => void;
+  onSave: () => void;
+}
+
+function AsteriskFilePanel({
+  panelId, icon, title, description, hint,
+  value, original, saving, reloadStatus, reloadLabel, saveLabel,
+  open, minRows = 12, onToggle, onChange, onDiscard, onSave,
+}: AsteriskFilePanelProps) {
+  const changed = value !== original;
+  return (
+    <div className="stat-card" style={{ padding: 0, overflow: 'hidden' }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center',
+          gap: 12, padding: '16px 20px', background: 'none',
+          border: 'none', cursor: 'pointer', textAlign: 'left', color: 'var(--text-primary)',
+        }}
+      >
+        <span style={{ fontSize: '1.4rem' }}>{icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+            {title}
+            {changed && (
+              <span style={{
+                fontSize: '0.65rem', padding: '1px 7px', borderRadius: 20,
+                background: 'rgba(245,158,11,0.15)', color: '#fcd34d',
+                border: '1px solid rgba(245,158,11,0.3)',
+              }}>● alterado</span>
+            )}
+          </div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
+            {description}
+          </div>
+        </div>
+        <span style={{
+          fontSize: '0.65rem', padding: '2px 6px', borderRadius: 6,
+          background: 'rgba(59,130,246,0.12)', color: '#93c5fd',
+          border: '1px solid rgba(59,130,246,0.2)',
+        }}>asterisk</span>
+        <span style={{
+          color: 'var(--text-muted)', transition: 'transform .2s',
+          display: 'inline-block', transform: open ? 'rotate(180deg)' : 'rotate(0)',
+        }}>▾</span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '0 20px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+
+          {/* Hint */}
+          <div style={{
+            marginTop: 14, padding: '10px 14px', borderRadius: 8,
+            background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
+            fontSize: '0.78rem', color: '#93c5fd', lineHeight: 1.5,
+          }}>
+            {hint}
+          </div>
+
+          {/* Textarea */}
+          <textarea
+            key={panelId}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            spellCheck={false}
+            rows={Math.max(minRows, value.split('\n').length + 2)}
+            style={{
+              display: 'block', width: '100%', marginTop: 14,
+              fontFamily: '"JetBrains Mono","Fira Code","Courier New",monospace',
+              fontSize: '0.82rem', lineHeight: 1.65,
+              background: '#0d1117', color: '#e6edf3',
+              border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8,
+              padding: '14px 16px', resize: 'vertical', boxSizing: 'border-box',
+              outline: 'none',
+            }}
+          />
+
+          {/* Rodapé */}
+          <div style={{
+            marginTop: 14, display: 'flex', alignItems: 'center',
+            gap: 10, flexWrap: 'wrap',
+            borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 14,
+          }}>
+            {reloadStatus && (
+              <span style={{ fontSize: '0.78rem', color: reloadStatus === 'ok' ? '#6ee7b7' : '#fcd34d' }}>
+                {reloadStatus === 'ok'
+                  ? `✅ ${reloadLabel} recarregado`
+                  : `⚠️ Reload ${reloadLabel}: ${reloadStatus}`}
+              </span>
+            )}
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={onDiscard}
+                disabled={!changed || saving}
+                style={{ opacity: !changed ? 0.4 : 1 }}
+              >
+                ↩ Descartar
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={onSave}
+                disabled={saving || !value.trim()}
+                style={{ minWidth: 200 }}
+              >
+                {saving
+                  ? <><span className="spinner" style={{ width: 11, height: 11, margin: '0 5px 0 0', borderTopColor: '#fff' }} />Salvando…</>
+                  : saveLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Settings() {
   const [settings, setSettings]             = useState<Settings>({});
   const [edits, setEdits]                   = useState<Record<string, string>>({});
@@ -204,7 +333,7 @@ export default function Settings() {
   const [applyingSection_label, setApplyingLabel] = useState('');
   const [toast, setToast]                   = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [revealedKeys, setRevealedKeys]     = useState<Set<string>>(new Set());
-  const [openSections, setOpenSections]     = useState<Set<string>>(new Set(['sip', ...SECTIONS.map(s => s.id)]));
+  const [openSections, setOpenSections]     = useState<Set<string>>(new Set(['sip', 'rotas', ...SECTIONS.map(s => s.id)]));
   const [testingSection, setTestingSection] = useState<Record<string, 'idle' | 'loading' | 'ok' | 'error'>>({});
   const [testResults, setTestResults]       = useState<Record<string, string>>({});
   const [activeTab, setActiveTab]           = useState<Tab>('config');
@@ -218,13 +347,20 @@ export default function Settings() {
   const [sipSaving, setSipSaving]           = useState(false);
   const [sipReloadStatus, setSipReloadStatus] = useState('');
 
+  // ── Estado do editor de Rotas ──────────────────────────────────────────────
+  const [rotasContent, setRotasContent]         = useState('');
+  const [rotasOriginal, setRotasOriginal]       = useState('');
+  const [rotasSaving, setRotasSaving]           = useState(false);
+  const [rotasReloadStatus, setRotasReloadStatus] = useState('');
+
   // ── Carrega configurações ──────────────────────────────────────────────────
   const load = async () => {
     setLoading(true);
     try {
-      const [settingsRes, sipRes] = await Promise.all([
+      const [settingsRes, sipRes, rotasRes] = await Promise.all([
         api.get<Settings>('/settings'),
-        api.get<{ block: string }>('/settings/sip-raw').catch(() => ({ data: { block: '' } })),
+        api.get<{ block: string }>('/asterisk-config/tronco').catch(() => ({ data: { block: '' } })),
+        api.get<{ content: string }>('/asterisk-config/rotas').catch(() => ({ data: { content: '' } })),
       ]);
       setSettings(settingsRes.data);
       const init: Record<string, string> = {};
@@ -233,6 +369,8 @@ export default function Settings() {
       setSavedSnapshot(init);
       setSipBlock(sipRes.data.block);
       setSipOriginal(sipRes.data.block);
+      setRotasContent(rotasRes.data.content);
+      setRotasOriginal(rotasRes.data.content);
     } catch {
       showToast('error', 'Erro ao carregar configurações.');
     } finally {
@@ -366,27 +504,49 @@ export default function Settings() {
     }
   };
 
-  // ── Salvar bloco SIP raw ───────────────────────────────────────────────────
+  // ── Salvar bloco Tronco SIP ────────────────────────────────────────────────
   const handleSaveSipRaw = async () => {
     if (!sipBlock.trim()) { showToast('error', 'O bloco não pode ser vazio.'); return; }
     setSipSaving(true);
     setSipReloadStatus('');
     try {
       const res = await api.post<{ message: string; reloadStatus: string }>(
-        '/settings/sip-raw', { block: sipBlock }
+        '/asterisk-config/tronco', { block: sipBlock }
       );
       setSipOriginal(sipBlock);
       setSipReloadStatus(res.data.reloadStatus ?? '');
-      const reloadOk = res.data.reloadStatus === 'ok';
       showToast('success',
-        reloadOk
-          ? 'Bloco SIP salvo e PJSIP recarregado com sucesso!'
-          : `Bloco SIP salvo. Reload: ${res.data.reloadStatus} — verifique o Asterisk.`
+        res.data.reloadStatus === 'ok'
+          ? 'Tronco SIP salvo e PJSIP recarregado!'
+          : `Tronco SIP salvo. Reload: ${res.data.reloadStatus}`
       );
     } catch {
-      showToast('error', 'Erro ao salvar bloco SIP.');
+      showToast('error', 'Erro ao salvar Tronco SIP.');
     } finally {
       setSipSaving(false);
+    }
+  };
+
+  // ── Salvar Rotas (extensions.conf) ─────────────────────────────────────────
+  const handleSaveRotas = async () => {
+    if (!rotasContent.trim()) { showToast('error', 'O conteúdo não pode ser vazio.'); return; }
+    setRotasSaving(true);
+    setRotasReloadStatus('');
+    try {
+      const res = await api.post<{ message: string; reloadStatus: string }>(
+        '/asterisk-config/rotas', { content: rotasContent }
+      );
+      setRotasOriginal(rotasContent);
+      setRotasReloadStatus(res.data.reloadStatus ?? '');
+      showToast('success',
+        res.data.reloadStatus === 'ok'
+          ? 'Rotas salvas e dialplan recarregado!'
+          : `Rotas salvas. Reload: ${res.data.reloadStatus}`
+      );
+    } catch {
+      showToast('error', 'Erro ao salvar Rotas.');
+    } finally {
+      setRotasSaving(false);
     }
   };
 
@@ -484,113 +644,47 @@ export default function Settings() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-              {/* ── Painel SIP raw ─────────────────────────────────────────── */}
-              {(() => {
-                const sec = SIP_SECTION;
-                const open = openSections.has(sec.id);
-                const sipChanged = sipBlock !== sipOriginal;
-                return (
-                  <div key="sip" className="stat-card" style={{ padding: 0, overflow: 'hidden' }}>
-                    <button
-                      onClick={() => toggleSection(sec.id)}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center',
-                        gap: 12, padding: '16px 20px', background: 'none',
-                        border: 'none', cursor: 'pointer', textAlign: 'left', color: 'var(--text-primary)',
-                      }}
-                    >
-                      <span style={{ fontSize: '1.4rem' }}>{sec.icon}</span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-                          {sec.title}
-                          {sipChanged && (
-                            <span style={{
-                              fontSize: '0.65rem', padding: '1px 7px', borderRadius: 20,
-                              background: 'rgba(245,158,11,0.15)', color: '#fcd34d',
-                              border: '1px solid rgba(245,158,11,0.3)',
-                            }}>● alterado</span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                          {sec.description}
-                        </div>
-                      </div>
-                      <span style={{
-                        fontSize: '0.65rem', padding: '2px 6px', borderRadius: 6,
-                        background: 'rgba(59,130,246,0.12)', color: '#93c5fd',
-                        border: '1px solid rgba(59,130,246,0.2)',
-                      }}>asterisk</span>
-                      <span style={{ color: 'var(--text-muted)', transition: 'transform .2s', display: 'inline-block', transform: open ? 'rotate(180deg)' : 'rotate(0)' }}>▾</span>
-                    </button>
+              {/* ── Painel Tronco SIP ──────────────────────────────────────── */}
+              <AsteriskFilePanel
+                panelId="sip"
+                icon="🔌"
+                title="Tronco SIP (Operadora)"
+                description={<>Edite o bloco <code style={codeStyle}>[tronco-sip]</code> do <code style={codeStyle}>pjsip.conf.template</code>. Ao salvar, o Asterisk executa <code style={codeStyle}>module reload res_pjsip</code> automaticamente.</>}
+                hint={<>📌 Chamadas de <strong>entrada e saída</strong> usam este mesmo tronco. O campo <code style={codeStyle}>host</code> atualiza <code style={codeStyle}>SIP_TRUNK_HOST</code> no .env.</>}
+                value={sipBlock}
+                original={sipOriginal}
+                saving={sipSaving}
+                reloadStatus={sipReloadStatus}
+                reloadLabel="PJSIP"
+                saveLabel="💾 Salvar e Recarregar PJSIP"
+                open={openSections.has('sip')}
+                onToggle={() => toggleSection('sip')}
+                onChange={setSipBlock}
+                onDiscard={() => { setSipBlock(sipOriginal); setSipReloadStatus(''); }}
+                onSave={handleSaveSipRaw}
+                minRows={10}
+              />
 
-                    {open && (
-                      <div style={{ padding: '0 20px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-
-                        {/* Dica de uso */}
-                        <div style={{
-                          marginTop: 14, padding: '10px 14px', borderRadius: 8,
-                          background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
-                          fontSize: '0.78rem', color: '#93c5fd', lineHeight: 1.5,
-                        }}>
-                          💡 Cole aqui o bloco <code style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.3)', padding: '1px 5px', borderRadius: 3 }}>[tronco-sip]</code> completo.
-                          Ao salvar, o conteúdo substitui a seção no <code style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.3)', padding: '1px 5px', borderRadius: 3 }}>pjsip.conf.template</code> e
-                          o Asterisk executa <code style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.3)', padding: '1px 5px', borderRadius: 3 }}>module reload res_pjsip</code> automaticamente.
-                        </div>
-
-                        {/* Textarea do bloco */}
-                        <textarea
-                          value={sipBlock}
-                          onChange={e => setSipBlock(e.target.value)}
-                          spellCheck={false}
-                          rows={Math.max(10, sipBlock.split('\n').length + 2)}
-                          style={{
-                            display: 'block', width: '100%', marginTop: 14,
-                            fontFamily: '"JetBrains Mono","Fira Code","Courier New",monospace',
-                            fontSize: '0.82rem', lineHeight: 1.65,
-                            background: '#0d1117', color: '#e6edf3',
-                            border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8,
-                            padding: '14px 16px', resize: 'vertical', boxSizing: 'border-box',
-                            outline: 'none', tabSize: 2,
-                          }}
-                          placeholder={`[tronco-sip]\ntype = endpoint\ntransport = transport-udp\ncontext = from-trunk\ndisallow = all\nallow = ulaw\nallow = alaw\nhost = 186.233.141.64\nqualify = yes`}
-                        />
-
-                        {/* Rodapé */}
-                        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 14 }}>
-                          {sipReloadStatus && (
-                            <span style={{
-                              fontSize: '0.78rem',
-                              color: sipReloadStatus === 'ok' ? '#6ee7b7' : '#fcd34d',
-                            }}>
-                              {sipReloadStatus === 'ok' ? '✅ PJSIP recarregado' : `⚠️ Reload: ${sipReloadStatus}`}
-                            </span>
-                          )}
-                          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                            <button
-                              className="btn btn-ghost btn-sm"
-                              onClick={() => { setSipBlock(sipOriginal); setSipReloadStatus(''); }}
-                              disabled={!sipChanged || sipSaving}
-                              style={{ opacity: !sipChanged ? 0.4 : 1 }}
-                            >
-                              ↩ Descartar
-                            </button>
-                            <button
-                              className="btn btn-primary btn-sm"
-                              onClick={handleSaveSipRaw}
-                              disabled={sipSaving || !sipBlock.trim()}
-                              style={{ minWidth: 160 }}
-                            >
-                              {sipSaving
-                                ? <><span className="spinner" style={{ width: 11, height: 11, margin: '0 5px 0 0', borderTopColor: '#fff' }} />Salvando…</>
-                                : '💾 Salvar e Recarregar PJSIP'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+              {/* ── Painel Rotas ───────────────────────────────────────────── */}
+              <AsteriskFilePanel
+                panelId="rotas"
+                icon="🗺️"
+                title="Rotas (extensions.conf)"
+                description={<>Edite o plano de discagem completo — contextos de entrada (<code style={codeStyle}>recepcao-tronco</code>), saída e ramais internos. Ao salvar, executa <code style={codeStyle}>dialplan reload</code>.</>}
+                hint={<>📌 Contextos de saída usam <code style={codeStyle}>PJSIP/&lt;número&gt;@tronco-sip</code>. Não é necessário reiniciar o container.</>}
+                value={rotasContent}
+                original={rotasOriginal}
+                saving={rotasSaving}
+                reloadStatus={rotasReloadStatus}
+                reloadLabel="Dialplan"
+                saveLabel="💾 Salvar e Recarregar Dialplan"
+                open={openSections.has('rotas')}
+                onToggle={() => toggleSection('rotas')}
+                onChange={setRotasContent}
+                onDiscard={() => { setRotasContent(rotasOriginal); setRotasReloadStatus(''); }}
+                onSave={handleSaveRotas}
+                minRows={20}
+              />
 
               {SECTIONS.map(section => {
                 const open       = openSections.has(section.id);

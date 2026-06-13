@@ -63,7 +63,7 @@ public class AmiOriginateService {
         Map<String, String> action = new LinkedHashMap<>();
         action.put("Action", "Originate");
         action.put("ActionID", UUID.randomUUID().toString());
-        action.put("Channel", "PJSIP/" + phoneNumber + "@trunk-saida");
+        action.put("Channel", "PJSIP/" + phoneNumber + "@tronco-sip");
         action.put("Context", "asteriskia-alert");
         action.put("Exten", "s");
         action.put("Priority", "1");
@@ -92,7 +92,7 @@ public class AmiOriginateService {
         Map<String, String> action = new LinkedHashMap<>();
         action.put("Action", "Originate");
         action.put("ActionID", UUID.randomUUID().toString());
-        action.put("Channel", "PJSIP/" + phoneNumber + "@trunk-saida");
+        action.put("Channel", "PJSIP/" + phoneNumber + "@tronco-sip");
         action.put("Context", "asteriskia-test");
         action.put("Exten", "s");
         action.put("Priority", "1");

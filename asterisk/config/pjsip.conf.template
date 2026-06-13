@@ -138,31 +138,8 @@ media_encryption = dtls
 ice_support = yes
 
 ; ---------------------------------------------------------------
-; TRONCO DE SAÍDA — Alias "trunk-saida"
-; Usado pelo backend (AmiOriginateService.java) e pelo scheduler
-; (AmiService.py) para originação de chamadas saintes.
-; Referencia o mesmo tronco SIP da operadora (tronco-sip).
+; NOTA: Chamadas de saída (Módulo 2 e 3) usam o mesmo [tronco-sip]
+; acima. O endpoint de saída separado [trunk-saida] foi removido.
+; Channel AMI: PJSIP/<numero>@tronco-sip
 ; ---------------------------------------------------------------
-[trunk-saida-auth]
-type = auth
-auth_type = userpass
-username = ${SIP_TRUNK_USER}
-password = ${SIP_TRUNK_PASSWORD}
 
-[trunk-saida-aor]
-type = aor
-contact = sip:${SIP_TRUNK_HOST}
-qualify_frequency = 60
-
-[trunk-saida]
-type = endpoint
-transport = transport-udp
-context = recepcao-tronco
-disallow = all
-allow = ulaw
-allow = alaw
-outbound_auth = trunk-saida-auth
-aors = trunk-saida-aor
-from_domain = ${SIP_TRUNK_FROM_DOMAIN}
-; Permite discagem de saída sem registro prévio
-direct_media = no
