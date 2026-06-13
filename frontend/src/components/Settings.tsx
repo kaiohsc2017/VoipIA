@@ -197,6 +197,7 @@ interface AsteriskFilePanelProps {
   value: string;
   original: string;
   saving: boolean;
+  isLoading?: boolean;
   reloadStatus: string;
   reloadLabel: string;
   saveLabel: string;
@@ -210,11 +211,10 @@ interface AsteriskFilePanelProps {
 
 function AsteriskFilePanel({
   panelId, icon, title, description, hint,
-  value, original, saving, reloadStatus, reloadLabel, saveLabel,
+  value, original, saving, isLoading = false, reloadStatus, reloadLabel, saveLabel,
   open, minRows = 12, onToggle, onChange, onDiscard, onSave,
 }: AsteriskFilePanelProps) {
   const changed = value !== original;
-  const loading = value === '' && original === '';
 
   return (
     <div className="stat-card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -269,7 +269,7 @@ function AsteriskFilePanel({
           </div>
 
           {/* Textarea ou loading */}
-          {loading ? (
+          {isLoading ? (
             <div style={{
               marginTop: 14, padding: '28px', borderRadius: 8, textAlign: 'center',
               background: 'var(--bg-input)', border: '1px solid var(--border-glass)',
@@ -369,29 +369,46 @@ export default function Settings() {
   const [rotasSaving, setRotasSaving]           = useState(false);
   const [rotasReloadStatus, setRotasReloadStatus] = useState('');
 
+  // loading específico para os painéis Asterisk (independente do /settings)
+  const [astConfigLoading, setAstConfigLoading] = useState(true);
+
   // ── Carrega configurações ──────────────────────────────────────────────────
   const load = async () => {
     setLoading(true);
+
+    // 1. Settings do .env (Gemini, Jira, Zabbix…)
     try {
-      const [settingsRes, sipRes, rotasRes] = await Promise.all([
-        api.get<Settings>('/settings'),
-        api.get<{ block: string }>('/asterisk-config/tronco').catch(() => ({ data: { block: '' } })),
-        api.get<{ content: string }>('/asterisk-config/rotas').catch(() => ({ data: { content: '' } })),
-      ]);
-      setSettings(settingsRes.data);
+      const res = await api.get<Settings>('/settings');
+      setSettings(res.data);
       const init: Record<string, string> = {};
-      Object.entries(settingsRes.data).forEach(([k, v]) => { init[k] = v.value; });
+      Object.entries(res.data).forEach(([k, v]) => { init[k] = v.value; });
       setEdits(init);
       setSavedSnapshot(init);
-      setSipBlock(sipRes.data.block);
-      setSipOriginal(sipRes.data.block);
-      setRotasContent(rotasRes.data.content);
-      setRotasOriginal(rotasRes.data.content);
     } catch {
-      showToast('error', 'Erro ao carregar configurações.');
-    } finally {
-      setLoading(false);
+      showToast('error', 'Erro ao carregar configurações do .env.');
     }
+
+    // 2. Configs do Asterisk — independente do .env
+    try {
+      const sipRes = await api.get<{ block: string }>('/asterisk-config/tronco');
+      setSipBlock(sipRes.data.block ?? '');
+      setSipOriginal(sipRes.data.block ?? '');
+    } catch {
+      setSipBlock('# Erro ao carregar — verifique se o volume /etc/asterisk está montado no backend.');
+      setSipOriginal('');
+    }
+
+    try {
+      const rotasRes = await api.get<{ content: string }>('/asterisk-config/rotas');
+      setRotasContent(rotasRes.data.content ?? '');
+      setRotasOriginal(rotasRes.data.content ?? '');
+    } catch {
+      setRotasContent('# Erro ao carregar — verifique se o volume /etc/asterisk está montado no backend.');
+      setRotasOriginal('');
+    }
+
+    setAstConfigLoading(false);
+    setLoading(false);
   };
 
   const loadHistory = async () => {
@@ -670,6 +687,7 @@ export default function Settings() {
                 value={sipBlock}
                 original={sipOriginal}
                 saving={sipSaving}
+                isLoading={astConfigLoading}
                 reloadStatus={sipReloadStatus}
                 reloadLabel="PJSIP"
                 saveLabel="💾 Salvar e Recarregar PJSIP"
@@ -691,6 +709,7 @@ export default function Settings() {
                 value={rotasContent}
                 original={rotasOriginal}
                 saving={rotasSaving}
+                isLoading={astConfigLoading}
                 reloadStatus={rotasReloadStatus}
                 reloadLabel="Dialplan"
                 saveLabel="💾 Salvar e Recarregar Dialplan"
