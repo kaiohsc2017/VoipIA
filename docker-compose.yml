@@ -202,6 +202,9 @@ services:
       - /opt/AsteriskIA/asterisk/config:/etc/asterisk
       # Socket do fail2ban — permite executar fail2ban-client via backend
       - fail2ban_socket:/var/run/fail2ban
+      # Configs do security — leitura/escrita dos jails e filtros pela UI
+      - /opt/AsteriskIA/security/config:/opt/asteriskia/security/config
+      - /opt/AsteriskIA/security:/opt/asteriskia/security
       # Docker socket — necessário para executar 'docker compose up -d' no apply
       - /var/run/docker.sock:/var/run/docker.sock
       # Diretório raiz do projeto — necessário para docker compose encontrar o compose.yml

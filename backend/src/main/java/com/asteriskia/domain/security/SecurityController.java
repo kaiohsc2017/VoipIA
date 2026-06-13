@@ -19,77 +19,51 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.*;
 import java.util.stream.*;
 
-/**
- * SecurityController — Gestão de segurança SIP via fail2ban + ACL Asterisk.
- *
- * fail2ban (via socket /var/run/fail2ban/fail2ban.sock):
- *   GET  /api/v1/security/status          → status geral + estatísticas
- *   GET  /api/v1/security/jails           → lista jails com contagem de bans
- *   GET  /api/v1/security/jails/{jail}    → detalhe de um jail
- *   PUT  /api/v1/security/jails/{jail}    → atualiza configuração do jail
- *   POST /api/v1/security/jails/{jail}/enable|disable
- *
- * IPs bloqueados:
- *   GET  /api/v1/security/banned          → todos os IPs banidos
- *   POST /api/v1/security/ban             → bloquear IP manualmente
- *   DELETE /api/v1/security/ban/{ip}      → desbloquear IP
- *
- * Lista branca:
- *   GET  /api/v1/security/whitelist       → IPs na lista branca
- *   POST /api/v1/security/whitelist       → adicionar IP
- *   DELETE /api/v1/security/whitelist/{ip}
- *
- * Monitoramento:
- *   GET  /api/v1/security/threats         → IPs em monitoramento (próximos do limite)
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/security")
 @RequiredArgsConstructor
-@Tag(name = "Security", description = "Proteção SIP via fail2ban + ACL Asterisk")
+@Tag(name = "Security", description = "Proteção SIP via fail2ban + iptables + ACL Asterisk")
 public class SecurityController {
 
     private final AuditService auditService;
 
-    @Value("${app.security.fail2ban-socket:/var/run/fail2ban/fail2ban.sock}")
-    private String fail2banSocket;
-
-    @Value("${app.security.jail-config-dir:/opt/AsteriskIA/security/config/jail.d}")
+    // Caminhos montados via volume no backend
+    @Value("${app.security.jail-config-dir:/opt/asteriskia/security/config/jail.d}")
     private String jailConfigDir;
 
-    @Value("${app.security.filter-config-dir:/opt/AsteriskIA/security/config/filter.d}")
+    @Value("${app.security.filter-config-dir:/opt/asteriskia/security/config/filter.d}")
     private String filterConfigDir;
+
+    @Value("${app.security.security-dir:/opt/asteriskia/security}")
+    private String securityDir;
 
     @Value("${app.asterisk.config-dir:/etc/asterisk}")
     private String asteriskConfigDir;
 
+    // Nome do container security para docker exec
+    private static final String SECURITY_CONTAINER = "asteriskia-security";
+
     private static final List<String> MANAGED_JAILS =
         List.of("asterisk-auth", "asterisk-scan", "asterisk-flood");
 
-    // =========================================================================
-    // STATUS GERAL
-    // =========================================================================
+    // ── Status geral ──────────────────────────────────────────────────────────
 
     @GetMapping("/status")
-    @Operation(summary = "Status geral do sistema de segurança")
     public ResponseEntity<Map<String, Object>> status() {
         Map<String, Object> result = new LinkedHashMap<>();
         boolean f2bRunning = isF2bRunning();
         result.put("fail2banRunning", f2bRunning);
-        result.put("fail2banSocket",  fail2banSocket);
 
-        int totalBanned  = 0;
-        int activeJails  = 0;
+        int totalBanned = 0, activeJails = 0;
         List<Map<String,Object>> jails = new ArrayList<>();
-
         for (String jail : MANAGED_JAILS) {
-            Map<String,Object> jailInfo = getJailInfo(jail, f2bRunning);
-            jails.add(jailInfo);
-            if (Boolean.TRUE.equals(jailInfo.get("enabled"))) activeJails++;
-            Object banned = jailInfo.get("currentlyBanned");
-            if (banned instanceof Integer) totalBanned += (Integer) banned;
+            Map<String,Object> info = getJailInfo(jail, f2bRunning);
+            jails.add(info);
+            if (Boolean.TRUE.equals(info.get("enabled"))) activeJails++;
+            Object b = info.get("currentlyBanned");
+            if (b instanceof Integer) totalBanned += (Integer) b;
         }
-
         result.put("jails",       jails);
         result.put("activeJails", activeJails);
         result.put("totalBanned", totalBanned);
@@ -97,32 +71,26 @@ public class SecurityController {
         return ResponseEntity.ok(result);
     }
 
-    // =========================================================================
-    // JAILS
-    // =========================================================================
+    // ── Jails ─────────────────────────────────────────────────────────────────
 
     @GetMapping("/jails")
-    @Operation(summary = "Lista todos os jails gerenciados")
     public ResponseEntity<List<Map<String,Object>>> jails() {
         boolean f2b = isF2bRunning();
-        return ResponseEntity.ok(
-            MANAGED_JAILS.stream().map(j -> getJailInfo(j, f2b)).collect(Collectors.toList()));
+        return ResponseEntity.ok(MANAGED_JAILS.stream()
+            .map(j -> getJailInfo(j, f2b)).collect(Collectors.toList()));
     }
 
     @GetMapping("/jails/{jail}")
-    @Operation(summary = "Detalhe de um jail — configuração atual + regex do filtro")
     public ResponseEntity<Map<String, Object>> jailDetail(@PathVariable String jail) {
         if (!MANAGED_JAILS.contains(jail))
             return ResponseEntity.badRequest().body(Map.of("message", "Jail desconhecido: " + jail));
         Map<String,Object> info = getJailInfo(jail, isF2bRunning());
-        // Adiciona regex do filtro
         info.put("filterRegex", readFilterRegex(jail));
         info.put("jailConfig",  readJailConfig(jail));
         return ResponseEntity.ok(info);
     }
 
     @PutMapping("/jails/{jail}")
-    @Operation(summary = "Atualiza configuração de um jail e recarrega o fail2ban")
     public ResponseEntity<Map<String, Object>> updateJail(
             @PathVariable String jail,
             @RequestBody Map<String, Object> body,
@@ -131,134 +99,98 @@ public class SecurityController {
         if (!MANAGED_JAILS.contains(jail))
             return ResponseEntity.badRequest().body(Map.of("message", "Jail desconhecido: " + jail));
         try {
-            // Atualiza jail.d/asterisk.conf
-            updateJailParam(jail, "maxretry", String.valueOf(body.get("maxretry")));
-            updateJailParam(jail, "findtime",  String.valueOf(body.get("findtime")));
-            updateJailParam(jail, "bantime",   String.valueOf(body.get("bantime")));
-            if (body.containsKey("action"))
-                updateJailParam(jail, "banaction", String.valueOf(body.get("action")));
-
-            // Atualiza regex do filtro se fornecido
-            if (body.containsKey("filterRegex")) {
+            if (body.containsKey("maxretry"))
+                updateJailParam(jail, "maxretry", String.valueOf(body.get("maxretry")));
+            if (body.containsKey("findtime"))
+                updateJailParam(jail, "findtime",  String.valueOf(body.get("findtime")));
+            if (body.containsKey("bantime"))
+                updateJailParam(jail, "bantime",   String.valueOf(body.get("bantime")));
+            if (body.containsKey("banaction"))
+                updateJailParam(jail, "banaction", String.valueOf(body.get("banaction")));
+            if (body.containsKey("filterRegex"))
                 writeFilterRegex(jail, String.valueOf(body.get("filterRegex")));
-            }
 
-            // Recarrega fail2ban
-            String reload = f2bClient("reload", jail);
+            String reload = f2bExec("reload", jail);
             auditService.log(request, "SECURITY_JAIL_UPDATE",
                 "Jail " + jail + " atualizado. Reload: " + reload, true);
-
-            return ResponseEntity.ok(Map.of(
-                "message", "Jail atualizado com sucesso.",
-                "reload",  reload));
+            return ResponseEntity.ok(Map.of("message", "Jail atualizado.", "reload", reload));
         } catch (Exception e) {
-            log.error("Erro ao atualizar jail {}: {}", jail, e.getMessage());
+            log.error("updateJail {}: {}", jail, e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                .body(Map.of("message", "Erro: " + e.getMessage()));
+                .body(Map.of("message", "Erro ao salvar: " + e.getMessage()));
         }
     }
 
     @PostMapping("/jails/{jail}/enable")
     public ResponseEntity<Map<String,Object>> enableJail(
-            @PathVariable String jail, HttpServletRequest request) {
-        return toggleJail(jail, true, request);
+            @PathVariable String jail, HttpServletRequest req) {
+        return toggleJail(jail, true, req);
     }
 
     @PostMapping("/jails/{jail}/disable")
     public ResponseEntity<Map<String,Object>> disableJail(
-            @PathVariable String jail, HttpServletRequest request) {
-        return toggleJail(jail, false, request);
+            @PathVariable String jail, HttpServletRequest req) {
+        return toggleJail(jail, false, req);
     }
 
-    // =========================================================================
-    // BAN / UNBAN
-    // =========================================================================
+    // ── Ban / Unban ───────────────────────────────────────────────────────────
 
     @GetMapping("/banned")
-    @Operation(summary = "Lista todos os IPs banidos em todos os jails")
     public ResponseEntity<List<Map<String,String>>> banned() {
         List<Map<String,String>> all = new ArrayList<>();
         for (String jail : MANAGED_JAILS) {
-            String out = f2bClient("status", jail);
-            List<String> ips = parseBannedIps(out);
-            for (String ip : ips) {
-                Map<String,String> entry = new LinkedHashMap<>();
-                entry.put("ip",     ip);
-                entry.put("jail",   jail);
-                entry.put("origin", "fail2ban");
-                all.add(entry);
+            for (String ip : parseBannedIps(f2bExec("status", jail))) {
+                all.add(mapOf("ip", ip, "jail", jail, "origin", "fail2ban"));
             }
         }
-        // Adiciona bloqueios manuais (ACL Asterisk)
         all.addAll(readManualBans());
         return ResponseEntity.ok(all);
     }
 
     @PostMapping("/ban")
-    @Operation(summary = "Bloquear IP manualmente — via fail2ban + ACL Asterisk")
     public ResponseEntity<Map<String, Object>> ban(
-            @RequestBody Map<String, String> body,
-            HttpServletRequest request) {
-
+            @RequestBody Map<String, String> body, HttpServletRequest request) {
         String ip   = body.get("ip");
         String note = body.getOrDefault("note", "Bloqueio manual");
         String jail = body.getOrDefault("jail", "asterisk-auth");
-
         if (ip == null || ip.isBlank())
             return ResponseEntity.badRequest().body(Map.of("message", "IP obrigatório"));
         if (!isValidIp(ip))
-            return ResponseEntity.badRequest().body(Map.of("message", "IP ou CIDR inválido: " + ip));
-
+            return ResponseEntity.badRequest().body(Map.of("message", "IP inválido: " + ip));
         try {
-            // Ban via fail2ban
-            String f2bResult = f2bClient("set", jail, "banip", ip);
-            // Ban via ACL Asterisk (acl.conf)
+            String f2bResult = f2bExec("set", jail, "banip", ip);
             addToAsteriskAcl(ip);
-            // Salva nota
             saveManualBan(ip, note, jail);
-
-            auditService.log(request, "SECURITY_BAN",
-                "IP banido: " + ip + " | Jail: " + jail + " | " + note, true);
-
+            auditService.log(request, "SECURITY_BAN", "IP banido: " + ip + " | " + note, true);
             return ResponseEntity.ok(Map.of(
-                "message",    "IP " + ip + " bloqueado com sucesso.",
-                "fail2ban",   f2bResult,
-                "asteriskAcl","ok"));
+                "message", "IP " + ip + " bloqueado.", "fail2ban", f2bResult));
         } catch (Exception e) {
-            log.error("Erro ao banir IP {}: {}", ip, e.getMessage());
             return ResponseEntity.internalServerError()
                 .body(Map.of("message", "Erro ao banir: " + e.getMessage()));
         }
     }
 
     @DeleteMapping("/ban/{ip}")
-    @Operation(summary = "Desbloquear IP — remove de todos os jails e da ACL")
     public ResponseEntity<Map<String, Object>> unban(
             @PathVariable String ip,
             @RequestParam(defaultValue = "") String jail,
             HttpServletRequest request) {
         try {
-            List<String> results = new ArrayList<>();
             List<String> jailsToUnban = jail.isBlank() ? MANAGED_JAILS : List.of(jail);
-            for (String j : jailsToUnban)
-                results.add(j + ": " + f2bClient("set", j, "unbanip", ip));
-
+            List<String> results = jailsToUnban.stream()
+                .map(j -> j + ": " + f2bExec("set", j, "unbanip", ip))
+                .collect(Collectors.toList());
             removeFromAsteriskAcl(ip);
             removeManualBan(ip);
-
             auditService.log(request, "SECURITY_UNBAN", "IP desbloqueado: " + ip, true);
-            return ResponseEntity.ok(Map.of(
-                "message", "IP " + ip + " desbloqueado.",
-                "results", results));
+            return ResponseEntity.ok(Map.of("message", "IP " + ip + " desbloqueado.", "results", results));
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
-                .body(Map.of("message", "Erro ao desbanir: " + e.getMessage()));
+                .body(Map.of("message", "Erro: " + e.getMessage()));
         }
     }
 
-    // =========================================================================
-    // WHITELIST
-    // =========================================================================
+    // ── Whitelist ─────────────────────────────────────────────────────────────
 
     @GetMapping("/whitelist")
     public ResponseEntity<List<String>> whitelist() {
@@ -267,8 +199,7 @@ public class SecurityController {
 
     @PostMapping("/whitelist")
     public ResponseEntity<Map<String, Object>> addWhitelist(
-            @RequestBody Map<String, String> body,
-            HttpServletRequest request) {
+            @RequestBody Map<String, String> body, HttpServletRequest request) {
         String ip = body.get("ip");
         if (!isValidIp(ip))
             return ResponseEntity.badRequest().body(Map.of("message", "IP inválido: " + ip));
@@ -277,11 +208,10 @@ public class SecurityController {
             if (!list.contains(ip)) {
                 list.add(ip);
                 writeWhitelist(list);
-                // Atualiza ignoreip em todos os jails
                 updateIgnoreIp(list);
-                f2bClient("reload");
+                f2bExec("reload");
             }
-            auditService.log(request, "SECURITY_WHITELIST_ADD", "IP adicionado à lista branca: " + ip, true);
+            auditService.log(request, "SECURITY_WHITELIST_ADD", ip, true);
             return ResponseEntity.ok(Map.of("message", ip + " adicionado à lista branca."));
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
@@ -291,68 +221,55 @@ public class SecurityController {
 
     @DeleteMapping("/whitelist/{ip}")
     public ResponseEntity<Map<String, Object>> removeWhitelist(
-            @PathVariable String ip,
-            HttpServletRequest request) {
+            @PathVariable String ip, HttpServletRequest request) {
         try {
             List<String> list = readWhitelist();
             list.remove(ip);
             writeWhitelist(list);
             updateIgnoreIp(list);
-            f2bClient("reload");
-            auditService.log(request, "SECURITY_WHITELIST_REMOVE", "IP removido da lista branca: " + ip, true);
-            return ResponseEntity.ok(Map.of("message", ip + " removido da lista branca."));
+            f2bExec("reload");
+            auditService.log(request, "SECURITY_WHITELIST_REMOVE", ip, true);
+            return ResponseEntity.ok(Map.of("message", ip + " removido."));
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
                 .body(Map.of("message", "Erro: " + e.getMessage()));
         }
     }
 
-    // =========================================================================
-    // THREATS — IPs em monitoramento
-    // =========================================================================
+    // ── Threats ───────────────────────────────────────────────────────────────
 
     @GetMapping("/threats")
-    @Operation(summary = "IPs em monitoramento — próximos do limite de ban")
     public ResponseEntity<List<Map<String,Object>>> threats() {
-        // Lê fail2ban-client get <jail> monitoredip (disponível no fail2ban ≥ 0.11)
         List<Map<String,Object>> result = new ArrayList<>();
         for (String jail : MANAGED_JAILS) {
             try {
-                String out = f2bClient("get", jail, "monitored");
-                if (out == null || out.isBlank()) continue;
-                // Parseia saída: "IP = <ip>\tFailures = <n>\tTotal = <n>"
+                String out = f2bExec("get", jail, "monitored");
+                if (out == null || out.isBlank() || out.contains("No")) continue;
                 for (String line : out.split("\n")) {
-                    line = line.trim();
-                    if (line.isBlank() || line.startsWith("No")) continue;
-                    Map<String,Object> entry = parseMonitoredLine(line, jail);
-                    if (entry != null) result.add(entry);
+                    Map<String,Object> e = parseMonitoredLine(line.trim(), jail);
+                    if (e != null) result.add(e);
                 }
             } catch (Exception e) {
-                log.debug("Threats: jail {} — {}", jail, e.getMessage());
+                log.debug("threats jail {}: {}", jail, e.getMessage());
             }
         }
         return ResponseEntity.ok(result);
     }
 
     @PostMapping("/test-regex")
-    @Operation(summary = "Testa uma regex contra as últimas linhas do log do Asterisk")
     public ResponseEntity<Map<String, Object>> testRegex(
             @RequestBody Map<String, String> body) {
         String regex = body.get("regex");
-        int lines = Integer.parseInt(body.getOrDefault("lines", "200"));
+        int lines = parseInt(body.getOrDefault("lines", "200"));
         if (regex == null || regex.isBlank())
             return ResponseEntity.badRequest().body(Map.of("message", "Regex obrigatória."));
         try {
-            List<String> logLines = tailAsteriskLog(lines);
+            List<String> log = tailAsteriskLog(lines);
             Pattern p = Pattern.compile(regex);
-            List<String> matches = logLines.stream()
-                .filter(l -> p.matcher(l).find())
-                .limit(20)
-                .collect(Collectors.toList());
+            List<String> matches = log.stream()
+                .filter(l -> p.matcher(l).find()).limit(20).collect(Collectors.toList());
             return ResponseEntity.ok(Map.of(
-                "matches", matches,
-                "count",   matches.size(),
-                "tested",  logLines.size()));
+                "matches", matches, "count", matches.size(), "tested", log.size()));
         } catch (PatternSyntaxException e) {
             return ResponseEntity.badRequest().body(Map.of("message", "Regex inválida: " + e.getMessage()));
         } catch (Exception e) {
@@ -361,22 +278,18 @@ public class SecurityController {
     }
 
     // =========================================================================
-    // Privado — fail2ban-client
+    // Privado — fail2ban via docker exec
     // =========================================================================
 
-    private boolean isF2bRunning() {
+    /**
+     * Executa fail2ban-client dentro do container asteriskia-security via docker exec.
+     * Isso evita a necessidade do binário no container backend e garante
+     * que o cliente fala com o daemon correto via socket.
+     */
+    private String f2bExec(String... args) {
         try {
-            String out = f2bClient("ping");
-            return out != null && out.contains("pong");
-        } catch (Exception e) { return false; }
-    }
-
-    private String f2bClient(String... args) {
-        try {
-            List<String> cmd = new ArrayList<>();
-            cmd.add("fail2ban-client");
-            cmd.add("--socket");
-            cmd.add(fail2banSocket);
+            List<String> cmd = new ArrayList<>(List.of("docker", "exec", SECURITY_CONTAINER,
+                "fail2ban-client", "-s", "/var/run/fail2ban/fail2ban.sock"));
             cmd.addAll(Arrays.asList(args));
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
@@ -386,37 +299,36 @@ public class SecurityController {
                     new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
                 out = r.lines().collect(Collectors.joining("\n"));
             }
-            p.waitFor(10, TimeUnit.SECONDS);
-            return out;
+            p.waitFor(15, TimeUnit.SECONDS);
+            log.debug("f2b [{}]: {}", String.join(" ", args), out.trim());
+            return out.trim();
         } catch (Exception e) {
-            log.warn("fail2ban-client {}: {}", String.join(" ", args), e.getMessage());
-            return "";
+            log.warn("f2bExec {}: {}", String.join(" ", args), e.getMessage());
+            return "error: " + e.getMessage();
         }
+    }
+
+    private boolean isF2bRunning() {
+        try {
+            String out = f2bExec("ping");
+            return out != null && out.contains("pong");
+        } catch (Exception e) { return false; }
     }
 
     private Map<String,Object> getJailInfo(String jail, boolean f2bRunning) {
         Map<String,Object> m = new LinkedHashMap<>();
         m.put("name", jail);
-
-        // Lê configuração do arquivo
         Map<String,String> cfg = parseJailConfig(jail);
-        m.put("enabled",   "true".equals(cfg.getOrDefault("enabled","false")));
-        m.put("maxretry",  parseInt(cfg.getOrDefault("maxretry","5")));
-        m.put("findtime",  parseInt(cfg.getOrDefault("findtime","30")));
-        m.put("bantime",   parseInt(cfg.getOrDefault("bantime","86400")));
-        m.put("banaction", cfg.getOrDefault("banaction","iptables-multiport"));
-        m.put("port",      cfg.getOrDefault("port","5060,5061,8088"));
-
-        // Status live do fail2ban
+        m.put("enabled",   "true".equals(cfg.getOrDefault("enabled", "false")));
+        m.put("maxretry",  parseInt(cfg.getOrDefault("maxretry", "5")));
+        m.put("findtime",  parseInt(cfg.getOrDefault("findtime", "30")));
+        m.put("bantime",   parseInt(cfg.getOrDefault("bantime",  "86400")));
+        m.put("banaction", cfg.getOrDefault("banaction", "iptables-multiport"));
+        m.put("port",      cfg.getOrDefault("port", "5060,5061,8088"));
         if (f2bRunning) {
-            try {
-                String status = f2bClient("status", jail);
-                m.put("currentlyBanned", parseBannedCount(status));
-                m.put("totalFailed",     parseTotalFailed(status));
-            } catch (Exception e) {
-                m.put("currentlyBanned", 0);
-                m.put("totalFailed",     0);
-            }
+            String status = f2bExec("status", jail);
+            m.put("currentlyBanned", parseBannedCount(status));
+            m.put("totalFailed",     parseTotalFailed(status));
         } else {
             m.put("currentlyBanned", 0);
             m.put("totalFailed",     0);
@@ -425,42 +337,40 @@ public class SecurityController {
     }
 
     private ResponseEntity<Map<String,Object>> toggleJail(
-            String jail, boolean enable, HttpServletRequest request) {
+            String jail, boolean enable, HttpServletRequest req) {
         if (!MANAGED_JAILS.contains(jail))
-            return ResponseEntity.badRequest().body(Map.of("message","Jail desconhecido: " + jail));
+            return ResponseEntity.badRequest().body(Map.of("message", "Jail desconhecido."));
         try {
             updateJailParam(jail, "enabled", enable ? "true" : "false");
-            String reload = f2bClient("reload", jail);
-            auditService.log(request, "SECURITY_JAIL_TOGGLE",
+            String reload = f2bExec("reload", jail);
+            auditService.log(req, "SECURITY_JAIL_TOGGLE",
                 jail + " " + (enable ? "habilitado" : "desabilitado"), true);
             return ResponseEntity.ok(Map.of(
-                "message", jail + (enable ? " habilitado." : " desabilitado."),
-                "reload",  reload));
+                "message", jail + (enable ? " ativado." : " desativado."), "reload", reload));
         } catch (Exception e) {
+            log.error("toggleJail {}: {}", jail, e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                .body(Map.of("message","Erro: " + e.getMessage()));
+                .body(Map.of("message", "Erro: " + e.getMessage()));
         }
     }
 
     // =========================================================================
-    // Privado — config files
+    // Privado — leitura/escrita de configuração
     // =========================================================================
 
     private Map<String,String> parseJailConfig(String jail) {
         Map<String,String> cfg = new LinkedHashMap<>();
         try {
-            Path path = Path.of(jailConfigDir, "asterisk.conf");
-            String content = Files.readString(path, StandardCharsets.UTF_8);
-            // Encontra a seção do jail
-            Pattern sec = Pattern.compile(
-                "\\[" + Pattern.quote(jail) + "\\]([^\\[]*)", Pattern.DOTALL);
-            Matcher m = sec.matcher(content);
+            String content = Files.readString(
+                Path.of(jailConfigDir, "asterisk.conf"), StandardCharsets.UTF_8);
+            Matcher m = Pattern.compile(
+                "\\[" + Pattern.quote(jail) + "\\]([^\\[]*)", Pattern.DOTALL).matcher(content);
             if (m.find()) {
                 for (String line : m.group(1).split("\n")) {
                     line = line.trim();
                     if (line.isBlank() || line.startsWith(";") || line.startsWith("#")) continue;
                     int eq = line.indexOf('=');
-                    if (eq > 0) cfg.put(line.substring(0,eq).trim(), line.substring(eq+1).trim());
+                    if (eq > 0) cfg.put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
                 }
             }
         } catch (Exception e) { log.warn("parseJailConfig {}: {}", jail, e.getMessage()); }
@@ -470,31 +380,37 @@ public class SecurityController {
     private void updateJailParam(String jail, String key, String value) throws IOException {
         Path path = Path.of(jailConfigDir, "asterisk.conf");
         String content = Files.readString(path, StandardCharsets.UTF_8);
-        Pattern sec = Pattern.compile(
+
+        // Localiza a seção do jail
+        Pattern secPat = Pattern.compile(
             "(\\[" + Pattern.quote(jail) + "\\][^\\[]*)(?=\\[|\\z)", Pattern.DOTALL);
-        Matcher m = sec.matcher(content);
-        if (!m.find()) throw new IOException("Jail " + jail + " não encontrado no arquivo de config");
-        String section = m.group(1);
-        String updated;
-        Pattern kp = Pattern.compile("(?m)^(\\s*" + Pattern.quote(key) + "\\s*=\\s*).*$");
-        Matcher km = kp.matcher(section);
-        if (km.find()) {
-            updated = section.substring(0, km.start()) + key + "  = " + value + section.substring(km.end());
+        Matcher secMatcher = secPat.matcher(content);
+        if (!secMatcher.find())
+            throw new IOException("Seção [" + jail + "] não encontrada em asterisk.conf");
+
+        String section = secMatcher.group(1);
+        String updatedSection;
+
+        // Atualiza a linha existente ou adiciona nova
+        Pattern keyPat = Pattern.compile("(?m)^([ \\t]*" + Pattern.quote(key) + "[ \\t]*=[ \\t]*).*$");
+        Matcher keyMatcher = keyPat.matcher(section);
+        if (keyMatcher.find()) {
+            updatedSection = keyMatcher.replaceFirst(key + "  = " + Matcher.quoteReplacement(value));
         } else {
-            updated = section.stripTrailing() + "\n" + key + "  = " + value + "\n";
+            updatedSection = section.stripTrailing() + "\n" + key + "  = " + value + "\n";
         }
-        content = m.replaceFirst(Matcher.quoteReplacement(updated));
-        Files.writeString(path, content, StandardCharsets.UTF_8,
-            StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+
+        String updated = secMatcher.replaceFirst(Matcher.quoteReplacement(updatedSection));
+        writeAtomic(path, updated);
+        log.info("Jail [{}] {} = {}", jail, key, value);
     }
 
     private String readJailConfig(String jail) {
         try {
-            Path path = Path.of(jailConfigDir, "asterisk.conf");
-            String content = Files.readString(path, StandardCharsets.UTF_8);
-            Pattern sec = Pattern.compile(
-                "\\[" + Pattern.quote(jail) + "\\][^\\[]*", Pattern.DOTALL);
-            Matcher m = sec.matcher(content);
+            String content = Files.readString(
+                Path.of(jailConfigDir, "asterisk.conf"), StandardCharsets.UTF_8);
+            Matcher m = Pattern.compile(
+                "\\[" + Pattern.quote(jail) + "\\][^\\[]*", Pattern.DOTALL).matcher(content);
             return m.find() ? m.group().strip() : "";
         } catch (Exception e) { return ""; }
     }
@@ -504,12 +420,13 @@ public class SecurityController {
             Path path = Path.of(filterConfigDir, jail + ".conf");
             if (!Files.exists(path)) return "";
             String content = Files.readString(path, StandardCharsets.UTF_8);
-            // Extrai linhas de failregex
             StringBuilder sb = new StringBuilder();
+            boolean inRegex = false;
             for (String line : content.split("\n")) {
                 String t = line.trim();
-                if (t.startsWith("failregex") || (sb.length()>0 && t.startsWith("^")))
-                    sb.append(t).append("\n");
+                if (t.startsWith("failregex")) { sb.append(t).append("\n"); inRegex = true; }
+                else if (inRegex && (t.startsWith("^") || t.startsWith(" "))) sb.append(t.trim()).append("\n");
+                else if (inRegex && !t.isBlank()) inRegex = false;
             }
             return sb.toString().strip();
         } catch (Exception e) { return ""; }
@@ -517,13 +434,20 @@ public class SecurityController {
 
     private void writeFilterRegex(String jail, String regex) throws IOException {
         Path path = Path.of(filterConfigDir, jail + ".conf");
+        if (!Files.exists(path)) return;
         String content = Files.readString(path, StandardCharsets.UTF_8);
-        // Substitui bloco failregex
-        Pattern p = Pattern.compile("(?m)^failregex\\s*=.*?(?=^[a-z]|\\z)", Pattern.DOTALL);
-        String newBlock = "failregex = " + regex.strip().replace("\n", "\n            ") + "\n\n";
-        String updated = p.matcher(content).replaceFirst(Matcher.quoteReplacement(newBlock));
-        Files.writeString(path, updated, StandardCharsets.UTF_8,
-            StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+        String newBlock = "failregex = " +
+            regex.strip().replace("\n", "\n            ") + "\n\n";
+        String updated = Pattern.compile("(?m)^failregex\\s*=.*?(?=^[a-z]|\\z)", Pattern.DOTALL)
+            .matcher(content).replaceFirst(Matcher.quoteReplacement(newBlock));
+        writeAtomic(path, updated);
+    }
+
+    private void writeAtomic(Path path, String content) throws IOException {
+        Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
+        Files.writeString(tmp, content, StandardCharsets.UTF_8,
+            StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     }
 
     // =========================================================================
@@ -531,50 +455,45 @@ public class SecurityController {
     // =========================================================================
 
     private void addToAsteriskAcl(String ip) throws IOException {
-        Path aclPath = Path.of(asteriskConfigDir, "acl.conf");
-        String content = Files.exists(aclPath)
-            ? Files.readString(aclPath, StandardCharsets.UTF_8) : "[blacklist]\ntype=acl\n";
+        Path p = Path.of(asteriskConfigDir, "acl.conf");
+        String content = Files.exists(p)
+            ? Files.readString(p, StandardCharsets.UTF_8) : "[blacklist]\ntype=acl\n";
         if (!content.contains(ip)) {
-            content = content.stripTrailing() + "\ndeny=" + ip + "\n";
-            Files.writeString(aclPath, content, StandardCharsets.UTF_8,
-                StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+            writeAtomic(p, content.stripTrailing() + "\ndeny=" + ip + "\n");
         }
     }
 
     private void removeFromAsteriskAcl(String ip) throws IOException {
-        Path aclPath = Path.of(asteriskConfigDir, "acl.conf");
-        if (!Files.exists(aclPath)) return;
-        String content = Files.readString(aclPath, StandardCharsets.UTF_8);
-        content = content.lines()
+        Path p = Path.of(asteriskConfigDir, "acl.conf");
+        if (!Files.exists(p)) return;
+        String updated = Files.readAllLines(p, StandardCharsets.UTF_8).stream()
             .filter(l -> !l.contains("deny=" + ip))
             .collect(Collectors.joining("\n")) + "\n";
-        Files.writeString(aclPath, content, StandardCharsets.UTF_8,
-            StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+        writeAtomic(p, updated);
     }
 
     // =========================================================================
-    // Privado — manual bans persistence
+    // Privado — persistência manual bans e whitelist
     // =========================================================================
 
-    private static final String MANUAL_BANS_FILE = "/opt/AsteriskIA/security/manual-bans.csv";
+    private String manualBansFile() { return securityDir + "/manual-bans.csv"; }
+    private String whitelistFile()  { return securityDir + "/whitelist.txt";   }
 
     private List<Map<String,String>> readManualBans() {
         List<Map<String,String>> list = new ArrayList<>();
         try {
-            Path p = Path.of(MANUAL_BANS_FILE);
+            Path p = Path.of(manualBansFile());
             if (!Files.exists(p)) return list;
             for (String line : Files.readAllLines(p, StandardCharsets.UTF_8)) {
                 if (line.isBlank() || line.startsWith("#")) continue;
                 String[] parts = line.split(",", 4);
-                if (parts.length >= 2) {
-                    Map<String,String> m = new LinkedHashMap<>();
-                    m.put("ip",     parts[0].trim());
-                    m.put("jail",   parts.length>1 ? parts[1].trim() : "manual");
-                    m.put("note",   parts.length>2 ? parts[2].trim() : "");
-                    m.put("ts",     parts.length>3 ? parts[3].trim() : "");
-                    m.put("origin", "manual");
-                    list.add(m);
-                }
+                Map<String,String> m = new LinkedHashMap<>();
+                m.put("ip",     parts[0].trim());
+                m.put("jail",   parts.length > 1 ? parts[1].trim() : "manual");
+                m.put("note",   parts.length > 2 ? parts[2].trim() : "");
+                m.put("ts",     parts.length > 3 ? parts[3].trim() : "");
+                m.put("origin", "manual");
+                list.add(m);
             }
         } catch (Exception e) { log.warn("readManualBans: {}", e.getMessage()); }
         return list;
@@ -582,9 +501,9 @@ public class SecurityController {
 
     private void saveManualBan(String ip, String note, String jail) {
         try {
-            Path p = Path.of(MANUAL_BANS_FILE);
+            Path p = Path.of(manualBansFile());
             Files.createDirectories(p.getParent());
-            String line = ip + "," + jail + "," + note.replace(",","；") + "," + Instant.now() + "\n";
+            String line = ip + "," + jail + "," + note.replace(",", "；") + "," + Instant.now() + "\n";
             Files.writeString(p, line, StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (Exception e) { log.warn("saveManualBan: {}", e.getMessage()); }
@@ -592,85 +511,70 @@ public class SecurityController {
 
     private void removeManualBan(String ip) {
         try {
-            Path p = Path.of(MANUAL_BANS_FILE);
+            Path p = Path.of(manualBansFile());
             if (!Files.exists(p)) return;
-            List<String> lines = Files.readAllLines(p, StandardCharsets.UTF_8)
-                .stream().filter(l -> !l.startsWith(ip + ",")).collect(Collectors.toList());
+            List<String> lines = Files.readAllLines(p, StandardCharsets.UTF_8).stream()
+                .filter(l -> !l.startsWith(ip + ",")).collect(Collectors.toList());
             Files.write(p, lines, StandardCharsets.UTF_8,
                 StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
         } catch (Exception e) { log.warn("removeManualBan: {}", e.getMessage()); }
     }
 
-    // =========================================================================
-    // Privado — whitelist
-    // =========================================================================
-
-    private static final String WHITELIST_FILE = "/opt/AsteriskIA/security/whitelist.txt";
     private static final List<String> DEFAULT_WHITELIST =
         List.of("127.0.0.1/8", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16");
 
     private List<String> readWhitelist() {
         try {
-            Path p = Path.of(WHITELIST_FILE);
+            Path p = Path.of(whitelistFile());
             if (!Files.exists(p)) return new ArrayList<>(DEFAULT_WHITELIST);
-            return Files.readAllLines(p, StandardCharsets.UTF_8)
-                .stream().filter(l -> !l.isBlank() && !l.startsWith("#"))
+            return Files.readAllLines(p, StandardCharsets.UTF_8).stream()
+                .filter(l -> !l.isBlank() && !l.startsWith("#"))
                 .collect(Collectors.toList());
         } catch (Exception e) { return new ArrayList<>(DEFAULT_WHITELIST); }
     }
 
     private void writeWhitelist(List<String> ips) throws IOException {
-        Path p = Path.of(WHITELIST_FILE);
+        Path p = Path.of(whitelistFile());
         Files.createDirectories(p.getParent());
-        String content = "# AsteriskIA — Lista branca de IPs\n# IPs aqui nunca serão bloqueados pelo fail2ban\n"
-            + String.join("\n", ips) + "\n";
-        Files.writeString(p, content, StandardCharsets.UTF_8,
-            StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+        writeAtomic(p, "# AsteriskIA — Lista branca\n" + String.join("\n", ips) + "\n");
     }
 
     private void updateIgnoreIp(List<String> whitelist) throws IOException {
         String ignoreIp = String.join(" ", whitelist);
-        updateJailParam("asterisk-auth", "ignoreip", ignoreIp);
-        updateJailParam("asterisk-scan", "ignoreip", ignoreIp);
-        updateJailParam("asterisk-flood","ignoreip", ignoreIp);
+        for (String jail : MANAGED_JAILS)
+            updateJailParam(jail, "ignoreip", ignoreIp);
     }
 
     // =========================================================================
-    // Privado — parse helpers
+    // Privado — helpers de parse
     // =========================================================================
 
     private List<String> parseBannedIps(String f2bStatus) {
         List<String> ips = new ArrayList<>();
         if (f2bStatus == null || f2bStatus.isBlank()) return ips;
-        Pattern p = Pattern.compile("Banned IP list:\\s*(.*)");
-        Matcher m = p.matcher(f2bStatus);
+        Matcher m = Pattern.compile("Banned IP list:\\s*(.*)").matcher(f2bStatus);
         if (m.find()) {
             String raw = m.group(1).trim();
-            if (!raw.isEmpty())
-                Arrays.stream(raw.split("\\s+")).forEach(ips::add);
+            if (!raw.isEmpty()) Arrays.stream(raw.split("\\s+")).forEach(ips::add);
         }
         return ips;
     }
 
     private int parseBannedCount(String status) {
         if (status == null) return 0;
-        Pattern p = Pattern.compile("Currently banned:\\s*(\\d+)");
-        Matcher m = p.matcher(status);
+        Matcher m = Pattern.compile("Currently banned:\\s*(\\d+)").matcher(status);
         return m.find() ? parseInt(m.group(1)) : 0;
     }
 
     private int parseTotalFailed(String status) {
         if (status == null) return 0;
-        Pattern p = Pattern.compile("Total failed:\\s*(\\d+)");
-        Matcher m = p.matcher(status);
+        Matcher m = Pattern.compile("Total failed:\\s*(\\d+)").matcher(status);
         return m.find() ? parseInt(m.group(1)) : 0;
     }
 
     private Map<String,Object> parseMonitoredLine(String line, String jail) {
-        // fail2ban-client get <jail> monitored returns:
-        // <ip>    failures = <n>    last = <ts>
-        Pattern p = Pattern.compile("(\\S+).*failures\\s*=\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
-        Matcher m = p.matcher(line);
+        Matcher m = Pattern.compile("(\\S+).*failures\\s*=\\s*(\\d+)",
+            Pattern.CASE_INSENSITIVE).matcher(line);
         if (!m.find()) return null;
         Map<String,Object> e = new LinkedHashMap<>();
         e.put("ip",       m.group(1));
@@ -681,8 +585,8 @@ public class SecurityController {
 
     private List<String> tailAsteriskLog(int lines) throws IOException, InterruptedException {
         ProcessBuilder pb = new ProcessBuilder(
-            "docker","exec","asteriskia-asterisk",
-            "tail","-n",String.valueOf(lines),"/var/log/asterisk/full");
+            "docker", "exec", "asteriskia-asterisk",
+            "tail", "-n", String.valueOf(lines), "/var/log/asterisk/full");
         pb.redirectErrorStream(true);
         Process p = pb.start();
         List<String> out = new ArrayList<>();
@@ -696,12 +600,17 @@ public class SecurityController {
 
     private boolean isValidIp(String ip) {
         if (ip == null || ip.isBlank()) return false;
-        // IP simples ou CIDR
         return ip.matches("^(\\d{1,3}\\.){3}\\d{1,3}(/\\d{1,2})?$")
             || ip.matches("^[0-9a-fA-F:]+(/\\d{1,3})?$");
     }
 
     private int parseInt(String s) {
         try { return Integer.parseInt(s.trim()); } catch (Exception e) { return 0; }
+    }
+
+    private Map<String,String> mapOf(String... kv) {
+        Map<String,String> m = new LinkedHashMap<>();
+        for (int i = 0; i < kv.length - 1; i += 2) m.put(kv[i], kv[i + 1]);
+        return m;
     }
 }
