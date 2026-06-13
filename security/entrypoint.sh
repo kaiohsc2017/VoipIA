@@ -32,6 +32,6 @@ echo "[security] Log do Asterisk encontrado. Iniciando fail2ban..."
 
 # Inicia fail2ban em foreground com log para stdout
 exec fail2ban-server \
-    --nodaemon \
+    -f \
     --loglevel INFO \
     --logtarget STDOUT

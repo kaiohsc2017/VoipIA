@@ -17,7 +17,6 @@ RUN mkdir -p /etc/fail2ban/jail.d \
 
 COPY config/jail.d/     /etc/fail2ban/jail.d/
 COPY config/filter.d/   /etc/fail2ban/filter.d/
-COPY config/action.d/   /etc/fail2ban/action.d/
 COPY entrypoint.sh      /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
