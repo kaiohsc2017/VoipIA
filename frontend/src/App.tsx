@@ -2,6 +2,7 @@ import { useState, useEffect, Component, type ReactNode, lazy, Suspense } from '
 import './App.css';
 import Login from './components/Login';
 import Sidebar, { type Page } from './components/Sidebar';
+import ModuloLogs from './components/ModuloLogs';
 
 // ─── Lazy imports — cada módulo vira um chunk separado ───────────────────────
 // O React cria um chunk JS separado para cada componente lazy.
@@ -138,6 +139,7 @@ export default function App() {
               {page === 'users'      && <Users />}
               {page === 'settings'   && <Settings />}
               {page === 'audit'      && <Auditoria />}
+              {page === 'logs'       && <ModuloLogs />}
             </ErrorBoundary>
           </Suspense>
         </main>
