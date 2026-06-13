@@ -924,7 +924,4 @@ export default function Settings() {
   );
 }
 
-const codeStyle: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.08)', padding: '1px 6px',
-  borderRadius: 4, fontFamily: 'monospace', fontSize: '0.85em',
-};
+
