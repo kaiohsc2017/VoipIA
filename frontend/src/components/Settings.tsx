@@ -214,14 +214,19 @@ function AsteriskFilePanel({
   open, minRows = 12, onToggle, onChange, onDiscard, onSave,
 }: AsteriskFilePanelProps) {
   const changed = value !== original;
+  const loading = value === '' && original === '';
+
   return (
     <div className="stat-card" style={{ padding: 0, overflow: 'hidden' }}>
+
+      {/* Cabeçalho */}
       <button
         onClick={onToggle}
         style={{
           width: '100%', display: 'flex', alignItems: 'center',
           gap: 12, padding: '16px 20px', background: 'none',
-          border: 'none', cursor: 'pointer', textAlign: 'left', color: 'var(--text-primary)',
+          border: 'none', cursor: 'pointer', textAlign: 'left',
+          color: 'var(--text-primary)',
         }}
       >
         <span style={{ fontSize: '1.4rem' }}>{icon}</span>
@@ -231,8 +236,8 @@ function AsteriskFilePanel({
             {changed && (
               <span style={{
                 fontSize: '0.65rem', padding: '1px 7px', borderRadius: 20,
-                background: 'rgba(245,158,11,0.15)', color: '#fcd34d',
-                border: '1px solid rgba(245,158,11,0.3)',
+                background: 'rgba(245,158,11,0.12)', color: '#92400e',
+                border: '1px solid rgba(245,158,11,0.35)',
               }}>● alterado</span>
             )}
           </div>
@@ -241,9 +246,9 @@ function AsteriskFilePanel({
           </div>
         </div>
         <span style={{
-          fontSize: '0.65rem', padding: '2px 6px', borderRadius: 6,
-          background: 'rgba(59,130,246,0.12)', color: '#93c5fd',
-          border: '1px solid rgba(59,130,246,0.2)',
+          fontSize: '0.65rem', padding: '2px 8px', borderRadius: 6, fontWeight: 500,
+          background: 'rgba(45,79,214,0.08)', color: 'var(--clr-primary)',
+          border: '1px solid rgba(45,79,214,0.2)',
         }}>asterisk</span>
         <span style={{
           color: 'var(--text-muted)', transition: 'transform .2s',
@@ -252,43 +257,54 @@ function AsteriskFilePanel({
       </button>
 
       {open && (
-        <div style={{ padding: '0 20px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ padding: '0 20px 20px', borderTop: '1px solid var(--border-glass)' }}>
 
           {/* Hint */}
           <div style={{
             marginTop: 14, padding: '10px 14px', borderRadius: 8,
-            background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
-            fontSize: '0.78rem', color: '#93c5fd', lineHeight: 1.5,
+            background: 'rgba(45,79,214,0.05)', border: '1px solid rgba(45,79,214,0.15)',
+            fontSize: '0.78rem', color: 'var(--clr-primary)', lineHeight: 1.6,
           }}>
             {hint}
           </div>
 
-          {/* Textarea */}
-          <textarea
-            key={panelId}
-            value={value}
-            onChange={e => onChange(e.target.value)}
-            spellCheck={false}
-            rows={Math.max(minRows, value.split('\n').length + 2)}
-            style={{
-              display: 'block', width: '100%', marginTop: 14,
-              fontFamily: '"JetBrains Mono","Fira Code","Courier New",monospace',
-              fontSize: '0.82rem', lineHeight: 1.65,
-              background: '#0d1117', color: '#e6edf3',
-              border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8,
-              padding: '14px 16px', resize: 'vertical', boxSizing: 'border-box',
-              outline: 'none',
-            }}
-          />
+          {/* Textarea ou loading */}
+          {loading ? (
+            <div style={{
+              marginTop: 14, padding: '28px', borderRadius: 8, textAlign: 'center',
+              background: 'var(--bg-input)', border: '1px solid var(--border-glass)',
+              color: 'var(--text-muted)', fontSize: '0.85rem',
+            }}>
+              <span className="spinner" style={{ width: 16, height: 16, display: 'inline-block', marginRight: 8, verticalAlign: 'middle' }} />
+              Carregando configuração…
+            </div>
+          ) : (
+            <textarea
+              key={panelId}
+              className="form-textarea"
+              value={value}
+              onChange={e => onChange(e.target.value)}
+              spellCheck={false}
+              rows={Math.max(minRows, value.split('\n').length + 2)}
+              style={{
+                marginTop: 14, boxSizing: 'border-box', width: '100%',
+                fontFamily: '"JetBrains Mono","Fira Code","Courier New",monospace',
+                fontSize: '0.82rem', lineHeight: 1.7,
+              }}
+            />
+          )}
 
           {/* Rodapé */}
           <div style={{
             marginTop: 14, display: 'flex', alignItems: 'center',
             gap: 10, flexWrap: 'wrap',
-            borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 14,
+            borderTop: '1px solid var(--border-glass)', paddingTop: 14,
           }}>
             {reloadStatus && (
-              <span style={{ fontSize: '0.78rem', color: reloadStatus === 'ok' ? '#6ee7b7' : '#fcd34d' }}>
+              <span style={{
+                fontSize: '0.78rem',
+                color: reloadStatus === 'ok' ? '#059669' : '#92400e',
+              }}>
                 {reloadStatus === 'ok'
                   ? `✅ ${reloadLabel} recarregado`
                   : `⚠️ Reload ${reloadLabel}: ${reloadStatus}`}
