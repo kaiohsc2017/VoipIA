@@ -13,6 +13,8 @@ networks:
 volumes:
   postgres_data:
   asterisk_recordings:
+  asterisk_log:
+  fail2ban_socket:
   prometheus_data:
   grafana_data:
 
@@ -65,6 +67,7 @@ services:
     volumes:
       - ./asterisk/config:/etc/asterisk
       - asterisk_recordings:/var/spool/asterisk/monitor
+      - asterisk_log:/var/log/asterisk
     ports:
       - "5060:5060/udp"       # SIP UDP
       - "5060:5060/tcp"       # SIP TCP
@@ -197,6 +200,8 @@ services:
       - /opt/AsteriskIA/env:/opt/asteriskia/env
       # Acesso aos configs do Asterisk (pjsip, extensions) para edição via UI
       - /opt/AsteriskIA/asterisk/config:/etc/asterisk
+      # Socket do fail2ban — permite executar fail2ban-client via backend
+      - fail2ban_socket:/var/run/fail2ban
       # Docker socket — necessário para executar 'docker compose up -d' no apply
       - /var/run/docker.sock:/var/run/docker.sock
       # Diretório raiz do projeto — necessário para docker compose encontrar o compose.yml
@@ -250,6 +255,42 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
     networks:
       - asteriskia-net
+
+  # -----------------------------------------------------------
+  # Security — fail2ban + iptables
+  # Protege o Asterisk contra ataques SIP (brute-force, scan,
+  # flood). Roda com network_mode: host para acessar o iptables
+  # real do kernel. Monitora /var/log/asterisk/full via volume.
+  # -----------------------------------------------------------
+  security:
+    build:
+      context: ./security
+      dockerfile: Dockerfile
+    container_name: asteriskia-security
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    depends_on:
+      asterisk:
+        condition: service_healthy
+    environment:
+      ASTERISK_LOG_FILE: /var/log/asterisk/full
+    volumes:
+      # Log do Asterisk — leitura pelo fail2ban
+      - asterisk_log:/var/log/asterisk:ro
+      # Configuração dos jails — editável pela UI
+      - ./security/config/jail.d:/etc/fail2ban/jail.d
+      - ./security/config/filter.d:/etc/fail2ban/filter.d
+      - ./security/config/action.d:/etc/fail2ban/action.d
+      # Socket do fail2ban — compartilhado com o backend para fail2ban-client
+      - fail2ban_socket:/var/run/fail2ban
+    healthcheck:
+      test: ["CMD", "fail2ban-client", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # -----------------------------------------------------------
   # Grafana — Dashboards de monitoração

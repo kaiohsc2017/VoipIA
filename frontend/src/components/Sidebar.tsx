@@ -1,4 +1,4 @@
-type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings' | 'audit' | 'logs';
+type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings' | 'audit' | 'logs' | 'security';
 
 interface SidebarProps {
   currentPage: Page;
@@ -18,6 +18,7 @@ const NAV_ITEMS: { page: Page; icon: string; label: string; section: string }[] 
   { page: 'users',      icon: '👥', label: 'Usuários e Ramais',  section: 'CADASTROS' },
   { page: 'settings',   icon: '🔧', label: 'Configurações',      section: 'SISTEMA'   },
   { page: 'logs',       icon: '🖥️', label: 'Logs',               section: 'SISTEMA'   },
+  { page: 'security',   icon: '🛡️', label: 'Segurança',          section: 'SISTEMA'   },
   { page: 'audit',      icon: '🔐', label: 'Auditoria',          section: 'SISTEMA'   },
 ];
 

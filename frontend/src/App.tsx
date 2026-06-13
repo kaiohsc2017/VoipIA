@@ -3,6 +3,7 @@ import './App.css';
 import Login from './components/Login';
 import Sidebar, { type Page } from './components/Sidebar';
 import ModuloLogs from './components/ModuloLogs';
+import ModuloSeguranca from './components/ModuloSeguranca';
 
 // ─── Lazy imports — cada módulo vira um chunk separado ───────────────────────
 // O React cria um chunk JS separado para cada componente lazy.
@@ -140,6 +141,7 @@ export default function App() {
               {page === 'settings'   && <Settings />}
               {page === 'audit'      && <Auditoria />}
               {page === 'logs'       && <ModuloLogs />}
+              {page === 'security'   && <ModuloSeguranca />}
             </ErrorBoundary>
           </Suspense>
         </main>
