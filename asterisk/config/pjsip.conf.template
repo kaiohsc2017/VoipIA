@@ -4,6 +4,15 @@
 ; =============================================================
 
 ; ---------------------------------------------------------------
+; GLOBAL — Define o realm padrão para autenticação digest
+; Deve bater com o domínio usado pelo softphone (window.location.hostname)
+; ---------------------------------------------------------------
+[global]
+type = global
+default_realm = ${SIP_DOMAIN}
+keep_alive_interval = 90
+
+; ---------------------------------------------------------------
 ; TRANSPORTE UDP
 ; ---------------------------------------------------------------
 [transport-udp]
