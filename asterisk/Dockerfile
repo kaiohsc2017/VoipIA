@@ -40,7 +40,8 @@ RUN wget -q https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-21-cu
     ./configure \
         --with-pjproject-bundled \
         --with-jansson-bundled \
-        --with-ssl=ssl && \
+        --with-ssl=ssl \
+        --with-srtp && \
     make menuselect/menuselect menuselect-tree menuselect.makeopts && \
     menuselect/menuselect \
         --enable app_audiosocket \
