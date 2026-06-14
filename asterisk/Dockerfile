@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
     libspeexdsp-dev \
     libasound2-dev \
     libpq-dev \
+    libsrtp2-dev \
     pkg-config \
     python3 \
     && rm -rf /var/lib/apt/lists/*
@@ -43,6 +44,7 @@ RUN wget -q https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-21-cu
     make menuselect/menuselect menuselect-tree menuselect.makeopts && \
     menuselect/menuselect \
         --enable app_audiosocket \
+        --enable res_srtp \
         --enable res_pjsip \
         --enable res_pjsip_session \
         --enable chan_pjsip \
@@ -54,6 +56,7 @@ RUN wget -q https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-21-cu
         --enable format_wav \
         --enable codec_ulaw \
         --enable codec_alaw \
+        --enable codec_opus \
         --enable pbx_config \
         --enable res_musiconhold \
         menuselect.makeopts && \
@@ -84,6 +87,7 @@ RUN apt-get update && apt-get install -y \
     libsqlite3-0 \
     libodbc1 \
     unixodbc \
+    libsrtp2-1 \
     curl \
     gettext-base \
     ca-certificates \
