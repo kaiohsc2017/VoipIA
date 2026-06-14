@@ -19,12 +19,19 @@ local_net = 10.0.0.0/8
 local_net = 192.168.0.0/16
 
 ; ---------------------------------------------------------------
-; TRANSPORTE WEBSOCKET (WebRTC)
+; TRANSPORTE WEBSOCKET (WebRTC via Caddy proxy)
+; O Caddy termina o TLS (wss://) e repassa como ws:// para o
+; Asterisk na porta 8088. O transport-ws recebe essas conexões.
 ; ---------------------------------------------------------------
 [transport-ws]
 type = transport
 protocol = ws
 bind = 0.0.0.0:8088
+; Permite conexões de qualquer origem (Caddy proxy)
+; local_net aqui não filtra — é só para referência de NAT
+local_net = 172.16.0.0/12
+local_net = 10.0.0.0/8
+local_net = 192.168.0.0/16
 
 ; ---------------------------------------------------------------
 ; TRONCO SIP — Registro na operadora
@@ -116,26 +123,39 @@ type = auth
 auth_type = userpass
 username = 9001
 password = webrtc9001pass
+; realm deve bater com o domínio SIP usado pelo browser
+realm = ${SIP_DOMAIN}
 
 [ramal-9001-aor]
 type = aor
 max_contacts = 1
 remove_existing = yes
+; WebRTC precisa de contato qualificado
+qualify_frequency = 30
 
 [9001]
 type = endpoint
+; CRÍTICO: transport-ws para receber REGISTER via WebSocket
+transport = transport-ws
 context = ramais-webrtc
 disallow = all
+allow = opus
 allow = ulaw
 allow = alaw
 auth = ramal-9001-auth
 aors = ramal-9001-aor
 callerid = "WebRTC React" <9001>
+; WebRTC — habilita todas as opções necessárias
 webrtc = yes
+; Opções explícitas (webrtc=yes ativa, mas declarar evita bugs em Asterisk 20)
 dtls_auto_generate_cert = yes
 use_avpf = yes
 media_encryption = dtls
 ice_support = yes
+rtcp_mux = yes
+; Necessário para WebRTC por trás de NAT/proxy
+force_rport = yes
+rewrite_contact = yes
 
 ; ---------------------------------------------------------------
 ; NOTA: Chamadas de saída (Módulo 2 e 3) usam o mesmo [tronco-sip]
