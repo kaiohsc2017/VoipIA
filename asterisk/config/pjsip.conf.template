@@ -89,7 +89,7 @@ auth_type = userpass
 username = 1001
 password = ramal1001pass
 
-[ramal-1001-aor]
+[1001]
 type = aor
 max_contacts = 1
 qualify_frequency = 30
@@ -101,7 +101,7 @@ disallow = all
 allow = ulaw
 allow = alaw
 auth = ramal-1001-auth
-aors = ramal-1001-aor
+aors = 1001
 callerid = "Teste Geral" <1001>
 
 ; --- Ramal 1002 — Teste Conectividade ---
@@ -111,7 +111,7 @@ auth_type = userpass
 username = 1002
 password = ramal1002pass
 
-[ramal-1002-aor]
+[1002]
 type = aor
 max_contacts = 1
 qualify_frequency = 30
@@ -123,7 +123,7 @@ disallow = all
 allow = ulaw
 allow = alaw
 auth = ramal-1002-auth
-aors = ramal-1002-aor
+aors = 1002
 callerid = "Teste Conectividade" <1002>
 
 ; --- Ramal 9001 — WebRTC Softphone (React) ---
@@ -135,11 +135,10 @@ password = webrtc9001pass
 ; realm deve bater com o domínio SIP usado pelo browser
 realm = ${SIP_DOMAIN}
 
-[ramal-9001-aor]
+[9001]
 type = aor
 max_contacts = 1
 remove_existing = yes
-; WebRTC precisa de contato qualificado
 qualify_frequency = 30
 
 [9001]
@@ -152,21 +151,17 @@ allow = opus
 allow = ulaw
 allow = alaw
 auth = ramal-9001-auth
-aors = ramal-9001-aor
+aors = 9001
 callerid = "WebRTC React" <9001>
 ; CRÍTICO: identifica pelo username do Authorization digest
-; 'auth_username' usa o campo username do REGISTER com credenciais
-; necessário porque o Contact header tem domínio .invalid (RFC 7118)
 identify_by = auth_username
 ; WebRTC — habilita todas as opções necessárias
 webrtc = yes
-; Opções explícitas (webrtc=yes ativa, mas declarar evita bugs em Asterisk 20)
 dtls_auto_generate_cert = yes
 use_avpf = yes
 media_encryption = dtls
 ice_support = yes
 rtcp_mux = yes
-; Necessário para WebRTC por trás de NAT/proxy
 force_rport = yes
 rewrite_contact = yes
 
