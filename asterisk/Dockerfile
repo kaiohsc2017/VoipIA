@@ -1,116 +1,54 @@
 # =============================================================
-# AsteriskIA — Build customizado com app_audiosocket
-# Ubuntu 22.04 + Asterisk 21 + app_audiosocket habilitado
+# AsteriskIA — Asterisk com app_audiosocket e res_srtp
+# Baseado na imagem oficial do Asterisk (já tem res_srtp compilado)
+# Compila apenas app_audiosocket por cima
 # =============================================================
 
-FROM ubuntu:22.04 AS builder
+FROM asterisk:21 AS builder
 
-ENV DEBIAN_FRONTEND=noninteractive
+USER root
 
-RUN apt-get update && apt-get install -y \
+# Instala dependências para compilar app_audiosocket
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     wget \
     curl \
-    libssl-dev \
-    libncurses5-dev \
-    libedit-dev \
-    libjansson-dev \
-    libxml2-dev \
-    libsqlite3-dev \
-    uuid-dev \
-    libcurl4-openssl-dev \
-    libogg-dev \
-    libvorbis-dev \
-    libspeex-dev \
-    libspeexdsp-dev \
-    libasound2-dev \
-    libpq-dev \
-    libsrtp2-dev \
     pkg-config \
-    python3 \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /usr/src
-RUN wget -q https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-21-current.tar.gz -O asterisk.tar.gz && \
-    tar xzf asterisk.tar.gz && \
-    rm asterisk.tar.gz && \
-    ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
-    cd "$ASTERISK_DIR" && \
-    contrib/scripts/get_mp3_source.sh || true && \
-    ./configure \
-        --with-pjproject-bundled \
-        --with-jansson-bundled \
-        --with-ssl=ssl \
-        --with-srtp && \
-    make menuselect/menuselect menuselect-tree menuselect.makeopts && \
-    menuselect/menuselect \
-        --enable app_audiosocket \
-        --enable res_srtp \
-        --enable res_pjsip \
-        --enable res_pjsip_session \
-        --enable chan_pjsip \
-        --enable res_pjsip_outbound_registration \
-        --enable res_pjsip_endpoint_identifier_user \
-        --enable app_mixmonitor \
-        --enable app_playback \
-        --enable app_record \
-        --enable format_wav \
-        --enable codec_ulaw \
-        --enable codec_alaw \
-        --enable codec_opus \
-        --enable pbx_config \
-        --enable res_musiconhold \
-        menuselect.makeopts && \
-    make -j$(nproc) && \
-    make install && \
-    make samples
+# Baixa o fonte do Asterisk 21 para compilar o módulo
+RUN ASTERISK_VERSION=$(asterisk -V 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1) && \
+    echo "Asterisk version: $ASTERISK_VERSION" && \
+    wget -q "https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-${ASTERISK_VERSION}.tar.gz" \
+         -O /tmp/asterisk.tar.gz 2>/dev/null || \
+    wget -q "https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-21-current.tar.gz" \
+         -O /tmp/asterisk.tar.gz && \
+    mkdir -p /usr/src/asterisk && \
+    tar xzf /tmp/asterisk.tar.gz -C /usr/src/asterisk --strip-components=1 && \
+    rm /tmp/asterisk.tar.gz
+
+# Compila apenas o módulo app_audiosocket
+RUN cd /usr/src/asterisk && \
+    ./configure --with-pjproject-bundled --with-jansson-bundled --with-ssl=ssl \
+        2>/dev/null | tail -5 && \
+    make -C apps app_audiosocket.so 2>&1 | tail -10 && \
+    cp apps/app_audiosocket.so /usr/lib/asterisk/modules/
 
 # =============================================================
-# Runtime
+# Runtime — imagem oficial com módulo extra
 # =============================================================
-FROM ubuntu:22.04
+FROM asterisk:21
 
-ENV DEBIAN_FRONTEND=noninteractive
+USER root
 
-RUN apt-get update && apt-get install -y \
-    libssl3 \
-    libncurses6 \
-    libedit2 \
-    libjansson4 \
-    libxml2 \
-    libuuid1 \
-    libcurl4 \
-    libogg0 \
-    libvorbis0a \
-    libspeex1 \
-    libspeexdsp1 \
-    libpq5 \
-    libsqlite3-0 \
-    libodbc1 \
-    unixodbc \
-    libsrtp2-1 \
-    curl \
+# Copia o módulo compilado
+COPY --from=builder /usr/lib/asterisk/modules/app_audiosocket.so \
+                    /usr/lib/asterisk/modules/app_audiosocket.so
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gettext-base \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd -r asterisk \
-    && useradd -r -g asterisk -d /var/lib/asterisk -s /usr/sbin/nologin asterisk
-
-COPY --from=builder /usr/sbin/asterisk /usr/sbin/asterisk
-COPY --from=builder /usr/lib/asterisk /usr/lib/asterisk
-COPY --from=builder /var/lib/asterisk /var/lib/asterisk
-COPY --from=builder /var/spool/asterisk /var/spool/asterisk
-COPY --from=builder /var/log/asterisk /var/log/asterisk
-COPY --from=builder /var/run/asterisk /var/run/asterisk
-COPY --from=builder /etc/asterisk /etc/asterisk
-COPY --from=builder /usr/lib/libasteriskssl.so.1 /usr/lib/libasteriskssl.so.1
-COPY --from=builder /usr/lib/libasteriskpj.so.2 /usr/lib/libasteriskpj.so.2
-
-RUN chmod +x /usr/sbin/asterisk && \
-    mkdir -p /var/spool/asterisk/monitor && \
-    chown -R asterisk:asterisk /etc/asterisk /var/lib/asterisk /var/spool/asterisk /var/log/asterisk /var/run/asterisk && \
-    chmod -R 750 /etc/asterisk && \
-    ldconfig
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY config/ /etc/asterisk/
 COPY docker-entrypoint.sh /docker-entrypoint.sh
