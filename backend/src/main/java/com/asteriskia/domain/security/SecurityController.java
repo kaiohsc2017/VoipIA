@@ -41,9 +41,6 @@ public class SecurityController {
     @Value("${app.asterisk.config-dir:/etc/asterisk}")
     private String asteriskConfigDir;
 
-    // Nome do container security para docker exec
-    private static final String SECURITY_CONTAINER = "asteriskia-security";
-
     private static final List<String> MANAGED_JAILS =
         List.of("asterisk-auth", "asterisk-scan", "asterisk-flood");
 
@@ -282,13 +279,13 @@ public class SecurityController {
     // =========================================================================
 
     /**
-     * Executa fail2ban-client dentro do container asteriskia-security via docker exec.
-     * Isso evita a necessidade do binário no container backend e garante
-     * que o cliente fala com o daemon correto via socket.
+     * Executa fail2ban-client diretamente no backend usando o socket compartilhado.
+     * O volume fail2ban_socket monta /var/run/fail2ban em ambos os containers
+     * (security e backend), então o cliente pode falar com o daemon sem docker exec.
      */
     private String f2bExec(String... args) {
         try {
-            List<String> cmd = new ArrayList<>(List.of("docker", "exec", SECURITY_CONTAINER,
+            List<String> cmd = new ArrayList<>(List.of(
                 "fail2ban-client", "-s", "/var/run/fail2ban/fail2ban.sock"));
             cmd.addAll(Arrays.asList(args));
             ProcessBuilder pb = new ProcessBuilder(cmd);
