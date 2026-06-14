@@ -13,10 +13,18 @@ if ! command -v envsubst > /dev/null 2>&1; then
         && rm -rf /var/lib/apt/lists/*
 fi
 
-# Substitui variáveis de ambiente em arquivos de configuração
-for f in /etc/asterisk/*.conf; do
-    envsubst < "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+# 1. Processa arquivos *.conf.template → *.conf
+#    Ex: pjsip.conf.template → pjsip.conf
+for f in /etc/asterisk/*.conf.template; do
+    [ -f "$f" ] || continue
+    dest="${f%.template}"
+    envsubst < "$f" > "$dest"
+    echo "[AsteriskIA] Template processado: $(basename $f) → $(basename $dest)"
 done
+
+# 2. Processa arquivos *.conf que não têm template (sem substituição de vars)
+#    Esses já estão prontos — não precisa de envsubst
+#    (apenas garante que existam no diretório)
 
 echo "[AsteriskIA] Iniciando Asterisk..."
 exec "$@"
