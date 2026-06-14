@@ -155,6 +155,9 @@ aors = 9001
 callerid = "WebRTC React" <9001>
 ; CRÍTICO: identifica pelo username do Authorization digest
 identify_by = auth_username
+; CRÍTICO: força o Asterisk a fazer bridge de mídia internamente
+; sem isso tenta bridge direta WebRTC↔AudioSocket — impossível
+direct_media = no
 ; WebRTC — habilita todas as opções necessárias
 webrtc = yes
 dtls_auto_generate_cert = yes
