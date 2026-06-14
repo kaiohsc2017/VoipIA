@@ -147,7 +147,8 @@ type = endpoint
 transport = transport-ws
 context = ramais-webrtc
 disallow = all
-allow = opus
+; opus removido — não compilado neste build do Asterisk
+; browser negocia ulaw/alaw como fallback WebRTC
 allow = ulaw
 allow = alaw
 auth = ramal-9001-auth
@@ -156,7 +157,6 @@ callerid = "WebRTC React" <9001>
 ; CRÍTICO: identifica pelo username do Authorization digest
 identify_by = auth_username
 ; CRÍTICO: força o Asterisk a fazer bridge de mídia internamente
-; sem isso tenta bridge direta WebRTC↔AudioSocket — impossível
 direct_media = no
 ; WebRTC — habilita todas as opções necessárias
 webrtc = yes

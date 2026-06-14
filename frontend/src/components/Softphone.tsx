@@ -192,9 +192,14 @@ export default function Softphone() {
 
   const keys = ['1','2','3','4','5','6','7','8','9','*','0','#'];
   function pressKey(k: string) {
-    setDialInput(v => v + k);
     if (callState === 'active') {
+      // Durante chamada: * e # enviam DTMF, números também
       try { sessionRef.current?.sendDTMF(k); } catch { /* não suportado */ }
+      log(`DTMF: ${k}`);
+    } else if (callState === 'idle') {
+      // Em idle: * e # não são válidos em ramal — ignora
+      if (k === '*' || k === '#') return;
+      setDialInput(v => v + k);
     }
   }
 
