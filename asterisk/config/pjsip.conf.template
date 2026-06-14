@@ -145,9 +145,10 @@ allow = alaw
 auth = ramal-9001-auth
 aors = ramal-9001-aor
 callerid = "WebRTC React" <9001>
-; CRÍTICO: identifica o endpoint pelo username, não pelo domínio do Contact
-; Necessário porque browsers WebRTC usam domínio .invalid no Contact header
-identify_by = username
+; CRÍTICO: identifica pelo username do Authorization digest
+; 'auth_username' usa o campo username do REGISTER com credenciais
+; necessário porque o Contact header tem domínio .invalid (RFC 7118)
+identify_by = auth_username
 ; WebRTC — habilita todas as opções necessárias
 webrtc = yes
 ; Opções explícitas (webrtc=yes ativa, mas declarar evita bugs em Asterisk 20)
