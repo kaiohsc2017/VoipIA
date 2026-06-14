@@ -110,8 +110,9 @@ services:
     volumes:
       - asterisk_recordings:${AUDIO_STORAGE_PATH}
       - /opt/AsteriskIA/env:/opt/asteriskia/env:ro
-    ports:
-      - "${AUDIOSOCKET_PORT:-9092}:9092"
+    # Porta 9092 (AudioSocket) NAO exposta publicamente.
+    # Asterisk acessa via rede Docker interna: ai-agent:9092
+    # AudioSocket nao tem autenticacao - binding publico e risco critico.
     networks:
       - asteriskia-net
 

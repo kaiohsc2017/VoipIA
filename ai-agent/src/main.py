@@ -14,6 +14,7 @@ from src.config import AUDIOSOCKET_HOST, AUDIOSOCKET_PORT
 from src.protocol import read_frame
 from src.flows.jira_call_flow import JiraCallFlow
 from src.flows.zabbix_alert_flow import ZabbixAlertFlow
+from src.services import backend_client as bc
 
 # Configuração de logging estruturado
 logging.basicConfig(
@@ -24,29 +25,32 @@ logging.basicConfig(
 logger = logging.getLogger("asteriskia.main")
 
 
-def _detect_flow_type(call_uuid: str) -> str:
+async def _detect_flow_type(call_uuid: str) -> str:
     """
     Determina o tipo de flow a partir do UUID da chamada.
 
     Estratégia (em ordem de preferência):
-    1. Prefixo "alert-" no UUID → ZABBIX_ALERT
-       (O AmiOriginateService.originateAlertCall() prefixará o UUID ao chamar)
-    2. Qualquer outro UUID → JIRA_CALL
+    1. Consulta o backend: GET /api/v1/alert-calls/by-uuid/{uuid}
+       → 200 = chamada de alerta Zabbix já registrada pelo AmiOriginateService
+       → 404/erro = chamada Jira (flow padrão)
 
-    O prefixo é definido pelo lado do backend no momento do Originate.
-    O AmiOriginateService passa FLOW_TYPE=ZABBIX_ALERT como variável
-    de canal, que o dialplan repassa ao Audiosocket como parte do UUID
-    no formato "<flow_prefix>-<original-uuid>".
+    O AmiOriginateService registra a chamada de alerta no banco ANTES de
+    fazer o Originate via AMI, então quando o Asterisk conecta ao AudioSocket
+    a entry já existe no backend.
 
     Args:
-        call_uuid: UUID bruto recebido no primeiro frame Audiosocket.
+        call_uuid: UUID formatado (ex: "a1b2c3d4-e5f6-...") recebido no frame Audiosocket.
 
     Returns:
         "ZABBIX_ALERT" ou "JIRA_CALL"
     """
-    if call_uuid.startswith("alert-"):
+    try:
+        await bc.get(f"/api/v1/alert-calls/by-uuid/{call_uuid}")
+        logger.info(f"UUID {call_uuid} encontrado em alert-calls → ZABBIX_ALERT")
         return "ZABBIX_ALERT"
-    return "JIRA_CALL"
+    except Exception:
+        # 404 ou qualquer erro de rede → assume JiraCallFlow (padrão seguro)
+        return "JIRA_CALL"
 
 
 async def handle_connection(
@@ -73,18 +77,21 @@ async def handle_connection(
         logger.info(f"Chamada iniciada | UUID: {call_uuid}")
 
         # ---------------------------------------------------------
-        # Determinação do Flow pelo prefixo do UUID
+        # Determinação do Flow via backend lookup
         #
-        # O AMI passa a variável FLOW_TYPE no campo ActionID ou
-        # como parte do UUID ao originar a chamada:
-        #   - UUID prefixado com "alert-" → ZabbixAlertFlow
-        #   - Qualquer outro              → JiraCallFlow
+        # O protocolo AudioSocket transmite o UUID como 16 bytes binários —
+        # não é possível embutir prefixos textuais nesse campo.
+        # A estratégia correta é consultar o backend:
+        #   - AmiOriginateService registra a chamada ANTES do Originate
+        #   - GET /api/v1/alert-calls/by-uuid/{uuid} → 200 = ZABBIX_ALERT
+        #   - 404 = JIRA_CALL (chamada recebida do tronco ou ramal 1000)
         #
-        # Também suportamos consulta ao backend como fallback:
-        # GET /api/v1/alert-calls/by-uuid/{uuid} → 200 = Zabbix alert
+        # Para chamadas via ramal 1001 (teste local/webrtc), o dialplan
+        # seta FLOW_TYPE=ZABBIX_ALERT como variável de canal — consultável
+        # via AMI GetVar se necessário no futuro.
         # ---------------------------------------------------------
 
-        flow_type = _detect_flow_type(call_uuid)
+        flow_type = await _detect_flow_type(call_uuid)
         logger.info(f"Flow selecionado: {flow_type} | UUID: {call_uuid}")
 
         if flow_type == "ZABBIX_ALERT":
