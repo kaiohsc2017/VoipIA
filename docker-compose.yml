@@ -103,7 +103,8 @@ services:
       GEMINI_MODEL_STT: ${GEMINI_MODEL_STT}
       GEMINI_MODEL_LLM: ${GEMINI_MODEL_LLM}
       GEMINI_MODEL_TTS: ${GEMINI_MODEL_TTS}
-      BACKEND_URL: http://backend:${BACKEND_PORT:-8080}
+      # CRÍTICO: Deve usar a porta interna 8080 do container backend, não a porta exposta no host (8081)
+      BACKEND_URL: http://backend:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH}
       DOTENV_PATH: /opt/asteriskia/env/.env
@@ -137,7 +138,8 @@ services:
       AST_AMI_PORT: ${AST_AMI_PORT:-5038}
       AST_AMI_USER: ${AST_AMI_USER}
       AST_AMI_PASSWORD: ${AST_AMI_PASSWORD}
-      BACKEND_URL: http://backend:${BACKEND_PORT:-8080}
+      # CRÍTICO: Deve usar a porta interna 8080 do container backend, não a porta exposta no host (8081)
+      BACKEND_URL: http://backend:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432

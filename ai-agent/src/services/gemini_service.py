@@ -31,7 +31,7 @@ from src.config import get_gemini_api_key, get_gemini_model_stt, get_gemini_mode
 logger = logging.getLogger("asteriskia.gemini")
 
 
-# ─── Tool definitions (declaradas para o Gemini) ────────────────────────────────
+# ─── Tool definitions (declaradas para o Gemini) ──────────────────────────────
 
 _TOOLS = genai_types.Tool(
     function_declarations=[
@@ -157,16 +157,23 @@ class GeminiService:
     """
 
     def __init__(self):
-        pass  # client criado dinamicamente em _client() para suportar reload da API key
+        self._client_instance = None
+        self._last_api_key = None
 
     def _client(self) -> genai.Client:
-        """Cria cliente Gemini lendo a API key do .env em tempo real."""
+        """Cria ou retorna o cliente Gemini reutilizando a instância para evitar que o garbage collector feche o cliente HTTP."""
         api_key = get_gemini_api_key()
         if not api_key:
             raise RuntimeError(
                 "GEMINI_API_KEY não configurada. Acesse Settings → Google Gemini para configurar."
             )
-        return genai.Client(api_key=api_key)
+        
+        # Se a API key mudou ou o cliente ainda não foi criado, cria um novo
+        if self._client_instance is None or self._last_api_key != api_key:
+            self._client_instance = genai.Client(api_key=api_key)
+            self._last_api_key = api_key
+            
+        return self._client_instance
 
     async def transcribe(self, pcm_data: bytes) -> str:
         """
@@ -324,7 +331,7 @@ class GeminiService:
             ),
         )
 
-        # Ciclo de agentic loop (máx. 5 iterações para evitar loops infinitos)
+        # Ciclo de agentic loop (mág. 5 iterações para evitar loops infinitos)
         for _ in range(5):
             response = self._client().models.generate_content(
                 model=get_gemini_model_llm(),

@@ -139,7 +139,7 @@ realm = ${SIP_DOMAIN}
 type = aor
 max_contacts = 1
 remove_existing = yes
-qualify_frequency = 30
+qualify_frequency = 0
 
 [9001]
 type = endpoint
@@ -154,8 +154,8 @@ allow = alaw
 auth = ramal-9001-auth
 aors = 9001
 callerid = "WebRTC React" <9001>
-; CRÍTICO: identifica pelo username do Authorization digest
-identify_by = auth_username
+; CRÍTICO: identifica pelo username do cabeçalho From/To
+identify_by = username
 ; CRÍTICO: força o Asterisk a fazer bridge de mídia internamente
 direct_media = no
 ; WebRTC — habilita todas as opções necessárias
@@ -167,10 +167,3 @@ ice_support = yes
 rtcp_mux = yes
 force_rport = yes
 rewrite_contact = yes
-
-; ---------------------------------------------------------------
-; NOTA: Chamadas de saída (Módulo 2 e 3) usam o mesmo [tronco-sip]
-; acima. O endpoint de saída separado [trunk-saida] foi removido.
-; Channel AMI: PJSIP/<numero>@tronco-sip
-; ---------------------------------------------------------------
-
