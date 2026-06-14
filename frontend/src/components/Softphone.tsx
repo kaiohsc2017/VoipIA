@@ -157,7 +157,13 @@ export default function Softphone() {
     session.on('confirmed', () => { setCallState('active'); startTimer(); log('Chamada conectada ✓'); });
     session.on('ended',  () => endSession('Chamada encerrada'));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    session.on('failed', (e: any) => endSession(`Falhou: ${e.cause}`));
+    session.on('failed', (e: any) => {
+      const cause   = e?.cause ?? 'desconhecido';
+      const code    = e?.message?.status_code ?? '';
+      const reason  = e?.message?.reason_phrase ?? '';
+      const origin  = e?.originator ?? '';
+      endSession(`Falhou: ${cause}${code ? ` [${code} ${reason}]` : ''}${origin ? ` (${origin})` : ''}`);
+    });
     attachRemoteAudio(session);
   }
 
