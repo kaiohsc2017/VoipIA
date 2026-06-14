@@ -1,8 +1,9 @@
 #!/bin/sh
 # =============================================================
 # docker-entrypoint.sh — Asterisk
-# Substitui variáveis de ambiente nos arquivos de configuração
-# antes de iniciar o Asterisk.
+# Substitui APENAS as variáveis de ambiente declaradas nos templates.
+# Usa envsubst com lista explícita para não apagar variáveis
+# do dialplan do Asterisk como ${EXTEN}, ${CALLERID}, etc.
 # =============================================================
 
 set -e
@@ -13,18 +14,17 @@ if ! command -v envsubst > /dev/null 2>&1; then
         && rm -rf /var/lib/apt/lists/*
 fi
 
-# 1. Processa arquivos *.conf.template → *.conf
-#    Ex: pjsip.conf.template → pjsip.conf
+# Variáveis que devem ser substituídas nos templates
+# NUNCA adicionar variáveis do dialplan Asterisk aqui (${EXTEN}, ${CALLERID}, etc.)
+VARS='${AST_AMI_USER}${AST_AMI_PASSWORD}${SIP_TRUNK_HOST}${SIP_TRUNK_USER}${SIP_TRUNK_PASSWORD}${SIP_TRUNK_FROM_DOMAIN}${SIP_DOMAIN}'
+
+# Processa arquivos *.conf.template → *.conf
 for f in /etc/asterisk/*.conf.template; do
     [ -f "$f" ] || continue
     dest="${f%.template}"
-    envsubst < "$f" > "$dest"
+    envsubst "$VARS" < "$f" > "$dest"
     echo "[AsteriskIA] Template processado: $(basename $f) → $(basename $dest)"
 done
-
-# 2. Processa arquivos *.conf que não têm template (sem substituição de vars)
-#    Esses já estão prontos — não precisa de envsubst
-#    (apenas garante que existam no diretório)
 
 echo "[AsteriskIA] Iniciando Asterisk..."
 exec "$@"
