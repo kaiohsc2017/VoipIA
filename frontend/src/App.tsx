@@ -84,7 +84,12 @@ function PageLoader() {
 export default function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('asteriskia_token'));
   const [username, setUsername] = useState<string>(() => localStorage.getItem('asteriskia_user') ?? '');
-  const [page, setPage] = useState<Page>('dashboard');
+  const pageFromHash = (): Page => {
+    const hash = window.location.hash.replace('#', '').trim() as Page;
+    const valid: Page[] = ['dashboard','modulo1','modulo2','modulo3','masterdata','users','settings','audit','logs','security'];
+    return valid.includes(hash) ? hash : 'dashboard';
+  };
+  const [page, setPage] = useState<Page>(pageFromHash);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Escuta evento de logout forçado (token expirado / 401)
@@ -94,10 +99,17 @@ export default function App() {
     return () => window.removeEventListener('asteriskia:logout', handleLogout);
   }, []);
 
+  // Sincroniza page com o hash da URL (botões voltar/avançar do browser)
+  useEffect(() => {
+    const onHashChange = () => setPage(pageFromHash());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
   const handleLogin = (t: string, user: string) => {
     setToken(t);
     setUsername(user);
-    setPage('dashboard');
+    setPage(pageFromHash());
   };
 
   const handleSignOut = () => {
@@ -122,7 +134,7 @@ export default function App() {
       <div className="app-layout">
         <Sidebar
           currentPage={page}
-          onNavigate={setPage}
+          onNavigate={(p) => { setPage(p); window.location.hash = p; }}
           username={username}
           onLogout={handleSignOut}
           collapsed={sidebarCollapsed}
