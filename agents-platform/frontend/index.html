@@ -105,9 +105,9 @@ input[type=checkbox]{width:auto;margin-right:4px;cursor:pointer}
 <div id="root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script>
-'use strict';
+<script>'use strict';
 const {useState, useEffect, useRef, createElement: h} = React;
+const API = window.AGENTS_API || '';
 
 var TELECOM_API = window.TELECOM_API || '/api/v1';
 var TOKEN_KEY   = 'asteriskia_token';
@@ -117,108 +117,6 @@ function getToken(){ return localStorage.getItem(TOKEN_KEY); }
 function getUser() { return localStorage.getItem(USER_KEY)||''; }
 function clearAuth(){ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(REFRESH_KEY); localStorage.removeItem(USER_KEY); }
 
-function Login(props) {
-  var onLogin = props.onLogin;
-  var usS=useState('');   var username=usS[0];   var setUsername=usS[1];
-  var pwS=useState('');   var password=pwS[0];   var setPassword=pwS[1];
-  var errS=useState('');  var error=errS[0];     var setError=errS[1];
-  var ldS=useState(false);var loading=ldS[0];    var setLoading=ldS[1];
-  var t2S=useState(false);var needTotp=t2S[0];   var setNeedTotp=t2S[1];
-  var tmpS=useState('');  var tempToken=tmpS[0]; var setTempToken=tmpS[1];
-  var dnS=useState('');   var dispName=dnS[0];   var setDispName=dnS[1];
-  var codeS=useState(''); var totpCode=codeS[0]; var setTotpCode=codeS[1];
-
-  function doLogin(e) {
-    e.preventDefault(); setError(''); setLoading(true);
-    fetch(TELECOM_API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:username,password:password})})
-    .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
-    .then(function(res){
-      if(!res.ok){setError(res.data.message||res.data.error||'Credenciais invalidas.');return;}
-      var d=res.data;
-      if(d.requiresTotp&&d.tempToken){setTempToken(d.tempToken);setDispName(d.displayName||username);setNeedTotp(true);return;}
-      localStorage.setItem(TOKEN_KEY,d.token);
-      localStorage.setItem(REFRESH_KEY,d.refreshToken||'');
-      localStorage.setItem(USER_KEY,username);
-      onLogin(d.token,username);
-    })
-    .catch(function(){setError('Erro de conexao.');})
-    .finally(function(){setLoading(false);});
-  }
-
-  function doTotp(e) {
-    e.preventDefault(); setError(''); setLoading(true);
-    fetch(TELECOM_API+'/auth/totp/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tempToken:tempToken,code:totpCode.replace(/\s/g,'')})})
-    .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
-    .then(function(res){
-      if(!res.ok){setError(res.data.error||'Codigo invalido.');setTotpCode('');return;}
-      var d=res.data;
-      localStorage.setItem(TOKEN_KEY,d.token);
-      localStorage.setItem(REFRESH_KEY,d.refreshToken||'');
-      localStorage.setItem(USER_KEY,username);
-      onLogin(d.token,username);
-    })
-    .catch(function(){setError('Erro ao verificar.');})
-    .finally(function(){setLoading(false);});
-  }
-
-  var logoEl = h('div',{className:'login-logo'},
-    h('div',{className:'login-logo-icon'},'A★'),
-    h('div',null,
-      h('div',{className:'login-logo-text'},'AsteriskIA'),
-      h('div',{className:'login-logo-sub'},'Agentes')
-    )
-  );
-  var errEl = error ? h('div',{className:'login-err'},h('span',null,'⚠'),h('span',null,error)) : null;
-
-  if(!needTotp){
-    return h('div',{className:'login-page'},
-      h('div',{className:'login-card'},
-        logoEl,
-        h('h1',{className:'login-title'},'Bem-vindo de volta'),
-        h('p',{className:'login-sub'},'Acesse a plataforma de agentes autonomos'),
-        errEl,
-        h('form',{onSubmit:doLogin},
-          h('div',{className:'login-field'},h('label',null,'Usuario'),h('input',{type:'text',value:username,placeholder:'admin',autoComplete:'username',required:true,onChange:function(e){setUsername(e.target.value);}})),
-          h('div',{className:'login-field'},h('label',null,'Senha'),h('input',{type:'password',value:password,placeholder:'........',autoComplete:'current-password',required:true,onChange:function(e){setPassword(e.target.value);}})),
-          h('button',{type:'submit',className:'login-btn',disabled:loading},
-            loading?h('span',{className:'login-spinner'}):null,
-            loading?'Autenticando...':'Entrar no sistema')
-        ),
-        h('p',{className:'login-footer'},'AsteriskIA Telecom + Agentes')
-      )
-    );
-  }
-
-  return h('div',{className:'login-page'},
-    h('div',{className:'login-card'},
-      logoEl,
-      h('h1',{className:'login-title'},'Verificacao em 2 etapas'),
-      h('p',{className:'login-sub'},'Ola, '+dispName+'! Insira o codigo do autenticador.'),
-      errEl,
-      h('form',{onSubmit:doTotp},
-        h('div',{className:'login-field'},h('label',null,'Codigo'),h('input',{type:'text',inputMode:'numeric',pattern:'[0-9 ]*',maxLength:7,className:'totp-input',placeholder:'000 000',autoComplete:'one-time-code',autoFocus:true,value:totpCode,onChange:function(e){setTotpCode(e.target.value);},required:true})),
-        h('button',{type:'submit',className:'login-btn',disabled:loading||totpCode.replace(/\s/g,'').length<6},
-          loading?h('span',{className:'login-spinner'}):null,
-          loading?'Verificando...':'Verificar codigo'
-        ),
-        h('button',{type:'button',className:'login-back',onClick:function(){setNeedTotp(false);setTempToken('');setTotpCode('');setError('');}},'← Voltar ao login')
-      ),
-      h('p',{className:'login-footer'},'AsteriskIA Telecom + Agentes')
-    )
-  );
-}
-
-function Root() {
-  var authS=useState(getToken()); var token=authS[0]; var setToken=authS[1];
-  var userS=useState(getUser());  var user=userS[0];  var setUser=userS[1];
-  function onLogin(tok,usr){setToken(tok);setUser(usr);}
-  function onLogout(){clearAuth();setToken(null);setUser('');}
-  if(!token){return h(Login,{onLogin:onLogin});}
-  return h(App,{onLogout:onLogout,user:user});
-}
-
-
-const API = window.AGENTS_API || '';
 
 // ── API ───────────────────────────────────────────────────────────────────────
 const api = {
@@ -961,7 +859,106 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(h(Root));
-</script>
+function Login(props) {
+  var onLogin = props.onLogin;
+  var usS=useState('');   var username=usS[0];   var setUsername=usS[1];
+  var pwS=useState('');   var password=pwS[0];   var setPassword=pwS[1];
+  var errS=useState('');  var error=errS[0];     var setError=errS[1];
+  var ldS=useState(false);var loading=ldS[0];    var setLoading=ldS[1];
+  var t2S=useState(false);var needTotp=t2S[0];   var setNeedTotp=t2S[1];
+  var tmpS=useState('');  var tempToken=tmpS[0]; var setTempToken=tmpS[1];
+  var dnS=useState('');   var dispName=dnS[0];   var setDispName=dnS[1];
+  var codeS=useState(''); var totpCode=codeS[0]; var setTotpCode=codeS[1];
+
+  function doLogin(e) {
+    e.preventDefault(); setError(''); setLoading(true);
+    fetch(TELECOM_API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:username,password:password})})
+    .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+    .then(function(res){
+      if(!res.ok){setError(res.data.message||res.data.error||'Credenciais invalidas.');return;}
+      var d=res.data;
+      if(d.requiresTotp&&d.tempToken){setTempToken(d.tempToken);setDispName(d.displayName||username);setNeedTotp(true);return;}
+      localStorage.setItem(TOKEN_KEY,d.token);
+      localStorage.setItem(REFRESH_KEY,d.refreshToken||'');
+      localStorage.setItem(USER_KEY,username);
+      onLogin(d.token,username);
+    })
+    .catch(function(){setError('Erro de conexao.');})
+    .finally(function(){setLoading(false);});
+  }
+
+  function doTotp(e) {
+    e.preventDefault(); setError(''); setLoading(true);
+    fetch(TELECOM_API+'/auth/totp/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tempToken:tempToken,code:totpCode.replace(/\s/g,'')})})
+    .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+    .then(function(res){
+      if(!res.ok){setError(res.data.error||'Codigo invalido.');setTotpCode('');return;}
+      var d=res.data;
+      localStorage.setItem(TOKEN_KEY,d.token);
+      localStorage.setItem(REFRESH_KEY,d.refreshToken||'');
+      localStorage.setItem(USER_KEY,username);
+      onLogin(d.token,username);
+    })
+    .catch(function(){setError('Erro ao verificar.');})
+    .finally(function(){setLoading(false);});
+  }
+
+  var logoEl = h('div',{className:'login-logo'},
+    h('div',{className:'login-logo-icon'},'A★'),
+    h('div',null,
+      h('div',{className:'login-logo-text'},'AsteriskIA'),
+      h('div',{className:'login-logo-sub'},'Agentes')
+    )
+  );
+  var errEl = error ? h('div',{className:'login-err'},h('span',null,'⚠'),h('span',null,error)) : null;
+
+  if(!needTotp){
+    return h('div',{className:'login-page'},
+      h('div',{className:'login-card'},
+        logoEl,
+        h('h1',{className:'login-title'},'Bem-vindo de volta'),
+        h('p',{className:'login-sub'},'Acesse a plataforma de agentes autonomos'),
+        errEl,
+        h('form',{onSubmit:doLogin},
+          h('div',{className:'login-field'},h('label',null,'Usuario'),h('input',{type:'text',value:username,placeholder:'admin',autoComplete:'username',required:true,onChange:function(e){setUsername(e.target.value);}})),
+          h('div',{className:'login-field'},h('label',null,'Senha'),h('input',{type:'password',value:password,placeholder:'........',autoComplete:'current-password',required:true,onChange:function(e){setPassword(e.target.value);}})),
+          h('button',{type:'submit',className:'login-btn',disabled:loading},
+            loading?h('span',{className:'login-spinner'}):null,
+            loading?'Autenticando...':'Entrar no sistema')
+        ),
+        h('p',{className:'login-footer'},'AsteriskIA Telecom + Agentes')
+      )
+    );
+  }
+
+  return h('div',{className:'login-page'},
+    h('div',{className:'login-card'},
+      logoEl,
+      h('h1',{className:'login-title'},'Verificacao em 2 etapas'),
+      h('p',{className:'login-sub'},'Ola, '+dispName+'! Insira o codigo do autenticador.'),
+      errEl,
+      h('form',{onSubmit:doTotp},
+        h('div',{className:'login-field'},h('label',null,'Codigo'),h('input',{type:'text',inputMode:'numeric',pattern:'[0-9 ]*',maxLength:7,className:'totp-input',placeholder:'000 000',autoComplete:'one-time-code',autoFocus:true,value:totpCode,onChange:function(e){setTotpCode(e.target.value);},required:true})),
+        h('button',{type:'submit',className:'login-btn',disabled:loading||totpCode.replace(/\s/g,'').length<6},
+          loading?h('span',{className:'login-spinner'}):null,
+          loading?'Verificando...':'Verificar codigo'
+        ),
+        h('button',{type:'button',className:'login-back',onClick:function(){setNeedTotp(false);setTempToken('');setTotpCode('');setError('');}},'← Voltar ao login')
+      ),
+      h('p',{className:'login-footer'},'AsteriskIA Telecom + Agentes')
+    )
+  );
+}
+
+function Root() {
+  var authS=useState(getToken()); var token=authS[0]; var setToken=authS[1];
+  var userS=useState(getUser());  var user=userS[0];  var setUser=userS[1];
+  function onLogin(tok,usr){setToken(tok);setUser(usr);}
+  function onLogout(){clearAuth();setToken(null);setUser('');}
+  if(!token){return h(Login,{onLogin:onLogin});}
+  return h(App,{onLogout:onLogout,user:user});
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(h(Root));</script>
 </body>
 </html>
