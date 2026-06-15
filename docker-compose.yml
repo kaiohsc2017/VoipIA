@@ -19,8 +19,6 @@ volumes:
   grafana_data:
   agents_pgdata:
   agents_knowledge:
-  caddy_data:
-  caddy_config:
 
 services:
 
@@ -405,33 +403,3 @@ services:
     networks:
       - asteriskia-net
 
-  # -----------------------------------------------------------
-  # Caddy — Reverse proxy HTTPS (Let's Encrypt automático)
-  # Lê o Caddyfile do repositório: aplicado automaticamente no deploy.
-  # Termina TLS (wss://) e repassa como ws:// para o Asterisk.
-  # -----------------------------------------------------------
-  caddy:
-    image: caddy:2-alpine
-    container_name: asteriskia-caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"    # HTTP/3 QUIC
-      - "2019:2019"      # Caddy Admin API (interno)
-      - "3000:3000"      # Grafana
-      - "9090:9090"      # Prometheus
-    volumes:
-      # Caddyfile do repositório — aplicado automaticamente a cada deploy
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # Certificados TLS persistidos entre restarts
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - asterisk
-      - backend
-      - frontend
-      - agents-backend
-      - agents-frontend
-    networks:
-      - asteriskia-net
