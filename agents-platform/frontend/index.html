@@ -106,6 +106,8 @@ input[type=checkbox]{width:auto;margin-right:4px;cursor:pointer}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script>
+'use strict';
+const {useState, useEffect, useRef, createElement: h} = React;
 
 var TELECOM_API = window.TELECOM_API || '/api/v1';
 var TOKEN_KEY   = 'asteriskia_token';
@@ -216,8 +218,6 @@ function Root() {
 }
 
 
-'use strict';
-const {useState, useEffect, useRef, createElement: h} = React;
 const API = window.AGENTS_API || '';
 
 // ── API ───────────────────────────────────────────────────────────────────────
