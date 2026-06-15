@@ -62,8 +62,10 @@ RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
         --enable codec_alaw \
         --enable pbx_config \
         --enable res_musiconhold \
-        menuselect.makeopts && \
-    # Verificar se res_srtp está habilitado no menuselect
+        menuselect.makeopts ; \
+    echo '--- Módulos com XX (dep faltando) ---' ; \
+    grep '^MENUSELECT' menuselect.makeopts | tr ' ' '\n' | grep '^XX_' || true ; \
+    menuselect/menuselect --check-deps menuselect.makeopts && \
     grep res_srtp menuselect.makeopts && \
     make -j$(nproc) && \
     make install
