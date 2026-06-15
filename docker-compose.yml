@@ -384,6 +384,9 @@ services:
       # URL base para APIs compatíveis com OpenAI (Ollama, Groq, Together…)
       AGENTS_LLM_COMPAT_URL:    ${AGENTS_LLM_COMPAT_URL:-http://localhost:11434/v1}
       AGENTS_LLM_COMPAT_KEY:    ${AGENTS_LLM_COMPAT_KEY:-}
+      BACKEND_JWT_SECRET:       ${BACKEND_JWT_SECRET}
+    ports:
+      - "127.0.0.1:8000:8000"
     volumes:
       - agents_knowledge:/app/knowledge_docs
       - /opt/AsteriskIA/env:/opt/AsteriskIA/env
