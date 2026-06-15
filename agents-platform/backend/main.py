@@ -1,30 +1,45 @@
 """
 agents-platform/backend/main.py
-FastAPI backend para a plataforma de agentes AsteriskIA
+FastAPI backend — AsteriskIA Agentes
 """
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
-import asyncio, json, os
-from pathlib import Path
-from datetime import datetime
+import asyncio, json
 
-from database import init_db, get_db
-from models import *
+from database import init_db
 from routers import agents, servers, executions, reports, knowledge
 from scheduler import AgentScheduler
 
 scheduler = AgentScheduler()
 
+# WebSocket: canal por agent_id + canal global __alerts__
+ws_clients: dict[str, list[WebSocket]] = {}
+
+async def broadcast(channel: str, data: dict):
+    """Envia para todos os WebSocket inscritos no canal."""
+    for ws in ws_clients.get(channel, []):
+        try:
+            await ws.send_json(data)
+        except Exception:
+            pass
+    # Alertas também vão para o canal global da UI
+    if data.get("level") in ("error", "warning") and channel != "__alerts__":
+        for ws in ws_clients.get("__alerts__", []):
+            try:
+                await ws.send_json(data)
+            except Exception:
+                pass
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    scheduler.set_broadcast(broadcast)
     await scheduler.start()
     yield
     await scheduler.stop()
 
-app = FastAPI(title="AsteriskIA Agents Platform", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="AsteriskIA Agents Platform", version="2.0.0", lifespan=lifespan)
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -34,25 +49,38 @@ app.include_router(executions.router, prefix="/api/executions", tags=["execution
 app.include_router(reports.router,    prefix="/api/reports",    tags=["reports"])
 app.include_router(knowledge.router,  prefix="/api/knowledge",  tags=["knowledge"])
 
-# WebSocket para logs em tempo real
-ws_clients: dict[str, list[WebSocket]] = {}
-
 @app.websocket("/ws/agent/{agent_id}/logs")
 async def agent_logs_ws(websocket: WebSocket, agent_id: str):
+    """WebSocket para logs em tempo real de um agente específico."""
     await websocket.accept()
     ws_clients.setdefault(agent_id, []).append(websocket)
     try:
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(30)
+            await websocket.send_json({"ping": True})
     except WebSocketDisconnect:
-        ws_clients[agent_id].remove(websocket)
+        pass
+    finally:
+        if agent_id in ws_clients:
+            try: ws_clients[agent_id].remove(websocket)
+            except ValueError: pass
 
-async def broadcast_log(agent_id: str, log: dict):
-    for ws in ws_clients.get(agent_id, []):
-        try:
-            await ws.send_json(log)
-        except Exception:
-            pass
+@app.websocket("/ws/alerts")
+async def alerts_ws(websocket: WebSocket):
+    """WebSocket global para alertas em tempo real na UI."""
+    await websocket.accept()
+    ws_clients.setdefault("__alerts__", []).append(websocket)
+    try:
+        while True:
+            await asyncio.sleep(30)
+            await websocket.send_json({"ping": True})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if "__alerts__" in ws_clients:
+            try: ws_clients["__alerts__"].remove(websocket)
+            except ValueError: pass
 
-app.state.broadcast_log = broadcast_log
-app.state.scheduler = scheduler
+app.state.broadcast   = broadcast
+app.state.scheduler   = scheduler
+app.state.ws_clients  = ws_clients

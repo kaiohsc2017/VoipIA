@@ -1,8 +1,14 @@
-"""scheduler.py — agendador de execuções"""
+"""scheduler.py — agendador de execuções com suporte a cron"""
 import asyncio, json
 from datetime import datetime, timezone, timedelta
 from database import DB
 from executor import run_agent
+
+try:
+    from croniter import croniter
+    HAS_CRONITER = True
+except ImportError:
+    HAS_CRONITER = False
 
 def _parse_interval(value: str) -> int:
     """Converte '5m', '1h', '30s' em segundos."""
@@ -11,6 +17,18 @@ def _parse_interval(value: str) -> int:
         return int(value[:-1]) * units.get(value[-1], 60)
     except Exception:
         return 300
+
+def _next_cron_sleep(expression: str) -> float:
+    """Retorna segundos até próxima execução da expressão cron."""
+    if not HAS_CRONITER:
+        return 300.0
+    try:
+        now  = datetime.now(timezone.utc)
+        cron = croniter(expression, now)
+        nxt  = cron.get_next(datetime)
+        return max(0.0, (nxt - now).total_seconds())
+    except Exception:
+        return 300.0
 
 class AgentScheduler:
     def __init__(self):
@@ -31,13 +49,11 @@ class AgentScheduler:
             t.cancel()
 
     async def _loader(self):
-        """Carrega agentes ativos e inicia tasks de agendamento."""
-        await asyncio.sleep(3)  # aguarda DB
+        await asyncio.sleep(3)
         async with DB() as db:
             rows = await db.fetch("SELECT * FROM agents WHERE status != 'paused'")
             for row in rows:
-                agent = dict(row)
-                self._schedule_agent(agent)
+                self._schedule_agent(dict(row))
 
     def _schedule_agent(self, agent: dict):
         aid = str(agent["id"])
@@ -49,6 +65,7 @@ class AgentScheduler:
         schedule = agent.get("schedule") or {}
         if isinstance(schedule, str):
             schedule = json.loads(schedule)
+
         stype  = schedule.get("type", "interval")
         value  = schedule.get("value", "5m")
         active = schedule.get("active", True)
@@ -56,28 +73,36 @@ class AgentScheduler:
         if not active:
             return
 
-        interval = _parse_interval(value) if stype == "interval" else 300
-
         while self._running:
             try:
                 await run_agent(agent, self._broadcast or self._noop_broadcast)
             except Exception as e:
-                print(f"[scheduler] Erro no agente {agent['name']}: {e}")
+                print(f"[scheduler] Erro agente {agent['name']}: {e}")
 
             if stype == "once":
                 break
-            if stype == "always":
+            elif stype == "always":
                 await asyncio.sleep(10)
+            elif stype == "cron":
+                # Suporte a expressões cron: "0 2 * * *", "*/5 * * * *" etc.
+                sleep_s = _next_cron_sleep(value)
+                if not self._running:
+                    break
+                await asyncio.sleep(sleep_s)
             else:
-                await asyncio.sleep(interval)
+                # interval: "5m", "1h", "30s"
+                await asyncio.sleep(_parse_interval(value))
 
     async def run_now(self, agent_id: str) -> dict:
         async with DB() as db:
             row = await db.fetchrow("SELECT * FROM agents WHERE id=$1::uuid", agent_id)
             if not row:
                 return {"error": "agente não encontrado"}
-            agent = dict(row)
-        return await run_agent(agent, self._broadcast or self._noop_broadcast)
+        return await run_agent(dict(row), self._broadcast or self._noop_broadcast)
+
+    def reload_agent(self, agent: dict):
+        """Recarrega o agendamento de um agente (após edição)."""
+        self._schedule_agent(agent)
 
     async def _noop_broadcast(self, *_):
         pass
