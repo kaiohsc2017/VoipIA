@@ -2,10 +2,11 @@
 agents-platform/backend/main.py
 FastAPI backend — AsteriskIA Agentes
 """
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-import asyncio, json
+import asyncio, json, os
 
 from database import init_db
 from routers import agents, servers, executions, reports, knowledge
@@ -13,6 +14,25 @@ from routers import llm_config
 from scheduler import AgentScheduler
 
 scheduler = AgentScheduler()
+
+# ── JWT ──────────────────────────────────────────────────────────────────────
+# Replica exatamente a lógica de padding do JwtService.java:
+# key = secret.getBytes(); padded = new byte[max(32, key.length)]
+_JWT_RAW = os.getenv("BACKEND_JWT_SECRET", "changeme_dev_secret").encode()
+JWT_KEY  = _JWT_RAW.ljust(max(32, len(_JWT_RAW)), b"\x00")
+
+# Rotas acessíveis sem autenticação
+_PUBLIC = (
+    "/",
+    "/api/llm/status",
+    "/api/llm/providers",
+)
+_PUBLIC_PREFIX = ("/ws/", "/docs", "/openapi")
+
+def _is_public(path: str) -> bool:
+    if path in _PUBLIC:
+        return True
+    return any(path.startswith(p) for p in _PUBLIC_PREFIX)
 
 # WebSocket: canal por agent_id + canal global __alerts__
 ws_clients: dict[str, list[WebSocket]] = {}
@@ -43,6 +63,26 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="AsteriskIA Agents Platform", version="2.0.0", lifespan=lifespan)
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# ── Middleware JWT ────────────────────────────────────────────────────────────
+@app.middleware("http")
+async def jwt_middleware(request: Request, call_next):
+    if _is_public(request.url.path):
+        return await call_next(request)
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JSONResponse({"detail": "Não autenticado"}, status_code=401)
+    token = auth[7:]
+    try:
+        from jose import jwt as _jwt, JWTError
+        payload = _jwt.decode(token, JWT_KEY, algorithms=["HS256"])
+        request.state.user = payload.get("sub", "")
+        # Rejeita tokens de 2FA em etapa pendente
+        if payload.get("totp_pending"):
+            return JSONResponse({"detail": "2FA pendente"}, status_code=401)
+    except Exception:
+        return JSONResponse({"detail": "Token inválido ou expirado"}, status_code=401)
+    return await call_next(request)
 
 app.include_router(agents.router,     prefix="/api/agents",     tags=["agents"])
 app.include_router(servers.router,    prefix="/api/servers",    tags=["servers"])
