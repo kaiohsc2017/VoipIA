@@ -36,6 +36,7 @@ app.voiphash.com.br {
     }
     handle @agents-ui {
         uri strip_prefix /agents
+        uri replace "" "/"
         reverse_proxy agents-frontend:80
     }
 
