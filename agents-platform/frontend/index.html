@@ -245,29 +245,10 @@ function Confirm(props) {
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 function Dashboard() {
-  var dS=useState(null);  var data=dS[0];   var setData=dS[1];
-  var pS=useState([]);    var pdata=pS[0];  var setPdata=pS[1];
+  var data   = MOCK_DASHBOARD;
+  var pdata  = MOCK_PERIOD;
   var pdState=useState('day'); var period=pdState[0]; var setPeriod=pdState[1];
-  var loadingS=useState(true); var loading=loadingS[0]; var setLoading=loadingS[1];
-
-  function load(p) {
-    setLoading(true);
-    Promise.all([
-      api.get('/api/executions/dashboard/summary'),
-      api.get('/api/executions/dashboard/period?period='+(p||period))
-    ]).then(function(res){
-      setData(res[0]&&res[0].active_agents!==undefined ? res[0] : MOCK_DASHBOARD);
-      setPdata(Array.isArray(res[1]) ? res[1] : MOCK_PERIOD);
-      setLoading(false);
-    }).catch(function(){ setData(MOCK_DASHBOARD); setPdata(MOCK_PERIOD); setLoading(false); });
-  }
-
-  useEffect(function(){ load(); }, []);
-  function changePeriod(p){ setPeriod(p); load(p); }
-
-  if(loading||!data) return h('div',null,
-    h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Dashboard')),
-    h('div',{className:'content'},h('div',{className:'empty'},'Carregando...')));
+  function changePeriod(p){ setPeriod(p); }
 
   var statCards = h('div', {className: 'g4'},
     h('div', {className: 'card stat'}, h('div',{className:'stl'},'Agentes ativos'),       h('div',{className:'stv c-info'}, data.active_agents)),
@@ -595,7 +576,7 @@ function AgentForm(props) {
 // ── AGENTS PAGE ───────────────────────────────────────────────────────────────
 function Agents(props) {
   var servers = props.servers || [];
-  var agState = useState([]);
+  var agState = useState(MOCK_AGENTS);
   var agents  = agState[0];
   var setAgents = agState[1];
   var fmState = useState(false);
@@ -610,39 +591,25 @@ function Agents(props) {
   var cfState = useState(null);
   var conf    = cfState[0];
   var setConf = cfState[1];
-  var ldState = useState(true); var loading=ldState[0]; var setLoading=ldState[1];
-
-  function load() {
-    setLoading(true);
-    api.get('/api/agents/').then(function(r){
-      setAgents(Array.isArray(r)?r:MOCK_AGENTS); setLoading(false);
-    }).catch(function(){ setAgents(MOCK_AGENTS); setLoading(false); });
-  }
-  useEffect(function(){ load(); }, []);
 
   function save(data) {
     if (editing) {
-      api.put('/api/agents/'+editing.id, data).then(function(r){
-        if(r&&r.id) setAgents(function(list){ return list.map(function(x){ return x.id===r.id?r:x; }); });
-        else load();
-      });
+      setAgents(function(list){ return list.map(function(x){ return x.id===editing.id ? Object.assign({},x,data) : x; }); });
     } else {
-      api.post('/api/agents/', data).then(function(r){
-        if(r&&r.id) setAgents(function(list){ return list.concat([r]); });
-        else load();
-      });
+      setAgents(function(list){ return list.concat([Object.assign({},data,{id:'new_'+Date.now(),status:'idle',last_run:null})]); });
     }
     setShowForm(false); setEditing(null);
   }
-  function del(id) {
-    api.del('/api/agents/'+id).then(function(){ setAgents(function(list){ return list.filter(function(x){return x.id!==id}); }); });
-  }
+  function del(id) { setAgents(function(list){ return list.filter(function(x){return x.id!==id}); }); }
   function toggle(a) {
-    var ep = a.status==='paused' ? '/api/agents/'+a.id+'/resume' : '/api/agents/'+a.id+'/pause';
-    api.post(ep,{}).then(function(){ load(); });
+    setAgents(function(list){
+      return list.map(function(x){ return x.id===a.id ? Object.assign({},x,{status:x.status==='paused'?'idle':'paused'}) : x; });
+    });
   }
   function runNow(id) {
-    api.post('/api/agents/'+id+'/run',{}).then(function(){ load(); });
+    setAgents(function(list){
+      return list.map(function(x){ return x.id===id ? Object.assign({},x,{status:'running'}) : x; });
+    });
   }
 
   var typeLabel = {ssh_test:'SSH Test',web_monitor:'Web Monitor',log_monitor:'Log Monitor'};
@@ -688,9 +655,7 @@ function Agents(props) {
       )
     ),
     h('div',{className:'content'},
-      loading
-        ? h('div',{className:'card'},h('div',{className:'empty'},'Carregando...'))
-        : agents.length === 0
+      agents.length === 0
         ? h('div',{className:'card'},h('div',{className:'empty'},h('p',null,'Nenhum agente.')))
         : h('div',{className:'card'},
             h('table',null,
@@ -707,7 +672,7 @@ function Agents(props) {
 
 // ── SERVERS PAGE ──────────────────────────────────────────────────────────────
 function Servers() {
-  var srvState  = useState([]);
+  var srvState  = useState(MOCK_SERVERS);
   var servers   = srvState[0];
   var setServers = srvState[1];
   var fmState   = useState(false);
@@ -729,31 +694,18 @@ function Servers() {
   function setF(k,v){ setFd(function(f){var n=Object.assign({},f);n[k]=v;return n;}); }
 
   function openForm(s) { setEditing(s); setFd(s||def); setShowForm(true); }
-
-  function load() {
-    api.get('/api/servers/').then(function(r){
-      setServers(Array.isArray(r)?r:MOCK_SERVERS);
-    }).catch(function(){ setServers(MOCK_SERVERS); });
-  }
-  useEffect(function(){ load(); }, []);
-
   function save() {
     if (editing) {
-      api.put('/api/servers/'+editing.id, fd).then(function(){ load(); setShowForm(false); setEditing(null); });
+      setServers(function(l){return l.map(function(x){return x.id===editing.id?Object.assign({},x,fd):x;});});
     } else {
-      api.post('/api/servers/', fd).then(function(){ load(); setShowForm(false); setEditing(null); });
+      setServers(function(l){return l.concat([Object.assign({},fd,{id:'s'+Date.now(),active:true,created_at:new Date().toISOString()})]);});
     }
+    setShowForm(false); setEditing(null);
   }
-  function del(id){
-    api.del('/api/servers/'+id).then(function(){ setServers(function(l){return l.filter(function(x){return x.id!==id});}); });
-  }
+  function del(id){ setServers(function(l){return l.filter(function(x){return x.id!==id});}); }
   function testConn(id){
     setTesting(function(t){var n=Object.assign({},t);n[id]='testing';return n;});
-    api.post('/api/servers/'+id+'/test',{}).then(function(r){
-      setTesting(function(t){var n=Object.assign({},t);n[id]=r&&r.ok?'ok':'fail';return n;});
-    }).catch(function(){
-      setTesting(function(t){var n=Object.assign({},t);n[id]='fail';return n;});
-    });
+    setTimeout(function(){setTesting(function(t){var n=Object.assign({},t);n[id]=Math.random()>0.3?'ok':'fail';return n;});},1500);
   }
 
   var rows = servers.map(function(s) {
@@ -820,7 +772,7 @@ function Servers() {
 
 // ── KNOWLEDGE PAGE ────────────────────────────────────────────────────────────
 function Knowledge() {
-  var docsState = useState([]);
+  var docsState = useState(MOCK_KNOWLEDGE);
   var docs      = docsState[0];
   var setDocs   = docsState[1];
   var msgState  = useState(null);
@@ -831,26 +783,14 @@ function Knowledge() {
   var setConf   = cfState[1];
   var fileRef   = useRef();
 
-  function load() {
-    api.get('/api/knowledge/').then(function(r){ setDocs(Array.isArray(r)?r:MOCK_KNOWLEDGE); })
-      .catch(function(){ setDocs(MOCK_KNOWLEDGE); });
-  }
-  useEffect(function(){ load(); }, []);
-
   function upload(e) {
     var f = e.target.files[0];
     if (!f) return;
-    var fd = new FormData();
-    fd.append('file', f);
-    api.upload('/api/knowledge/upload', fd).then(function(r){
-      if(r&&r.id){ setDocs(function(d){ return d.concat([r]); }); setMsg('"'+f.name+'" adicionado.'); }
-      else { setMsg('Erro ao enviar arquivo.'); }
-      setTimeout(function(){setMsg(null);},3000);
-    });
+    setDocs(function(d){ return d.concat([{id:'k'+Date.now(),filename:f.name,title:f.name.replace('.pdf',''),tags:[],created_at:new Date().toISOString()}]); });
+    setMsg('"'+f.name+'" adicionado.');
+    setTimeout(function(){setMsg(null);},3000);
   }
-  function del(id){
-    api.del('/api/knowledge/'+id).then(function(){ setDocs(function(d){return d.filter(function(x){return x.id!==id});}); });
-  }
+  function del(id){ setDocs(function(d){return d.filter(function(x){return x.id!==id});}); }
 
   var rows = docs.map(function(d) {
     return h('tr',{key:d.id},
@@ -955,16 +895,8 @@ function LogsPage() {
 
 // ── REPORTS PAGE ──────────────────────────────────────────────────────────────
 function Reports() {
-  var alS=useState([]); var alerts=alS[0]; var setAlerts=alS[1];
-  var ldS=useState(true); var loading=ldS[0]; var setLoading=ldS[1];
+  var alerts = MOCK_ALERTS;
   var lmap   = {info:'b-info',warning:'b-warn',error:'b-err',critical:'b-err'};
-
-  useEffect(function(){
-    setLoading(true);
-    api.get('/api/executions/alerts?limit=100').then(function(r){
-      setAlerts(Array.isArray(r)?r:MOCK_ALERTS); setLoading(false);
-    }).catch(function(){ setAlerts(MOCK_ALERTS); setLoading(false); });
-  },[]);
 
   var rows = alerts.map(function(a) {
     return h('tr',{key:a.id},
@@ -980,15 +912,11 @@ function Reports() {
     h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Alertas e Relatorios')),
     h('div',{className:'content'},
       h('div',{className:'card'},
-        h('div',{className:'ch'},h('span',{className:'cht'},'Alertas recentes'),h('span',{className:'txs tmut'},alerts.length+' alertas')),
-        loading
-          ? h('div',{className:'empty'},'Carregando...')
-          : alerts.length===0
-          ? h('div',{className:'empty'},h('p',null,'Nenhum alerta registrado.'))
-          : h('table',null,
-              h('thead',null,h('tr',null,h('th',null,'Agente'),h('th',null,'Nivel'),h('th',null,'Canal'),h('th',null,'Mensagem'),h('th',null,'Enviado em'))),
-              h('tbody',null,rows)
-            )
+        h('div',{className:'ch'},h('span',{className:'cht'},'Alertas recentes')),
+        h('table',null,
+          h('thead',null,h('tr',null,h('th',null,'Agente'),h('th',null,'Nivel'),h('th',null,'Canal'),h('th',null,'Mensagem'),h('th',null,'Enviado em'))),
+          h('tbody',null,rows)
+        )
       )
     )
   );
@@ -1009,12 +937,8 @@ function App(props) {
   var pgState  = useState('dashboard');
   var page     = pgState[0];
   var setPage  = pgState[1];
-  var srvS=useState([]); var servers=srvS[0]; var setServers=srvS[1];
+  var servers = MOCK_SERVERS;
   var acS=useState(0); var alertCount=acS[0]; var setAlertCount=acS[1];
-
-  useEffect(function(){
-    api.get('/api/servers/').then(function(r){ if(Array.isArray(r)) setServers(r); }).catch(function(){});
-  },[]);
 
   useEffect(function(){
     var proto=(location.protocol==='https:'?'wss:':'ws:');
