@@ -52,8 +52,8 @@ RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
         --enable res_pjsip \
         --enable res_pjsip_session \
         --enable chan_pjsip \
-        --enable res_pjsip_outbound_registration \
         --enable res_pjsip_endpoint_identifier_user \
+        --enable res_pjsip_endpoint_identifier_ip \
         --enable app_mixmonitor \
         --enable app_playback \
         --enable app_record \
@@ -66,8 +66,7 @@ RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
     # Verificar se res_srtp está habilitado no menuselect
     grep res_srtp menuselect.makeopts && \
     make -j$(nproc) && \
-    make install && \
-    make samples
+    make install
 
 # =============================================================
 # Runtime
