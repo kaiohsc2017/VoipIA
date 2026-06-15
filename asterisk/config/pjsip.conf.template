@@ -43,19 +43,17 @@ local_net = 10.0.0.0/8
 local_net = 192.168.0.0/16
 
 ; ---------------------------------------------------------------
-; TRONCO SIP — Registro na operadora
-; Credenciais injetadas via variável de ambiente
+; TRONCO SIP — Peer IP-based (sem usuário/senha)
+; Fechado por IP com a operadora: 186.233.141.64
+; Não requer autenticação digest nem registro.
 ; ---------------------------------------------------------------
-[tronco-sip-auth]
-type = auth
-auth_type = userpass
-username = ${SIP_TRUNK_USER}
-password = ${SIP_TRUNK_PASSWORD}
 
 [tronco-sip-aor]
 type = aor
+; Contato direto com o IP da operadora (peer)
 contact = sip:${SIP_TRUNK_HOST}
 qualify_frequency = 60
+qualify_timeout = 3.0
 
 [tronco-sip]
 type = endpoint
@@ -64,18 +62,19 @@ context = recepcao-tronco
 disallow = all
 allow = ulaw
 allow = alaw
-outbound_auth = tronco-sip-auth
+; Sem outbound_auth — autenticação por IP (peer)
 aors = tronco-sip-aor
 from_domain = ${SIP_TRUNK_FROM_DOMAIN}
+; Garante que o RTP passe pelo Asterisk (NAT/Docker)
+direct_media = no
+force_rport = yes
+rewrite_contact = yes
 
-[tronco-sip-reg]
-type = registration
-transport = transport-udp
-outbound_auth = tronco-sip-auth
-server_uri = sip:${SIP_TRUNK_HOST}
-client_uri = sip:${SIP_TRUNK_USER}@${SIP_TRUNK_HOST}
-retry_interval = 60
-max_retries = 10
+; Identifica chamadas recebidas do IP da operadora
+[tronco-sip-identify]
+type = identify
+endpoint = tronco-sip
+match = ${SIP_TRUNK_HOST}
 
 ; ---------------------------------------------------------------
 ; RAMAIS DE TESTE — Para desenvolvimento e testes locais
@@ -154,8 +153,9 @@ allow = alaw
 auth = ramal-9001-auth
 aors = 9001
 callerid = "WebRTC React" <9001>
-; CRÍTICO: identifica pelo username do cabeçalho From/To
-identify_by = username
+; CRÍTICO: identifica pelo username do header Authorization (auth_username)
+; Necessário para WebRTC — o JsSIP envia o username no Authorization, não no From
+identify_by = auth_username,username
 ; CRÍTICO: força o Asterisk a fazer bridge de mídia internamente
 direct_media = no
 ; WebRTC — habilita todas as opções necessárias

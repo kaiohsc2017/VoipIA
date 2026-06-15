@@ -1,4 +1,4 @@
-type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings' | 'audit' | 'logs' | 'security';
+type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings' | 'audit' | 'logs' | 'security' | 'agents';
 
 interface SidebarProps {
   currentPage: Page;
@@ -9,11 +9,12 @@ interface SidebarProps {
   onToggleCollapse: () => void;
 }
 
-const NAV_ITEMS: { page: Page; icon: string; label: string; section: string }[] = [
+const NAV_ITEMS: { page: Page; icon: string; label: string; section: string; external?: string }[] = [
   { page: 'dashboard',  icon: '📊', label: 'Dashboard',          section: 'GERAL'     },
   { page: 'modulo1',    icon: '🎫', label: 'URA',                section: 'MÓDULOS'   },
   { page: 'modulo2',    icon: '📞', label: 'Conectividade',      section: 'MÓDULOS'   },
   { page: 'modulo3',    icon: '🚨', label: 'Monitoramento',      section: 'MÓDULOS'   },
+  { page: 'agents',     icon: '🤖', label: 'Agentes',            section: 'MÓDULOS',  external: '/agents/' },
   { page: 'masterdata', icon: '👤', label: 'Clientes',           section: 'CADASTROS' },
   { page: 'users',      icon: '👥', label: 'Usuários e Ramais',  section: 'CADASTROS' },
   { page: 'settings',   icon: '🔧', label: 'Configurações',      section: 'SISTEMA'   },
@@ -47,17 +48,32 @@ export default function Sidebar({ currentPage, onNavigate, username, onLogout, c
               {showSection && (
                 <div className="nav-section-label">{item.section}</div>
               )}
-              <div
-                className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
-                onClick={() => onNavigate(item.page)}
-                role="button"
-                tabIndex={0}
-                title={collapsed ? item.label : undefined}
-                onKeyDown={e => e.key === 'Enter' && onNavigate(item.page)}
-              >
-                <span className="nav-icon">{item.icon}</span>
-                <span>{item.label}</span>
-              </div>
+              {item.external ? (
+                <a
+                  href={item.external}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
+                  title={collapsed ? item.label : undefined}
+                  style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <span className="nav-icon">{item.icon}</span>
+                  <span>{item.label}</span>
+                  {!collapsed && <span style={{ marginLeft: 'auto', fontSize: '10px', opacity: 0.5 }}>↗</span>}
+                </a>
+              ) : (
+                <div
+                  className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
+                  onClick={() => onNavigate(item.page)}
+                  role="button"
+                  tabIndex={0}
+                  title={collapsed ? item.label : undefined}
+                  onKeyDown={e => e.key === 'Enter' && onNavigate(item.page)}
+                >
+                  <span className="nav-icon">{item.icon}</span>
+                  <span>{item.label}</span>
+                </div>
+              )}
             </div>
           );
         })}
