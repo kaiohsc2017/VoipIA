@@ -9,6 +9,7 @@ import asyncio, json
 
 from database import init_db
 from routers import agents, servers, executions, reports, knowledge
+from routers import llm_config
 from scheduler import AgentScheduler
 
 scheduler = AgentScheduler()
@@ -48,6 +49,7 @@ app.include_router(servers.router,    prefix="/api/servers",    tags=["servers"]
 app.include_router(executions.router, prefix="/api/executions", tags=["executions"])
 app.include_router(reports.router,    prefix="/api/reports",    tags=["reports"])
 app.include_router(knowledge.router,  prefix="/api/knowledge",  tags=["knowledge"])
+app.include_router(llm_config.router, prefix="/api/llm",       tags=["llm"])
 
 @app.websocket("/ws/agent/{agent_id}/logs")
 async def agent_logs_ws(websocket: WebSocket, agent_id: str):

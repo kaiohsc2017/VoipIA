@@ -17,9 +17,7 @@ from datetime import datetime, timezone
 from uuid import UUID, uuid4
 from database import DB
 from notifier import send_telegram, send_web_alert
-
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL   = os.environ.get("GEMINI_MODEL_LLM", "gemini-2.5-flash")
+from llm import ask as llm_ask, is_enabled as llm_enabled
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -79,45 +77,11 @@ async def memory_save(agent_id: UUID, mtype: str, title: str, content: str,
 
 async def ai_fallback(skill: str, problem: str, memory_ctx: str, check_output: str) -> str:
     """
-    Consulta Gemini quando o script não cobre o caso.
-    Retorna sugestão de correção ou diagnóstico.
+    Fallback de IA — delega ao módulo llm.py que suporta múltiplos provedores.
+    Provedor, modelo e habilitação são configurados via variáveis de ambiente.
     """
-    if not GEMINI_API_KEY:
-        return "IA não configurada (GEMINI_API_KEY ausente)."
-
-    prompt = f"""Você é um especialista em infraestrutura Linux com o seguinte contexto:
-{skill}
-
-Ocorreu uma falha durante uma verificação automatizada.
-
-SAÍDA DO COMANDO:
-{check_output[:1000]}
-
-PROBLEMA IDENTIFICADO:
-{problem}
-
-CONTEXTO DE MEMÓRIA E DOCUMENTAÇÃO:
-{memory_ctx[:2000] if memory_ctx else 'Nenhum contexto disponível.'}
-
-Com base nisso, forneça:
-1. Diagnóstico da causa mais provável (máximo 2 frases)
-2. Comando(s) exato(s) para corrigir
-3. Como prevenir no futuro
-
-Seja direto e técnico. Responda em português."""
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/"
-                f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}",
-                json={"contents": [{"parts": [{"text": prompt}]}]},
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as resp:
-                data = await resp.json()
-                return data["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        return f"Erro ao consultar IA: {e}"
+    return await llm_ask(skill=skill, problem=problem,
+                         memory_ctx=memory_ctx, check_output=check_output)
 
 # ─── SSH Test Executor ────────────────────────────────────────────────────────
 
@@ -137,7 +101,7 @@ class SSHTestExecutor:
       ],
       "timeout_per_check": 30,
       "stop_on_first_failure": false,
-      "use_ai_on_failure": true
+      "use_ai_on_failure": false
     }
     """
     def __init__(self, agent: dict, execution_id: UUID, broadcast):
@@ -149,7 +113,7 @@ class SSHTestExecutor:
         self.checks       = self.rules.get("checks", [])
         self.timeout      = self.rules.get("timeout_per_check", 30)
         self.stop_on_fail = self.rules.get("stop_on_first_failure", False)
-        self.use_ai       = self.rules.get("use_ai_on_failure", True)
+        self.use_ai       = self.rules.get("use_ai_on_failure", False) and llm_enabled()
 
     async def _emit(self, db, level, message, server=None, raw=None):
         await log(db, self.eid, self.agent_id, level, message, server, raw)
@@ -301,7 +265,7 @@ class WebMonitorExecutor:
         self.checks    = self.rules.get("checks", [
             {"url": u, "expect_status": 200} for u in (agent.get("target_urls") or [])
         ])
-        self.use_ai    = self.rules.get("use_ai_on_failure", False)
+        self.use_ai    = self.rules.get("use_ai_on_failure", False) and llm_enabled()
 
     async def _emit(self, db, level, message, server=None):
         await log(db, self.eid, self.agent_id, level, message, server)
@@ -452,7 +416,7 @@ class LogMonitorExecutor:
         self.rules     = agent.get("rules") or {}
         self.checks    = self.rules.get("log_checks", [])
         self.timeout   = self.rules.get("timeout_per_check", 30)
-        self.use_ai    = self.rules.get("use_ai_on_failure", True)
+        self.use_ai    = self.rules.get("use_ai_on_failure", False) and llm_enabled()
 
     async def _emit(self, db, level, message, server=None, raw=None):
         await log(db, self.eid, self.agent_id, level, message, server, raw)

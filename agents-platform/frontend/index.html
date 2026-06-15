@@ -185,7 +185,8 @@ var ICONS = {
   x:         '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
   logs:      '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   upload:    '<polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>',
-  refresh:   '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>'
+  refresh:   '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+  settings:  '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
 };
 
 function Ico(props) {
@@ -892,7 +893,8 @@ var NAV = [
   {id:'servers',   label:'Servidores',         icon:'servers'},
   {id:'knowledge', label:'Base de Conhecimento',icon:'knowledge'},
   {id:'logs',      label:'Logs',               icon:'logs'},
-  {id:'reports',   label:'Alertas',            icon:'reports'}
+  {id:'reports',   label:'Alertas',            icon:'reports'},
+  {id:'llm',       label:'Config. IA',          icon:'settings'}
 ];
 
 function App(props) {
@@ -920,7 +922,8 @@ function App(props) {
     servers:   h(Servers),
     knowledge: h(Knowledge),
     logs:      h(LogsPage),
-    reports:   h(Reports)
+    reports:   h(Reports),
+    llm:       h(LLMSettings)
   };
 
   var navItems = NAV.map(function(p) {
@@ -1032,6 +1035,124 @@ function Login(props) {
         h('button',{type:'button',className:'login-back',onClick:function(){setNeedTotp(false);setTempToken('');setTotpCode('');setError('');}},'← Voltar ao login')
       ),
       h('p',{className:'login-footer'},'AsteriskIA Telecom + Agentes')
+    )
+  );
+}
+
+
+// ── LLM SETTINGS PAGE ────────────────────────────────────────────────────────
+function LLMSettings() {
+  var stS=useState(null); var status=stS[0]; var setStatus=stS[1];
+  var pvS=useState([]); var providers=pvS[0]; var setProviders=pvS[1];
+  var testS=useState(null); var testResult=testS[0]; var setTestResult=testS[1];
+  var testingS=useState(false); var testing=testingS[0]; var setTesting=testingS[1];
+
+  useEffect(function(){
+    api.get('/api/llm/status').then(setStatus).catch(function(){});
+    api.get('/api/llm/providers').then(function(r){setProviders(r.providers||[]);}).catch(function(){});
+  },[]);
+
+  function runTest(){
+    setTesting(true); setTestResult(null);
+    api.post('/api/llm/test',{}).then(function(r){setTestResult(r);setTesting(false);}).catch(function(e){setTestResult({ok:false,error:String(e)});setTesting(false);});
+  }
+
+  var providerCards = providers.map(function(p){
+    var isCurrent = status&&status.provider===p.id;
+    return h('div',{key:p.id,className:'card',style:{borderLeft:isCurrent?'3px solid var(--primary)':''}},
+      h('div',{className:'ch'},
+        h('div',null,
+          h('div',{className:'tbold'},p.name),
+          isCurrent&&h('span',{className:'badge b-info',style:{marginLeft:8}},'Ativo')
+        ),
+        h('a',{href:p.docs,target:'_blank',style:{fontSize:11,color:'var(--info)',textDecoration:'none'}},'Documentação →')
+      ),
+      h('div',{style:{padding:'12px 20px'}},
+        h('div',{className:'tsm tmut',style:{marginBottom:8}},'Variável de ambiente: ',h('code',{style:{fontFamily:'monospace',fontSize:11,background:'var(--bg)',padding:'1px 5px',borderRadius:3}},p.env_key)),
+        h('div',{className:'tsm',style:{marginBottom:4}},'Modelos disponíveis:'),
+        h('div',{style:{display:'flex',flexWrap:'wrap',gap:6}},
+          p.models.map(function(m){
+            var active = status&&status.model===m&&isCurrent;
+            return h('span',{key:m,className:'tag',style:{background:active?'var(--primary)':'',color:active?'#fff':''}},m);
+          })
+        )
+      )
+    );
+  });
+
+  return h('div',null,
+    h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Configuração de IA')),
+    h('div',{className:'content'},
+
+      h('div',{className:'card',style:{marginBottom:16}},
+        h('div',{className:'ch'},h('span',{className:'cht'},'Status atual')),
+        h('div',{style:{padding:'16px 20px'}},
+          status
+            ? h('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12}},
+                h('div',null,
+                  h('div',{className:'txs tmut'},'Provedor ativo'),
+                  h('div',{className:'tbold tsm',style:{marginTop:2}},status.provider||'—')
+                ),
+                h('div',null,
+                  h('div',{className:'txs tmut'},'Modelo ativo'),
+                  h('div',{className:'tbold tsm',style:{marginTop:2}},status.model||'—')
+                ),
+                h('div',null,
+                  h('div',{className:'txs tmut'},'IA habilitada'),
+                  h('div',{style:{marginTop:2}},
+                    h('span',{className:'badge '+(status.enabled?'b-ok':'b-gray')},
+                      status.enabled?'Sim — opt-in ativo':'Não — desabilitada')
+                  )
+                ),
+                h('div',null,
+                  h('div',{className:'txs tmut'},'Pronta para uso'),
+                  h('div',{style:{marginTop:2}},
+                    h('span',{className:'badge '+(status.ready?'b-ok':'b-err')},
+                      status.ready?'Sim':'Não — '+status.reason)
+                  )
+                )
+              )
+            : h('div',{className:'tmut tsm'},'Carregando...'),
+          h('div',{style:{marginTop:16,display:'flex',gap:8,alignItems:'center'}},
+            h('button',{className:'btn btn-p btn-sm',onClick:runTest,disabled:testing},
+              testing?'Testando...':'Testar conexão'),
+            testResult&&h('span',{style:{fontSize:12,color:testResult.ok?'var(--ok)':'var(--err)'}},
+              testResult.ok
+                ? '✓ Respondeu: '+testResult.response.slice(0,80)+'...'
+                : '✗ '+testResult.error)
+          )
+        )
+      ),
+
+      h('div',{className:'card',style:{marginBottom:16}},
+        h('div',{className:'ch'},h('span',{className:'cht'},'Como configurar')),
+        h('div',{style:{padding:'14px 20px'}},
+          h('p',{className:'tsm',style:{marginBottom:12,lineHeight:1.7,color:'var(--text2)'}},
+            'Adicione as variáveis abaixo no arquivo ',
+            h('code',{style:{fontFamily:'monospace',fontSize:11,background:'var(--bg)',padding:'1px 5px',borderRadius:3}},'/opt/AsteriskIA/env/.env'),
+            ' e reinicie o container ',
+            h('code',{style:{fontFamily:'monospace',fontSize:11,background:'var(--bg)',padding:'1px 5px',borderRadius:3}},'agents-backend'),
+            '.'
+          ),
+          h('div',{style:{background:'#0f172a',borderRadius:6,padding:'12px 14px',fontFamily:'monospace',fontSize:12,lineHeight:1.8,color:'#e2e8f0',overflowX:'auto'}},
+            h('span',{style:{color:'#94a3b8'}},'# Habilita IA (opt-in — false por padrão)\n'),
+            'AGENTS_LLM_ENABLED=true\n',
+            h('span',{style:{color:'#94a3b8'}},'\n# Provedor: google | anthropic | openai | minimax | openai_compat\n'),
+            'AGENTS_LLM_PROVIDER=google\n',
+            h('span',{style:{color:'#94a3b8'}},'\n# Modelo do provedor escolhido\n'),
+            'AGENTS_LLM_MODEL=gemini-2.5-flash\n',
+            h('span',{style:{color:'#94a3b8'}},'\n# API key do provedor escolhido\n'),
+            'AGENTS_LLM_GOOGLE_KEY=AIza...\n',
+            h('span',{style:{color:'#94a3b8'}},'# AGENTS_LLM_ANTHROPIC_KEY=sk-ant-...\n'),
+            h('span',{style:{color:'#94a3b8'}},'# AGENTS_LLM_OPENAI_KEY=sk-...\n'),
+            h('span',{style:{color:'#94a3b8'}},'\n# Para habilitar IA em um agente específico, adicione nas rules:\n'),
+            h('span',{style:{color:'#94a3b8'}},'# {"use_ai_on_failure": true, ...outras regras...}\n')
+          )
+        )
+      ),
+
+      h('div',{className:'section-title'},'Provedores disponíveis'),
+      providerCards
     )
   );
 }

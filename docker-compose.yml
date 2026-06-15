@@ -368,7 +368,22 @@ services:
       AGENTS_DB_USER:     agents
       AGENTS_DB_PASS:     ${AGENTS_DB_PASS:-agents_secret}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      GEMINI_API_KEY:     ${GEMINI_API_KEY:-}
+      # ── LLM Configuração ──────────────────────────────────────────────────
+      # Provedor ativo: google | anthropic | openai | minimax | openai_compat
+      AGENTS_LLM_PROVIDER:  ${AGENTS_LLM_PROVIDER:-google}
+      # Modelo do provedor ativo
+      AGENTS_LLM_MODEL:     ${AGENTS_LLM_MODEL:-gemini-2.5-flash}
+      # Habilita IA globalmente — false por padrão (opt-in)
+      AGENTS_LLM_ENABLED:   ${AGENTS_LLM_ENABLED:-false}
+      # API keys por provedor (preencha apenas o que usar)
+      AGENTS_LLM_GOOGLE_KEY:    ${AGENTS_LLM_GOOGLE_KEY:-${GEMINI_API_KEY:-}}
+      AGENTS_LLM_ANTHROPIC_KEY: ${AGENTS_LLM_ANTHROPIC_KEY:-}
+      AGENTS_LLM_OPENAI_KEY:    ${AGENTS_LLM_OPENAI_KEY:-}
+      AGENTS_LLM_MINIMAX_KEY:   ${AGENTS_LLM_MINIMAX_KEY:-}
+      AGENTS_LLM_MINIMAX_GROUP_ID: ${AGENTS_LLM_MINIMAX_GROUP_ID:-}
+      # URL base para APIs compatíveis com OpenAI (Ollama, Groq, Together…)
+      AGENTS_LLM_COMPAT_URL:    ${AGENTS_LLM_COMPAT_URL:-http://localhost:11434/v1}
+      AGENTS_LLM_COMPAT_KEY:    ${AGENTS_LLM_COMPAT_KEY:-}
     volumes:
       - agents_knowledge:/app/knowledge_docs
     networks:
