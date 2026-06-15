@@ -1,0 +1,111 @@
+# =============================================================================
+# Caddyfile — AsteriskIA
+# AsteriskIA Telecom : rotas principais (/, /api/*, /ws/*, /asterisk-ws*)
+# AsteriskIA Agentes : rotas sob /agents/*
+# =============================================================================
+
+{
+    admin "0.0.0.0:2019"
+}
+
+app.voiphash.com.br {
+
+    # ── AsteriskIA Agentes — API ──────────────────────────────────────────────
+    @agents-api {
+        path /agents/api/*
+    }
+    handle @agents-api {
+        uri strip_prefix /agents
+        reverse_proxy agents-backend:8000
+    }
+
+    # ── AsteriskIA Agentes — WebSocket logs em tempo real ─────────────────────
+    @agents-ws {
+        header Connection *Upgrade*
+        header Upgrade websocket
+        path /agents/ws/*
+    }
+    handle @agents-ws {
+        uri strip_prefix /agents
+        reverse_proxy agents-backend:8000
+    }
+
+    # ── AsteriskIA Agentes — Frontend ─────────────────────────────────────────
+    @agents-ui {
+        path /agents*
+    }
+    handle @agents-ui {
+        uri strip_prefix /agents
+        reverse_proxy agents-frontend:80
+    }
+
+    # ── AsteriskIA Telecom — API backend Spring Boot ──────────────────────────
+    @api {
+        path /api/*
+    }
+    handle @api {
+        reverse_proxy asteriskia-backend:8080
+    }
+
+    # ── AsteriskIA Telecom — WebSocket backend ────────────────────────────────
+    @ws {
+        header Connection *Upgrade*
+        header Upgrade websocket
+        path /ws/*
+    }
+    handle @ws {
+        reverse_proxy asteriskia-backend:8080
+    }
+
+    # ── AsteriskIA Telecom — WebSocket Asterisk (softphone WebRTC) ───────────
+    @asterisk-ws {
+        header Connection *Upgrade*
+        header Upgrade websocket
+        path /asterisk-ws*
+    }
+    handle @asterisk-ws {
+        rewrite * /ws
+        reverse_proxy asteriskia-asterisk:8088
+    }
+
+    # ── AsteriskIA Telecom — Frontend React ──────────────────────────────────
+    reverse_proxy asteriskia-frontend:80
+}
+
+# ── Grafana ───────────────────────────────────────────────────────────────────
+app.voiphash.com.br:3000 {
+    reverse_proxy asteriskia-grafana:3000
+}
+
+# ── Prometheus ────────────────────────────────────────────────────────────────
+app.voiphash.com.br:9090 {
+    reverse_proxy asteriskia-prometheus:9090
+}
+
+# ── n8n ───────────────────────────────────────────────────────────────────────
+n8n.voiphash.com.br {
+    reverse_proxy n8n-app:5678
+}
+
+# ── Manager Telecom ───────────────────────────────────────────────────────────
+manager.voiphash.com.br {
+    reverse_proxy ManagerTelecom-Web:8080
+
+    header Access-Control-Allow-Origin "*"
+    header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Cookie"
+    header Access-Control-Allow-Credentials "true"
+}
+
+# ── Dipapel ───────────────────────────────────────────────────────────────────
+dipapel.xyz {
+    reverse_proxy app-dipapel:3000
+}
+
+# ── Claw ──────────────────────────────────────────────────────────────────────
+claw.voiphash.com.br {
+    reverse_proxy 10.0.3.1:18789 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+}
