@@ -19,10 +19,10 @@ nav{flex:1;padding:12px 0}
 .nitem{display:flex;align-items:center;gap:9px;padding:9px 18px;color:rgba(255,255,255,.65);font-size:13px;font-weight:500;cursor:pointer;border-left:2px solid transparent;transition:all .15s}
 .nitem:hover{color:#fff;background:rgba(255,255,255,.06)}
 .nitem.on{color:#fff;background:rgba(255,255,255,.1);border-left-color:#60a5fa}
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}.main>div{display:contents}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}.main>div{display:flex;flex-direction:column;flex:1;min-height:0}
 .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:10}
 .tbtitle{font-size:15px;font-weight:600}
-.content{overflow-y:auto;padding:24px;box-sizing:border-box;height:calc(100vh - 56px)}
+.content{overflow-y:auto;padding:24px;box-sizing:border-box;flex:1;min-height:0}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 1px 3px rgba(0,0,0,.07);margin-bottom:16px}
 .ch{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .cht{font-size:14px;font-weight:600}
@@ -120,11 +120,27 @@ function clearAuth(){ localStorage.removeItem(TOKEN_KEY); localStorage.removeIte
 
 
 // ── API ───────────────────────────────────────────────────────────────────────
+function _authHeaders(extra) {
+  var h = Object.assign({'Content-Type':'application/json'}, extra||{});
+  var tok = getToken();
+  if (tok) h['Authorization'] = 'Bearer ' + tok;
+  return h;
+}
+function _apiFetch(p, opts) {
+  return fetch(API+p, opts).then(function(r){
+    if (r.status === 401) { clearAuth(); location.reload(); return {}; }
+    return r.json();
+  }).catch(function(){ return {}; });
+}
 const api = {
-  get:  function(p)   { return fetch(API+p).then(function(r){return r.json()}).catch(function(){return {}}); },
-  post: function(p,b) { return fetch(API+p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(r){return r.json()}).catch(function(){return {}}); },
-  put:  function(p,b) { return fetch(API+p,{method:'PUT', headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(r){return r.json()}).catch(function(){return {}}); },
-  del:  function(p)   { return fetch(API+p,{method:'DELETE'}).then(function(r){return r.json()}).catch(function(){return {}}); }
+  get:  function(p)      { return _apiFetch(p, {headers: _authHeaders()}); },
+  post: function(p,b)    { return _apiFetch(p, {method:'POST',  headers:_authHeaders(), body:JSON.stringify(b)}); },
+  put:  function(p,b)    { return _apiFetch(p, {method:'PUT',   headers:_authHeaders(), body:JSON.stringify(b)}); },
+  del:  function(p)      { return _apiFetch(p, {method:'DELETE',headers:_authHeaders()}); },
+  upload: function(p,fd) {
+    var h = {}; var tok = getToken(); if(tok) h['Authorization']='Bearer '+tok;
+    return fetch(API+p, {method:'POST', headers:h, body:fd}).then(function(r){return r.json();}).catch(function(){return {};});
+  }
 };
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
@@ -229,9 +245,29 @@ function Confirm(props) {
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 function Dashboard() {
-  var data   = MOCK_DASHBOARD;
-  var pdata  = MOCK_PERIOD;
-  var period = 'day';
+  var dS=useState(null);  var data=dS[0];   var setData=dS[1];
+  var pS=useState([]);    var pdata=pS[0];  var setPdata=pS[1];
+  var pdState=useState('day'); var period=pdState[0]; var setPeriod=pdState[1];
+  var loadingS=useState(true); var loading=loadingS[0]; var setLoading=loadingS[1];
+
+  function load(p) {
+    setLoading(true);
+    Promise.all([
+      api.get('/api/executions/dashboard/summary'),
+      api.get('/api/executions/dashboard/period?period='+(p||period))
+    ]).then(function(res){
+      setData(res[0]&&res[0].active_agents!==undefined ? res[0] : MOCK_DASHBOARD);
+      setPdata(Array.isArray(res[1]) ? res[1] : MOCK_PERIOD);
+      setLoading(false);
+    }).catch(function(){ setData(MOCK_DASHBOARD); setPdata(MOCK_PERIOD); setLoading(false); });
+  }
+
+  useEffect(function(){ load(); }, []);
+  function changePeriod(p){ setPeriod(p); load(p); }
+
+  if(loading||!data) return h('div',null,
+    h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Dashboard')),
+    h('div',{className:'content'},h('div',{className:'empty'},'Carregando...')));
 
   var statCards = h('div', {className: 'g4'},
     h('div', {className: 'card stat'}, h('div',{className:'stl'},'Agentes ativos'),       h('div',{className:'stv c-info'}, data.active_agents)),
@@ -279,9 +315,9 @@ function Dashboard() {
     h('div', {className: 'ch'},
       h('span', {className:'cht'}, 'Por periodo'),
       h('div', {className:'flex gap2'},
-        h('button',{className:'btn btn-sm btn-p'},'24h'),
-        h('button',{className:'btn btn-sm btn-g'},'7d'),
-        h('button',{className:'btn btn-sm btn-g'},'30d')
+        h('button',{className:'btn btn-sm '+(period==='day'?'btn-p':'btn-g'),onClick:function(){changePeriod('day')}},'24h'),
+        h('button',{className:'btn btn-sm '+(period==='week'?'btn-p':'btn-g'),onClick:function(){changePeriod('week')}},'7d'),
+        h('button',{className:'btn btn-sm '+(period==='month'?'btn-p':'btn-g'),onClick:function(){changePeriod('month')}},'30d')
       )
     ),
     h('table', null,
@@ -559,7 +595,7 @@ function AgentForm(props) {
 // ── AGENTS PAGE ───────────────────────────────────────────────────────────────
 function Agents(props) {
   var servers = props.servers || [];
-  var agState = useState(MOCK_AGENTS);
+  var agState = useState([]);
   var agents  = agState[0];
   var setAgents = agState[1];
   var fmState = useState(false);
@@ -574,25 +610,39 @@ function Agents(props) {
   var cfState = useState(null);
   var conf    = cfState[0];
   var setConf = cfState[1];
+  var ldState = useState(true); var loading=ldState[0]; var setLoading=ldState[1];
+
+  function load() {
+    setLoading(true);
+    api.get('/api/agents/').then(function(r){
+      setAgents(Array.isArray(r)?r:MOCK_AGENTS); setLoading(false);
+    }).catch(function(){ setAgents(MOCK_AGENTS); setLoading(false); });
+  }
+  useEffect(function(){ load(); }, []);
 
   function save(data) {
     if (editing) {
-      setAgents(function(list){ return list.map(function(x){ return x.id===editing.id ? Object.assign({},x,data) : x; }); });
+      api.put('/api/agents/'+editing.id, data).then(function(r){
+        if(r&&r.id) setAgents(function(list){ return list.map(function(x){ return x.id===r.id?r:x; }); });
+        else load();
+      });
     } else {
-      setAgents(function(list){ return list.concat([Object.assign({},data,{id:'new_'+Date.now(),status:'idle',last_run:null})]); });
+      api.post('/api/agents/', data).then(function(r){
+        if(r&&r.id) setAgents(function(list){ return list.concat([r]); });
+        else load();
+      });
     }
     setShowForm(false); setEditing(null);
   }
-  function del(id) { setAgents(function(list){ return list.filter(function(x){return x.id!==id}); }); }
+  function del(id) {
+    api.del('/api/agents/'+id).then(function(){ setAgents(function(list){ return list.filter(function(x){return x.id!==id}); }); });
+  }
   function toggle(a) {
-    setAgents(function(list){
-      return list.map(function(x){ return x.id===a.id ? Object.assign({},x,{status:x.status==='paused'?'idle':'paused'}) : x; });
-    });
+    var ep = a.status==='paused' ? '/api/agents/'+a.id+'/resume' : '/api/agents/'+a.id+'/pause';
+    api.post(ep,{}).then(function(){ load(); });
   }
   function runNow(id) {
-    setAgents(function(list){
-      return list.map(function(x){ return x.id===id ? Object.assign({},x,{status:'running'}) : x; });
-    });
+    api.post('/api/agents/'+id+'/run',{}).then(function(){ load(); });
   }
 
   var typeLabel = {ssh_test:'SSH Test',web_monitor:'Web Monitor',log_monitor:'Log Monitor'};
@@ -638,7 +688,9 @@ function Agents(props) {
       )
     ),
     h('div',{className:'content'},
-      agents.length === 0
+      loading
+        ? h('div',{className:'card'},h('div',{className:'empty'},'Carregando...'))
+        : agents.length === 0
         ? h('div',{className:'card'},h('div',{className:'empty'},h('p',null,'Nenhum agente.')))
         : h('div',{className:'card'},
             h('table',null,
@@ -655,7 +707,7 @@ function Agents(props) {
 
 // ── SERVERS PAGE ──────────────────────────────────────────────────────────────
 function Servers() {
-  var srvState  = useState(MOCK_SERVERS);
+  var srvState  = useState([]);
   var servers   = srvState[0];
   var setServers = srvState[1];
   var fmState   = useState(false);
@@ -677,18 +729,31 @@ function Servers() {
   function setF(k,v){ setFd(function(f){var n=Object.assign({},f);n[k]=v;return n;}); }
 
   function openForm(s) { setEditing(s); setFd(s||def); setShowForm(true); }
+
+  function load() {
+    api.get('/api/servers/').then(function(r){
+      setServers(Array.isArray(r)?r:MOCK_SERVERS);
+    }).catch(function(){ setServers(MOCK_SERVERS); });
+  }
+  useEffect(function(){ load(); }, []);
+
   function save() {
     if (editing) {
-      setServers(function(l){return l.map(function(x){return x.id===editing.id?Object.assign({},x,fd):x;});});
+      api.put('/api/servers/'+editing.id, fd).then(function(){ load(); setShowForm(false); setEditing(null); });
     } else {
-      setServers(function(l){return l.concat([Object.assign({},fd,{id:'s'+Date.now(),active:true,created_at:new Date().toISOString()})]);});
+      api.post('/api/servers/', fd).then(function(){ load(); setShowForm(false); setEditing(null); });
     }
-    setShowForm(false); setEditing(null);
   }
-  function del(id){ setServers(function(l){return l.filter(function(x){return x.id!==id});}); }
+  function del(id){
+    api.del('/api/servers/'+id).then(function(){ setServers(function(l){return l.filter(function(x){return x.id!==id});}); });
+  }
   function testConn(id){
     setTesting(function(t){var n=Object.assign({},t);n[id]='testing';return n;});
-    setTimeout(function(){setTesting(function(t){var n=Object.assign({},t);n[id]=Math.random()>0.3?'ok':'fail';return n;});},1500);
+    api.post('/api/servers/'+id+'/test',{}).then(function(r){
+      setTesting(function(t){var n=Object.assign({},t);n[id]=r&&r.ok?'ok':'fail';return n;});
+    }).catch(function(){
+      setTesting(function(t){var n=Object.assign({},t);n[id]='fail';return n;});
+    });
   }
 
   var rows = servers.map(function(s) {
@@ -755,7 +820,7 @@ function Servers() {
 
 // ── KNOWLEDGE PAGE ────────────────────────────────────────────────────────────
 function Knowledge() {
-  var docsState = useState(MOCK_KNOWLEDGE);
+  var docsState = useState([]);
   var docs      = docsState[0];
   var setDocs   = docsState[1];
   var msgState  = useState(null);
@@ -766,14 +831,26 @@ function Knowledge() {
   var setConf   = cfState[1];
   var fileRef   = useRef();
 
+  function load() {
+    api.get('/api/knowledge/').then(function(r){ setDocs(Array.isArray(r)?r:MOCK_KNOWLEDGE); })
+      .catch(function(){ setDocs(MOCK_KNOWLEDGE); });
+  }
+  useEffect(function(){ load(); }, []);
+
   function upload(e) {
     var f = e.target.files[0];
     if (!f) return;
-    setDocs(function(d){ return d.concat([{id:'k'+Date.now(),filename:f.name,title:f.name.replace('.pdf',''),tags:[],created_at:new Date().toISOString()}]); });
-    setMsg('"'+f.name+'" adicionado.');
-    setTimeout(function(){setMsg(null);},3000);
+    var fd = new FormData();
+    fd.append('file', f);
+    api.upload('/api/knowledge/upload', fd).then(function(r){
+      if(r&&r.id){ setDocs(function(d){ return d.concat([r]); }); setMsg('"'+f.name+'" adicionado.'); }
+      else { setMsg('Erro ao enviar arquivo.'); }
+      setTimeout(function(){setMsg(null);},3000);
+    });
   }
-  function del(id){ setDocs(function(d){return d.filter(function(x){return x.id!==id});}); }
+  function del(id){
+    api.del('/api/knowledge/'+id).then(function(){ setDocs(function(d){return d.filter(function(x){return x.id!==id});}); });
+  }
 
   var rows = docs.map(function(d) {
     return h('tr',{key:d.id},
@@ -878,8 +955,16 @@ function LogsPage() {
 
 // ── REPORTS PAGE ──────────────────────────────────────────────────────────────
 function Reports() {
-  var alerts = MOCK_ALERTS;
+  var alS=useState([]); var alerts=alS[0]; var setAlerts=alS[1];
+  var ldS=useState(true); var loading=ldS[0]; var setLoading=ldS[1];
   var lmap   = {info:'b-info',warning:'b-warn',error:'b-err',critical:'b-err'};
+
+  useEffect(function(){
+    setLoading(true);
+    api.get('/api/executions/alerts?limit=100').then(function(r){
+      setAlerts(Array.isArray(r)?r:MOCK_ALERTS); setLoading(false);
+    }).catch(function(){ setAlerts(MOCK_ALERTS); setLoading(false); });
+  },[]);
 
   var rows = alerts.map(function(a) {
     return h('tr',{key:a.id},
@@ -895,11 +980,15 @@ function Reports() {
     h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Alertas e Relatorios')),
     h('div',{className:'content'},
       h('div',{className:'card'},
-        h('div',{className:'ch'},h('span',{className:'cht'},'Alertas recentes')),
-        h('table',null,
-          h('thead',null,h('tr',null,h('th',null,'Agente'),h('th',null,'Nivel'),h('th',null,'Canal'),h('th',null,'Mensagem'),h('th',null,'Enviado em'))),
-          h('tbody',null,rows)
-        )
+        h('div',{className:'ch'},h('span',{className:'cht'},'Alertas recentes'),h('span',{className:'txs tmut'},alerts.length+' alertas')),
+        loading
+          ? h('div',{className:'empty'},'Carregando...')
+          : alerts.length===0
+          ? h('div',{className:'empty'},h('p',null,'Nenhum alerta registrado.'))
+          : h('table',null,
+              h('thead',null,h('tr',null,h('th',null,'Agente'),h('th',null,'Nivel'),h('th',null,'Canal'),h('th',null,'Mensagem'),h('th',null,'Enviado em'))),
+              h('tbody',null,rows)
+            )
       )
     )
   );
@@ -920,8 +1009,13 @@ function App(props) {
   var pgState  = useState('dashboard');
   var page     = pgState[0];
   var setPage  = pgState[1];
-  var servers  = MOCK_SERVERS;
+  var srvS=useState([]); var servers=srvS[0]; var setServers=srvS[1];
   var acS=useState(0); var alertCount=acS[0]; var setAlertCount=acS[1];
+
+  useEffect(function(){
+    api.get('/api/servers/').then(function(r){ if(Array.isArray(r)) setServers(r); }).catch(function(){});
+  },[]);
+
   useEffect(function(){
     var proto=(location.protocol==='https:'?'wss:':'ws:');
     var host=location.host||'localhost';

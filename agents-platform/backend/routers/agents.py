@@ -35,7 +35,7 @@ async def get_agent(agent_id: UUID):
         return dict(row)
 
 @router.put("/{agent_id}")
-async def update_agent(agent_id: UUID, body: AgentCreate):
+async def update_agent(agent_id: UUID, body: AgentCreate, request: Request):
     async with DB() as db:
         row = await db.fetchrow("""
             UPDATE agents SET name=$1, description=$2, type=$3, skill=$4,
@@ -47,7 +47,14 @@ async def update_agent(agent_id: UUID, body: AgentCreate):
              json.dumps(body.rules), json.dumps(body.schedule.model_dump()),
              body.notify_telegram, body.telegram_chat, agent_id)
         if not row: raise HTTPException(404)
-        return dict(row)
+        agent = dict(row)
+    # Atualiza agendamento em memória imediatamente
+    try:
+        scheduler = request.app.state.scheduler
+        scheduler.reload_agent(agent)
+    except Exception as e:
+        print(f"[agents] reload_agent error: {e}")
+    return agent
 
 @router.delete("/{agent_id}")
 async def delete_agent(agent_id: UUID):
