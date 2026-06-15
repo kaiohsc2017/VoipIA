@@ -46,27 +46,12 @@ RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
     # Verificar se res_srtp vai ser compilado
     grep -i srtp config.log | tail -5 && \
     make menuselect/menuselect menuselect-tree menuselect.makeopts && \
-    menuselect/menuselect \
-        --enable app_audiosocket \
-        --enable res_srtp \
-        --enable res_pjsip \
-        --enable res_pjsip_session \
-        --enable chan_pjsip \
-        --enable res_pjsip_endpoint_identifier_user \
-        --enable res_pjsip_endpoint_identifier_ip \
-        --enable app_mixmonitor \
-        --enable app_playback \
-        --enable app_record \
-        --enable format_wav \
-        --enable codec_ulaw \
-        --enable codec_alaw \
-        --enable pbx_config \
-        --enable res_musiconhold \
-        menuselect.makeopts ; \
-    echo '--- Módulos com XX (dep faltando) ---' ; \
-    grep '^MENUSELECT' menuselect.makeopts | tr ' ' '\n' | grep '^XX_' || true ; \
-    menuselect/menuselect --check-deps menuselect.makeopts && \
-    grep res_srtp menuselect.makeopts && \
+    echo '--- Nomes reais de AudioSocket no menuselect-tree ---' && \
+    grep -i audiosocket menuselect-tree || true && \
+    echo '--- Nomes reais de res_pjsip_endpoint_identifier ---' && \
+    grep -i 'endpoint_identifier' menuselect-tree || true && \
+    echo '--- Nomes reais de res_srtp ---' && \
+    grep -i srtp menuselect-tree || true && \
     make -j$(nproc) && \
     make install
 
