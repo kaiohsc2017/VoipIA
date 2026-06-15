@@ -386,6 +386,7 @@ services:
       AGENTS_LLM_COMPAT_KEY:    ${AGENTS_LLM_COMPAT_KEY:-}
     volumes:
       - agents_knowledge:/app/knowledge_docs
+      - /opt/AsteriskIA/env:/opt/AsteriskIA/env
     networks:
       - asteriskia-net
 

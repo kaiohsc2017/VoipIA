@@ -1042,120 +1042,210 @@ function Login(props) {
 
 // ── LLM SETTINGS PAGE ────────────────────────────────────────────────────────
 function LLMSettings() {
-  var stS=useState(null); var status=stS[0]; var setStatus=stS[1];
-  var pvS=useState([]); var providers=pvS[0]; var setProviders=pvS[1];
-  var testS=useState(null); var testResult=testS[0]; var setTestResult=testS[1];
-  var testingS=useState(false); var testing=testingS[0]; var setTesting=testingS[1];
+  var stS=useState(null);  var status=stS[0];   var setStatus=stS[1];
+  var pvS=useState([]);    var providers=pvS[0]; var setProviders=pvS[1];
+  var formS=useState(null);var form=formS[0];    var setForm=formS[1];
+  var savingS=useState(false); var saving=savingS[0]; var setSaving=savingS[1];
+  var testS=useState(null);    var testResult=testS[0]; var setTestResult=testS[1];
+  var testingS=useState(false);var testing=testingS[0]; var setTesting=testingS[1];
+  var msgS=useState(null);     var msg=msgS[0];         var setMsg=msgS[1];
 
-  useEffect(function(){
+  function load(){
     api.get('/api/llm/status').then(setStatus).catch(function(){});
     api.get('/api/llm/providers').then(function(r){setProviders(r.providers||[]);}).catch(function(){});
-  },[]);
+    api.get('/api/llm/config/full').then(function(r){setForm(r.values||{});}).catch(function(){});
+  }
+
+  useEffect(function(){ load(); },[]);
+
+  function setF(k,v){ setForm(function(f){var n=Object.assign({},f);n[k]=v;return n;}); }
+
+  function save(){
+    if(!form) return;
+    setSaving(true); setMsg(null);
+    api.post('/api/llm/config', form).then(function(r){
+      setSaving(false);
+      if(r.ok){ setMsg({ok:true,text:'Configuracao salva com sucesso!'}); setStatus(r.status); }
+      else { setMsg({ok:false,text:r.detail||'Erro ao salvar.'}); }
+    }).catch(function(e){ setSaving(false); setMsg({ok:false,text:String(e)}); });
+  }
 
   function runTest(){
     setTesting(true); setTestResult(null);
     api.post('/api/llm/test',{}).then(function(r){setTestResult(r);setTesting(false);}).catch(function(e){setTestResult({ok:false,error:String(e)});setTesting(false);});
   }
 
-  var providerCards = providers.map(function(p){
-    var isCurrent = status&&status.provider===p.id;
-    return h('div',{key:p.id,className:'card',style:{borderLeft:isCurrent?'3px solid var(--primary)':''}},
-      h('div',{className:'ch'},
-        h('div',null,
-          h('div',{className:'tbold'},p.name),
-          isCurrent&&h('span',{className:'badge b-info',style:{marginLeft:8}},'Ativo')
-        ),
-        h('a',{href:p.docs,target:'_blank',style:{fontSize:11,color:'var(--info)',textDecoration:'none'}},'Documentação →')
-      ),
-      h('div',{style:{padding:'12px 20px'}},
-        h('div',{className:'tsm tmut',style:{marginBottom:8}},'Variável de ambiente: ',h('code',{style:{fontFamily:'monospace',fontSize:11,background:'var(--bg)',padding:'1px 5px',borderRadius:3}},p.env_key)),
-        h('div',{className:'tsm',style:{marginBottom:4}},'Modelos disponíveis:'),
-        h('div',{style:{display:'flex',flexWrap:'wrap',gap:6}},
-          p.models.map(function(m){
-            var active = status&&status.model===m&&isCurrent;
-            return h('span',{key:m,className:'tag',style:{background:active?'var(--primary)':'',color:active?'#fff':''}},m);
-          })
-        )
-      )
-    );
-  });
+  var currentProvider = providers.find(function(p){return status&&p.id===status.provider;});
+
+  if(!form) return h('div',{className:'content'},h('div',{className:'empty'},'Carregando...'));
 
   return h('div',null,
-    h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Configuração de IA')),
+    h('div',{className:'topbar'},
+      h('span',{className:'tbtitle'},'Configuracao de IA'),
+      h('div',{className:'flex gap2'},
+        h('button',{className:'btn btn-g btn-sm',onClick:runTest,disabled:testing},
+          testing?'Testando...':'Testar conexao'),
+        h('button',{className:'btn btn-p btn-sm',onClick:save,disabled:saving},
+          saving?'Salvando...':'Salvar configuracao')
+      )
+    ),
     h('div',{className:'content'},
 
-      h('div',{className:'card',style:{marginBottom:16}},
-        h('div',{className:'ch'},h('span',{className:'cht'},'Status atual')),
-        h('div',{style:{padding:'16px 20px'}},
-          status
-            ? h('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12}},
-                h('div',null,
-                  h('div',{className:'txs tmut'},'Provedor ativo'),
-                  h('div',{className:'tbold tsm',style:{marginTop:2}},status.provider||'—')
-                ),
-                h('div',null,
-                  h('div',{className:'txs tmut'},'Modelo ativo'),
-                  h('div',{className:'tbold tsm',style:{marginTop:2}},status.model||'—')
-                ),
-                h('div',null,
-                  h('div',{className:'txs tmut'},'IA habilitada'),
-                  h('div',{style:{marginTop:2}},
-                    h('span',{className:'badge '+(status.enabled?'b-ok':'b-gray')},
-                      status.enabled?'Sim — opt-in ativo':'Não — desabilitada')
-                  )
-                ),
-                h('div',null,
-                  h('div',{className:'txs tmut'},'Pronta para uso'),
-                  h('div',{style:{marginTop:2}},
-                    h('span',{className:'badge '+(status.ready?'b-ok':'b-err')},
-                      status.ready?'Sim':'Não — '+status.reason)
-                  )
-                )
-              )
-            : h('div',{className:'tmut tsm'},'Carregando...'),
-          h('div',{style:{marginTop:16,display:'flex',gap:8,alignItems:'center'}},
-            h('button',{className:'btn btn-p btn-sm',onClick:runTest,disabled:testing},
-              testing?'Testando...':'Testar conexão'),
-            testResult&&h('span',{style:{fontSize:12,color:testResult.ok?'var(--ok)':'var(--err)'}},
-              testResult.ok
-                ? '✓ Respondeu: '+testResult.response.slice(0,80)+'...'
-                : '✗ '+testResult.error)
-          )
+      msg&&h('div',{className:'alertbar '+(msg.ok?'':''),
+        style:{background:msg.ok?'var(--color-bg-success,#dcfce7)':'#fee2e2',
+               color:msg.ok?'#15803d':'#b91c1c',border:'1px solid '+(msg.ok?'#bbf7d0':'#fecaca'),
+               marginBottom:14}},
+        msg.text),
+
+      testResult&&h('div',{
+        style:{background:testResult.ok?'#dcfce7':'#fee2e2',
+               color:testResult.ok?'#15803d':'#b91c1c',
+               border:'1px solid '+(testResult.ok?'#bbf7d0':'#fecaca'),
+               borderRadius:6,padding:'10px 14px',fontSize:13,marginBottom:14}},
+        testResult.ok
+          ? h('div',null,
+              h('div',{style:{fontWeight:500,marginBottom:4}},
+                '\u2713 Conectado: '+testResult.provider+' / '+testResult.model),
+              h('div',{style:{fontFamily:'monospace',fontSize:11,opacity:.8}},
+                testResult.response.slice(0,200)+'...'))
+          : h('div',null,
+              h('div',{style:{fontWeight:500,marginBottom:2}},'\u2717 Falhou'),
+              h('div',{style:{fontSize:12,fontFamily:'monospace'}},testResult.error))
+      ),
+
+      h('div',{className:'card',style:{marginBottom:14}},
+        h('div',{className:'ch'},
+          h('span',{className:'cht'},'Status atual'),
+          status&&h('span',{className:'badge '+(status.ready?'b-ok':'b-err')},
+            status.ready?'Pronto':'Inativo'+(status.reason?': '+status.reason:''))
+        ),
+        h('div',{style:{padding:'14px 20px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+          h('div',null,h('div',{className:'txs tmut'},'Provedor'),h('div',{className:'tbold tsm',style:{marginTop:2}},status&&status.provider||'—')),
+          h('div',null,h('div',{className:'txs tmut'},'Modelo'),h('div',{className:'tbold tsm',style:{marginTop:2}},status&&status.model||'—')),
+          h('div',null,h('div',{className:'txs tmut'},'IA habilitada'),
+            h('div',{style:{marginTop:2}},
+              h('span',{className:'badge '+(status&&status.enabled?'b-ok':'b-gray')},
+                status&&status.enabled?'Sim (opt-in ativo)':'Nao — desabilitada'))),
+          h('div',null,h('div',{className:'txs tmut'},'Arquivo de config'),
+            h('div',{className:'txs',style:{marginTop:2,fontFamily:'monospace',color:'var(--text2)'}},
+              status&&status.env_file||'—',
+              status&&!status.file_exists&&h('span',{style:{color:'var(--warn)',marginLeft:6}},'(sera criado ao salvar)')))
         )
       ),
 
-      h('div',{className:'card',style:{marginBottom:16}},
-        h('div',{className:'ch'},h('span',{className:'cht'},'Como configurar')),
+      h('div',{className:'card',style:{marginBottom:14}},
+        h('div',{className:'ch'},h('span',{className:'cht'},'Configuracao geral')),
         h('div',{style:{padding:'14px 20px'}},
-          h('p',{className:'tsm',style:{marginBottom:12,lineHeight:1.7,color:'var(--text2)'}},
-            'Adicione as variáveis abaixo no arquivo ',
-            h('code',{style:{fontFamily:'monospace',fontSize:11,background:'var(--bg)',padding:'1px 5px',borderRadius:3}},'/opt/AsteriskIA/env/.env'),
-            ' e reinicie o container ',
-            h('code',{style:{fontFamily:'monospace',fontSize:11,background:'var(--bg)',padding:'1px 5px',borderRadius:3}},'agents-backend'),
-            '.'
+          h('div',{className:'fr'},
+            h('div',{className:'fg'},
+              h('label',null,'Habilitar IA'),
+              h('select',{value:form.AGENTS_LLM_ENABLED||'false',onChange:function(e){setF('AGENTS_LLM_ENABLED',e.target.value);}},
+                h('option',{value:'false'},'Nao — desabilitada (padrao)'),
+                h('option',{value:'true'},'Sim — habilitada')
+              ),
+              h('div',{className:'hint'},'Quando desabilitada, nenhuma chamada a IA e feita — zero custo.')
+            ),
+            h('div',{className:'fg'},
+              h('label',null,'Provedor ativo'),
+              h('select',{value:form.AGENTS_LLM_PROVIDER||'google',onChange:function(e){setF('AGENTS_LLM_PROVIDER',e.target.value);}},
+                providers.map(function(p){return h('option',{key:p.id,value:p.id},p.name);})
+              )
+            )
           ),
-          h('div',{style:{background:'#0f172a',borderRadius:6,padding:'12px 14px',fontFamily:'monospace',fontSize:12,lineHeight:1.8,color:'#e2e8f0',overflowX:'auto'}},
-            h('span',{style:{color:'#94a3b8'}},'# Habilita IA (opt-in — false por padrão)\n'),
-            'AGENTS_LLM_ENABLED=true\n',
-            h('span',{style:{color:'#94a3b8'}},'\n# Provedor: google | anthropic | openai | minimax | openai_compat\n'),
-            'AGENTS_LLM_PROVIDER=google\n',
-            h('span',{style:{color:'#94a3b8'}},'\n# Modelo do provedor escolhido\n'),
-            'AGENTS_LLM_MODEL=gemini-2.5-flash\n',
-            h('span',{style:{color:'#94a3b8'}},'\n# API key do provedor escolhido\n'),
-            'AGENTS_LLM_GOOGLE_KEY=AIza...\n',
-            h('span',{style:{color:'#94a3b8'}},'# AGENTS_LLM_ANTHROPIC_KEY=sk-ant-...\n'),
-            h('span',{style:{color:'#94a3b8'}},'# AGENTS_LLM_OPENAI_KEY=sk-...\n'),
-            h('span',{style:{color:'#94a3b8'}},'\n# Para habilitar IA em um agente específico, adicione nas rules:\n'),
-            h('span',{style:{color:'#94a3b8'}},'# {"use_ai_on_failure": true, ...outras regras...}\n')
+          h('div',{className:'fg'},
+            h('label',null,'Modelo ativo'),
+            h('div',{style:{display:'flex',gap:8}},
+              h('input',{value:form.AGENTS_LLM_MODEL||'',
+                onChange:function(e){setF('AGENTS_LLM_MODEL',e.target.value);},
+                placeholder:'gemini-2.5-flash'}),
+              currentProvider&&h('select',{
+                style:{width:220,flexShrink:0},
+                value:'',
+                onChange:function(e){if(e.target.value)setF('AGENTS_LLM_MODEL',e.target.value);}},
+                h('option',{value:''},'Modelos populares...'),
+                currentProvider.models.map(function(m){return h('option',{key:m,value:m},m);})
+              )
+            ),
+            h('div',{className:'hint'},'Digite o nome exato do modelo ou escolha um sugerido ao lado.')
           )
         )
       ),
 
-      h('div',{className:'section-title'},'Provedores disponíveis'),
-      providerCards
+      h('div',{className:'card',style:{marginBottom:14}},
+        h('div',{className:'ch'},h('span',{className:'cht'},'API Keys')),
+        h('div',{style:{padding:'14px 20px'}},
+          h('div',{className:'fr'},
+            h('div',{className:'fg'},
+              h('label',null,'Google Gemini'),
+              h('input',{type:'password',value:form.AGENTS_LLM_GOOGLE_KEY||'',
+                onChange:function(e){setF('AGENTS_LLM_GOOGLE_KEY',e.target.value);},
+                placeholder:'AIza...'})
+            ),
+            h('div',{className:'fg'},
+              h('label',null,'Anthropic Claude'),
+              h('input',{type:'password',value:form.AGENTS_LLM_ANTHROPIC_KEY||'',
+                onChange:function(e){setF('AGENTS_LLM_ANTHROPIC_KEY',e.target.value);},
+                placeholder:'sk-ant-...'})
+            )
+          ),
+          h('div',{className:'fr'},
+            h('div',{className:'fg'},
+              h('label',null,'OpenAI GPT'),
+              h('input',{type:'password',value:form.AGENTS_LLM_OPENAI_KEY||'',
+                onChange:function(e){setF('AGENTS_LLM_OPENAI_KEY',e.target.value);},
+                placeholder:'sk-...'})
+            ),
+            h('div',{className:'fg'},
+              h('label',null,'MiniMax Key'),
+              h('input',{type:'password',value:form.AGENTS_LLM_MINIMAX_KEY||'',
+                onChange:function(e){setF('AGENTS_LLM_MINIMAX_KEY',e.target.value);},
+                placeholder:'...'})
+            )
+          ),
+          h('div',{className:'fr'},
+            h('div',{className:'fg'},
+              h('label',null,'MiniMax Group ID'),
+              h('input',{value:form.AGENTS_LLM_MINIMAX_GROUP_ID||'',
+                onChange:function(e){setF('AGENTS_LLM_MINIMAX_GROUP_ID',e.target.value);},
+                placeholder:'...'})
+            ),
+            h('div',{className:'fg'})
+          )
+        )
+      ),
+
+      h('div',{className:'card',style:{marginBottom:14}},
+        h('div',{className:'ch'},h('span',{className:'cht'},'API Compativel OpenAI'),
+          h('span',{className:'txs tmut'},'Ollama, Groq, Together, LM Studio...')),
+        h('div',{style:{padding:'14px 20px'}},
+          h('div',{className:'fr'},
+            h('div',{className:'fg'},
+              h('label',null,'URL base'),
+              h('input',{value:form.AGENTS_LLM_COMPAT_URL||'',
+                onChange:function(e){setF('AGENTS_LLM_COMPAT_URL',e.target.value);},
+                placeholder:'http://localhost:11434/v1'})
+            ),
+            h('div',{className:'fg'},
+              h('label',null,'API Key (opcional)'),
+              h('input',{type:'password',value:form.AGENTS_LLM_COMPAT_KEY||'',
+                onChange:function(e){setF('AGENTS_LLM_COMPAT_KEY',e.target.value);},
+                placeholder:'ollama ou sk-...'})
+            )
+          ),
+          h('div',{className:'hint'},'Para usar Ollama local no VPS: URL = http://ollama:11434/v1  |  Key = ollama  |  Modelo = llama3.2')
+        )
+      ),
+
+      h('div',{style:{textAlign:'right',paddingBottom:24}},
+        h('button',{className:'btn btn-g btn-sm',onClick:runTest,disabled:testing,style:{marginRight:8}},
+          testing?'Testando...':'Testar conexao'),
+        h('button',{className:'btn btn-p',onClick:save,disabled:saving},
+          saving?'Salvando...':'Salvar configuracao')
+      )
     )
   );
 }
+
 
 function Root() {
   var authS=useState(getToken()); var token=authS[0]; var setToken=authS[1];
