@@ -75,6 +75,30 @@ textarea{resize:vertical;min-height:80px}
 .alertbar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:6px;font-size:13px;margin-bottom:14px;background:#dcfce7;color:#15803d;border:1px solid #bbf7d0}
 input[type=checkbox]{width:auto;margin-right:4px;cursor:pointer}
 .section-title{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text)}
+
+/* Login */
+.login-page{display:flex;align-items:center;justify-content:center;min-height:100vh;width:100%;background:#f0f4f8;background-image:radial-gradient(ellipse at 30% 40%,rgba(45,79,214,.07) 0%,transparent 50%),radial-gradient(ellipse at 70% 70%,rgba(59,130,246,.07) 0%,transparent 50%);padding:24px}
+.login-card{background:#fff;border:1px solid rgba(203,213,225,.8);border-radius:20px;padding:48px 40px;width:100%;max-width:420px;box-shadow:0 25px 80px rgba(0,0,0,.10);animation:slideUpL .3s ease}
+@keyframes slideUpL{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.login-logo{display:flex;align-items:center;gap:14px;margin-bottom:36px;justify-content:center}
+.login-logo-icon{width:52px;height:52px;background:linear-gradient(135deg,#2d4fd6,#3b82f6);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;color:#fff}
+.login-logo-text{font-size:1.4rem;font-weight:800;background:linear-gradient(135deg,#2d4fd6,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.login-logo-sub{font-size:11px;color:#718096;margin-top:2px;font-weight:400}
+.login-title{font-size:1.35rem;font-weight:700;color:#1a2340;text-align:center;margin-bottom:6px}
+.login-sub{font-size:.875rem;color:#475569;text-align:center;margin-bottom:28px}
+.login-field{margin-bottom:14px}
+.login-field label{display:block;font-size:12px;font-weight:600;color:#4a5568;margin-bottom:5px}
+.login-field input{width:100%;padding:10px 13px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;color:#1a2340;background:#fff;outline:none;transition:border .15s;font-family:inherit}
+.login-field input:focus{border-color:#2d4fd6;box-shadow:0 0 0 3px rgba(45,79,214,.12)}
+.login-btn{width:100%;padding:13px;font-size:.925rem;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#2d4fd6,#3b82f6);border:none;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;transition:all .2s;box-shadow:0 4px 20px rgba(45,79,214,.2);margin-top:20px;font-family:inherit}
+.login-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 30px rgba(45,79,214,.25)}
+.login-btn:disabled{opacity:.6;cursor:not-allowed}
+.login-err{background:rgba(252,129,129,.1);border:1px solid rgba(252,129,129,.3);border-radius:8px;padding:11px 14px;color:#ef4444;font-size:.855rem;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.login-spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.totp-input{letter-spacing:.3em;font-size:1.4rem;text-align:center}
+.login-back{width:100%;margin-top:10px;padding:10px;background:transparent;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#4a5568;cursor:pointer;font-family:inherit;transition:background .15s}
+.login-back:hover{background:#f8fafc}
+.login-footer{text-align:center;margin-top:24px;font-size:.75rem;color:#718096}
 </style>
 </head>
 <body>
@@ -82,6 +106,116 @@ input[type=checkbox]{width:auto;margin-right:4px;cursor:pointer}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script>
+
+var TELECOM_API = window.TELECOM_API || '/api/v1';
+var TOKEN_KEY   = 'asteriskia_token';
+var REFRESH_KEY = 'asteriskia_refresh_token';
+var USER_KEY    = 'asteriskia_user';
+function getToken(){ return localStorage.getItem(TOKEN_KEY); }
+function getUser() { return localStorage.getItem(USER_KEY)||''; }
+function clearAuth(){ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(REFRESH_KEY); localStorage.removeItem(USER_KEY); }
+
+function Login(props) {
+  var onLogin = props.onLogin;
+  var usS=useState('');   var username=usS[0];   var setUsername=usS[1];
+  var pwS=useState('');   var password=pwS[0];   var setPassword=pwS[1];
+  var errS=useState('');  var error=errS[0];     var setError=errS[1];
+  var ldS=useState(false);var loading=ldS[0];    var setLoading=ldS[1];
+  var t2S=useState(false);var needTotp=t2S[0];   var setNeedTotp=t2S[1];
+  var tmpS=useState('');  var tempToken=tmpS[0]; var setTempToken=tmpS[1];
+  var dnS=useState('');   var dispName=dnS[0];   var setDispName=dnS[1];
+  var codeS=useState(''); var totpCode=codeS[0]; var setTotpCode=codeS[1];
+
+  function doLogin(e) {
+    e.preventDefault(); setError(''); setLoading(true);
+    fetch(TELECOM_API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:username,password:password})})
+    .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+    .then(function(res){
+      if(!res.ok){setError(res.data.message||res.data.error||'Credenciais invalidas.');return;}
+      var d=res.data;
+      if(d.requiresTotp&&d.tempToken){setTempToken(d.tempToken);setDispName(d.displayName||username);setNeedTotp(true);return;}
+      localStorage.setItem(TOKEN_KEY,d.token);
+      localStorage.setItem(REFRESH_KEY,d.refreshToken||'');
+      localStorage.setItem(USER_KEY,username);
+      onLogin(d.token,username);
+    })
+    .catch(function(){setError('Erro de conexao.');})
+    .finally(function(){setLoading(false);});
+  }
+
+  function doTotp(e) {
+    e.preventDefault(); setError(''); setLoading(true);
+    fetch(TELECOM_API+'/auth/totp/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tempToken:tempToken,code:totpCode.replace(/\s/g,'')})})
+    .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+    .then(function(res){
+      if(!res.ok){setError(res.data.error||'Codigo invalido.');setTotpCode('');return;}
+      var d=res.data;
+      localStorage.setItem(TOKEN_KEY,d.token);
+      localStorage.setItem(REFRESH_KEY,d.refreshToken||'');
+      localStorage.setItem(USER_KEY,username);
+      onLogin(d.token,username);
+    })
+    .catch(function(){setError('Erro ao verificar.');})
+    .finally(function(){setLoading(false);});
+  }
+
+  var logoEl = h('div',{className:'login-logo'},
+    h('div',{className:'login-logo-icon'},'A★'),
+    h('div',null,
+      h('div',{className:'login-logo-text'},'AsteriskIA'),
+      h('div',{className:'login-logo-sub'},'Agentes')
+    )
+  );
+  var errEl = error ? h('div',{className:'login-err'},h('span',null,'⚠'),h('span',null,error)) : null;
+
+  if(!needTotp){
+    return h('div',{className:'login-page'},
+      h('div',{className:'login-card'},
+        logoEl,
+        h('h1',{className:'login-title'},'Bem-vindo de volta'),
+        h('p',{className:'login-sub'},'Acesse a plataforma de agentes autonomos'),
+        errEl,
+        h('form',{onSubmit:doLogin},
+          h('div',{className:'login-field'},h('label',null,'Usuario'),h('input',{type:'text',value:username,placeholder:'admin',autoComplete:'username',required:true,onChange:function(e){setUsername(e.target.value);}})),
+          h('div',{className:'login-field'},h('label',null,'Senha'),h('input',{type:'password',value:password,placeholder:'........',autoComplete:'current-password',required:true,onChange:function(e){setPassword(e.target.value);}})),
+          h('button',{type:'submit',className:'login-btn',disabled:loading},
+            loading?h('span',{className:'login-spinner'}):null,
+            loading?'Autenticando...':'Entrar no sistema')
+        ),
+        h('p',{className:'login-footer'},'AsteriskIA Telecom + Agentes')
+      )
+    );
+  }
+
+  return h('div',{className:'login-page'},
+    h('div',{className:'login-card'},
+      logoEl,
+      h('h1',{className:'login-title'},'Verificacao em 2 etapas'),
+      h('p',{className:'login-sub'},'Ola, '+dispName+'! Insira o codigo do autenticador.'),
+      errEl,
+      h('form',{onSubmit:doTotp},
+        h('div',{className:'login-field'},h('label',null,'Codigo'),h('input',{type:'text',inputMode:'numeric',pattern:'[0-9 ]*',maxLength:7,className:'totp-input',placeholder:'000 000',autoComplete:'one-time-code',autoFocus:true,value:totpCode,onChange:function(e){setTotpCode(e.target.value);},required:true})),
+        h('button',{type:'submit',className:'login-btn',disabled:loading||totpCode.replace(/\s/g,'').length<6},
+          loading?h('span',{className:'login-spinner'}):null,
+          loading?'Verificando...':'Verificar codigo'
+        ),
+        h('button',{type:'button',className:'login-back',onClick:function(){setNeedTotp(false);setTempToken('');setTotpCode('');setError('');}},'← Voltar ao login')
+      ),
+      h('p',{className:'login-footer'},'AsteriskIA Telecom + Agentes')
+    )
+  );
+}
+
+function Root() {
+  var authS=useState(getToken()); var token=authS[0]; var setToken=authS[1];
+  var userS=useState(getUser());  var user=userS[0];  var setUser=userS[1];
+  function onLogin(tok,usr){setToken(tok);setUser(usr);}
+  function onLogout(){clearAuth();setToken(null);setUser('');}
+  if(!token){return h(Login,{onLogin:onLogin});}
+  return h(App,{onLogout:onLogout,user:user});
+}
+
+
 'use strict';
 const {useState, useEffect, useRef, createElement: h} = React;
 const API = window.AGENTS_API || '';
@@ -814,14 +948,20 @@ function App() {
 
   return h('div',{style:{display:'flex',width:'100%',height:'100vh'}},
     h('aside',{className:'sidebar'},
-      h('div',{className:'slogo'},h('h1',null,'AsteriskIA'),h('span',null,'Plataforma de Agentes')),
+      h('div',{className:'slogo'},
+        h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}},
+          h('div',null,h('h1',null,'AsteriskIA'),h('span',null,'Agentes')),
+          h('button',{title:'Sair',onClick:props.onLogout,style:{background:'none',border:'none',cursor:'pointer',color:'rgba(255,255,255,.45)',padding:'4px',borderRadius:4,lineHeight:0}},h(Ico,{n:'x',s:14}))
+        ),
+        props.user&&h('div',{style:{marginTop:4,fontSize:11,color:'rgba(255,255,255,.3)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},props.user)
+      ),
       h('nav',null,h('div',{className:'nlabel'},'Plataforma'),navItems)
     ),
     h('div',{className:'main'}, pages[page] || null)
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+ReactDOM.createRoot(document.getElementById('root')).render(h(Root));
 </script>
 </body>
 </html>
