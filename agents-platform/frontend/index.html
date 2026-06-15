@@ -824,7 +824,7 @@ var NAV = [
   {id:'reports',   label:'Alertas',            icon:'reports'}
 ];
 
-function App() {
+function App(props) {
   var pgState  = useState('dashboard');
   var page     = pgState[0];
   var setPage  = pgState[1];
