@@ -46,17 +46,15 @@ RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
     # Verificar se res_srtp vai ser compilado
     grep -i srtp config.log | tail -5 && \
     make menuselect/menuselect menuselect-tree menuselect.makeopts && \
-    echo '=== AUDIOSOCKET ===' && grep -i audiosocket menuselect-tree || true && \
-    echo '=== ENDPOINT_IDENTIFIER ===' && grep -i endpoint_identifier menuselect-tree || true && \
-    echo '=== SRTP ===' && grep -i 'res_srtp' menuselect-tree || true && \
-    echo '=== PJSIP ===' && grep -i 'res_pjsip[^_]\|chan_pjsip\|res_pjsip_session' menuselect-tree || true && \
     menuselect/menuselect \
+        --enable res_audiosocket \
         --enable app_audiosocket \
         --enable res_srtp \
         --enable res_pjsip \
         --enable res_pjsip_session \
         --enable chan_pjsip \
         --enable res_pjsip_endpoint_identifier_user \
+        --enable res_pjsip_endpoint_identifier_ip \
         --enable app_mixmonitor \
         --enable app_playback \
         --enable app_record \
@@ -66,7 +64,6 @@ RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
         --enable pbx_config \
         --enable res_musiconhold \
         menuselect.makeopts && \
-    echo '=== menuselect OK ===' && \
     make -j$(nproc) && \
     make install
 
