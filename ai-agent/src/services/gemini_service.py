@@ -145,6 +145,28 @@ def _execute_tool(tool_name: str, args: dict[str, Any]) -> str:
     return json.dumps({"erro": f"Função '{tool_name}' não reconhecida."})
 
 
+# Singleton do cliente Gemini — compartilhado entre todas as chamadas do processo.
+# Evita overhead de criação de sessão HTTP a cada instância de GeminiService
+# e o erro "Cannot send a request, as the client has been closed".
+_gemini_client_instance: "genai.Client | None" = None
+_gemini_client_api_key: str = ""
+
+
+def _get_global_client() -> genai.Client:
+    """Retorna o cliente Gemini singleton do processo, recriando apenas se a API key mudar."""
+    global _gemini_client_instance, _gemini_client_api_key
+    api_key = get_gemini_api_key()
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY não configurada. Acesse Settings → Google Gemini para configurar."
+        )
+    if _gemini_client_instance is None or _gemini_client_api_key != api_key:
+        _gemini_client_instance = genai.Client(api_key=api_key)
+        _gemini_client_api_key = api_key
+        logger.info("Cliente Gemini (re)criado — API key atualizada.")
+    return _gemini_client_instance
+
+
 class GeminiService:
     """
     Serviço centralizado de IA usando Google Gemini.
@@ -156,24 +178,9 @@ class GeminiService:
       - generate_response_with_tools(system: str, history: list) -> str  [com Function Calling]
     """
 
-    def __init__(self):
-        self._client_instance = None
-        self._last_api_key = None
-
     def _client(self) -> genai.Client:
-        """Cria ou retorna o cliente Gemini reutilizando a instância para evitar que o garbage collector feche o cliente HTTP."""
-        api_key = get_gemini_api_key()
-        if not api_key:
-            raise RuntimeError(
-                "GEMINI_API_KEY não configurada. Acesse Settings → Google Gemini para configurar."
-            )
-        
-        # Se a API key mudou ou o cliente ainda não foi criado, cria um novo
-        if self._client_instance is None or self._last_api_key != api_key:
-            self._client_instance = genai.Client(api_key=api_key)
-            self._last_api_key = api_key
-            
-        return self._client_instance
+        """Retorna o cliente Gemini singleton do processo."""
+        return _get_global_client()
 
     async def transcribe(self, pcm_data: bytes) -> str:
         """

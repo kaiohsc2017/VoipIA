@@ -87,7 +87,7 @@ async def read_frame(reader: asyncio.StreamReader) -> AudiosocketFrame | None:
     return AudiosocketFrame(msg_type, payload)
 
 
-async def write_audio(writer: asyncio.StreamWriter, pcm_data: bytes) -> None:
+async def write_audio(writer: asyncio.StreamWriter, pcm_data: bytes) -> bool:
     """
     Envia um frame de áudio PCM de volta para o Asterisk via Audiosocket.
 
@@ -97,8 +97,14 @@ async def write_audio(writer: asyncio.StreamWriter, pcm_data: bytes) -> None:
     Args:
         writer: asyncio.StreamWriter conectado ao Asterisk
         pcm_data: Bytes de áudio PCM a enviar
+
+    Returns:
+        True se enviado com sucesso, False se a conexão foi encerrada pelo Asterisk.
     """
     FRAME_SIZE = 320  # 20ms a 8kHz/16bit
+
+    if writer.is_closing():
+        return False
 
     # Quebra o áudio em frames de 320 bytes
     for i in range(0, len(pcm_data), FRAME_SIZE):
@@ -113,4 +119,8 @@ async def write_audio(writer: asyncio.StreamWriter, pcm_data: bytes) -> None:
         frame = bytes([MSG_TYPE_AUDIO]) + length_bytes + chunk
         writer.write(frame)
 
-    await writer.drain()
+    try:
+        await writer.drain()
+        return True
+    except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError):
+        return False

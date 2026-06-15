@@ -101,11 +101,16 @@ async def handle_connection(
 
         await flow.execute()
 
+    except (BrokenPipeError, ConnectionResetError):
+        logger.warning(f"Conexão encerrada pelo Asterisk | UUID: {call_uuid}")
     except Exception as e:
         logger.error(f"Erro na chamada {call_uuid}: {e}", exc_info=True)
     finally:
-        writer.close()
-        await writer.wait_closed()
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # Asterisk já encerrou a conexão — esperado
         logger.info(f"Conexão encerrada | UUID: {call_uuid}")
 
 

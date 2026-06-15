@@ -130,16 +130,31 @@ class JiraCallFlow:
         logger.debug(f"[{self.call_uuid}] STT resultado: '{transcription}'")
         return transcription
 
-    async def _speak(self, text: str) -> None:
-        """Converte texto em áudio (TTS) e envia ao Asterisk."""
+    async def _speak(self, text: str) -> bool:
+        """
+        Converte texto em áudio (TTS) e envia ao Asterisk.
+
+        Returns:
+            True se enviado com sucesso, False se a conexão foi encerrada.
+        """
+        if self.writer.is_closing():
+            return False
         try:
             audio_pcm = await self.gemini.synthesize_speech(text)
-            await write_audio(self.writer, audio_pcm)
+            sent = await write_audio(self.writer, audio_pcm)
+            if not sent:
+                logger.warning(f"[{self.call_uuid}] Conexão encerrada durante TTS — abortando fala.")
+                return False
             words = len(text.split())
             estimated_secs = max(1.0, words / 3.0)
             await asyncio.sleep(estimated_secs)
+            return True
+        except (BrokenPipeError, ConnectionResetError):
+            logger.warning(f"[{self.call_uuid}] Pipe quebrado durante TTS — cliente desligou.")
+            return False
         except Exception as e:
             logger.error(f"[{self.call_uuid}] Erro TTS: {e}")
+            return False
 
     async def _capture_audio(
         self,
