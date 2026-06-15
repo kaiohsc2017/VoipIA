@@ -4,7 +4,7 @@
 # Uso: docker-compose up -d
 # =============================================================
 
-version: '3.9'
+
 
 networks:
   asteriskia-net:
