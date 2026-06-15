@@ -18,10 +18,10 @@ nav{flex:1;padding:12px 0}
 .nitem{display:flex;align-items:center;gap:9px;padding:9px 18px;color:rgba(255,255,255,.65);font-size:13px;font-weight:500;cursor:pointer;border-left:2px solid transparent;transition:all .15s}
 .nitem:hover{color:#fff;background:rgba(255,255,255,.06)}
 .nitem.on{color:#fff;background:rgba(255,255,255,.1);border-left-color:#60a5fa}
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0}
-.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0;height:100vh}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:10}
 .tbtitle{font-size:15px;font-weight:600}
-.content{flex:1;overflow-y:auto;padding:24px;min-height:0}
+.content{flex:1;overflow-y:auto;padding:24px;min-height:0;box-sizing:border-box}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 1px 3px rgba(0,0,0,.07);margin-bottom:16px}
 .ch{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .cht{font-size:14px;font-weight:600}
@@ -292,7 +292,10 @@ function Dashboard() {
     )
   );
 
-  return h('div', null, statCards, recentTable, periodTable);
+  return h('div',null,
+    h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Dashboard')),
+    h('div',{className:'content'}, statCards, recentTable, periodTable)
+  );
 }
 
 // ── LOG MODAL ─────────────────────────────────────────────────────────────────
@@ -959,7 +962,11 @@ function App(props) {
       ),
       h('nav',null,h('div',{className:'nlabel'},'Plataforma'),navItems)
     ),
-    h('div',{className:'main'}, pages[page] || null)
+    h('div',{className:'main'},
+      h('div',{style:{flex:1,display:'flex',flexDirection:'column',minHeight:0,overflow:'hidden'}},
+        pages[page] || null
+      )
+    )
   );
 }
 
