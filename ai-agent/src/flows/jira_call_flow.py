@@ -132,11 +132,12 @@ class JiraCallFlow:
 
     async def _speak(self, text: str) -> bool:
         """
-        Converte texto em áudio (TTS) e envia ao Asterisk.
+        Converte texto em áudio (TTS) e envia ao Asterisk via streaming.
 
-        Mantém o AudioSocket vivo durante a geração do TTS (pode levar 5-10s)
-        enviando frames de silêncio em paralelo. Sem isso, o Asterisk encerra
-        a chamada por timeout de inatividade.
+        Usa synthesize_speech_streaming — envia chunks de áudio conforme
+        chegam do Gemini (~800ms para o primeiro byte vs 7s bloqueante).
+        O keep_alive_silence não é mais necessário aqui porque o próprio
+        áudio streamed mantém o AudioSocket ativo.
 
         Returns:
             True se enviado com sucesso, False se a conexão foi encerrada.
@@ -144,23 +145,13 @@ class JiraCallFlow:
         if self.writer.is_closing():
             return False
         try:
-            # Inicia keep-alive de silêncio enquanto o Gemini gera o TTS
-            stop_silence = asyncio.Event()
-            silence_task = asyncio.create_task(
-                keep_alive_silence(self.writer, stop_silence)
-            )
-            try:
-                audio_pcm = await self.gemini.synthesize_speech(text)
-            finally:
-                stop_silence.set()
-                await silence_task
-
-            sent = await write_audio(self.writer, audio_pcm)
+            sent = await self.gemini.synthesize_speech_streaming(text, self.writer)
             if not sent:
                 logger.warning(f"[{self.call_uuid}] Conexão encerrada durante TTS — abortando fala.")
                 return False
+            # Pausa proporcional ao texto para o usuário ouvir antes de capturar
             words = len(text.split())
-            estimated_secs = max(1.0, words / 3.0)
+            estimated_secs = max(0.5, words / 4.0)
             await asyncio.sleep(estimated_secs)
             return True
         except (BrokenPipeError, ConnectionResetError):
