@@ -96,6 +96,9 @@ async def keep_alive_silence(writer: asyncio.StreamWriter, stop_event: asyncio.E
     de inatividade (~1-2s sem receber áudio de volta).
 
     Frame: 320 bytes de zeros = 20ms de silêncio a 8kHz/16bit.
+
+    Nota: drain() com timeout de 1s evita bloqueio quando o Asterisk
+    demora a consumir o buffer — situação comum durante handshake DTLS/ICE.
     """
     SILENCE_FRAME = bytes([MSG_TYPE_AUDIO]) + struct.pack(">H", 320) + b"\x00" * 320
     INTERVAL = 0.02  # 20ms — mesma cadência do RTP
@@ -105,8 +108,12 @@ async def keep_alive_silence(writer: asyncio.StreamWriter, stop_event: asyncio.E
             break
         try:
             writer.write(SILENCE_FRAME)
-            await writer.drain()
-        except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError):
+            # drain com timeout: não bloqueia indefinidamente se o buffer travar
+            await asyncio.wait_for(writer.drain(), timeout=1.0)
+        except asyncio.TimeoutError:
+            # Buffer cheio — Asterisk lento, mas conexão ainda viva; continua
+            pass
+        except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError, OSError):
             break
         await asyncio.sleep(INTERVAL)
 
