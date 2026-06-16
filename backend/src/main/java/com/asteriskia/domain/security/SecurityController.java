@@ -582,7 +582,7 @@ public class SecurityController {
 
     private List<String> tailAsteriskLog(int lines) throws IOException, InterruptedException {
         ProcessBuilder pb = new ProcessBuilder(
-            "docker", "exec", "apptelecom-asterisk",
+            "docker", "exec", "asteriskia-asterisk",
             "tail", "-n", String.valueOf(lines), "/var/log/asterisk/full");
         pb.redirectErrorStream(true);
         Process p = pb.start();

@@ -49,9 +49,9 @@ public class LogsController {
     private static final int SSE_TIMEOUT = (int) TimeUnit.MINUTES.toMillis(30);
 
     private static final List<String> ALL_SERVICES = List.of(
-        "apptelecom-backend", "apptelecom-asterisk", "apptelecom-ai-agent",
-        "apptelecom-scheduler", "apptelecom-frontend", "apptelecom-postgres",
-        "apptelecom-prometheus", "apptelecom-grafana"
+        "asteriskia-backend", "asteriskia-asterisk", "asteriskia-ai-agent",
+        "asteriskia-scheduler", "asteriskia-frontend", "asteriskia-postgres",
+        "asteriskia-prometheus", "asteriskia-grafana"
     );
 
     // ── Docker snapshot ───────────────────────────────────────────────────────
@@ -252,7 +252,7 @@ public class LogsController {
         Thread.ofVirtual().name("log-stream-asterisk").start(() -> {
             try {
                 ProcessBuilder pb = new ProcessBuilder(
-                    "docker","exec","apptelecom-asterisk",
+                    "docker","exec","asteriskia-asterisk",
                     "tail","-F","-n","50","/var/log/asterisk/full");
                 pb.redirectErrorStream(true);
                 Process proc = pb.start();
@@ -314,7 +314,7 @@ public class LogsController {
 
     private List<String> tailAsteriskLog(int lines) throws IOException, InterruptedException {
         ProcessBuilder pb = new ProcessBuilder(
-            "docker","exec","apptelecom-asterisk","tail","-n",String.valueOf(lines),"/var/log/asterisk/full");
+            "docker","exec","asteriskia-asterisk","tail","-n",String.valueOf(lines),"/var/log/asterisk/full");
         pb.redirectErrorStream(true);
         Process p = pb.start();
         List<String> out = new ArrayList<>();

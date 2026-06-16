@@ -12,7 +12,7 @@ echo "[AsteriskIA] Iniciando build customizado do Asterisk..."
 cd "$(dirname "$0")"
 
 # Limpa imagem antiga (se existir)
-docker rmi apptelecom-asterisk 2>/dev/null || true
+docker rmi asteriskia-asterisk 2>/dev/null || true
 
 # Build
 docker compose build --no-cache asterisk
