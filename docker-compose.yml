@@ -25,9 +25,9 @@ services:
   # -----------------------------------------------------------
   # PostgreSQL 16 — Banco de dados principal
   # -----------------------------------------------------------
-  postgres:
+  apptelecom-postgres:
     image: postgres:16-alpine
-    container_name: asteriskia-postgres
+    container_name: apptelecom-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -50,14 +50,14 @@ services:
   # -----------------------------------------------------------
   # Asterisk 21 LTS — PBX principal
   # -----------------------------------------------------------
-  asterisk:
+  apptelecom-asterisk:
     build:
       context: ./asterisk
       dockerfile: Dockerfile
-    container_name: asteriskia-asterisk
+    container_name: apptelecom-asterisk
     restart: unless-stopped
     depends_on:
-      postgres:
+      apptelecom-postgres:
         condition: service_healthy
     environment:
       AST_AMI_USER: ${AST_AMI_USER}
@@ -90,11 +90,11 @@ services:
   # Agente de IA — Python Audiosocket Server
   # Processa áudio das chamadas: STT → LLM → TTS via Gemini
   # -----------------------------------------------------------
-  ai-agent:
+  apptelecom-ai-agent:
     build:
       context: ./ai-agent
       dockerfile: Dockerfile
-    container_name: asteriskia-ai-agent
+    container_name: apptelecom-ai-agent
     restart: unless-stopped
     depends_on:
       - asterisk
@@ -106,7 +106,7 @@ services:
       GEMINI_MODEL_LLM: ${GEMINI_MODEL_LLM}
       GEMINI_MODEL_TTS: ${GEMINI_MODEL_TTS}
       # CRÍTICO: Deve usar a porta interna 8080 do container backend, não a porta exposta no host (8081)
-      BACKEND_URL: http://backend:8080
+      BACKEND_URL: http://apptelecom-backend:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH}
       DOTENV_PATH: /opt/asteriskia/env/.env
@@ -124,16 +124,16 @@ services:
   # Motor de agendamento para Módulo 2 (testes de conectividade)
   # e Módulo 3 (polling Zabbix)
   # -----------------------------------------------------------
-  scheduler:
+  apptelecom-scheduler:
     build:
       context: ./scheduler
       dockerfile: Dockerfile
-    container_name: asteriskia-scheduler
+    container_name: apptelecom-scheduler
     restart: unless-stopped
     depends_on:
-      postgres:
+      apptelecom-postgres:
         condition: service_healthy
-      asterisk:
+      apptelecom-asterisk:
         condition: service_healthy
     environment:
       AST_AMI_HOST: asterisk
@@ -141,7 +141,7 @@ services:
       AST_AMI_USER: ${AST_AMI_USER}
       AST_AMI_PASSWORD: ${AST_AMI_PASSWORD}
       # CRÍTICO: Deve usar a porta interna 8080 do container backend, não a porta exposta no host (8081)
-      BACKEND_URL: http://backend:8080
+      BACKEND_URL: http://apptelecom-backend:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -163,14 +163,14 @@ services:
   # Backend — Spring Boot 3 (WAR no Tomcat 11 embutido)
   # API REST principal do sistema
   # -----------------------------------------------------------
-  backend:
+  apptelecom-backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: asteriskia-backend
+    container_name: apptelecom-backend
     restart: unless-stopped
     depends_on:
-      postgres:
+      apptelecom-postgres:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
@@ -229,7 +229,7 @@ services:
   # -----------------------------------------------------------
   # Frontend — React SPA servida por Nginx
   # -----------------------------------------------------------
-  frontend:
+  apptelecom-frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -238,22 +238,22 @@ services:
         VITE_ASTERISK_WS: ${VITE_ASTERISK_WS:-ws://localhost:8088/ws}
         VITE_SIP_URI: ${VITE_SIP_URI:-sip:9001@localhost}
         VITE_SIP_PASSWORD: ${VITE_SIP_PASSWORD:-webrtc9001pass}
-    container_name: asteriskia-frontend
+    container_name: apptelecom-frontend
     restart: unless-stopped
     depends_on:
-      backend:
+      apptelecom-backend:
         condition: service_healthy
     # Sem mapeamento de porta no host — o Caddy acessa via rede Docker interna
-    # (asteriskia-frontend:80). Expor 80:80 conflitaria com o caddy-proxy.
+    # (apptelecom-frontend:80). Expor 80:80 conflitaria com o caddy-proxy.
     networks:
       - asteriskia-net
 
   # -----------------------------------------------------------
   # Prometheus — Coleta de métricas
   # -----------------------------------------------------------
-  prometheus:
+  apptelecom-prometheus:
     image: prom/prometheus:latest
-    container_name: asteriskia-prometheus
+    container_name: apptelecom-prometheus
     restart: unless-stopped
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -272,18 +272,18 @@ services:
   # flood). Roda com network_mode: host para acessar o iptables
   # real do kernel. Monitora /var/log/asterisk/full via volume.
   # -----------------------------------------------------------
-  security:
+  apptelecom-security:
     build:
       context: ./security
       dockerfile: Dockerfile
-    container_name: asteriskia-security
+    container_name: apptelecom-security
     restart: unless-stopped
     network_mode: host
     cap_add:
       - NET_ADMIN
       - NET_RAW
     depends_on:
-      asterisk:
+      apptelecom-asterisk:
         condition: service_healthy
     environment:
       ASTERISK_LOG_FILE: /var/log/asterisk/full
@@ -305,9 +305,9 @@ services:
   # -----------------------------------------------------------
   # Grafana — Dashboards de monitoração
   # -----------------------------------------------------------
-  grafana:
+  apptelecom-grafana:
     image: grafana/grafana:latest
-    container_name: asteriskia-grafana
+    container_name: apptelecom-grafana
     restart: unless-stopped
     depends_on:
       - prometheus
@@ -331,9 +331,9 @@ services:
   # -----------------------------------------------------------
   # PostgreSQL exclusivo dos agentes (banco separado do Telecom)
   # -----------------------------------------------------------
-  agents-postgres:
+  appagents-postgres:
     image: postgres:16-alpine
-    container_name: asteriskia-agents-db
+    container_name: appagents-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB:       agentsdb
@@ -352,14 +352,14 @@ services:
   # -----------------------------------------------------------
   # Backend FastAPI — API dos agentes
   # -----------------------------------------------------------
-  agents-backend:
+  appagents-backend:
     build:
       context: ./agents-platform/backend
       dockerfile: Dockerfile
-    container_name: asteriskia-agents-api
+    container_name: appagents-backend
     restart: unless-stopped
     depends_on:
-      agents-postgres:
+      appagents-postgres:
         condition: service_healthy
     environment:
       AGENTS_DB_HOST:     agents-postgres
@@ -396,9 +396,9 @@ services:
   # -----------------------------------------------------------
   # Frontend estático dos agentes (nginx serve o index.html)
   # -----------------------------------------------------------
-  agents-frontend:
+  appagents-frontend:
     image: nginx:alpine
-    container_name: asteriskia-agents-ui
+    container_name: appagents-frontend
     restart: unless-stopped
     volumes:
       - ./agents-platform/frontend:/usr/share/nginx/html:ro

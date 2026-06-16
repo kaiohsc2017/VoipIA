@@ -18,7 +18,7 @@ scrape_configs:
 
   # --- Spring Boot Actuator (backend Java) ---
   # Endpoint: /actuator/prometheus (habilitado via micrometer-registry-prometheus)
-  - job_name: 'asteriskia-backend'
+  - job_name: 'apptelecom-backend'
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['backend:8080']

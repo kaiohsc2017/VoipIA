@@ -10,8 +10,8 @@ BACKEND_DIR="$APP_DIR/backend"
 FRONTEND_DIR="$APP_DIR/frontend"
 FRONTEND_DIST="$FRONTEND_DIR/dist"
 NGINX_WEBROOT="/var/www/asteriskia"   # ajuste se necessário
-BACKEND_SERVICE="asteriskia-backend"
-JAVA_JAR="$BACKEND_DIR/target/asteriskia-backend-*.jar"
+BACKEND_SERVICE="apptelecom-backend"
+JAVA_JAR="$BACKEND_DIR/target/apptelecom-backend-*.jar"
 
 echo "======================================================"
 echo "  Deploy AsteriskIA — $(date '+%d/%m/%Y %H:%M:%S')"
