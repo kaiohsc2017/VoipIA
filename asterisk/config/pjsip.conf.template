@@ -19,10 +19,10 @@ keep_alive_interval = 90
 type = transport
 protocol = udp
 bind = 0.0.0.0:5060
-; Externaliza IPs para funcionamento correto em NAT/Cloud
-; Ajuste os valores conforme o ambiente de deploy
-; external_media_address = SEU_IP_PUBLICO
-; external_signaling_address = SEU_IP_PUBLICO
+; IP público do VPS — necessário para NAT/Cloud (Docker isola o container)
+; Injetado via SIP_PUBLIC_IP no .env
+external_media_address = ${SIP_PUBLIC_IP}
+external_signaling_address = ${SIP_PUBLIC_IP}
 local_net = 172.16.0.0/12
 local_net = 10.0.0.0/8
 local_net = 192.168.0.0/16
@@ -164,6 +164,8 @@ dtls_auto_generate_cert = yes
 use_avpf = yes
 media_encryption = dtls
 ice_support = yes
+; STUN público para ICE — necessário para WebRTC funcionar atrás de NAT/Docker
+; O browser e o Asterisk usam o STUN para descobrir o IP público nos candidatos ICE
 rtcp_mux = yes
 force_rport = yes
 rewrite_contact = yes
