@@ -87,6 +87,30 @@ async def read_frame(reader: asyncio.StreamReader) -> AudiosocketFrame | None:
     return AudiosocketFrame(msg_type, payload)
 
 
+async def keep_alive_silence(writer: asyncio.StreamWriter, stop_event: asyncio.Event) -> None:
+    """
+    Envia frames de silêncio (PCM zero) continuamente até stop_event ser setado.
+
+    Usado para manter o AudioSocket vivo enquanto operações lentas (TTS, STT)
+    estão em andamento. Sem isso, o Asterisk encerra a chamada por timeout
+    de inatividade (~1-2s sem receber áudio de volta).
+
+    Frame: 320 bytes de zeros = 20ms de silêncio a 8kHz/16bit.
+    """
+    SILENCE_FRAME = bytes([MSG_TYPE_AUDIO]) + struct.pack(">H", 320) + b"\x00" * 320
+    INTERVAL = 0.02  # 20ms — mesma cadência do RTP
+
+    while not stop_event.is_set():
+        if writer.is_closing():
+            break
+        try:
+            writer.write(SILENCE_FRAME)
+            await writer.drain()
+        except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError):
+            break
+        await asyncio.sleep(INTERVAL)
+
+
 async def write_audio(writer: asyncio.StreamWriter, pcm_data: bytes) -> bool:
     """
     Envia um frame de áudio PCM de volta para o Asterisk via Audiosocket.

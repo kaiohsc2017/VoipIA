@@ -12,7 +12,7 @@ pela tela Fluxo URA sem necessidade de redeploy.
 
 import asyncio
 import logging
-from src.protocol import read_frame, write_audio
+from src.protocol import read_frame, write_audio, keep_alive_silence
 from src.services.gemini_service import GeminiService
 from src.services import backend_client as bc
 
@@ -134,13 +134,27 @@ class JiraCallFlow:
         """
         Converte texto em áudio (TTS) e envia ao Asterisk.
 
+        Mantém o AudioSocket vivo durante a geração do TTS (pode levar 5-10s)
+        enviando frames de silêncio em paralelo. Sem isso, o Asterisk encerra
+        a chamada por timeout de inatividade.
+
         Returns:
             True se enviado com sucesso, False se a conexão foi encerrada.
         """
         if self.writer.is_closing():
             return False
         try:
-            audio_pcm = await self.gemini.synthesize_speech(text)
+            # Inicia keep-alive de silêncio enquanto o Gemini gera o TTS
+            stop_silence = asyncio.Event()
+            silence_task = asyncio.create_task(
+                keep_alive_silence(self.writer, stop_silence)
+            )
+            try:
+                audio_pcm = await self.gemini.synthesize_speech(text)
+            finally:
+                stop_silence.set()
+                await silence_task
+
             sent = await write_audio(self.writer, audio_pcm)
             if not sent:
                 logger.warning(f"[{self.call_uuid}] Conexão encerrada durante TTS — abortando fala.")
