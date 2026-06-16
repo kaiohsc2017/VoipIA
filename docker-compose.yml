@@ -97,8 +97,8 @@ services:
     container_name: apptelecom-ai-agent
     restart: unless-stopped
     depends_on:
-      - asterisk
-      - postgres
+      - apptelecom-asterisk
+      - apptelecom-postgres
     environment:
       AUDIOSOCKET_PORT: ${AUDIOSOCKET_PORT:-9092}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
@@ -136,7 +136,7 @@ services:
       apptelecom-asterisk:
         condition: service_healthy
     environment:
-      AST_AMI_HOST: asterisk
+      AST_AMI_HOST: apptelecom-asterisk
       AST_AMI_PORT: ${AST_AMI_PORT:-5038}
       AST_AMI_USER: ${AST_AMI_USER}
       AST_AMI_PASSWORD: ${AST_AMI_PASSWORD}
@@ -188,7 +188,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH}
-      AST_AMI_HOST: asterisk
+      AST_AMI_HOST: apptelecom-asterisk
       AST_AMI_PORT: ${AST_AMI_PORT:-5038}
       AST_AMI_USER: ${AST_AMI_USER}
       AST_AMI_PASSWORD: ${AST_AMI_PASSWORD}
@@ -310,7 +310,7 @@ services:
     container_name: apptelecom-grafana
     restart: unless-stopped
     depends_on:
-      - prometheus
+      - apptelecom-prometheus
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
@@ -362,7 +362,7 @@ services:
       appagents-postgres:
         condition: service_healthy
     environment:
-      AGENTS_DB_HOST:     agents-postgres
+      AGENTS_DB_HOST:     appagents-postgres
       AGENTS_DB_PORT:     5432
       AGENTS_DB_NAME:     agentsdb
       AGENTS_DB_USER:     agents
