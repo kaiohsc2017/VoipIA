@@ -9,10 +9,12 @@ from datetime import datetime, timezone
 router = APIRouter()
 
 @router.get("/")
-async def list_agents():
+async def list_agents(limit: int = 100, offset: int = 0):
     async with DB() as db:
-        rows = await db.fetch("SELECT * FROM agents ORDER BY created_at DESC")
-        return [dict(r) for r in rows]
+        rows  = await db.fetch(
+            "SELECT * FROM agents ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset)
+        total = await db.fetchval("SELECT COUNT(*) FROM agents")
+        return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 @router.post("/", response_model=dict)
 async def create_agent(body: AgentCreate):

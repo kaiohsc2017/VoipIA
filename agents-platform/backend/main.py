@@ -91,9 +91,23 @@ app.include_router(reports.router,    prefix="/api/reports",    tags=["reports"]
 app.include_router(knowledge.router,  prefix="/api/knowledge",  tags=["knowledge"])
 app.include_router(llm_config.router, prefix="/api/llm",       tags=["llm"])
 
+def _ws_auth(token: str | None) -> bool:
+    """Valida JWT no handshake do WebSocket (query param ?token=)."""
+    if not token:
+        return False
+    try:
+        from jose import jwt as _jwt
+        payload = _jwt.decode(token, JWT_KEY, algorithms=["HS256"])
+        return not payload.get("totp_pending", False)
+    except Exception:
+        return False
+
 @app.websocket("/ws/agent/{agent_id}/logs")
-async def agent_logs_ws(websocket: WebSocket, agent_id: str):
+async def agent_logs_ws(websocket: WebSocket, agent_id: str, token: str | None = None):
     """WebSocket para logs em tempo real de um agente específico."""
+    if not _ws_auth(token):
+        await websocket.close(code=4401, reason="Não autenticado")
+        return
     await websocket.accept()
     ws_clients.setdefault(agent_id, []).append(websocket)
     try:
@@ -108,8 +122,11 @@ async def agent_logs_ws(websocket: WebSocket, agent_id: str):
             except ValueError: pass
 
 @app.websocket("/ws/alerts")
-async def alerts_ws(websocket: WebSocket):
+async def alerts_ws(websocket: WebSocket, token: str | None = None):
     """WebSocket global para alertas em tempo real na UI."""
+    if not _ws_auth(token):
+        await websocket.close(code=4401, reason="Não autenticado")
+        return
     await websocket.accept()
     ws_clients.setdefault("__alerts__", []).append(websocket)
     try:

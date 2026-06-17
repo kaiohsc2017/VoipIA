@@ -6,21 +6,24 @@ from database import DB
 router = APIRouter()
 
 @router.get("/")
-async def list_executions(agent_id: str = None, limit: int = 50):
+async def list_executions(agent_id: str = None, limit: int = 50, offset: int = 0):
     async with DB() as db:
         if agent_id:
             rows = await db.fetch("""
                 SELECT e.*, a.name as agent_name FROM executions e
                 JOIN agents a ON a.id=e.agent_id
-                WHERE e.agent_id=$1 ORDER BY e.started_at DESC LIMIT $2
-            """, UUID(agent_id), limit)
+                WHERE e.agent_id=$1 ORDER BY e.started_at DESC LIMIT $2 OFFSET $3
+            """, UUID(agent_id), limit, offset)
+            total = await db.fetchval(
+                "SELECT COUNT(*) FROM executions WHERE agent_id=$1", UUID(agent_id))
         else:
             rows = await db.fetch("""
                 SELECT e.*, a.name as agent_name FROM executions e
                 JOIN agents a ON a.id=e.agent_id
-                ORDER BY e.started_at DESC LIMIT $1
-            """, limit)
-        return [dict(r) for r in rows]
+                ORDER BY e.started_at DESC LIMIT $1 OFFSET $2
+            """, limit, offset)
+            total = await db.fetchval("SELECT COUNT(*) FROM executions")
+        return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 @router.get("/dashboard/summary")
 async def dashboard_summary():
