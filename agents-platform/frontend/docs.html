@@ -1,0 +1,1897 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AsteriskIA Agentes — Documentação Oficial</title>
+<style>
+  :root {
+    --primary: #6c47ff;
+    --primary-dark: #5235cc;
+    --primary-light: #ede9ff;
+    --ok: #16a34a;
+    --ok-light: #dcfce7;
+    --err: #dc2626;
+    --err-light: #fee2e2;
+    --warn: #d97706;
+    --warn-light: #fef3c7;
+    --info: #2563eb;
+    --info-light: #dbeafe;
+    --bg: #f8f9fc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1a2340;
+    --text2: #64748b;
+    --text3: #94a3b8;
+    --sidebar-bg: #1a1f35;
+    --sidebar-text: rgba(255,255,255,0.85);
+    --code-bg: #1e2235;
+    --code-text: #e2e8f0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 280px;
+    min-height: 100vh;
+    background: var(--sidebar-bg);
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    overflow-y: auto;
+    z-index: 100;
+    padding-bottom: 40px;
+  }
+  .sidebar-logo {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .sidebar-logo h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.5px;
+  }
+  .sidebar-logo span {
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .sidebar-version {
+    display: inline-block;
+    margin-top: 8px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 99px;
+    letter-spacing: 0.5px;
+  }
+  .nav-section {
+    padding: 20px 16px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  .nav-item {
+    display: block;
+    padding: 9px 20px;
+    font-size: 13px;
+    color: var(--sidebar-text);
+    text-decoration: none;
+    border-radius: 6px;
+    margin: 1px 8px;
+    transition: background 0.15s;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.08); }
+  .nav-item.active { background: var(--primary); color: #fff; }
+  .nav-sub {
+    display: block;
+    padding: 7px 20px 7px 34px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+    text-decoration: none;
+    border-radius: 6px;
+    margin: 1px 8px;
+    transition: background 0.15s;
+  }
+  .nav-sub:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.8); }
+
+  /* ── Main ── */
+  .main {
+    margin-left: 280px;
+    flex: 1;
+    max-width: 960px;
+    padding: 48px 56px 80px;
+  }
+
+  /* ── Sections ── */
+  .section { margin-bottom: 64px; }
+  .section-hero {
+    background: linear-gradient(135deg, var(--primary) 0%, #4f35cc 100%);
+    border-radius: 16px;
+    padding: 48px;
+    color: #fff;
+    margin-bottom: 64px;
+  }
+  .section-hero h1 { font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; }
+  .section-hero p { font-size: 16px; opacity: 0.85; max-width: 600px; line-height: 1.7; }
+  .hero-meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+  }
+  .hero-badge {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .hero-badge span { display: block; font-size: 18px; font-weight: 800; margin-top: 2px; }
+
+  h2 {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    margin-bottom: 8px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--primary-light);
+  }
+  h3 {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 28px 0 12px;
+  }
+  h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin: 20px 0 8px;
+  }
+  p { font-size: 14px; color: var(--text2); margin-bottom: 14px; line-height: 1.75; }
+  p strong { color: var(--text); }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .card-sm {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .card-sm h4 { margin-top: 0; }
+  .card-sm p { margin-bottom: 0; font-size: 13px; }
+
+  /* ── Mockups / Screenshots ── */
+  .mockup {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 20px 0;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+  }
+  .mockup-bar {
+    background: #f1f5f9;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-r { background: #ef4444; }
+  .dot-y { background: #f59e0b; }
+  .dot-g { background: #22c55e; }
+  .mockup-url {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 12px;
+    font-size: 11px;
+    color: var(--text2);
+    margin-left: 8px;
+    flex: 1;
+    max-width: 320px;
+  }
+  .mockup-body { padding: 0; }
+
+  /* ── Screen simulados ── */
+  .screen {
+    background: #f8f9fc;
+    display: flex;
+    min-height: 360px;
+  }
+  .screen-sidebar {
+    width: 200px;
+    background: #1a1f35;
+    padding: 16px 0;
+    flex-shrink: 0;
+  }
+  .screen-sidebar-logo {
+    padding: 0 16px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 8px;
+  }
+  .screen-sidebar-logo strong { display: block; color: #fff; font-size: 13px; }
+  .screen-sidebar-logo small { color: rgba(255,255,255,0.4); font-size: 10px; }
+  .snav { padding: 3px 8px; }
+  .snav a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    color: rgba(255,255,255,0.6);
+    font-size: 12px;
+    text-decoration: none;
+    margin-bottom: 1px;
+  }
+  .snav a.on { background: #6c47ff; color: #fff; }
+  .snav-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.5; }
+  .screen-content { flex: 1; padding: 20px; overflow: hidden; }
+  .screen-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .screen-topbar strong { font-size: 16px; font-weight: 700; }
+
+  /* ── Stat cards ── */
+  .stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 14px; }
+  .stat {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .stat-label { font-size: 10px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-val { font-size: 22px; font-weight: 800; margin-top: 4px; }
+  .c-ok { color: var(--ok); }
+  .c-err { color: var(--err); }
+  .c-warn { color: var(--warn); }
+  .c-info { color: var(--info); }
+  .c-primary { color: var(--primary); }
+
+  /* ── Tables ── */
+  .stbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .stbl th { padding: 6px 10px; text-align: left; font-size: 10px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+  .stbl td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
+
+  /* ── Code blocks ── */
+  .code-block {
+    background: var(--code-bg);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin: 16px 0;
+    overflow-x: auto;
+  }
+  .code-block pre {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--code-text);
+    white-space: pre;
+  }
+  .code-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.3);
+    margin-bottom: 10px;
+  }
+  .hl-key { color: #79c0ff; }
+  .hl-str { color: #a5d6ff; }
+  .hl-num { color: #f2cc60; }
+  .hl-bool { color: #ff7b72; }
+  .hl-cmt { color: #8b949e; }
+
+  /* ── Callouts ── */
+  .callout {
+    display: flex;
+    gap: 14px;
+    padding: 16px 20px;
+    border-radius: 10px;
+    margin: 16px 0;
+    border-left: 4px solid;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+  .callout-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .callout.info { background: var(--info-light); border-color: var(--info); }
+  .callout.ok { background: var(--ok-light); border-color: var(--ok); }
+  .callout.warn { background: var(--warn-light); border-color: var(--warn); }
+  .callout.err { background: var(--err-light); border-color: var(--err); }
+  .callout p { margin: 0; color: var(--text); }
+  .callout strong { color: var(--text); }
+
+  /* ── Field docs ── */
+  .field-table { width: 100%; border-collapse: collapse; margin: 12px 0 24px; }
+  .field-table th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: var(--bg);
+    border-bottom: 2px solid var(--border);
+  }
+  .field-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    vertical-align: top;
+  }
+  .field-table tr:last-child td { border-bottom: none; }
+  .field-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--primary);
+    background: var(--primary-light);
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .field-type {
+    font-size: 11px;
+    color: var(--text2);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .req { color: var(--err); font-size: 10px; font-weight: 700; }
+  .opt { color: var(--text3); font-size: 10px; }
+
+  /* ── Badge ── */
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .badge-ok { background: var(--ok-light); color: var(--ok); }
+  .badge-err { background: var(--err-light); color: var(--err); }
+  .badge-warn { background: var(--warn-light); color: var(--warn); }
+  .badge-info { background: var(--info-light); color: var(--info); }
+  .badge-purple { background: var(--primary-light); color: var(--primary); }
+  .badge-gray { background: #f1f5f9; color: #64748b; }
+
+  /* ── Steps ── */
+  .steps { counter-reset: step; margin: 20px 0; }
+  .step {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    align-items: flex-start;
+  }
+  .step-num {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .step-body h4 { margin-top: 0; margin-bottom: 6px; font-size: 14px; color: var(--text); text-transform: none; letter-spacing: 0; }
+  .step-body p { margin-bottom: 0; }
+
+  /* ── API docs ── */
+  .api-endpoint {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin: 12px 0;
+    font-family: monospace;
+    font-size: 13px;
+    color: var(--code-text);
+  }
+  .method {
+    font-weight: 800;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+  .method-get { background: #166534; color: #86efac; }
+  .method-post { background: #1e3a5f; color: #93c5fd; }
+  .method-put { background: #451a03; color: #fed7aa; }
+  .method-delete { background: #450a0a; color: #fca5a5; }
+
+  /* ── Check examples ── */
+  .check-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .check-header {
+    background: var(--primary);
+    color: #fff;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .check-body { background: var(--code-bg); padding: 0; }
+
+  /* ── Flow diagram ── */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+    margin: 20px 0;
+  }
+  .flow-step {
+    background: var(--primary-light);
+    border: 2px solid var(--primary);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary-dark);
+    text-align: center;
+    min-width: 120px;
+  }
+  .flow-arrow {
+    color: var(--text3);
+    font-size: 20px;
+    padding: 0 8px;
+    font-weight: 300;
+  }
+
+  /* ── TOC anchor offset ── */
+  .anchor { scroll-margin-top: 24px; }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: 12px;
+    color: var(--text3);
+  }
+  .footer strong { color: var(--text2); }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; padding: 24px; }
+    .stats { grid-template-columns: repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <h1>AsteriskIA</h1>
+    <span>Plataforma de Agentes</span>
+    <div><span class="sidebar-version">v2.0.0</span></div>
+  </div>
+
+  <div class="nav-section">Introdução</div>
+  <a href="#visao-geral" class="nav-item">Visão Geral</a>
+  <a href="#arquitetura" class="nav-item">Arquitetura</a>
+  <a href="#acesso" class="nav-item">Acesso e Login</a>
+
+  <div class="nav-section">Módulos</div>
+  <a href="#dashboard" class="nav-item">Dashboard</a>
+  <a href="#agentes" class="nav-item">Agentes</a>
+  <a href="#agentes-ssh" class="nav-sub">↳ Tipo SSH Test</a>
+  <a href="#agentes-web" class="nav-sub">↳ Tipo Web Monitor</a>
+  <a href="#agentes-log" class="nav-sub">↳ Tipo Log Monitor</a>
+  <a href="#agentes-db" class="nav-sub">↳ Tipo Database</a>
+  <a href="#agendamento" class="nav-sub">↳ Agendamento</a>
+  <a href="#notificacoes" class="nav-sub">↳ Notificações</a>
+  <a href="#autofix" class="nav-sub">↳ Auto-Fix</a>
+  <a href="#encadeamento" class="nav-sub">↳ Encadeamento</a>
+  <a href="#servidores" class="nav-item">Servidores SSH</a>
+  <a href="#conhecimento" class="nav-item">Base de Conhecimento</a>
+  <a href="#logs" class="nav-item">Logs</a>
+  <a href="#alertas" class="nav-item">Alertas</a>
+  <a href="#secrets" class="nav-item">Secrets</a>
+  <a href="#config-ia" class="nav-item">Config. IA</a>
+
+  <div class="nav-section">Sistema</div>
+  <a href="#health" class="nav-item">Health Check</a>
+  <a href="#retencao" class="nav-item">Retenção de Dados</a>
+  <a href="#api" class="nav-item">Referência da API</a>
+  <a href="#variaveis-env" class="nav-item">Variáveis de Ambiente</a>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="main">
+
+  <!-- HERO -->
+  <div class="section-hero">
+    <h1>AsteriskIA Agentes</h1>
+    <p>Plataforma de monitoramento inteligente e automação de infraestrutura com suporte a múltiplos provedores de IA. Monitore servidores SSH, URLs, logs e bancos de dados com alertas em tempo real e capacidade de auto-remediação.</p>
+    <div class="hero-meta">
+      <div class="hero-badge">Versão <span>2.0.0</span></div>
+      <div class="hero-badge">Backend <span>FastAPI</span></div>
+      <div class="hero-badge">Banco <span>PostgreSQL 16</span></div>
+      <div class="hero-badge">Frontend <span>React 18</span></div>
+    </div>
+  </div>
+
+  <!-- VISÃO GERAL -->
+  <section class="section anchor" id="visao-geral">
+    <h2>Visão Geral</h2>
+    <p>O AsteriskIA Agentes é uma plataforma de monitoramento autônomo integrada ao ecossistema AsteriskIA Telecom. Cada <strong>Agente</strong> é uma entidade configurável que executa verificações periódicas em servidores, URLs ou bancos de dados, registra os resultados, notifica a equipe em caso de falha e pode até tentar corrigir o problema automaticamente.</p>
+
+    <div class="card-grid">
+      <div class="card-sm">
+        <h4>🔍 Monitoramento</h4>
+        <p>4 tipos de executores: SSH Test, Web Monitor, Log Monitor e Database. Cada um com múltiplas verificações configuráveis por agente.</p>
+      </div>
+      <div class="card-sm">
+        <h4>🤖 Inteligência Artificial</h4>
+        <p>Fallback para IA quando uma verificação falha sem fix_hint. Suporte a Google Gemini, Anthropic Claude, OpenAI e modelos locais.</p>
+      </div>
+      <div class="card-sm">
+        <h4>🔔 Alertas Multi-canal</h4>
+        <p>Telegram, e-mail SMTP, webhook genérico e notificações em tempo real via WebSocket no painel.</p>
+      </div>
+      <div class="card-sm">
+        <h4>🔧 Auto-Fix</h4>
+        <p>Execute comandos de correção automaticamente via SSH quando uma verificação falha, sem intervenção humana.</p>
+      </div>
+      <div class="card-sm">
+        <h4>🔗 Encadeamento</h4>
+        <p>Configure um agente para disparar outro automaticamente em caso de falha — criando pipelines de diagnóstico.</p>
+      </div>
+      <div class="card-sm">
+        <h4>📊 Memória e RAG</h4>
+        <p>Cada agente aprende com execuções passadas. A memória coletiva é consultada via pg_trgm antes de acionar a IA.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ARQUITETURA -->
+  <section class="section anchor" id="arquitetura">
+    <h2>Arquitetura</h2>
+    <p>O sistema é composto por 3 containers Docker integrados ao AsteriskIA Telecom via rede interna Docker (<code>asteriskia-net</code>) e roteados pelo Caddy em <code>/agents/*</code>.</p>
+
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Container</th><th>Imagem</th><th>Porta</th><th>Responsabilidade</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="field-name">asteriskia-agents-api</span></td>
+            <td><span class="field-type">Python 3.12</span></td>
+            <td><code>127.0.0.1:8000</code></td>
+            <td>Backend FastAPI — API REST, scheduler, executors, WebSocket</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">asteriskia-agents-ui</span></td>
+            <td><span class="field-type">nginx:alpine</span></td>
+            <td>interno:80</td>
+            <td>Frontend React 18 UMD (HTML único, sem build step)</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">asteriskia-agents-db</span></td>
+            <td><span class="field-type">postgres:16</span></td>
+            <td>interno:5432</td>
+            <td>PostgreSQL — banco <code>agentsdb</code>, usuário <code>agents</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flow">
+      <div class="flow-step">Browser<br><small>HTTPS</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Caddy<br><small>/agents/*</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">nginx<br><small>Frontend</small></div>
+      <div class="flow-arrow">+</div>
+      <div class="flow-step">FastAPI<br><small>Backend</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">PostgreSQL<br><small>agentsdb</small></div>
+    </div>
+
+    <h3>Roteamento Caddy</h3>
+    <div class="code-block"><div class="code-label">Caddyfile</div><pre><span class="hl-cmt"># API dos agentes</span>
+<span class="hl-key">@agents-api</span> { path /agents/api/* }
+handle @agents-api {
+    uri strip_prefix /agents
+    reverse_proxy <span class="hl-str">agents-backend:8000</span>
+}
+
+<span class="hl-cmt"># WebSocket em tempo real</span>
+<span class="hl-key">@agents-ws</span> { header Connection *Upgrade*; path /agents/ws/* }
+handle @agents-ws {
+    uri strip_prefix /agents
+    reverse_proxy <span class="hl-str">agents-backend:8000</span>
+}
+
+<span class="hl-cmt"># Frontend</span>
+<span class="hl-key">@agents-ui</span> { path /agents* }
+handle @agents-ui {
+    uri strip_prefix /agents
+    reverse_proxy <span class="hl-str">agents-frontend:80</span>
+}</pre></div>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ️</div>
+      <p>O frontend usa <code>const API = '/agents'</code>. Todas as chamadas de API ficam em <code>/agents/api/*</code> que o Caddy roteia para o backend na porta 8000. O login usa o backend Spring Boot do Telecom via <code>/api/v1/auth/login</code>.</p>
+    </div>
+  </section>
+
+  <!-- ACESSO E LOGIN -->
+  <section class="section anchor" id="acesso">
+    <h2>Acesso e Login</h2>
+    <p>O acesso usa os mesmos usuários do AsteriskIA Telecom — não há cadastro separado. A autenticação utiliza JWT HS256 com a mesma chave secreta (<code>BACKEND_JWT_SECRET</code>) do Spring Boot.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar">
+        <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+        <div class="mockup-url">https://app.voiphash.com.br/agents/</div>
+      </div>
+      <div style="background:#f8f9fc;padding:48px;display:flex;justify-content:center;align-items:center;min-height:280px;">
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:40px;width:360px;box-shadow:0 8px 40px rgba(0,0,0,0.08);">
+          <div style="text-align:center;margin-bottom:28px;">
+            <div style="width:48px;height:48px;background:#6c47ff;border-radius:12px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:800;">A</div>
+            <h3 style="margin:0 0 4px;font-size:18px;">AsteriskIA Agentes</h3>
+            <p style="margin:0;font-size:12px;color:#94a3b8;">Use suas credenciais do Telecom</p>
+          </div>
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:5px;">Usuário</label>
+            <div style="border:2px solid #6c47ff;border-radius:8px;padding:10px 14px;font-size:13px;color:#1a2340;">admin</div>
+          </div>
+          <div style="margin-bottom:20px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:5px;">Senha</label>
+            <div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:13px;color:#94a3b8;">••••••••••</div>
+          </div>
+          <div style="background:#6c47ff;color:#fff;border-radius:8px;padding:11px;text-align:center;font-size:13px;font-weight:700;">Entrar</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Fluxo de autenticação</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Login via Spring Boot</h4>
+          <p>O frontend envia <code>POST /api/v1/auth/login</code> com usuário e senha para o backend Telecom (Spring Boot). Em caso de 2FA ativo, é necessário completar o TOTP antes de receber o token final.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>JWT armazenado</h4>
+          <p>O token JWT é salvo no <code>localStorage</code> com a chave <code>asteriskia_token</code>. Tem validade de 8 horas. Tokens com <code>totp_pending: true</code> são rejeitados pelo backend dos agentes.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Injeção automática</h4>
+          <p>Todas as chamadas à API dos agentes incluem automaticamente o header <code>Authorization: Bearer &lt;token&gt;</code>. Em caso de 401, o token é limpo e a página recarrega.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section class="section anchor" id="dashboard">
+    <h2>Dashboard</h2>
+    <p>A página inicial exibe uma visão consolidada de toda a operação dos agentes em tempo real.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar">
+        <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+        <div class="mockup-url">app.voiphash.com.br/agents/ — Dashboard</div>
+      </div>
+      <div class="screen">
+        <div class="screen-sidebar">
+          <div class="screen-sidebar-logo"><strong>AsteriskIA</strong><small>Agentes</small></div>
+          <div class="snav">
+            <a href="#" class="on"><span class="snav-dot"></span>Dashboard</a>
+            <a href="#"><span class="snav-dot"></span>Agentes</a>
+            <a href="#"><span class="snav-dot"></span>Servidores</a>
+            <a href="#"><span class="snav-dot"></span>Conhecimento</a>
+            <a href="#"><span class="snav-dot"></span>Logs</a>
+            <a href="#"><span class="snav-dot"></span>Alertas</a>
+            <a href="#"><span class="snav-dot"></span>Secrets</a>
+            <a href="#"><span class="snav-dot"></span>Config. IA</a>
+          </div>
+        </div>
+        <div class="screen-content">
+          <div class="screen-topbar"><strong>Dashboard</strong></div>
+          <div class="stats">
+            <div class="stat"><div class="stat-label">Agentes ativos</div><div class="stat-val c-info">3</div></div>
+            <div class="stat"><div class="stat-label">Execuções OK (24h)</div><div class="stat-val c-ok">47</div></div>
+            <div class="stat"><div class="stat-label">Erros (24h)</div><div class="stat-val c-err">2</div></div>
+            <div class="stat"><div class="stat-label">Alertas (24h)</div><div class="stat-val c-warn">2</div></div>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:10px;">
+            <div style="font-size:12px;font-weight:700;margin-bottom:10px;">Disponibilidade por agente</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <div style="width:110px;font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Monitor Nginx</div>
+              <div style="flex:1;background:#f1f5f9;border-radius:3px;height:8px;overflow:hidden;"><div style="width:98%;background:#16a34a;height:100%;border-radius:3px;"></div></div>
+              <div style="width:36px;font-size:11px;font-weight:700;color:#16a34a;text-align:right;">98%</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <div style="width:110px;font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Asterisk Health</div>
+              <div style="flex:1;background:#f1f5f9;border-radius:3px;height:8px;overflow:hidden;"><div style="width:91%;background:#16a34a;height:100%;border-radius:3px;"></div></div>
+              <div style="width:36px;font-size:11px;font-weight:700;color:#16a34a;text-align:right;">91%</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:110px;font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Web Monitor API</div>
+              <div style="flex:1;background:#f1f5f9;border-radius:3px;height:8px;overflow:hidden;"><div style="width:75%;background:#d97706;height:100%;border-radius:3px;"></div></div>
+              <div style="width:36px;font-size:11px;font-weight:700;color:#d97706;text-align:right;">75%</div>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+            <div style="font-size:12px;font-weight:700;margin-bottom:8px;">Execuções recentes</div>
+            <table class="stbl">
+              <tr><th>Agente</th><th>Status</th><th>Checks</th><th>Duração</th><th>Início</th></tr>
+              <tr><td>Monitor Nginx</td><td><span class="badge badge-ok">● Sucesso</span></td><td>5 / 5</td><td>4.2s</td><td style="color:#94a3b8;font-size:11px;">17/06 01:15</td></tr>
+              <tr><td>Asterisk Health</td><td><span class="badge badge-warn">● Parcial</span></td><td>3 / 5</td><td>7.1s</td><td style="color:#94a3b8;font-size:11px;">17/06 01:10</td></tr>
+              <tr><td>Web Monitor</td><td><span class="badge badge-err">● Erro</span></td><td>0 / 3</td><td>2.1s</td><td style="color:#94a3b8;font-size:11px;">17/06 01:05</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Componentes do Dashboard</h3>
+
+    <div class="card">
+      <h4>Cards de Resumo (topo)</h4>
+      <table class="field-table">
+        <thead><tr><th>Card</th><th>O que mostra</th><th>Cor</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Agentes ativos</strong></td><td>Total de agentes com status diferente de "pausado"</td><td><span class="badge badge-info">Azul</span></td></tr>
+          <tr><td><strong>Execuções OK (24h)</strong></td><td>Execuções com status <code>success</code> nas últimas 24 horas</td><td><span class="badge badge-ok">Verde</span></td></tr>
+          <tr><td><strong>Erros (24h)</strong></td><td>Execuções com status <code>error</code> ou <code>partial</code> nas últimas 24h</td><td><span class="badge badge-err">Vermelho</span></td></tr>
+          <tr><td><strong>Alertas (24h)</strong></td><td>Total de alertas disparados (todos os canais) nas últimas 24h</td><td><span class="badge badge-warn">Âmbar</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4>Gráfico de Disponibilidade</h4>
+      <p>Barra horizontal por agente mostrando percentual de execuções bem-sucedidas no período selecionado.</p>
+      <table class="field-table">
+        <thead><tr><th>Cor da barra</th><th>Faixa</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-ok">■ Verde</span></td><td>95% ou mais — operação normal</td></tr>
+          <tr><td><span class="badge badge-warn">■ Âmbar</span></td><td>80% a 94% — atenção necessária</td></tr>
+          <tr><td><span class="badge badge-err">■ Vermelho</span></td><td>Abaixo de 80% — crítico</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4>Tabela "Por Período"</h4>
+      <p>Selecione o período com os botões <strong>24h</strong>, <strong>7d</strong> ou <strong>30d</strong> para ver o resumo por agente: total de execuções, OK, erros, tempo médio e número de falhas de verificação.</p>
+    </div>
+  </section>
+
+  <!-- AGENTES -->
+  <section class="section anchor" id="agentes">
+    <h2>Agentes</h2>
+    <p>Um agente é a unidade central da plataforma. Define <em>o que</em> verificar, <em>como</em> verificar, <em>quando</em> verificar e <em>o que fazer</em> quando algo der errado.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar">
+        <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+        <div class="mockup-url">app.voiphash.com.br/agents/ — Agentes</div>
+      </div>
+      <div class="screen">
+        <div class="screen-sidebar">
+          <div class="screen-sidebar-logo"><strong>AsteriskIA</strong><small>Agentes</small></div>
+          <div class="snav">
+            <a href="#"><span class="snav-dot"></span>Dashboard</a>
+            <a href="#" class="on"><span class="snav-dot"></span>Agentes</a>
+          </div>
+        </div>
+        <div class="screen-content">
+          <div class="screen-topbar">
+            <strong>Agentes</strong>
+            <div style="background:#6c47ff;color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;">+ Novo agente</div>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+            <table class="stbl">
+              <tr><th>Nome</th><th>Tipo</th><th>Status</th><th>Ultima / Proxima</th><th>Agendamento</th><th>Ações</th></tr>
+              <tr>
+                <td><div style="font-weight:700;font-size:12px;">Monitor Nginx Prod</div><div style="font-size:10px;color:#94a3b8;">Verifica nginx e disco</div></td>
+                <td><span class="badge badge-info">SSH Test</span></td>
+                <td><span class="badge badge-ok">● idle</span></td>
+                <td><div style="font-size:11px;color:#64748b;">17/06 01:15</div><div style="font-size:10px;color:#16a34a;">↻ em 3min</div></td>
+                <td style="font-size:11px;">A cada 5m</td>
+                <td>
+                  <div style="display:flex;gap:4px;">
+                    <div style="background:#6c47ff;color:#fff;padding:3px 6px;border-radius:4px;font-size:10px;">▶</div>
+                    <div style="background:#f1f5f9;padding:3px 6px;border-radius:4px;font-size:10px;">📋</div>
+                    <div style="background:#f1f5f9;padding:3px 6px;border-radius:4px;font-size:10px;">✏️</div>
+                    <div style="background:#f1f5f9;padding:3px 6px;border-radius:4px;font-size:10px;">⏸</div>
+                    <div style="background:#fee2e2;padding:3px 6px;border-radius:4px;font-size:10px;color:#dc2626;">🗑</div>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td><div style="font-weight:700;font-size:12px;">Agente CMS</div><div style="font-size:10px;color:#94a3b8;">Monitora serviços Avaya</div></td>
+                <td><span class="badge badge-info">SSH Test</span></td>
+                <td><span class="badge badge-err">● error</span></td>
+                <td><div style="font-size:11px;color:#64748b;">17/06 00:50</div><div style="font-size:10px;color:#16a34a;">↻ em 5h</div></td>
+                <td style="font-size:11px;">A cada 6h</td>
+                <td>
+                  <div style="display:flex;gap:4px;">
+                    <div style="background:#6c47ff;color:#fff;padding:3px 6px;border-radius:4px;font-size:10px;">▶</div>
+                    <div style="background:#f1f5f9;padding:3px 6px;border-radius:4px;font-size:10px;">📋</div>
+                    <div style="background:#f1f5f9;padding:3px 6px;border-radius:4px;font-size:10px;">✏️</div>
+                    <div style="background:#f1f5f9;padding:3px 6px;border-radius:4px;font-size:10px;">⏸</div>
+                    <div style="background:#fee2e2;padding:3px 6px;border-radius:4px;font-size:10px;color:#dc2626;">🗑</div>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Botões de Ação</h3>
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Botão</th><th>Ação</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-purple">▶ Executar agora</span></td><td>Dispara uma execução imediata do agente fora do agendamento. Não interfere no próximo ciclo programado.</td></tr>
+          <tr><td><span class="badge badge-gray">📋 Logs</span></td><td>Abre o modal de logs mostrando execuções recentes e os logs linha a linha de cada uma.</td></tr>
+          <tr><td><span class="badge badge-gray">✏️ Editar</span></td><td>Abre o formulário de edição com todos os campos do agente preenchidos.</td></tr>
+          <tr><td><span class="badge badge-gray">⏸ Pausar / ▶ Retomar</span></td><td>Pausa interrompe o agendamento do agente. Retomar reativa sem aguardar reinicialização do servidor.</td></tr>
+          <tr><td><span class="badge badge-err">🗑 Excluir</span></td><td>Remove o agente, todas as suas execuções e logs em cascata. Exige confirmação.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Coluna "Ultima / Proxima"</h3>
+    <p>Exibe dois dados sobrepostos: a data/hora da última execução e, em verde abaixo, o tempo até a próxima execução (ex: <strong>↻ em 3min</strong>). Atualiza a cada vez que a página recarrega os agentes.</p>
+
+    <h3>Formulário de Agente — Campos Gerais</h3>
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Campo</th><th>Tipo</th><th style="width:50%">Descrição</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="field-name">Nome</span></td>
+            <td><span class="field-type">texto</span> <span class="req">obrigatório</span></td>
+            <td>Nome de exibição do agente. Aparece na tabela, nos alertas e nos relatórios.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">Descrição</span></td>
+            <td><span class="field-type">texto</span> <span class="opt">opcional</span></td>
+            <td>Descrição curta exibida em cinza abaixo do nome na tabela.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">Tipo</span></td>
+            <td><span class="field-type">select</span> <span class="req">obrigatório</span></td>
+            <td>Define qual executor é usado: <code>SSH Test</code>, <code>Web Monitor</code>, <code>Log Monitor</code> ou <code>Database</code>. Determina quais campos adicionais aparecem no formulário.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">Skill / Contexto</span></td>
+            <td><span class="field-type">textarea</span> <span class="req">obrigatório</span></td>
+            <td>Prompt que descreve o papel da IA quando consultada em caso de falha. Ex: <em>"Especialista em infraestrutura Linux, nginx e Asterisk"</em>. Quanto mais detalhado, melhor a sugestão da IA.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- TIPO SSH TEST -->
+  <section class="section anchor" id="agentes-ssh">
+    <h2>Tipo: SSH Test</h2>
+    <p>Conecta ao servidor via SSH e executa uma sequência de comandos shell, avaliando a saída de cada um contra critérios configuráveis.</p>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ️</div>
+      <p><strong>Pré-requisito:</strong> O servidor precisa estar cadastrado na página <strong>Servidores</strong> com credenciais válidas. O agente do tipo SSH requer ao menos um servidor associado para executar com sucesso.</p>
+    </div>
+
+    <h3>Campos específicos</h3>
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Campo</th><th>Tipo</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="field-name">Servidores alvo</span></td>
+            <td><span class="field-type">checkboxes</span> <span class="req">obrigatório</span></td>
+            <td>Selecione um ou mais servidores cadastrados. O agente executará todas as verificações em cada servidor selecionado.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Verificações (checks)</h3>
+    <p>Cada verificação representa um comando a ser executado no servidor. Adicione quantas quiser com o botão <strong>+ Adicionar</strong>.</p>
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Campo</th><th>Tipo</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="field-name">Nome</span></td>
+            <td><span class="field-type">texto</span></td>
+            <td>Nome descritivo da verificação. Aparece nos logs e alertas. Ex: <em>"nginx rodando"</em>, <em>"disco livre"</em>.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">Comando</span></td>
+            <td><span class="field-type">texto</span></td>
+            <td>Comando shell executado no servidor remoto via SSH. Ex: <code>systemctl is-active nginx</code>, <code>df / | awk 'NR==2{print $5}'</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">Saída esperada</span></td>
+            <td><span class="field-type">texto</span></td>
+            <td>Valor exato que a saída do comando deve retornar (comparação <code>==</code>). Ex: <code>active</code>. Pode ser substituído pelos campos <code>expect_*</code> avançados via JSON.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">Dica de correção</span></td>
+            <td><span class="field-type">texto</span></td>
+            <td>Texto informativo mostrado no alerta quando a verificação falha. Ex: <code>sudo systemctl restart nginx</code>. Se preenchido, substitui a consulta à IA.</td>
+          </tr>
+          <tr>
+            <td><span class="field-name">fix_cmd</span></td>
+            <td><span class="field-type">JSON</span></td>
+            <td>Comando executável automaticamente via SSH quando falha + <code>"auto_fix": true</code>. Ver seção Auto-Fix.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Critérios de avaliação avançados (via JSON)</h3>
+    <p>O campo <strong>Rules</strong> aceita JSON completo para configuração avançada. Os critérios disponíveis por check são:</p>
+
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Critério</th><th>Comportamento</th><th>Exemplo</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field-name">expect</span></td><td>Saída exata (igualdade estrita)</td><td><code>"expect": "active"</code></td></tr>
+          <tr><td><span class="field-name">expect_contains</span></td><td>Saída deve conter a string</td><td><code>"expect_contains": ":80"</code></td></tr>
+          <tr><td><span class="field-name">expect_lt</span></td><td>Valor numérico menor que</td><td><code>"expect_lt": "80%"</code></td></tr>
+          <tr><td><span class="field-name">expect_exit</span></td><td>Exit code específico</td><td><code>"expect_exit": 0</code></td></tr>
+          <tr><td><span class="field-name">expect_regex</span></td><td>Expressão regular</td><td><code>"expect_regex": "^[0-9]+$"</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Exemplo completo de Rules (SSH Test)</h3>
+    <div class="check-card">
+      <div class="check-header">📋 Exemplo — Monitor de Servidor Asterisk</div>
+      <div class="check-body">
+        <div class="code-block" style="margin:0;border-radius:0;">
+<pre>{
+  <span class="hl-key">"checks"</span>: [
+    {
+      <span class="hl-key">"name"</span>:     <span class="hl-str">"asterisk rodando"</span>,
+      <span class="hl-key">"cmd"</span>:      <span class="hl-str">"systemctl is-active asterisk"</span>,
+      <span class="hl-key">"expect"</span>:   <span class="hl-str">"active"</span>,
+      <span class="hl-key">"fix_hint"</span>: <span class="hl-str">"sudo systemctl restart asterisk"</span>,
+      <span class="hl-key">"fix_cmd"</span>:  <span class="hl-str">"sudo systemctl restart asterisk"</span>,
+      <span class="hl-key">"auto_fix"</span>: <span class="hl-bool">true</span>
+    },
+    {
+      <span class="hl-key">"name"</span>:       <span class="hl-str">"disco livre (raiz)"</span>,
+      <span class="hl-key">"cmd"</span>:        <span class="hl-str">"df / | awk 'NR==2{print $5}'"</span>,
+      <span class="hl-key">"expect_lt"</span>:  <span class="hl-str">"80%"</span>,
+      <span class="hl-key">"fix_hint"</span>:  <span class="hl-str">"Limpar logs: journalctl --vacuum-time=3d"</span>
+    },
+    {
+      <span class="hl-key">"name"</span>:            <span class="hl-str">"porta SIP 5060 aberta"</span>,
+      <span class="hl-key">"cmd"</span>:             <span class="hl-str">"ss -ulnp | grep :5060"</span>,
+      <span class="hl-key">"expect_contains"</span>: <span class="hl-str">":5060"</span>,
+      <span class="hl-key">"fix_hint"</span>:        <span class="hl-str">"Verificar firewall: ufw allow 5060/udp"</span>
+    },
+    {
+      <span class="hl-key">"name"</span>:         <span class="hl-str">"script de health"</span>,
+      <span class="hl-key">"cmd"</span>:          <span class="hl-str">"/opt/asterisk/health_check.sh"</span>,
+      <span class="hl-key">"expect_exit"</span>:  <span class="hl-num">0</span>
+    }
+  ],
+  <span class="hl-key">"timeout_per_check"</span>:     <span class="hl-num">30</span>,
+  <span class="hl-key">"stop_on_first_failure"</span>: <span class="hl-bool">false</span>,
+  <span class="hl-key">"use_ai_on_failure"</span>:     <span class="hl-bool">true</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Opção global (rules)</th><th>Padrão</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field-name">timeout_per_check</span></td><td><code>30</code></td><td>Segundos máximos por comando SSH antes de timeout.</td></tr>
+          <tr><td><span class="field-name">stop_on_first_failure</span></td><td><code>false</code></td><td>Se <code>true</code>, interrompe os checks restantes assim que um falhar.</td></tr>
+          <tr><td><span class="field-name">use_ai_on_failure</span></td><td><code>false</code></td><td>Se <code>true</code>, consulta a IA configurada quando um check falha sem <code>fix_hint</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- TIPO WEB MONITOR -->
+  <section class="section anchor" id="agentes-web">
+    <h2>Tipo: Web Monitor</h2>
+    <p>Realiza requisições HTTP/HTTPS para URLs configuradas e valida o status, conteúdo ou estrutura JSON da resposta.</p>
+
+    <div class="check-card">
+      <div class="check-header">🌐 Exemplo — Monitor de APIs e Portais</div>
+      <div class="check-body">
+        <div class="code-block" style="margin:0;border-radius:0;">
+<pre>{
+  <span class="hl-key">"checks"</span>: [
+    {
+      <span class="hl-key">"url"</span>:           <span class="hl-str">"https://app.voiphash.com.br"</span>,
+      <span class="hl-key">"expect_status"</span>: <span class="hl-num">200</span>,
+      <span class="hl-key">"expect_contains"</span>: <span class="hl-str">"AsteriskIA"</span>,
+      <span class="hl-key">"timeout"</span>:        <span class="hl-num">10</span>
+    },
+    {
+      <span class="hl-key">"url"</span>:               <span class="hl-str">"https://app.voiphash.com.br/api/health"</span>,
+      <span class="hl-key">"expect_status"</span>:   <span class="hl-num">200</span>,
+      <span class="hl-key">"expect_json_key"</span>: <span class="hl-str">"status"</span>,
+      <span class="hl-key">"expect_json_value"</span>: <span class="hl-str">"ok"</span>
+    },
+    {
+      <span class="hl-key">"url"</span>:           <span class="hl-str">"https://api.parceiro.com.br/v2/ping"</span>,
+      <span class="hl-key">"expect_status"</span>: <span class="hl-num">200</span>,
+      <span class="hl-key">"timeout"</span>:        <span class="hl-num">5</span>
+    }
+  ],
+  <span class="hl-key">"alert_on_failure"</span>:  <span class="hl-bool">true</span>,
+  <span class="hl-key">"use_ai_on_failure"</span>: <span class="hl-bool">false</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Critério por check</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field-name">url</span></td><td>URL completa a verificar. Deve incluir o protocolo (<code>https://</code>).</td></tr>
+          <tr><td><span class="field-name">expect_status</span></td><td>Código HTTP esperado. Padrão <code>200</code>. Ex: <code>301</code>, <code>204</code>.</td></tr>
+          <tr><td><span class="field-name">expect_contains</span></td><td>String que deve estar presente no corpo da resposta.</td></tr>
+          <tr><td><span class="field-name">expect_json_key</span></td><td>Chave de JSON esperada no body (usado com <code>expect_json_value</code>).</td></tr>
+          <tr><td><span class="field-name">expect_json_value</span></td><td>Valor esperado para a chave JSON. Ex: <code>"ok"</code>, <code>"true"</code>, <code>"1"</code>.</td></tr>
+          <tr><td><span class="field-name">timeout</span></td><td>Timeout em segundos para esta URL. Padrão: <code>15</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- TIPO LOG MONITOR -->
+  <section class="section anchor" id="agentes-log">
+    <h2>Tipo: Log Monitor</h2>
+    <p>Conecta ao servidor via SSH, lê as últimas <em>N</em> linhas de arquivos de log e verifica se padrões de texto esperados (ou inesperados) estão presentes.</p>
+
+    <div class="check-card">
+      <div class="check-header">📄 Exemplo — Monitor de Logs Asterisk e Nginx</div>
+      <div class="check-body">
+        <div class="code-block" style="margin:0;border-radius:0;">
+<pre>{
+  <span class="hl-key">"log_checks"</span>: [
+    {
+      <span class="hl-key">"name"</span>:          <span class="hl-str">"erros críticos nginx"</span>,
+      <span class="hl-key">"file"</span>:          <span class="hl-str">"/var/log/nginx/error.log"</span>,
+      <span class="hl-key">"pattern"</span>:       <span class="hl-str">"ERROR|CRIT|emerg"</span>,
+      <span class="hl-key">"alert_if_found"</span>: <span class="hl-bool">true</span>,
+      <span class="hl-key">"lines"</span>:          <span class="hl-num">100</span>,
+      <span class="hl-key">"fix_hint"</span>:       <span class="hl-str">"nginx -t && systemctl restart nginx"</span>
+    },
+    {
+      <span class="hl-key">"name"</span>:             <span class="hl-str">"asterisk warnings acumulados"</span>,
+      <span class="hl-key">"file"</span>:             <span class="hl-str">"/var/log/asterisk/messages"</span>,
+      <span class="hl-key">"pattern"</span>:          <span class="hl-str">"WARNING|ERROR"</span>,
+      <span class="hl-key">"alert_if_found"</span>:   <span class="hl-bool">true</span>,
+      <span class="hl-key">"lines"</span>:             <span class="hl-num">200</span>,
+      <span class="hl-key">"min_occurrences"</span>:  <span class="hl-num">5</span>
+    },
+    {
+      <span class="hl-key">"name"</span>:          <span class="hl-str">"heartbeat systemd presente"</span>,
+      <span class="hl-key">"file"</span>:          <span class="hl-str">"/var/log/syslog"</span>,
+      <span class="hl-key">"pattern"</span>:       <span class="hl-str">"Started Daily"</span>,
+      <span class="hl-key">"alert_if_found"</span>: <span class="hl-bool">false</span>,
+      <span class="hl-cmt">// alert_if_found: false = alerta se NÃO encontrar</span>
+      <span class="hl-key">"lines"</span>:          <span class="hl-num">50</span>
+    }
+  ],
+  <span class="hl-key">"timeout_per_check"</span>: <span class="hl-num">30</span>,
+  <span class="hl-key">"use_ai_on_failure"</span>: <span class="hl-bool">true</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Campo</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field-name">file</span></td><td>Caminho absoluto do arquivo de log no servidor remoto.</td></tr>
+          <tr><td><span class="field-name">pattern</span></td><td>Regex ou string buscada nas últimas <code>lines</code> linhas do arquivo. Suporta pipe <code>|</code> para múltiplas alternativas.</td></tr>
+          <tr><td><span class="field-name">alert_if_found</span></td><td><code>true</code>: falha se o padrão for encontrado (ex: erros). <code>false</code>: falha se o padrão <em>não</em> for encontrado (ex: heartbeat).</td></tr>
+          <tr><td><span class="field-name">lines</span></td><td>Quantas linhas a partir do final do arquivo serão analisadas. Padrão: <code>100</code>.</td></tr>
+          <tr><td><span class="field-name">min_occurrences</span></td><td>Mínimo de ocorrências para considerar como falha. Útil para ignorar erros esporádicos.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- TIPO DATABASE -->
+  <section class="section anchor" id="agentes-db">
+    <h2>Tipo: Database</h2>
+    <p>Executa queries SQL diretamente em bancos de dados PostgreSQL e avalia os resultados contra thresholds configuráveis. Ideal para monitorar métricas de negócio.</p>
+
+    <div class="callout warn">
+      <div class="callout-icon">⚠️</div>
+      <p><strong>Atenção:</strong> O DSN (string de conexão) contém senha. Recomendamos usar Secrets para armazenar o DSN completo e referenciá-lo como <code>{{DB_DSN}}</code> no campo <code>dsn</code>.</p>
+    </div>
+
+    <div class="check-card">
+      <div class="check-header">🗄️ Exemplo — Monitor de Banco do Telecom</div>
+      <div class="check-body">
+        <div class="code-block" style="margin:0;border-radius:0;">
+<pre>{
+  <span class="hl-key">"checks"</span>: [
+    {
+      <span class="hl-key">"name"</span>:        <span class="hl-str">"chamadas com falha na última hora"</span>,
+      <span class="hl-key">"dsn"</span>:         <span class="hl-str">"postgresql://user:pass@host:5432/asteriskia"</span>,
+      <span class="hl-key">"query"</span>:       <span class="hl-str">"SELECT COUNT(*) FROM call_records WHERE status='failed' AND call_date > NOW()-INTERVAL '1h'"</span>,
+      <span class="hl-key">"expect_lt"</span>:   <span class="hl-num">10</span>,
+      <span class="hl-key">"fix_hint"</span>:    <span class="hl-str">"Verificar trunk SIP — possível problema de rota"</span>
+    },
+    {
+      <span class="hl-key">"name"</span>:        <span class="hl-str">"conexões ativas no banco"</span>,
+      <span class="hl-key">"dsn"</span>:         <span class="hl-str">"postgresql://user:pass@host:5432/asteriskia"</span>,
+      <span class="hl-key">"query"</span>:       <span class="hl-str">"SELECT COUNT(*) FROM pg_stat_activity WHERE state='active'"</span>,
+      <span class="hl-key">"expect_lt"</span>:   <span class="hl-num">50</span>
+    },
+    {
+      <span class="hl-key">"name"</span>:         <span class="hl-str">"status do sistema"</span>,
+      <span class="hl-key">"dsn"</span>:          <span class="hl-str">"postgresql://user:pass@host:5432/asteriskia"</span>,
+      <span class="hl-key">"query"</span>:        <span class="hl-str">"SELECT value FROM system_config WHERE key='status'"</span>,
+      <span class="hl-key">"expect_eq"</span>:    <span class="hl-str">"active"</span>
+    }
+  ],
+  <span class="hl-key">"timeout"</span>:          <span class="hl-num">30</span>,
+  <span class="hl-key">"use_ai_on_failure"</span>: <span class="hl-bool">false</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Critério</th><th>Comparação</th><th>Exemplo</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field-name">expect_eq</span></td><td>Resultado == valor</td><td><code>"expect_eq": "active"</code></td></tr>
+          <tr><td><span class="field-name">expect_lt</span></td><td>Resultado &lt; valor numérico</td><td><code>"expect_lt": 10</code></td></tr>
+          <tr><td><span class="field-name">expect_gt</span></td><td>Resultado &gt; valor numérico</td><td><code>"expect_gt": 0</code></td></tr>
+          <tr><td><span class="field-name">expect_zero</span></td><td>Resultado == 0</td><td><code>"expect_zero": true</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- AGENDAMENTO -->
+  <section class="section anchor" id="agendamento">
+    <h2>Agendamento</h2>
+    <p>Define a frequência com que o agente executa automaticamente. O próximo horário é calculado e exibido na coluna "Ultima / Proxima" da tabela.</p>
+
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Tipo</th><th>Campo "Valor"</th><th>Exemplos</th><th>Comportamento</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Intervalo</strong></td>
+            <td><code>5m</code>, <code>1h</code>, <code>30s</code>, <code>2d</code></td>
+            <td><code>5m</code>, <code>1h</code>, <code>6h</code>, <code>24h</code></td>
+            <td>Aguarda o intervalo após cada execução antes de rodar novamente.</td>
+          </tr>
+          <tr>
+            <td><strong>Cron</strong></td>
+            <td>Expressão cron (5 campos)</td>
+            <td><code>0 2 * * *</code>, <code>*/15 * * * *</code>, <code>0 8 * * 1-5</code></td>
+            <td>Executa nos horários definidos pela expressão. Usa <code>croniter</code> para calcular o próximo gatilho.</td>
+          </tr>
+          <tr>
+            <td><strong>Sempre ativo</strong></td>
+            <td>—</td>
+            <td>—</td>
+            <td>Reexecuta 10 segundos após cada término. Ideal para monitoramento contínuo.</td>
+          </tr>
+          <tr>
+            <td><strong>Uma vez</strong></td>
+            <td>—</td>
+            <td>—</td>
+            <td>Executa uma única vez quando o agente é salvo ou reiniciado.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout ok">
+      <div class="callout-icon">✅</div>
+      <p><strong>Unidades de intervalo:</strong> <code>s</code> = segundos · <code>m</code> = minutos · <code>h</code> = horas · <code>d</code> = dias. Ex: <code>30s</code>, <code>5m</code>, <code>2h</code>, <code>1d</code>.</p>
+    </div>
+
+    <h4>Exemplos de expressões cron</h4>
+    <div class="code-block"><pre><span class="hl-str">0 * * * *</span>      <span class="hl-cmt"># A cada hora (no minuto zero)</span>
+<span class="hl-str">*/5 * * * *</span>    <span class="hl-cmt"># A cada 5 minutos</span>
+<span class="hl-str">0 2 * * *</span>      <span class="hl-cmt"># Todo dia às 02:00</span>
+<span class="hl-str">0 8 * * 1-5</span>   <span class="hl-cmt"># Dias úteis às 08:00</span>
+<span class="hl-str">0 0 1 * *</span>      <span class="hl-cmt"># Primeiro dia de cada mês à meia-noite</span></pre></div>
+  </section>
+
+  <!-- NOTIFICAÇÕES -->
+  <section class="section anchor" id="notificacoes">
+    <h2>Notificações de Alerta</h2>
+    <p>Quando um agente finaliza com status <code>error</code> ou <code>partial</code>, todos os canais de notificação ativos são disparados simultaneamente.</p>
+
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Canal</th><th>Campos necessários</th><th>Configuração</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>📱 <strong>Telegram</strong></td>
+            <td><code>Chat ID</code></td>
+            <td>Marque "Telegram" e informe o Chat ID do grupo ou usuário (ex: <code>-100123456789</code>). Requer a variável <code>TELEGRAM_BOT_TOKEN</code> no <code>.env</code>.</td>
+          </tr>
+          <tr>
+            <td>📧 <strong>E-mail</strong></td>
+            <td><code>Destinatário</code></td>
+            <td>Marque "E-mail" e informe o endereço de destino. Requer configuração SMTP no <code>.env</code> (ver Variáveis de Ambiente).</td>
+          </tr>
+          <tr>
+            <td>🔗 <strong>Webhook</strong></td>
+            <td><code>URL do webhook</code></td>
+            <td>Marque "Webhook" e informe a URL. Recebe um POST JSON com <code>agent</code>, <code>level</code>, <code>message</code>, <code>execution_id</code> e <code>ts</code>.</td>
+          </tr>
+          <tr>
+            <td>🔔 <strong>Web (painel)</strong></td>
+            <td>—</td>
+            <td>Sempre ativo. Alertas aparecem em tempo real no menu lateral da página "Alertas" com contador vermelho.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Payload do Webhook</h3>
+    <div class="code-block"><div class="code-label">POST application/json</div><pre>{
+  <span class="hl-key">"agent"</span>:        <span class="hl-str">"Monitor Nginx Prod"</span>,
+  <span class="hl-key">"level"</span>:        <span class="hl-str">"error"</span>,
+  <span class="hl-key">"message"</span>:      <span class="hl-str">"0/3 verificações OK, 3 falha(s) em 4.2s"</span>,
+  <span class="hl-key">"execution_id"</span>: <span class="hl-str">"e9f00b15-a29f-4148-9f58-7153325569ab"</span>,
+  <span class="hl-key">"ts"</span>:           <span class="hl-str">"2026-06-17T01:15:30.123456+00:00"</span>
+}</pre></div>
+  </section>
+
+  <!-- AUTO-FIX -->
+  <section class="section anchor" id="autofix">
+    <h2>Auto-Fix</h2>
+    <p>Quando uma verificação SSH falha, o sistema pode executar automaticamente um comando de correção no servidor, sem intervenção humana.</p>
+
+    <div class="callout warn">
+      <div class="callout-icon">⚠️</div>
+      <p><strong>Use com cuidado.</strong> O auto-fix executa como o usuário SSH configurado no servidor. Certifique-se de que o usuário tem as permissões necessárias e de que o comando é seguro para execução automática.</p>
+    </div>
+
+    <h3>Como configurar</h3>
+    <p>Adicione <code>fix_cmd</code> e <code>"auto_fix": true</code> ao check no JSON de Rules:</p>
+
+    <div class="code-block"><pre>{
+  <span class="hl-key">"name"</span>:      <span class="hl-str">"nginx rodando"</span>,
+  <span class="hl-key">"cmd"</span>:       <span class="hl-str">"systemctl is-active nginx"</span>,
+  <span class="hl-key">"expect"</span>:    <span class="hl-str">"active"</span>,
+  <span class="hl-key">"fix_hint"</span>:  <span class="hl-str">"Reiniciar nginx"</span>,
+  <span class="hl-key">"fix_cmd"</span>:   <span class="hl-str">"sudo systemctl restart nginx"</span>,
+  <span class="hl-key">"auto_fix"</span>:  <span class="hl-bool">true</span>
+}</pre></div>
+
+    <h3>Fluxo de execução</h3>
+    <div class="flow">
+      <div class="flow-step">Check falha</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">auto_fix = true?</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Executa fix_cmd via SSH</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Log do resultado</div>
+    </div>
+
+    <p>O resultado do <code>fix_cmd</code> é registrado nos logs da execução com o marcador <strong>🔧 Auto-fix</strong>. Se o comando falhar, o log exibe <strong>🔧 Auto-fix falhou</strong>.</p>
+  </section>
+
+  <!-- ENCADEAMENTO -->
+  <section class="section anchor" id="encadeamento">
+    <h2>Encadeamento de Agentes</h2>
+    <p>Configure um agente para disparar automaticamente outro agente quando falhar. Útil para criar pipelines de diagnóstico: um agente detecta o problema, outro investiga a causa.</p>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ️</div>
+      <p>O encadeamento é limitado a <strong>3 níveis de profundidade</strong> para evitar loops. Agente A → B → C → D seria interrompido em D.</p>
+    </div>
+
+    <h3>Exemplo de uso</h3>
+    <div class="card">
+      <p><strong>Agente "Web Monitor API"</strong> detecta que a URL da API retornou 503.</p>
+      <p>→ Dispara o <strong>Agente "SSH Diagnóstico Backend"</strong> que conecta ao servidor e verifica se o processo FastAPI está rodando, uso de memória e erros recentes nos logs.</p>
+    </div>
+
+    <p>Configure o campo <strong>on_failure_trigger_agent_id</strong> via API ou diretamente no banco. Uma interface visual para esse campo no formulário está no roadmap.</p>
+  </section>
+
+  <!-- SERVIDORES -->
+  <section class="section anchor" id="servidores">
+    <h2>Servidores SSH</h2>
+    <p>Cadastre os servidores que os agentes do tipo SSH Test e Log Monitor irão acessar. O sistema suporta autenticação por senha ou chave PEM.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar">
+        <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+        <div class="mockup-url">app.voiphash.com.br/agents/ — Servidores</div>
+      </div>
+      <div style="background:#f8f9fc;padding:20px;">
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+          <table class="stbl">
+            <tr><th>Nome</th><th>Host</th><th>Usuário</th><th>Auth</th><th>Tags</th><th>Ações</th></tr>
+            <tr>
+              <td style="font-weight:700;">CMS 01</td>
+              <td><code style="font-size:11px;">172.16.3.41:5022</code></td>
+              <td><code style="font-size:11px;">root</code></td>
+              <td><span class="badge badge-info">senha</span></td>
+              <td><span class="badge badge-gray" style="font-size:10px;">CMS</span></td>
+              <td>
+                <div style="display:flex;gap:4px;">
+                  <div style="background:#16a34a;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:700;">Testar</div>
+                  <div style="background:#f1f5f9;padding:3px 6px;border-radius:4px;font-size:10px;">✏️</div>
+                  <div style="background:#fee2e2;padding:3px 6px;border-radius:4px;font-size:10px;color:#dc2626;">🗑</div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="font-weight:700;">VPS Prod</td>
+              <td><code style="font-size:11px;">10.0.1.100:22</code></td>
+              <td><code style="font-size:11px;">deploy</code></td>
+              <td><span class="badge badge-purple">chave PEM</span></td>
+              <td><span class="badge badge-gray" style="font-size:10px;">prod</span> <span class="badge badge-gray" style="font-size:10px;">nginx</span></td>
+              <td>
+                <div style="display:flex;gap:4px;">
+                  <div style="background:#16a34a;color:#fff;padding:3px 8px;border-radius:4px;font-size:10px;font-weight:700;">Testar</div>
+                  <div style="background:#f1f5f9;padding:3px 6px;border-radius:4px;font-size:10px;">✏️</div>
+                  <div style="background:#fee2e2;padding:3px 6px;border-radius:4px;font-size:10px;color:#dc2626;">🗑</div>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <h3>Campos do Formulário</h3>
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Campo</th><th>Tipo</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field-name">Nome</span></td><td><span class="field-type">texto</span> <span class="req">obrigatório</span></td><td>Nome de exibição do servidor. Aparece nos selects dos agentes e nos logs.</td></tr>
+          <tr><td><span class="field-name">Host</span></td><td><span class="field-type">texto</span> <span class="req">obrigatório</span></td><td>IP ou hostname do servidor. Ex: <code>192.168.1.100</code>, <code>server.empresa.com</code>.</td></tr>
+          <tr><td><span class="field-name">Porta</span></td><td><span class="field-type">número</span></td><td>Porta SSH. Padrão: <code>22</code>. Altere se o servidor usa porta não-padrão.</td></tr>
+          <tr><td><span class="field-name">Usuário</span></td><td><span class="field-type">texto</span> <span class="req">obrigatório</span></td><td>Usuário SSH. Deve ter permissões para executar os comandos dos checks.</td></tr>
+          <tr><td><span class="field-name">Autenticação</span></td><td><span class="field-type">select</span></td><td><code>Senha</code>: autenticação por senha. <code>Chave SSH</code>: autenticação por chave privada PEM.</td></tr>
+          <tr><td><span class="field-name">Senha</span></td><td><span class="field-type">texto</span></td><td>Senha do usuário SSH. Visível apenas quando autenticação = Senha.</td></tr>
+          <tr><td><span class="field-name">Chave privada (PEM)</span></td><td><span class="field-type">textarea</span></td><td>Conteúdo completo da chave privada, incluindo <code>-----BEGIN OPENSSH PRIVATE KEY-----</code>. Visível apenas quando autenticação = Chave SSH.</td></tr>
+          <tr><td><span class="field-name">Tags</span></td><td><span class="field-type">lista</span></td><td>Tags para organização. Ex: <code>production</code>, <code>asterisk</code>, <code>backup</code>. Pressione Enter para adicionar cada tag.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Botão "Testar"</h3>
+    <p>Testa a conexão SSH imediatamente com as credenciais salvas. Executa <code>echo ok && uname -a</code> e exibe o resultado. Indicadores:</p>
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Resultado</th><th>Significado</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-ok">✓ OK</span></td><td>Conexão estabelecida. O output mostra informações do sistema operacional.</td></tr>
+          <tr><td><span class="badge badge-err">✗ Falhou</span></td><td>Erro de conexão. Verifique host, porta, usuário e credenciais.</td></tr>
+          <tr><td><span class="badge badge-gray">Testando...</span></td><td>Aguardando resposta (timeout de 10 segundos).</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- BASE DE CONHECIMENTO -->
+  <section class="section anchor" id="conhecimento">
+    <h2>Base de Conhecimento</h2>
+    <p>Indexe documentos PDF que a IA pode consultar ao analisar falhas. O texto é extraído do PDF e armazenado com indexação pg_trgm para busca por similaridade.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Clique em "Adicionar PDF"</h4>
+          <p>O botão abre o seletor de arquivos. Apenas arquivos <code>.pdf</code> são aceitos.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Upload e indexação</h4>
+          <p>O arquivo é enviado ao servidor, o texto é extraído com <code>pypdf</code> e armazenado na tabela <code>knowledge_docs</code> com indexação automática.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Consulta automática pela IA</h4>
+          <p>Quando um agente com <code>use_ai_on_failure: true</code> falha, o sistema busca na base de conhecimento por contexto relevante antes de montar o prompt para a IA.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ️</div>
+      <p><strong>Dica:</strong> Adicione manuais técnicos, runbooks e documentação dos sistemas monitorados. Ex: manual do Asterisk, guias do nginx, playbooks de incidente.</p>
+    </div>
+  </section>
+
+  <!-- LOGS -->
+  <section class="section anchor" id="logs">
+    <h2>Logs de Execução</h2>
+    <p>Visualize o histórico detalhado de cada execução com logs linha a linha. Disponível pela página <strong>Logs</strong> (visão completa) ou pelo modal de logs nos botões da tabela de Agentes.</p>
+
+    <h3>Página de Logs</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Selecione um Agente</h4>
+          <p>O dropdown lista todos os agentes. Ao selecionar, carrega automaticamente as execuções recentes.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Selecione uma Execução</h4>
+          <p>Exibe timestamp, status e contagem de checks OK/total. Ex: <code>17/06/2026, 01:15 — success — 5/5 OK</code>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Visualize os Logs</h4>
+          <p>Log line-by-line com timestamp, servidor e mensagem. Cores indicam o nível.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>Níveis de Log</h4>
+      <table class="field-table">
+        <thead><tr><th>Nível</th><th>Cor</th><th>Quando aparece</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-info">info</span></td><td>Azul</td><td>Informações gerais: início de conexão, número de checks, finalização.</td></tr>
+          <tr><td><span class="badge badge-ok">success</span></td><td>Verde</td><td>Verificação passou, SSH conectado.</td></tr>
+          <tr><td><span class="badge badge-warn">warning</span></td><td>Âmbar</td><td>Auto-fix executado, situação parcial.</td></tr>
+          <tr><td><span class="badge badge-err">error</span></td><td>Vermelho</td><td>Verificação falhou, erro de conexão, timeout.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Exportar Relatório HTML</h3>
+    <p>O botão <strong>Exportar relatório</strong> abre em nova aba um relatório HTML completo da execução selecionada, com tabela de falhas, sugestões da IA e log completo. Pode ser salvo como arquivo ou impresso.</p>
+  </section>
+
+  <!-- ALERTAS -->
+  <section class="section anchor" id="alertas">
+    <h2>Alertas</h2>
+    <p>Histórico de todos os alertas enviados por todos os canais. O contador no menu lateral (<span style="background:#dc2626;color:#fff;padding:1px 6px;border-radius:99px;font-size:11px;font-weight:700;">2</span>) atualiza em tempo real via WebSocket.</p>
+
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Coluna</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Agente</strong></td><td>Nome do agente que gerou o alerta.</td></tr>
+          <tr><td><strong>Nível</strong></td><td><code>error</code> ou <code>partial</code>. Indica severidade.</td></tr>
+          <tr><td><strong>Canal</strong></td><td><code>telegram</code>, <code>email</code>, <code>webhook</code> ou <code>web</code>.</td></tr>
+          <tr><td><strong>Mensagem</strong></td><td>Resumo da falha. Ex: <em>1/3 verificações OK, 2 falha(s) em 7.2s</em>.</td></tr>
+          <tr><td><strong>Enviado em</strong></td><td>Data e hora do disparo do alerta.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECRETS -->
+  <section class="section anchor" id="secrets">
+    <h2>Secrets por Agente</h2>
+    <p>Armazene credenciais, senhas e tokens sensíveis de forma segura, vinculados a um agente específico. Os valores nunca são retornados pela API — apenas as chaves.</p>
+
+    <div class="mockup">
+      <div class="mockup-bar">
+        <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+        <div class="mockup-url">app.voiphash.com.br/agents/ — Secrets</div>
+      </div>
+      <div style="background:#f8f9fc;padding:20px;">
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:12px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:8px;">Sobre Secrets</div>
+          <p style="margin:0;font-size:12px;color:#64748b;">Secrets são variáveis sensíveis armazenadas com segurança por agente. Use a sintaxe <code style="background:#ede9ff;padding:1px 5px;border-radius:3px;color:#6c47ff;">{{NOME_DA_CHAVE}}</code> nos comandos para referenciar o valor em tempo de execução.</p>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:12px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:10px;">Adicionar secret</div>
+          <div style="display:flex;gap:10px;align-items:flex-end;">
+            <div style="flex:1;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;font-size:12px;color:#94a3b8;">DB_PASSWORD</div>
+            <div style="flex:2;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;font-size:12px;color:#94a3b8;">••••••••••••</div>
+            <div style="background:#6c47ff;color:#fff;padding:8px 14px;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;">+ Salvar</div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+          <table class="stbl">
+            <tr><th>Chave</th><th>Criado em</th><th></th></tr>
+            <tr>
+              <td><code style="background:#ede9ff;color:#6c47ff;padding:2px 6px;border-radius:4px;font-size:11px;">DB_PASSWORD</code></td>
+              <td style="font-size:11px;color:#94a3b8;">17/06/2026 01:00</td>
+              <td><div style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:10px;display:inline-block;">🗑</div></td>
+            </tr>
+            <tr>
+              <td><code style="background:#ede9ff;color:#6c47ff;padding:2px 6px;border-radius:4px;font-size:11px;">API_TOKEN</code></td>
+              <td style="font-size:11px;color:#94a3b8;">16/06/2026 22:30</td>
+              <td><div style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:10px;display:inline-block;">🗑</div></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <h3>Como usar Secrets nos checks</h3>
+    <p>Após cadastrar um secret com a chave <code>DB_PASSWORD</code>, referencie-o no comando do check com a sintaxe <code>{{DB_PASSWORD}}</code>. O valor é substituído em tempo de execução antes do comando ser enviado ao servidor.</p>
+
+    <div class="code-block"><div class="code-label">Exemplo de uso em SSH Test</div><pre>{
+  <span class="hl-key">"name"</span>: <span class="hl-str">"testar conexão banco"</span>,
+  <span class="hl-key">"cmd"</span>:  <span class="hl-str">"PGPASSWORD={{DB_PASSWORD}} psql -U dbuser -h localhost -c 'SELECT 1'"</span>,
+  <span class="hl-key">"expect_exit"</span>: <span class="hl-num">0</span>
+}</pre></div>
+
+    <div class="callout ok">
+      <div class="callout-icon">🔒</div>
+      <p><strong>Segurança:</strong> Valores de secrets são armazenados na tabela <code>agent_secrets</code> e nunca retornados pela API de listagem — apenas as chaves aparecem na interface. Acesso restrito ao agente dono do secret.</p>
+    </div>
+  </section>
+
+  <!-- CONFIG IA -->
+  <section class="section anchor" id="config-ia">
+    <h2>Configuração de IA</h2>
+    <p>Configure o provedor de LLM utilizado pelos agentes quando <code>use_ai_on_failure: true</code>. As configurações são salvas no arquivo <code>/opt/AsteriskIA/env/.env.agents</code> sem necessidade de reiniciar o container.</p>
+
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Provedor</th><th>Variável da API Key</th><th>Modelos sugeridos</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Google Gemini</strong></td><td><code>AGENTS_LLM_GOOGLE_KEY</code></td><td><code>gemini-2.5-flash</code>, <code>gemini-2.0-flash</code></td></tr>
+          <tr><td><strong>Anthropic Claude</strong></td><td><code>AGENTS_LLM_ANTHROPIC_KEY</code></td><td><code>claude-sonnet-4-6</code>, <code>claude-haiku-4-5</code></td></tr>
+          <tr><td><strong>OpenAI</strong></td><td><code>AGENTS_LLM_OPENAI_KEY</code></td><td><code>gpt-4o-mini</code>, <code>gpt-4o</code></td></tr>
+          <tr><td><strong>MiniMax</strong></td><td><code>AGENTS_LLM_MINIMAX_KEY</code></td><td><code>abab6.5s-chat</code></td></tr>
+          <tr><td><strong>OpenAI-Compatible</strong></td><td><code>AGENTS_LLM_COMPAT_KEY</code></td><td>Qualquer modelo Ollama, LM Studio etc.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Campos da página</h3>
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Campo</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><strong>IA habilitada</strong></td><td>Liga/desliga o uso de IA globalmente. Quando desligado, nenhum agente consulta o LLM.</td></tr>
+          <tr><td><strong>Provedor</strong></td><td>Selecione o provedor LLM desejado.</td></tr>
+          <tr><td><strong>Modelo</strong></td><td>Nome exato do modelo a usar. Veja a documentação do provedor para nomes válidos.</td></tr>
+          <tr><td><strong>Chave de API</strong></td><td>Token de autenticação do provedor selecionado.</td></tr>
+          <tr><td><strong>Testar configuração</strong></td><td>Envia uma requisição simples ao LLM para validar que a chave e o modelo funcionam antes de salvar.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ️</div>
+      <p>Para usar modelo local via Ollama, selecione <strong>OpenAI-Compatible</strong>, informe a URL (<code>http://localhost:11434/v1</code>) e o nome do modelo instalado. A chave pode ser qualquer string não vazia.</p>
+    </div>
+  </section>
+
+  <!-- HEALTH CHECK -->
+  <section class="section anchor" id="health">
+    <h2>Health Check</h2>
+    <p>Endpoint público para monitoramento externo do sistema. Não requer autenticação JWT.</p>
+
+    <div class="api-endpoint">
+      <span class="method method-get">GET</span>
+      <span>/api/system/health</span>
+    </div>
+
+    <div class="code-block"><div class="code-label">Resposta — sistema saudável</div><pre>{
+  <span class="hl-key">"status"</span>:   <span class="hl-str">"ok"</span>,
+  <span class="hl-key">"database"</span>: <span class="hl-str">"ok"</span>,
+  <span class="hl-key">"agents"</span>:   <span class="hl-num">3</span>,
+  <span class="hl-key">"running"</span>:  <span class="hl-num">0</span>,
+  <span class="hl-key">"version"</span>:  <span class="hl-str">"2.0.0"</span>
+}</pre></div>
+
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Campo</th><th>Valores</th><th>Significado</th></tr></thead>
+        <tbody>
+          <tr><td><code>status</code></td><td><code>ok</code> / <code>degraded</code></td><td><code>degraded</code> quando o banco não responde.</td></tr>
+          <tr><td><code>database</code></td><td><code>ok</code> / <code>error</code></td><td>Estado da conexão com o PostgreSQL.</td></tr>
+          <tr><td><code>agents</code></td><td>número</td><td>Total de agentes cadastrados.</td></tr>
+          <tr><td><code>running</code></td><td>número</td><td>Agentes com status <code>running</code> no momento.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Configure um uptime monitor externo (UptimeRobot, Betteruptime etc.) apontando para <code>https://app.voiphash.com.br/agents/api/system/health</code> com verificação de <code>"status":"ok"</code> no body.</p>
+  </section>
+
+  <!-- RETENÇÃO -->
+  <section class="section anchor" id="retencao">
+    <h2>Retenção de Dados</h2>
+    <p>Configura por quanto tempo execuções, logs e alertas são mantidos no banco. A limpeza roda automaticamente em background com probabilidade de 1% em cada execução de agente.</p>
+
+    <div class="api-endpoint">
+      <span class="method method-get">GET</span>
+      <span>/api/system/retention</span>
+      <span style="color:#8b949e;font-size:11px;margin-left:8px;">Lê configuração atual</span>
+    </div>
+    <div class="api-endpoint">
+      <span class="method method-put">PUT</span>
+      <span>/api/system/retention</span>
+      <span style="color:#8b949e;font-size:11px;margin-left:8px;">Atualiza configuração</span>
+    </div>
+    <div class="api-endpoint">
+      <span class="method method-post">POST</span>
+      <span>/api/system/retention/run</span>
+      <span style="color:#8b949e;font-size:11px;margin-left:8px;">Força limpeza imediata</span>
+    </div>
+
+    <div class="code-block"><div class="code-label">PUT /api/system/retention — body</div><pre>{
+  <span class="hl-key">"executions_days"</span>: <span class="hl-num">90</span>,   <span class="hl-cmt">// padrão: 90 dias</span>
+  <span class="hl-key">"logs_days"</span>:       <span class="hl-num">30</span>,   <span class="hl-cmt">// padrão: 30 dias</span>
+  <span class="hl-key">"alerts_days"</span>:     <span class="hl-num">180</span>  <span class="hl-cmt">// padrão: 180 dias</span>
+}</pre></div>
+
+    <div class="callout warn">
+      <div class="callout-icon">⚠️</div>
+      <p>Execuções com status <code>running</code> nunca são deletadas automaticamente, mesmo que ultrapassem o limite de dias, para evitar perda de dados em andamento.</p>
+    </div>
+  </section>
+
+  <!-- API REFERENCE -->
+  <section class="section anchor" id="api">
+    <h2>Referência da API</h2>
+    <p>Todos os endpoints (exceto health) requerem o header <code>Authorization: Bearer &lt;jwt&gt;</code>. O token é obtido via <code>POST /api/v1/auth/login</code> no backend Telecom.</p>
+
+    <h3>Agentes</h3>
+    <div class="card">
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/agents/?limit=100&amp;offset=0</span></div>
+      <div class="api-endpoint"><span class="method method-post">POST</span><span>/api/agents/</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/agents/{id}</span></div>
+      <div class="api-endpoint"><span class="method method-put">PUT</span><span>/api/agents/{id}</span></div>
+      <div class="api-endpoint"><span class="method method-delete">DELETE</span><span>/api/agents/{id}</span></div>
+      <div class="api-endpoint"><span class="method method-post">POST</span><span>/api/agents/{id}/run</span></div>
+      <div class="api-endpoint"><span class="method method-post">POST</span><span>/api/agents/{id}/pause</span></div>
+      <div class="api-endpoint"><span class="method method-post">POST</span><span>/api/agents/{id}/resume</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/agents/{id}/memory?q=termo</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/agents/{id}/stats</span></div>
+    </div>
+
+    <h3>Servidores</h3>
+    <div class="card">
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/servers/?limit=100&amp;offset=0</span></div>
+      <div class="api-endpoint"><span class="method method-post">POST</span><span>/api/servers/</span></div>
+      <div class="api-endpoint"><span class="method method-put">PUT</span><span>/api/servers/{id}</span></div>
+      <div class="api-endpoint"><span class="method method-delete">DELETE</span><span>/api/servers/{id}</span></div>
+      <div class="api-endpoint"><span class="method method-post">POST</span><span>/api/servers/{id}/test</span></div>
+    </div>
+
+    <h3>Execuções e Logs</h3>
+    <div class="card">
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/executions/?agent_id=&amp;limit=50&amp;offset=0</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/executions/dashboard/summary</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/executions/dashboard/period?period=day|week|month</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/executions/alerts?limit=100</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/executions/{id}/logs?limit=500</span></div>
+    </div>
+
+    <h3>Relatórios</h3>
+    <div class="card">
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/reports/execution/{id}</span><span style="color:#8b949e;font-size:11px;margin-left:8px;">JSON completo</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/reports/execution/{id}/html</span><span style="color:#8b949e;font-size:11px;margin-left:8px;">HTML exportável</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/reports/alerts?limit=50</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/reports/alerts/unread-count</span></div>
+    </div>
+
+    <h3>Base de Conhecimento</h3>
+    <div class="card">
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/knowledge/?limit=100&amp;offset=0</span></div>
+      <div class="api-endpoint"><span class="method method-post">POST</span><span>/api/knowledge/upload</span><span style="color:#8b949e;font-size:11px;margin-left:8px;">multipart/form-data, campo: file</span></div>
+      <div class="api-endpoint"><span class="method method-delete">DELETE</span><span>/api/knowledge/{id}</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/knowledge/search?q=termo&amp;limit=5</span></div>
+    </div>
+
+    <h3>Sistema</h3>
+    <div class="card">
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/system/health</span><span style="color:#8b949e;font-size:11px;margin-left:8px;">público, sem JWT</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/system/retention</span></div>
+      <div class="api-endpoint"><span class="method method-put">PUT</span><span>/api/system/retention</span></div>
+      <div class="api-endpoint"><span class="method method-post">POST</span><span>/api/system/retention/run</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/system/agents/{id}/secrets</span></div>
+      <div class="api-endpoint"><span class="method method-post">POST</span><span>/api/system/agents/{id}/secrets</span></div>
+      <div class="api-endpoint"><span class="method method-delete">DELETE</span><span>/api/system/agents/{id}/secrets/{key}</span></div>
+    </div>
+
+    <h3>LLM / IA</h3>
+    <div class="card">
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/llm/status</span><span style="color:#8b949e;font-size:11px;margin-left:8px;">público</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/llm/providers</span><span style="color:#8b949e;font-size:11px;margin-left:8px;">público</span></div>
+      <div class="api-endpoint"><span class="method method-get">GET</span><span>/api/llm/config</span></div>
+      <div class="api-endpoint"><span class="method method-post">POST</span><span>/api/llm/config</span></div>
+      <div class="api-endpoint"><span class="method method-post">POST</span><span>/api/llm/test</span></div>
+    </div>
+
+    <h3>WebSocket</h3>
+    <div class="card">
+      <div class="api-endpoint"><span style="color:#f2cc60;font-weight:800;font-size:11px;padding:3px 8px;background:#3a3000;border-radius:4px;">WS</span><span>/agents/ws/alerts?token=&lt;jwt&gt;</span><span style="color:#8b949e;font-size:11px;margin-left:8px;">alertas globais em tempo real</span></div>
+      <div class="api-endpoint"><span style="color:#f2cc60;font-weight:800;font-size:11px;padding:3px 8px;background:#3a3000;border-radius:4px;">WS</span><span>/agents/ws/agent/{id}/logs?token=&lt;jwt&gt;</span><span style="color:#8b949e;font-size:11px;margin-left:8px;">logs ao vivo de um agente</span></div>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ️</div>
+      <p>WebSockets requerem o token JWT como query param (<code>?token=...</code>). Conexões sem token válido são fechadas com código <code>4401</code>.</p>
+    </div>
+  </section>
+
+  <!-- VARIÁVEIS DE AMBIENTE -->
+  <section class="section anchor" id="variaveis-env">
+    <h2>Variáveis de Ambiente</h2>
+    <p>Defina no arquivo <code>/opt/AsteriskIA/.env</code> (container agents-backend) e <code>/opt/AsteriskIA/env/.env.agents</code> (configuração de IA, editável pelo painel).</p>
+
+    <h3>Banco de dados</h3>
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Variável</th><th>Padrão</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field-name">AGENTS_DB_HOST</span></td><td><code>agents-postgres</code></td><td>Hostname do PostgreSQL dos agentes.</td></tr>
+          <tr><td><span class="field-name">AGENTS_DB_PORT</span></td><td><code>5432</code></td><td>Porta do PostgreSQL.</td></tr>
+          <tr><td><span class="field-name">AGENTS_DB_NAME</span></td><td><code>agentsdb</code></td><td>Nome do banco de dados.</td></tr>
+          <tr><td><span class="field-name">AGENTS_DB_USER</span></td><td><code>agents</code></td><td>Usuário do banco.</td></tr>
+          <tr><td><span class="field-name">AGENTS_DB_PASS</span></td><td><code>agents_secret</code></td><td>Senha do banco. Altere em produção.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Autenticação</h3>
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Variável</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field-name">BACKEND_JWT_SECRET</span></td><td><span class="req">obrigatório</span> Mesma secret usada pelo Spring Boot (<code>app.jwt.secret</code>). Algoritmo HS256 com padding de 32 bytes.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Notificações</h3>
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Variável</th><th>Padrão</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field-name">TELEGRAM_BOT_TOKEN</span></td><td>—</td><td>Token do bot Telegram (<code>123456:ABC-DEF...</code>). Obtenha via @BotFather.</td></tr>
+          <tr><td><span class="field-name">AGENTS_SMTP_HOST</span></td><td>—</td><td>Servidor SMTP para e-mail. Ex: <code>smtp.gmail.com</code>.</td></tr>
+          <tr><td><span class="field-name">AGENTS_SMTP_PORT</span></td><td><code>587</code></td><td>Porta SMTP. <code>587</code> para TLS, <code>465</code> para SSL.</td></tr>
+          <tr><td><span class="field-name">AGENTS_SMTP_USER</span></td><td>—</td><td>Usuário/e-mail de autenticação SMTP.</td></tr>
+          <tr><td><span class="field-name">AGENTS_SMTP_PASS</span></td><td>—</td><td>Senha ou App Password SMTP.</td></tr>
+          <tr><td><span class="field-name">AGENTS_SMTP_FROM</span></td><td>= SMTP_USER</td><td>E-mail do remetente. Se vazio, usa <code>AGENTS_SMTP_USER</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Configuração de IA (.env.agents)</h3>
+    <div class="card">
+      <table class="field-table">
+        <thead><tr><th>Variável</th><th>Valores</th><th>Descrição</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field-name">AGENTS_LLM_ENABLED</span></td><td><code>true</code> / <code>false</code></td><td>Liga/desliga o uso de IA globalmente.</td></tr>
+          <tr><td><span class="field-name">AGENTS_LLM_PROVIDER</span></td><td><code>google</code>, <code>anthropic</code>, <code>openai</code>, <code>minimax</code>, <code>openai_compat</code></td><td>Provedor de LLM ativo.</td></tr>
+          <tr><td><span class="field-name">AGENTS_LLM_MODEL</span></td><td>ex: <code>gemini-2.5-flash</code></td><td>Modelo a usar no provedor selecionado.</td></tr>
+          <tr><td><span class="field-name">AGENTS_LLM_GOOGLE_KEY</span></td><td>—</td><td>API Key do Google AI Studio.</td></tr>
+          <tr><td><span class="field-name">AGENTS_LLM_ANTHROPIC_KEY</span></td><td>—</td><td>API Key da Anthropic.</td></tr>
+          <tr><td><span class="field-name">AGENTS_LLM_OPENAI_KEY</span></td><td>—</td><td>API Key da OpenAI.</td></tr>
+          <tr><td><span class="field-name">AGENTS_LLM_COMPAT_URL</span></td><td>—</td><td>URL base para modelo compatível com OpenAI. Ex: <code>http://localhost:11434/v1</code>.</td></tr>
+          <tr><td><span class="field-name">AGENTS_LLM_COMPAT_KEY</span></td><td>—</td><td>API Key para modelo compatível (pode ser qualquer string para Ollama).</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout ok">
+      <div class="callout-icon">✅</div>
+      <p><strong>Sem restart:</strong> As variáveis em <code>.env.agents</code> são lidas em tempo de execução a cada chamada ao LLM. Alterações feitas pelo painel de Config. IA são aplicadas imediatamente, sem reiniciar o container.</p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <strong>AsteriskIA Agentes v2.0.0</strong> · Documentação Oficial<br>
+    Integrado ao AsteriskIA Telecom · <code>https://app.voiphash.com.br/agents/</code><br><br>
+    Backend: FastAPI + Python 3.12 · Banco: PostgreSQL 16 · Frontend: React 18 UMD · Infra: Docker + Caddy
+  </div>
+
+</main>
+
+<script>
+  // Highlight nav item on scroll
+  var sections = document.querySelectorAll('.anchor');
+  var navLinks  = document.querySelectorAll('.nav-item, .nav-sub');
+  window.addEventListener('scroll', function() {
+    var current = '';
+    sections.forEach(function(s) {
+      if (window.scrollY >= s.offsetTop - 80) current = s.id;
+    });
+    navLinks.forEach(function(a) {
+      a.classList.remove('active');
+      if (a.getAttribute('href') === '#' + current) a.classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>
