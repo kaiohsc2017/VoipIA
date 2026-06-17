@@ -942,14 +942,22 @@ function LogsPage() {
   var logRef=useRef();
   var lcls={info:'li',success:'ls',warning:'lw',error:'le'};
 
-  useEffect(function(){api.get('/api/agents/').then(setAgents).catch(function(){});}, []);
+  useEffect(function(){
+    api.get('/api/agents/').then(function(r){ setAgents(Array.isArray(r)?r:[]); }).catch(function(){});
+  }, []);
   useEffect(function(){
     if(!selAgent) return;
-    api.get('/api/executions?agent_id='+selAgent+'&limit=30').then(function(r){setExecs(r||[]);}).catch(function(){});
+    setExecs([]); setLogs([]); setSelExec('');
+    api.get('/api/executions/?agent_id='+selAgent+'&limit=30').then(function(r){
+      setExecs(Array.isArray(r)?r:[]);
+    }).catch(function(){ setExecs([]); });
   },[selAgent]);
   useEffect(function(){
     if(!selExec) return;
-    api.get('/api/executions/'+selExec+'/logs?limit=500').then(function(r){setLogs(r||[]);}).catch(function(){});
+    setLogs([]);
+    api.get('/api/executions/'+selExec+'/logs?limit=500').then(function(r){
+      setLogs(Array.isArray(r)?r:[]);
+    }).catch(function(){ setLogs([]); });
   },[selExec]);
   useEffect(function(){if(logRef.current) logRef.current.scrollTop=logRef.current.scrollHeight;},[logs]);
 
