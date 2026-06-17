@@ -163,7 +163,8 @@ var ICONS = {
   logs:      '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   upload:    '<polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>',
   refresh:   '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
-  settings:  '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
+  settings:  '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  key:       '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>'
 };
 
 function Ico(props) {
@@ -318,6 +319,131 @@ function Dashboard() {
   return h('div',null,
     h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Dashboard')),
     h('div',{className:'content'}, statCards, chartCard, recentTable, periodTable)
+  );
+}
+
+
+// ── SECRETS PAGE ─────────────────────────────────────────────────────────────
+function SecretsPage() {
+  var agS=useState([]); var agents=agS[0]; var setAgents=agS[1];
+  var selS=useState(''); var selAgent=selS[0]; var setSelAgent=selS[1];
+  var scS=useState([]); var secrets=scS[0]; var setSecrets=scS[1];
+  var ldS=useState(false); var loading=ldS[0]; var setLoading=ldS[1];
+  var msgS=useState(null); var msg=msgS[0]; var setMsg=msgS[1];
+  var fmS=useState({key:'',value:''}); var form=fmS[0]; var setForm=fmS[1];
+  var cfS=useState(null); var conf=cfS[0]; var setConf=cfS[1];
+
+  useEffect(function(){
+    api.get('/api/agents/?limit=200').then(function(r){
+      setAgents(Array.isArray(r)?r:(r&&r.items?r.items:[]));
+    }).catch(function(){});
+  },[]);
+
+  function loadSecrets(aid) {
+    if(!aid) return;
+    setLoading(true);
+    api.get('/api/system/agents/'+aid+'/secrets').then(function(r){
+      setSecrets(Array.isArray(r)?r:[]); setLoading(false);
+    }).catch(function(){ setSecrets([]); setLoading(false); });
+  }
+
+  function selectAgent(aid) {
+    setSelAgent(aid); setSecrets([]); setForm({key:'',value:''});
+    loadSecrets(aid);
+  }
+
+  function save() {
+    if(!form.key||!form.value) { flash('Preencha chave e valor.'); return; }
+    api.post('/api/system/agents/'+selAgent+'/secrets', {key:form.key,value:form.value})
+      .then(function(r){
+        if(r&&r.ok){ flash('Secret salvo.'); setForm({key:'',value:''}); loadSecrets(selAgent); }
+        else flash('Erro ao salvar.');
+      });
+  }
+
+  function del(key) {
+    api.del('/api/system/agents/'+selAgent+'/secrets/'+encodeURIComponent(key))
+      .then(function(){ loadSecrets(selAgent); });
+  }
+
+  function flash(m) { setMsg(m); setTimeout(function(){setMsg(null);},3000); }
+
+  var agentOpts = [h('option',{value:'',key:'_'},'Selecione um agente...')].concat(
+    agents.map(function(a){ return h('option',{key:a.id,value:a.id},a.name); })
+  );
+
+  var rows = secrets.map(function(s){
+    return h('tr',{key:s.id||s.key},
+      h('td',null,h('code',{style:{fontSize:12,background:'var(--bg)',padding:'2px 6px',borderRadius:4}},s.key)),
+      h('td',{className:'tmut tsm'},new Date(s.created_at).toLocaleString('pt-BR')),
+      h('td',null,
+        h('button',{className:'btn btn-sm btn-d',
+          onClick:function(){setConf({msg:'Remover secret "'+s.key+'"?',fn:function(){del(s.key);}});}},
+          h(Ico,{n:'trash',s:12})
+        )
+      )
+    );
+  });
+
+  return h('div',null,
+    conf && h(Confirm,{msg:conf.msg,onOk:function(){conf.fn();setConf(null);},onCancel:function(){setConf(null);}}),
+    h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Secrets por Agente')),
+    h('div',{className:'content'},
+      h('div',{className:'card',style:{marginBottom:16}},
+        h('div',{className:'ch'},h('span',{className:'cht'},'Sobre Secrets')),
+        h('p',{style:{fontSize:13,color:'var(--text2)',margin:0}},
+          'Secrets são variáveis sensíveis armazenadas com segurança por agente. ',
+          'Use a sintaxe ',h('code',{style:{fontSize:12,background:'var(--bg)',padding:'2px 5px',borderRadius:4}},'{{NOME_DA_CHAVE}}'),
+          ' nos comandos e queries do agente para referenciar o valor em tempo de execução.'
+        )
+      ),
+
+      h('div',{className:'card',style:{marginBottom:16}},
+        h('div',{className:'ch'},h('span',{className:'cht'},'Selecionar agente')),
+        h('div',{className:'fg'},
+          h('select',{value:selAgent,onChange:function(e){selectAgent(e.target.value);}},agentOpts)
+        )
+      ),
+
+      selAgent && h('div',{className:'card',style:{marginBottom:16}},
+        h('div',{className:'ch'},h('span',{className:'cht'},'Adicionar secret')),
+        msg && h('div',{style:{padding:'8px 12px',background:'var(--ok)',color:'#fff',borderRadius:6,fontSize:13,marginBottom:12}},msg),
+        h('div',{className:'fr',style:{gap:10,alignItems:'flex-end'}},
+          h('div',{className:'fg',style:{flex:1}},
+            h('label',null,'Chave'),
+            h('input',{value:form.key,placeholder:'DB_PASSWORD',
+              onChange:function(e){setForm(function(f){return Object.assign({},f,{key:e.target.value});});}})
+          ),
+          h('div',{className:'fg',style:{flex:2}},
+            h('label',null,'Valor'),
+            h('input',{type:'password',value:form.value,placeholder:'valor secreto',
+              onChange:function(e){setForm(function(f){return Object.assign({},f,{value:e.target.value});});}})
+          ),
+          h('button',{className:'btn btn-p',style:{flexShrink:0,marginBottom:1},onClick:save},
+            h(Ico,{n:'plus',s:13}),' Salvar'
+          )
+        )
+      ),
+
+      selAgent && h('div',{className:'card'},
+        h('div',{className:'ch'},
+          h('span',{className:'cht'},'Secrets cadastrados'),
+          h('span',{className:'txs tmut'},secrets.length+' secret'+(secrets.length!==1?'s':''))
+        ),
+        loading
+          ? h('div',{className:'empty'},'Carregando...')
+          : secrets.length===0
+          ? h('div',{className:'empty'},h('p',null,'Nenhum secret para este agente.'))
+          : h('table',null,
+              h('thead',null,h('tr',null,
+                h('th',null,'Chave'),
+                h('th',null,'Criado em'),
+                h('th',null,'')
+              )),
+              h('tbody',null,rows)
+            )
+      )
+    )
   );
 }
 
@@ -1078,6 +1204,7 @@ var NAV = [
   {id:'knowledge', label:'Base de Conhecimento',icon:'knowledge'},
   {id:'logs',      label:'Logs',               icon:'logs'},
   {id:'reports',   label:'Alertas',            icon:'reports'},
+  {id:'secrets',   label:'Secrets',             icon:'key'},
   {id:'llm',       label:'Config. IA',          icon:'settings'}
 ];
 
@@ -1117,6 +1244,7 @@ function App(props) {
     knowledge: function(){ return h(Knowledge); },
     logs:      function(){ return h(LogsPage); },
     reports:   function(){ return h(Reports); },
+    secrets:   function(){ return h(SecretsPage); },
     llm:       function(){ return h(LLMSettings); }
   };
   var activePage = pageMap[page] ? pageMap[page]() : null;
