@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AsteriskIA · Agentes</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236c47ff'/><text x='16' y='22' text-anchor='middle' font-size='18' font-family='Arial' fill='white'>A</text></svg>">
 <!-- v1781534161 -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -256,18 +257,26 @@ function Dashboard() {
       api.get('/api/executions/dashboard/summary'),
       api.get('/api/executions/dashboard/period?period='+(p||period))
     ]).then(function(res){
-      setData(res[0]&&res[0].active_agents!==undefined ? res[0] : MOCK_DASHBOARD);
-      setPdata(Array.isArray(res[1]) ? res[1] : MOCK_PERIOD);
+      setData(res[0]&&res[0].active_agents!==undefined ? res[0] : null);
+      setPdata(Array.isArray(res[1]) ? res[1] : []);
       setLoading(false);
-    }).catch(function(){ setData(MOCK_DASHBOARD); setPdata(MOCK_PERIOD); setLoading(false); });
+    }).catch(function(){ setData(null); setPdata([]); setLoading(false); });
   }
 
   useEffect(function(){ load(); }, []);
   function changePeriod(p){ setPeriod(p); load(p); }
 
-  if(loading||!data) return h('div',null,
+  if(loading) return h('div',null,
     h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Dashboard')),
     h('div',{className:'content'},h('div',{className:'empty'},'Carregando...')));
+  if(!data) return h('div',null,
+    h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Dashboard')),
+    h('div',{className:'content'},h('div',{className:'card'},
+      h('div',{className:'empty'},
+        h('p',{style:{color:'var(--err)',marginBottom:8}},'Erro ao carregar dados do dashboard.'),
+        h('button',{className:'btn btn-g',onClick:function(){load();}}, 'Tentar novamente')
+      )
+    )));
 
   var statCards = h('div', {className: 'g4'},
     h('div', {className: 'card stat'}, h('div',{className:'stl'},'Agentes ativos'),       h('div',{className:'stv c-info'}, data.active_agents)),
@@ -351,7 +360,7 @@ function LogModal(props) {
     if (!props.agentId) return;
     update({loading:true, execs:[], logs:[], selExec:''});
     api.get('/api/executions/?agent_id=' + props.agentId + '&limit=20').then(function(r) {
-      var list = Array.isArray(r) ? r : [];
+      var list = Array.isArray(r) ? r : (r&&r.items ? r.items : []);
       if (list.length === 0) { update({execs:[], selExec:'', logs:[], loading:false}); return; }
       var first = list[0].id;
       update({execs: list, selExec: first, loading: true});
@@ -662,9 +671,9 @@ function Agents(props) {
 
   function load() {
     setLoading(true);
-    api.get('/api/agents/').then(function(r){
-      setAgents(Array.isArray(r)?r:MOCK_AGENTS); setLoading(false);
-    }).catch(function(){ setAgents(MOCK_AGENTS); setLoading(false); });
+    api.get('/api/agents/?limit=200').then(function(r){
+      setAgents(Array.isArray(r)?r:(r&&r.items?r.items:[])); setLoading(false);
+    }).catch(function(){ setAgents([]); setLoading(false); });
   }
   useEffect(function(){ load(); }, []);
 
@@ -780,8 +789,8 @@ function Servers() {
 
   function load() {
     api.get('/api/servers/').then(function(r){
-      setServers(Array.isArray(r)?r:MOCK_SERVERS);
-    }).catch(function(){ setServers(MOCK_SERVERS); });
+      setServers(Array.isArray(r)?r:[]);
+    }).catch(function(){ setServers([]); });
   }
   useEffect(function(){ load(); }, []);
 
@@ -880,8 +889,8 @@ function Knowledge() {
   var fileRef   = useRef();
 
   function load() {
-    api.get('/api/knowledge/').then(function(r){ setDocs(Array.isArray(r)?r:MOCK_KNOWLEDGE); })
-      .catch(function(){ setDocs(MOCK_KNOWLEDGE); });
+    api.get('/api/knowledge/').then(function(r){ setDocs(Array.isArray(r)?r:[]); })
+      .catch(function(){ setDocs([]); });
   }
   useEffect(function(){ load(); }, []);
 
@@ -943,13 +952,15 @@ function LogsPage() {
   var lcls={info:'li',success:'ls',warning:'lw',error:'le'};
 
   useEffect(function(){
-    api.get('/api/agents/').then(function(r){ setAgents(Array.isArray(r)?r:[]); }).catch(function(){});
+    api.get('/api/agents/?limit=200').then(function(r){
+      setAgents(Array.isArray(r)?r:(r&&r.items?r.items:[]));
+    }).catch(function(){});
   }, []);
   useEffect(function(){
     if(!selAgent) return;
     setExecs([]); setLogs([]); setSelExec('');
     api.get('/api/executions/?agent_id='+selAgent+'&limit=30').then(function(r){
-      setExecs(Array.isArray(r)?r:[]);
+      setExecs(Array.isArray(r)?r:(r&&r.items?r.items:[]));
     }).catch(function(){ setExecs([]); });
   },[selAgent]);
   useEffect(function(){
@@ -1018,8 +1029,8 @@ function Reports() {
   useEffect(function(){
     setLoading(true);
     api.get('/api/executions/alerts?limit=100').then(function(r){
-      setAlerts(Array.isArray(r)?r:MOCK_ALERTS); setLoading(false);
-    }).catch(function(){ setAlerts(MOCK_ALERTS); setLoading(false); });
+      setAlerts(Array.isArray(r)?r:[]); setLoading(false);
+    }).catch(function(){ setAlerts([]); setLoading(false); });
   },[]);
 
   var rows = alerts.map(function(a) {
@@ -1069,7 +1080,10 @@ function App(props) {
   var acS=useState(0); var alertCount=acS[0]; var setAlertCount=acS[1];
 
   useEffect(function(){
-    api.get('/api/servers/').then(function(r){ if(Array.isArray(r)) setServers(r); }).catch(function(){});
+    api.get('/api/servers/').then(function(r){
+      if(Array.isArray(r)) setServers(r);
+      else if(r&&r.items) setServers(r.items);
+    }).catch(function(){});
   },[]);
 
   useEffect(function(){
@@ -1077,7 +1091,8 @@ function App(props) {
     var host=location.host||'localhost';
     var ws;
     try{
-      ws=new WebSocket(proto+'//'+host+'/agents/ws/alerts');
+      var wsToken = getToken() || '';
+      ws=new WebSocket(proto+'//'+host+'/agents/ws/alerts?token='+encodeURIComponent(wsToken));
       ws.onmessage=function(e){
         try{var d=JSON.parse(e.data||'{}');if(d.level==='error'||d.level==='warning'){setAlertCount(function(n){return n+1;});}}catch(ex){}
       };
