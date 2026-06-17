@@ -145,48 +145,7 @@ const api = {
 };
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
-var now = Date.now();
-var MOCK_AGENTS = [
-  {id:'a1',name:'Monitor Nginx Prod',description:'Verifica nginx, disco e memoria',type:'ssh_test',status:'idle',last_run:new Date(now-120000).toISOString(),schedule:{type:'interval',value:'5m',active:true},server_ids:['s1'],target_urls:[],rules:{checks:[{name:'nginx ativo',cmd:'systemctl is-active nginx',expect:'active',fix_hint:'sudo systemctl restart nginx'},{name:'disco livre',cmd:"df / | awk 'NR==2{print $5}'",expect_lt:'80%',fix_hint:'Limpar logs antigos'}]}},
-  {id:'a2',name:'Asterisk Health',description:'SIP, AudioSocket e canais',type:'ssh_test',status:'running',last_run:new Date(now).toISOString(),schedule:{type:'interval',value:'2m',active:true},server_ids:['s1','s2'],target_urls:[],rules:{checks:[{name:'asterisk rodando',cmd:'systemctl is-active asterisk',expect:'active',fix_hint:'sudo systemctl restart asterisk'}]}},
-  {id:'a3',name:'Web Monitor API',description:'Monitora endpoints HTTP',type:'web_monitor',status:'error',last_run:new Date(now-60000).toISOString(),schedule:{type:'interval',value:'1m',active:true},server_ids:[],target_urls:['https://app.voiphash.com.br'],rules:{checks:[]}},
-  {id:'a4',name:'Backup Diario',description:'Verifica backup noturno',type:'ssh_test',status:'paused',last_run:new Date(now-86400000).toISOString(),schedule:{type:'cron',value:'0 2 * * *',active:false},server_ids:['s1'],target_urls:[],rules:{checks:[]}}
-];
-var MOCK_SERVERS = [
-  {id:'s1',name:'VPS Prod',host:'192.168.1.100',port:22,username:'root',auth_type:'password',tags:['production','asterisk'],active:true,created_at:new Date().toISOString()},
-  {id:'s2',name:'VPS Backup',host:'192.168.1.101',port:22,username:'root',auth_type:'key',tags:['backup'],active:true,created_at:new Date().toISOString()}
-];
-var MOCK_DASHBOARD = {
-  active_agents:4,
-  executions_24h:{ok:38,errors:3},
-  alerts_24h:2,
-  recent_executions:[
-    {id:'e1',agent_name:'Monitor Nginx Prod',status:'success',passed_checks:5,total_checks:5,failed_checks:0,duration_s:4.2,started_at:new Date(now-120000).toISOString()},
-    {id:'e2',agent_name:'Asterisk Health',status:'partial',passed_checks:3,total_checks:5,failed_checks:2,duration_s:7.1,started_at:new Date(now-300000).toISOString()},
-    {id:'e3',agent_name:'Web Monitor API',status:'error',passed_checks:0,total_checks:3,failed_checks:3,duration_s:2.1,started_at:new Date(now-600000).toISOString()}
-  ]
-};
-var MOCK_PERIOD = [
-  {agent_name:'Monitor Nginx Prod',total:24,ok:23,errors:1,avg_duration:'4.2',failures:5},
-  {agent_name:'Asterisk Health',total:48,ok:44,errors:4,avg_duration:'6.8',failures:18},
-  {agent_name:'Web Monitor API',total:60,ok:57,errors:3,avg_duration:'2.1',failures:3}
-];
-var MOCK_LOGS = [
-  {id:1,level:'info',server:'VPS Prod',message:'Iniciando 1 servidor, 2 verificacoes',ts:new Date(now-120000).toISOString()},
-  {id:2,level:'info',server:'VPS Prod',message:'Conectando a VPS Prod (192.168.1.100:22)',ts:new Date(now-119000).toISOString()},
-  {id:3,level:'success',server:'VPS Prod',message:'SSH conectado',ts:new Date(now-118500).toISOString()},
-  {id:4,level:'success',server:'VPS Prod',message:'OK nginx ativo: active',ts:new Date(now-118000).toISOString()},
-  {id:5,level:'error',server:'VPS Prod',message:'FAIL disco livre: 85% >= 80% → Limpar logs antigos',ts:new Date(now-117500).toISOString()},
-  {id:6,level:'info',server:'VPS Prod',message:'Execucao finalizada: 1/2 OK em 4.2s',ts:new Date(now-117000).toISOString()}
-];
-var MOCK_KNOWLEDGE = [
-  {id:'k1',filename:'asterisk-admin-guide.pdf',title:'Asterisk Admin Guide',tags:['asterisk','sip'],created_at:new Date().toISOString()},
-  {id:'k2',filename:'nginx-cookbook.pdf',title:'NGINX Cookbook',tags:['nginx'],created_at:new Date().toISOString()}
-];
-var MOCK_ALERTS = [
-  {id:1,agent_name:'Web Monitor API',level:'error',channel:'telegram',message:'https://app.voiphash.com.br respondeu HTTP 503',sent_at:new Date(now-3600000).toISOString(),delivered:true},
-  {id:2,agent_name:'Asterisk Health',level:'warning',channel:'web',message:'AudioSocket porta 9092 nao respondendo',sent_at:new Date(now-7200000).toISOString(),delivered:true}
-];
+
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 var ICONS = {
@@ -788,8 +747,8 @@ function Servers() {
   function openForm(s) { setEditing(s); setFd(s||def); setShowForm(true); }
 
   function load() {
-    api.get('/api/servers/').then(function(r){
-      setServers(Array.isArray(r)?r:[]);
+    api.get('/api/servers/?limit=200').then(function(r){
+      setServers(Array.isArray(r)?r:(r&&r.items?r.items:[]));
     }).catch(function(){ setServers([]); });
   }
   useEffect(function(){ load(); }, []);
@@ -889,8 +848,9 @@ function Knowledge() {
   var fileRef   = useRef();
 
   function load() {
-    api.get('/api/knowledge/').then(function(r){ setDocs(Array.isArray(r)?r:[]); })
-      .catch(function(){ setDocs([]); });
+    api.get('/api/knowledge/?limit=200').then(function(r){
+      setDocs(Array.isArray(r)?r:(r&&r.items?r.items:[]));
+    }).catch(function(){ setDocs([]); });
   }
   useEffect(function(){ load(); }, []);
 

@@ -6,10 +6,13 @@ import uuid
 router = APIRouter()
 
 @router.get("/")
-async def list_docs():
+async def list_docs(limit: int = 100, offset: int = 0):
     async with DB() as db:
-        rows = await db.fetch("SELECT id,filename,title,tags,created_at FROM knowledge_docs ORDER BY created_at DESC")
-        return [dict(r) for r in rows]
+        rows  = await db.fetch(
+            "SELECT id,filename,title,tags,created_at FROM knowledge_docs ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+            limit, offset)
+        total = await db.fetchval("SELECT COUNT(*) FROM knowledge_docs")
+        return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 @router.post("/upload")
 async def upload_doc(file: UploadFile = File(...), tags: str = ""):

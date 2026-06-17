@@ -8,10 +8,13 @@ import asyncssh, json
 router = APIRouter()
 
 @router.get("/")
-async def list_servers():
+async def list_servers(limit: int = 100, offset: int = 0):
     async with DB() as db:
-        rows = await db.fetch("SELECT id,name,host,port,username,auth_type,tags,active,created_at FROM servers ORDER BY name")
-        return [dict(r) for r in rows]
+        rows  = await db.fetch(
+            "SELECT id,name,host,port,username,auth_type,tags,active,created_at FROM servers ORDER BY name LIMIT $1 OFFSET $2",
+            limit, offset)
+        total = await db.fetchval("SELECT COUNT(*) FROM servers")
+        return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 @router.post("/")
 async def create_server(body: ServerCreate):
