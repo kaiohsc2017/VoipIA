@@ -1254,24 +1254,10 @@ function App(props) {
 
   var navItems = NAV.map(function(p) {
     if (p.external) {
-      return h('div', {key:p.id},
-        h('div', {className:'nitem', style:{cursor:'default',opacity:0.7,fontSize:12,fontWeight:700,letterSpacing:'0.3px'}},
-          h(Ico,{n:p.icon,s:14}), p.label
-        ),
-        h('div', {style:{paddingBottom:4}},
-          h('div', {className:'nitem', style:{paddingLeft:34,fontSize:12,cursor:'pointer'},
-            onClick:function(){ window.open('/agents/docs.html','_blank'); }},
-            '📖 Manual da plataforma', h('span',{style:{marginLeft:'auto',opacity:0.4,fontSize:10}},'↗')
-          ),
-          h('div', {className:'nitem', style:{paddingLeft:34,fontSize:12,cursor:'pointer'},
-            onClick:function(){ window.open('/agents/deploy-ubuntu.html','_blank'); }},
-            '🐧 Deploy Ubuntu 22.04', h('span',{style:{marginLeft:'auto',opacity:0.4,fontSize:10}},'↗')
-          ),
-          h('div', {className:'nitem', style:{paddingLeft:34,fontSize:12,cursor:'pointer'},
-            onClick:function(){ window.open('/agents/deploy-oracle.html','_blank'); }},
-            '🔴 Deploy Oracle Linux 9', h('span',{style:{marginLeft:'auto',opacity:0.4,fontSize:10}},'↗')
-          )
-        )
+      return h('div', {key:p.id, className:'nitem', style:{cursor:'pointer'},
+        onClick:function(){ window.open('/agents/docs.html','_blank'); }},
+        h(Ico,{n:p.icon,s:15}), p.label,
+        h('span',{style:{marginLeft:'auto',opacity:0.4,fontSize:10}}, '↗')
       );
     }
     return h('div', {key:p.id, className:'nitem '+(page===p.id?'on':''), onClick:function(){setPage(p.id)}},
