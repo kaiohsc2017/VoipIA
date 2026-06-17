@@ -297,9 +297,27 @@ function Dashboard() {
     )
   );
 
+  // Gráfico de disponibilidade — barras por agente
+  var chartCard = pdata.length === 0 ? null : h('div', {className:'card'},
+    h('div', {className:'ch'}, h('span',{className:'cht'},'Disponibilidade por agente')),
+    h('div', {style:{display:'flex',flexDirection:'column',gap:10,padding:'4px 0'}},
+      pdata.map(function(r, i) {
+        var pct = r.total > 0 ? Math.round((r.ok / r.total) * 100) : 0;
+        var color = pct >= 95 ? 'var(--ok)' : pct >= 80 ? 'var(--warn)' : 'var(--err)';
+        return h('div', {key:i, style:{display:'flex',alignItems:'center',gap:10}},
+          h('div', {style:{width:140,fontSize:12,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flexShrink:0}}, r.agent_name),
+          h('div', {style:{flex:1,background:'var(--border)',borderRadius:4,height:12,overflow:'hidden'}},
+            h('div', {style:{width:pct+'%',background:color,height:'100%',borderRadius:4,transition:'width .4s'}})
+          ),
+          h('div', {style:{width:42,fontSize:12,fontWeight:700,color:color,textAlign:'right',flexShrink:0}}, pct+'%')
+        );
+      })
+    )
+  );
+
   return h('div',null,
     h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Dashboard')),
-    h('div',{className:'content'}, statCards, recentTable, periodTable)
+    h('div',{className:'content'}, statCards, chartCard, recentTable, periodTable)
   );
 }
 
@@ -496,7 +514,8 @@ function AgentForm(props) {
             h('select',{value:form.type, onChange:function(e){setF('type',e.target.value)}},
               h('option',{value:'ssh_test'},'Teste SSH'),
               h('option',{value:'web_monitor'},'Monitor Web'),
-              h('option',{value:'log_monitor'},'Monitor de Logs')
+              h('option',{value:'log_monitor'},'Monitor de Logs'),
+              h('option',{value:'database'},'Database')
             )
           )
         ),

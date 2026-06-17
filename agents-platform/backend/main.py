@@ -11,6 +11,7 @@ import asyncio, json, os
 from database import init_db
 from routers import agents, servers, executions, reports, knowledge
 from routers import llm_config
+from routers import system
 from scheduler import AgentScheduler
 
 scheduler = AgentScheduler()
@@ -26,6 +27,7 @@ _PUBLIC = (
     "/",
     "/api/llm/status",
     "/api/llm/providers",
+    "/api/system/health",
 )
 _PUBLIC_PREFIX = ("/ws/", "/docs", "/openapi")
 
@@ -89,7 +91,8 @@ app.include_router(servers.router,    prefix="/api/servers",    tags=["servers"]
 app.include_router(executions.router, prefix="/api/executions", tags=["executions"])
 app.include_router(reports.router,    prefix="/api/reports",    tags=["reports"])
 app.include_router(knowledge.router,  prefix="/api/knowledge",  tags=["knowledge"])
-app.include_router(llm_config.router, prefix="/api/llm",       tags=["llm"])
+app.include_router(llm_config.router, prefix="/api/llm",        tags=["llm"])
+app.include_router(system.router,     prefix="/api/system",     tags=["system"])
 
 def _ws_auth(token: str | None) -> bool:
     """Valida JWT no handshake do WebSocket (query param ?token=)."""

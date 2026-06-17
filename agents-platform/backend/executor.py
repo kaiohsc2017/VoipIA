@@ -563,108 +563,341 @@ class LogMonitorExecutor:
 
         return {"total": total, "passed": passed, "failed": failed, "report": report}
 
+# ─── Database Executor ────────────────────────────────────────────────────────
+
+class DatabaseExecutor:
+    """
+    Executa queries SQL de verificação contra bancos de dados remotos.
+    Suporta PostgreSQL via asyncpg.
+
+    Exemplo de rules:
+      {"checks": [
+        {"name": "Chamadas com falha",
+         "dsn": "postgresql://user:pass@host/db",
+         "query": "SELECT COUNT(*) FROM calls WHERE status='failed' AND created_at > NOW()-INTERVAL '1h'",
+         "expect_lt": 10,
+         "fix_hint": "Verificar trunk SIP"}
+      ]}
+    """
+    def __init__(self, agent: dict, execution_id: UUID, broadcast):
+        self.agent        = agent
+        self.execution_id = execution_id
+        self.agent_id     = UUID(str(agent["id"]))
+        self.broadcast    = broadcast
+        rules             = agent.get("rules") or {}
+        if isinstance(rules, str):
+            rules = json.loads(rules)
+        self.checks  = rules.get("checks", [])
+        self.use_ai  = rules.get("use_ai_on_failure", False)
+        self.timeout = rules.get("timeout", 30)
+
+    async def _emit(self, db, level, message, server=None, raw=None):
+        await log(db, self.execution_id, self.agent_id, level, message, server, raw)
+        await self.broadcast(str(self.agent_id), {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "level": level, "message": message, "server": server or ""
+        })
+
+    def _evaluate(self, check: dict, value) -> tuple[bool, str]:
+        try:
+            num = float(value)
+        except (TypeError, ValueError):
+            num = None
+        if "expect_eq"   in check: ok = str(value) == str(check["expect_eq"]);  return ok, f"{value} {'==' if ok else '!='} {check['expect_eq']}"
+        if "expect_lt"   in check and num is not None: ok = num < float(check["expect_lt"]); return ok, f"{num} {'<' if ok else '>='} {check['expect_lt']}"
+        if "expect_gt"   in check and num is not None: ok = num > float(check["expect_gt"]); return ok, f"{num} {'>' if ok else '<='} {check['expect_gt']}"
+        if "expect_zero" in check: ok = num == 0; return ok, "zero" if ok else f"{num} (esperado zero)"
+        return True, str(value)
+
+    async def run(self, servers: list[dict]) -> dict:
+        total = passed = failed = 0
+        report = {"checks": [], "ai_suggestions": []}
+        async with DB() as db:
+            await self._emit(db, "info", f"DatabaseExecutor: {len(self.checks)} verificação(ões)")
+            for check in self.checks:
+                total += 1
+                name  = check.get("name", check.get("query", "query")[:40])
+                dsn   = check.get("dsn", "")
+                query = check.get("query", "")
+                if not dsn or not query:
+                    await self._emit(db, "error", f"✗ {name}: DSN ou query ausente")
+                    failed += 1
+                    report["checks"].append({"name": name, "ok": False, "reason": "DSN/query ausente"})
+                    continue
+                try:
+                    import asyncpg as _pg
+                    conn = await asyncio.wait_for(_pg.connect(dsn), timeout=self.timeout)
+                    try:
+                        row   = await asyncio.wait_for(conn.fetchrow(query), timeout=self.timeout)
+                        value = row[0] if row else None
+                    finally:
+                        await conn.close()
+                    ok, reason = self._evaluate(check, value)
+                    fix = check.get("fix_hint", "") if not ok else ""
+                    msg = f"{'✓' if ok else '✗'} {name}: {reason}"
+                    if fix: msg += f" → {fix}"
+                    await self._emit(db, "success" if ok else "error", msg,
+                                     dsn.split("@")[-1].split("/")[0] if "@" in dsn else dsn[:30])
+                    if ok: passed += 1
+                    else:
+                        failed += 1
+                        if self.use_ai and not fix:
+                            s = await ai_fallback(skill=self.agent.get("skill",""),
+                                problem=f"{name}: {reason}",
+                                memory_ctx=await memory_recall(self.agent_id, f"{name} {reason}"),
+                                check_output=str(value))
+                            await self._emit(db, "info", f"💡 IA sugere: {s[:200]}")
+                            fix = s
+                    report["checks"].append({"name": name, "ok": ok, "reason": reason,
+                                              "fix_hint": fix, "value": str(value)})
+                except asyncio.TimeoutError:
+                    await self._emit(db, "error", f"✗ {name}: timeout ({self.timeout}s)")
+                    failed += 1; report["checks"].append({"name": name, "ok": False, "reason": "timeout"})
+                except Exception as e:
+                    await self._emit(db, "error", f"✗ {name}: {e}")
+                    failed += 1; report["checks"].append({"name": name, "ok": False, "reason": str(e)})
+        return {"total": total, "passed": passed, "failed": failed, "report": report}
+
+
 # ─── Dispatcher ───────────────────────────────────────────────────────────────
 
 EXECUTORS = {
     "ssh_test":    SSHTestExecutor,
     "web_monitor": WebMonitorExecutor,
     "log_monitor": LogMonitorExecutor,
+    "database":    DatabaseExecutor,
 }
 
-async def run_agent(agent: dict, broadcast) -> dict:
+# Lock global — previne execuções paralelas do mesmo agente
+_running_agents: set[str] = set()
+
+
+async def _send_all_alerts(agent: dict, level: str, message: str,
+                            execution_id: UUID, db, broadcast):
+    """Envia alerta por todos os canais configurados no agente."""
+    from notifier import send_telegram, send_email, send_webhook
+    agent_id = UUID(str(agent["id"]))
+
+    async def _save(channel, delivered):
+        await db.execute("""
+            INSERT INTO alerts (agent_id, execution_id, channel, level, message, delivered)
+            VALUES ($1,$2,$3,$4,$5,$6)
+        """, agent_id, execution_id, channel, level, message, delivered)
+
+    if agent.get("notify_telegram") and agent.get("telegram_chat"):
+        ok = await send_telegram(agent["telegram_chat"], f"🔔 <b>{agent['name']}</b>\n{message}")
+        await _save("telegram", ok)
+
+    if agent.get("notify_email") and agent.get("notify_email_to"):
+        ok = await send_email(to=agent["notify_email_to"],
+            subject=f"[AsteriskIA] {agent['name']} — {level.upper()}",
+            body=f"<p><b>{agent['name']}</b></p><p>{message}</p>")
+        await _save("email", ok)
+
+    if agent.get("notify_webhook") and agent.get("notify_webhook_url"):
+        ok = await send_webhook(agent["notify_webhook_url"], {
+            "agent": agent["name"], "level": level, "message": message,
+            "execution_id": str(execution_id),
+            "ts": datetime.now(timezone.utc).isoformat()
+        })
+        await _save("webhook", ok)
+
+    await broadcast("__alerts__", {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "agent": agent["name"], "level": level, "message": message
+    })
+    await _save("web", True)
+
+
+async def _apply_retention():
+    """Remove registros mais antigos que o configurado em retention_config."""
+    try:
+        async with DB() as db:
+            cfg = await db.fetchrow("SELECT * FROM retention_config WHERE id=1")
+            if not cfg:
+                return
+            dl = await db.fetchval(f"DELETE FROM execution_logs WHERE ts < NOW() - INTERVAL '{cfg['logs_days']} days' RETURNING COUNT(*)")
+            de = await db.fetchval(f"DELETE FROM executions WHERE started_at < NOW() - INTERVAL '{cfg['executions_days']} days' AND status != 'running' RETURNING COUNT(*)")
+            da = await db.fetchval(f"DELETE FROM alerts WHERE sent_at < NOW() - INTERVAL '{cfg['alerts_days']} days' RETURNING COUNT(*)")
+            if any([dl, de, da]):
+                print(f"[retention] {de} execuções, {dl} logs, {da} alertas removidos")
+    except Exception as e:
+        print(f"[retention] Erro: {e}")
+
+
+def _calc_next_run(agent: dict):
+    """Calcula próxima execução baseado no schedule."""
+    from datetime import timedelta
+    schedule = agent.get("schedule") or {}
+    if isinstance(schedule, str):
+        try: schedule = json.loads(schedule)
+        except: return None
+    stype  = schedule.get("type", "interval")
+    value  = schedule.get("value", "5m")
+    active = schedule.get("active", True)
+    if not active: return None
+    now = datetime.now(timezone.utc)
+    try:
+        if stype == "interval":
+            units = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+            secs  = int(value[:-1]) * units.get(value[-1], 60)
+            return now + timedelta(seconds=secs)
+        elif stype == "cron" and HAS_CRONITER:
+            from croniter import croniter
+            return croniter(value, now).get_next(datetime)
+        elif stype == "always":
+            return now + timedelta(seconds=10)
+    except Exception:
+        pass
+    return None
+
+
+async def run_agent(agent: dict, broadcast, _chain_depth: int = 0) -> dict:
     """Ponto de entrada principal — cria execução, roda o executor, salva resultados."""
-    agent_id     = UUID(str(agent["id"]))
+    agent_id_str = str(agent["id"])
+    agent_id     = UUID(agent_id_str)
     execution_id = uuid4()
     session_id   = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     started      = datetime.now(timezone.utc)
 
-    async with DB() as db:
-        server_ids = [UUID(s) for s in (agent.get("server_ids") or [])]
-        servers    = []
-        if server_ids:
-            rows    = await db.fetch("SELECT * FROM servers WHERE id=ANY($1)", server_ids)
-            servers = [dict(r) for r in rows]
-
-        await db.execute("""
-            INSERT INTO executions (id,agent_id,session_id,status)
-            VALUES ($1,$2,$3,'running')
-        """, execution_id, agent_id, session_id)
-
-        await db.execute(
-            "UPDATE agents SET status='running', last_run=NOW() WHERE id=$1", agent_id)
-
-    ExecutorClass = EXECUTORS.get(agent["type"])
-    result = {"total": 0, "passed": 0, "failed": 0, "report": {}}
+    # ── Lock anti-execução dupla ──────────────────────────────────────────────
+    if agent_id_str in _running_agents:
+        return {"execution_id": None, "status": "skipped",
+                "summary": "Execução anterior ainda em andamento", "report": {}}
+    _running_agents.add(agent_id_str)
 
     try:
-        if ExecutorClass:
-            executor = ExecutorClass(agent, execution_id, broadcast)
-            result   = await executor.run(servers)
+        async with DB() as db:
+            server_ids = [UUID(s) for s in (agent.get("server_ids") or [])]
+            servers    = []
+            if server_ids:
+                rows    = await db.fetch("SELECT * FROM servers WHERE id=ANY($1)", server_ids)
+                servers = [dict(r) for r in rows]
+
+            secret_rows = await db.fetch(
+                "SELECT key, value FROM agent_secrets WHERE agent_id=$1", agent_id)
+            agent["_secrets"] = {r["key"]: r["value"] for r in secret_rows}
+
+            await db.execute("""
+                INSERT INTO executions (id,agent_id,session_id,status)
+                VALUES ($1,$2,$3,'running')
+            """, execution_id, agent_id, session_id)
+            await db.execute(
+                "UPDATE agents SET status='running', last_run=NOW() WHERE id=$1", agent_id)
+
+        ExecutorClass = EXECUTORS.get(agent["type"])
+        result = {"total": 0, "passed": 0, "failed": 0, "report": {}}
+        try:
+            if ExecutorClass:
+                executor = ExecutorClass(agent, execution_id, broadcast)
+                result   = await executor.run(servers)
+            else:
+                result["report"] = {"error": f"Tipo '{agent['type']}' não suportado"}
+        except Exception as e:
+            result["report"]["exception"] = str(e)
+
+        finished = datetime.now(timezone.utc)
+        duration = (finished - started).total_seconds()
+
+        no_targets = (len(servers) == 0 and not agent.get("target_urls")
+                      and not (agent.get("rules") or {}).get("checks"))
+        if no_targets:
+            status = "error"
+        elif result["total"] == 0 and result["failed"] == 0:
+            status = "error"
+        elif result["failed"] == 0:
+            status = "success"
+        elif result["passed"] > 0:
+            status = "partial"
         else:
-            result["report"] = {"error": f"Tipo '{agent['type']}' não suportado"}
-    except Exception as e:
-        result["report"]["exception"] = str(e)
+            status = "error"
 
-    finished = datetime.now(timezone.utc)
-    duration = (finished - started).total_seconds()
+        summary = ("Nenhum alvo configurado para este agente" if no_targets else
+                   f"{result['passed']}/{result['total']} verificações OK"
+                   + (f", {result['failed']} falha(s)" if result["failed"] else "")
+                   + f" em {duration:.1f}s")
 
-    # Determina status final:
-    # - Sem servidores/URLs configurados → error (nada foi verificado)
-    # - total=0 mas sem servidores → error
-    # - failed > 0 e passed = 0 → error
-    # - failed > 0 e passed > 0 → partial
-    # - failed = 0 e total > 0 → success
-    # - failed = 0 e total = 0 e havia servidores → error (conexão falhou antes dos checks)
-    no_targets = len(servers) == 0 and not agent.get("target_urls")
-    if no_targets:
-        status = "error"
-    elif result["total"] == 0 and result["failed"] == 0:
-        # Loop executou mas nenhum check rodou = falha de conexão sem checks
-        status = "error"
-    elif result["failed"] == 0:
-        status = "success"
-    elif result["passed"] > 0:
-        status = "partial"
-    else:
-        status = "error"
+        next_run = _calc_next_run(agent)
 
-    if no_targets:
-        summary = "Nenhum servidor ou URL configurado para este agente"
-    else:
-        summary = (
-            f"{result['passed']}/{result['total']} verificações OK"
-            + (f", {result['failed']} falha(s)" if result["failed"] else "")
-            + f" em {duration:.1f}s"
-        )
+        async with DB() as db:
+            await db.execute("""
+                UPDATE executions SET status=$2, finished_at=$3, duration_s=$4,
+                    total_checks=$5, passed_checks=$6, failed_checks=$7,
+                    summary=$8, report_json=$9
+                WHERE id=$1
+            """, execution_id, status, finished, duration,
+                 result["total"], result["passed"], result["failed"],
+                 summary, json.dumps(result["report"]))
 
-    async with DB() as db:
-        await db.execute("""
-            UPDATE executions SET
-                status=$2, finished_at=$3, duration_s=$4,
-                total_checks=$5, passed_checks=$6, failed_checks=$7,
-                summary=$8, report_json=$9
-            WHERE id=$1
-        """, execution_id, status, finished, duration,
-             result["total"], result["passed"], result["failed"],
-             summary, json.dumps(result["report"]))
+            await db.execute(
+                "UPDATE agents SET status=$2, last_run=NOW(), next_run=$3 WHERE id=$1",
+                agent_id, "idle", next_run)
 
-        await db.execute(
-            "UPDATE agents SET status=$2, last_run=NOW() WHERE id=$1", agent_id, "idle")
+            # ── Alertas (todos os canais) ────────────────────────────────────
+            if status in ("error", "partial"):
+                await _send_all_alerts(agent, status, summary, execution_id, db, broadcast)
 
-    # Salva observação na memória se houve falhas
-    if result["failed"] > 0:
-        await memory_save(agent_id, "observation",
-            f"Falhas em {session_id}", summary,
-            tags=["failure", agent["type"]])
+            # ── Auto-fix via SSH ─────────────────────────────────────────────
+            if status in ("error", "partial") and servers:
+                rules = agent.get("rules") or {}
+                if isinstance(rules, str): rules = json.loads(rules)
+                for check in rules.get("checks", []):
+                    fix_cmd = check.get("fix_cmd", "")
+                    if fix_cmd and check.get("auto_fix", False):
+                        srv = servers[0]
+                        try:
+                            import asyncssh as _ssh
+                            kwargs = dict(host=srv["host"], port=srv["port"],
+                                          username=srv["username"], known_hosts=None,
+                                          connect_timeout=15)
+                            if srv.get("auth_type") == "key" and srv.get("ssh_key"):
+                                kwargs["client_keys"] = [_ssh.import_private_key(srv["ssh_key"])]
+                            else:
+                                kwargs["password"] = srv.get("password", "")
+                            async with await _ssh.connect(**kwargs) as conn:
+                                r = await asyncio.wait_for(conn.run(fix_cmd), timeout=30)
+                                await db.execute("""
+                                    INSERT INTO execution_logs
+                                      (execution_id,agent_id,level,server,message,raw_output)
+                                    VALUES ($1,$2,'warning',$3,$4,$5)
+                                """, execution_id, agent_id, srv["name"],
+                                     f"🔧 Auto-fix: {fix_cmd}", r.stdout[:500])
+                        except Exception as e:
+                            await db.execute("""
+                                INSERT INTO execution_logs
+                                  (execution_id,agent_id,level,server,message)
+                                VALUES ($1,$2,'error',$3,$4)
+                            """, execution_id, agent_id, srv.get("name",""),
+                                 f"🔧 Auto-fix falhou: {e}")
 
-    await broadcast(str(agent_id), {
-        "ts": finished.isoformat(), "level": "info",
-        "message": f"Execução finalizada: {summary}"
-    })
+        if result["failed"] > 0:
+            await memory_save(agent_id, "observation",
+                f"Falhas em {session_id}", summary, tags=["failure", agent["type"]])
 
-    return {
-        "execution_id": str(execution_id),
-        "status": status,
-        "summary": summary,
-        "report": result["report"],
-    }
+        # ── Encadeamento de agentes (máx. 3 níveis) ───────────────────────────
+        trigger_id = agent.get("on_failure_trigger_agent_id")
+        if trigger_id and status in ("error", "partial") and _chain_depth < 3:
+            try:
+                async with DB() as db:
+                    trow = await db.fetchrow(
+                        "SELECT * FROM agents WHERE id=$1", UUID(str(trigger_id)))
+                if trow:
+                    print(f"[chain] {agent['name']} → {trow['name']}")
+                    asyncio.create_task(run_agent(dict(trow), broadcast, _chain_depth + 1))
+            except Exception as e:
+                print(f"[chain] Erro: {e}")
+
+        await broadcast(str(agent_id), {
+            "ts": finished.isoformat(), "level": "info",
+            "message": f"Execução finalizada: {summary}"
+        })
+
+        # ── Retenção (probabilística — 1% das execuções) ─────────────────────
+        if hash(str(execution_id)) % 100 == 0:
+            asyncio.create_task(_apply_retention())
+
+        return {"execution_id": str(execution_id), "status": status,
+                "summary": summary, "report": result["report"]}
+
+    finally:
+        _running_agents.discard(agent_id_str)
