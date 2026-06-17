@@ -704,18 +704,24 @@ function Agents(props) {
     api.post('/api/agents/'+id+'/run',{}).then(function(){ load(); });
   }
 
-  var typeLabel = {ssh_test:'SSH Test',web_monitor:'Web Monitor',log_monitor:'Log Monitor'};
+  var typeLabel = {ssh_test:'SSH Test',web_monitor:'Web Monitor',log_monitor:'Log Monitor',database:'Database'};
 
   var rows = agents.map(function(a) {
     var schedLabel = a.schedule
       ? (a.schedule.type==='always' ? 'Sempre ativo' : a.schedule.type==='interval' ? 'A cada '+(a.schedule.value||'?') : a.schedule.value||'—')
       : '—';
+    var nextRun = a.next_run ? new Date(a.next_run) : null;
+    var diffMin = nextRun ? Math.round((nextRun - new Date()) / 60000) : null;
+    var nextLabel = diffMin !== null ? (diffMin <= 0 ? 'agora' : 'em ' + diffMin + 'min') : null;
 
     return h('tr', {key: a.id},
       h('td', null, h('div',{className:'tbold'},a.name), a.description&&h('div',{className:'txs tmut'},a.description)),
       h('td', null, h('span',{className:'badge b-info'}, typeLabel[a.type]||a.type)),
       h('td', null, h(SBadge,{s:a.status})),
-      h('td', {className:'tsm tmut'}, a.last_run ? new Date(a.last_run).toLocaleString('pt-BR') : '—'),
+      h('td', {className:'tsm tmut'},
+        a.last_run ? new Date(a.last_run).toLocaleString('pt-BR') : '—',
+        nextLabel && h('div',{className:'txs',style:{color:'var(--ok)',marginTop:2}}, '↻ ' + nextLabel)
+      ),
       h('td', {className:'tsm'}, schedLabel),
       h('td', null,
         h('div', {className:'flex gap2'},
@@ -755,7 +761,7 @@ function Agents(props) {
             h('table',null,
               h('thead',null,h('tr',null,
                 h('th',null,'Nome'),h('th',null,'Tipo'),h('th',null,'Status'),
-                h('th',null,'Ultima execucao'),h('th',null,'Agendamento'),h('th',null,'Acoes')
+                h('th',null,'Ultima / Proxima'),h('th',null,'Agendamento'),h('th',null,'Acoes')
               )),
               h('tbody',null,rows)
             )
