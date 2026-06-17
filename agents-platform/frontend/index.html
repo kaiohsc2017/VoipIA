@@ -415,7 +415,9 @@ function AgentForm(props) {
 
   var def = {name:'',description:'',type:'ssh_test',skill:'',server_ids:[],
     target_urls:[],rules:{checks:[]},schedule:{type:'interval',value:'5m',active:true},
-    notify_telegram:false,telegram_chat:''};
+    notify_telegram:false,telegram_chat:'',
+    notify_email:false,notify_email_to:'',
+    notify_webhook:false,notify_webhook_url:''};
 
   var initial = agent ? Object.assign({}, def, agent) : def;
   var initialRules = initial.rules && initial.rules.checks ? initial.rules : {checks:[]};
@@ -608,14 +610,36 @@ function AgentForm(props) {
         ),
 
         h('hr', {className:'divider'}),
-        h('label', {style:{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:13}},
+        h('div', {className:'section-title'}, 'Notificacoes de alerta'),
+
+        h('label', {style:{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:13,marginBottom:6}},
           h('input',{type:'checkbox',style:{width:'auto'},checked:!!form.notify_telegram,
             onChange:function(e){setF('notify_telegram',e.target.checked)}}),
-          'Notificar via Telegram'
+          'Telegram'
         ),
-        form.notify_telegram && h('div',{className:'fg',style:{marginTop:8}},
+        form.notify_telegram && h('div',{className:'fg',style:{marginBottom:10}},
           h('label',null,'Chat ID'),
           h('input',{value:form.telegram_chat||'',onChange:function(e){setF('telegram_chat',e.target.value)},placeholder:'-100123456789'})
+        ),
+
+        h('label', {style:{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:13,marginBottom:6}},
+          h('input',{type:'checkbox',style:{width:'auto'},checked:!!form.notify_email,
+            onChange:function(e){setF('notify_email',e.target.checked)}}),
+          'E-mail'
+        ),
+        form.notify_email && h('div',{className:'fg',style:{marginBottom:10}},
+          h('label',null,'Destinatario'),
+          h('input',{value:form.notify_email_to||'',onChange:function(e){setF('notify_email_to',e.target.value)},placeholder:'ops@empresa.com'})
+        ),
+
+        h('label', {style:{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:13,marginBottom:6}},
+          h('input',{type:'checkbox',style:{width:'auto'},checked:!!form.notify_webhook,
+            onChange:function(e){setF('notify_webhook',e.target.checked)}}),
+          'Webhook'
+        ),
+        form.notify_webhook && h('div',{className:'fg',style:{marginBottom:10}},
+          h('label',null,'URL do webhook'),
+          h('input',{value:form.notify_webhook_url||'',onChange:function(e){setF('notify_webhook_url',e.target.value)},placeholder:'https://hooks.slack.com/services/...'})
         )
       ),
 

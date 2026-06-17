@@ -28,7 +28,7 @@ class AgentSchedule(BaseModel):
 class AgentCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    type: str   # 'ssh_test' | 'web_monitor' | 'log_monitor'
+    type: str   # 'ssh_test' | 'web_monitor' | 'log_monitor' | 'database'
     skill: str  # contexto/prompt do especialista
     server_ids: List[str] = []
     target_urls: List[str] = []
@@ -36,6 +36,11 @@ class AgentCreate(BaseModel):
     schedule: AgentSchedule = AgentSchedule()
     notify_telegram: bool = False
     telegram_chat: Optional[str] = None
+    notify_email: bool = False
+    notify_email_to: Optional[str] = None
+    notify_webhook: bool = False
+    notify_webhook_url: Optional[str] = None
+    on_failure_trigger_agent_id: Optional[str] = None
 
 class AgentOut(AgentCreate):
     id: UUID

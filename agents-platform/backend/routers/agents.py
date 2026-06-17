@@ -21,12 +21,18 @@ async def create_agent(body: AgentCreate):
     async with DB() as db:
         row = await db.fetchrow("""
             INSERT INTO agents (name, description, type, skill, server_ids, target_urls,
-                                rules, schedule, notify_telegram, telegram_chat)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *
+                                rules, schedule, notify_telegram, telegram_chat,
+                                notify_email, notify_email_to,
+                                notify_webhook, notify_webhook_url,
+                                on_failure_trigger_agent_id)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *
         """, body.name, body.description, body.type, body.skill,
              [str(s) for s in body.server_ids], body.target_urls,
              json.dumps(body.rules), json.dumps(body.schedule.model_dump()),
-             body.notify_telegram, body.telegram_chat)
+             body.notify_telegram, body.telegram_chat,
+             body.notify_email, body.notify_email_to,
+             body.notify_webhook, body.notify_webhook_url,
+             uuid.UUID(body.on_failure_trigger_agent_id) if body.on_failure_trigger_agent_id else None)
         return dict(row)
 
 @router.get("/{agent_id}")
@@ -42,15 +48,22 @@ async def update_agent(agent_id: UUID, body: AgentCreate, request: Request):
         row = await db.fetchrow("""
             UPDATE agents SET name=$1, description=$2, type=$3, skill=$4,
                 server_ids=$5, target_urls=$6, rules=$7, schedule=$8,
-                notify_telegram=$9, telegram_chat=$10, updated_at=NOW()
-            WHERE id=$11 RETURNING *
+                notify_telegram=$9, telegram_chat=$10,
+                notify_email=$11, notify_email_to=$12,
+                notify_webhook=$13, notify_webhook_url=$14,
+                on_failure_trigger_agent_id=$15,
+                updated_at=NOW()
+            WHERE id=$16 RETURNING *
         """, body.name, body.description, body.type, body.skill,
              [str(s) for s in body.server_ids], body.target_urls,
              json.dumps(body.rules), json.dumps(body.schedule.model_dump()),
-             body.notify_telegram, body.telegram_chat, agent_id)
+             body.notify_telegram, body.telegram_chat,
+             body.notify_email, body.notify_email_to,
+             body.notify_webhook, body.notify_webhook_url,
+             uuid.UUID(body.on_failure_trigger_agent_id) if body.on_failure_trigger_agent_id else None,
+             agent_id)
         if not row: raise HTTPException(404)
         agent = dict(row)
-    # Atualiza agendamento em memória imediatamente
     try:
         scheduler = request.app.state.scheduler
         scheduler.reload_agent(agent)
