@@ -337,19 +337,55 @@ function Dashboard() {
 
 // ── LOG MODAL ─────────────────────────────────────────────────────────────────
 function LogModal(props) {
-  var logRef = useRef();
-  var lcls = {info:'li', success:'ls', warning:'lw', error:'le'};
+  var logRef  = useRef();
+  var lcls    = {info:'li', success:'ls', warning:'lw', error:'le'};
+  var exState = useState([]); var execs   = exState[0]; var setExecs   = exState[1];
+  var selState= useState(''); var selExec = selState[0]; var setSelExec = selState[1];
+  var lgState = useState([]); var logs    = lgState[0];  var setLogs    = lgState[1];
+  var ldState = useState(true); var loading = ldState[0]; var setLoading = ldState[1];
 
+  // Carrega execuções do agente
+  useEffect(function() {
+    if (!props.agentId) return;
+    api.get('/api/executions/?agent_id=' + props.agentId + '&limit=20').then(function(r) {
+      var list = Array.isArray(r) ? r : [];
+      setExecs(list);
+      if (list.length > 0) setSelExec(list[0].id);
+      else setLoading(false);
+    }).catch(function() { setLoading(false); });
+  }, [props.agentId]);
+
+  // Carrega logs da execução selecionada
+  useEffect(function() {
+    if (!selExec) return;
+    setLoading(true);
+    api.get('/api/executions/' + selExec + '/logs?limit=500').then(function(r) {
+      setLogs(Array.isArray(r) ? r : []);
+      setLoading(false);
+    }).catch(function() { setLoading(false); });
+  }, [selExec]);
+
+  // Scroll para o fim quando os logs carregam
   useEffect(function() {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, []);
+  }, [logs]);
 
-  var logLines = MOCK_LOGS.map(function(l, i) {
-    return h('div', {key: i, className: 'll'},
-      h('span', {className: 'lts'}, new Date(l.ts).toLocaleTimeString('pt-BR')),
-      l.server ? h('span', {className: 'lsrv'}, '[' + l.server + ']') : null,
-      h('span', {className: lcls[l.level] || 'li'}, l.message)
-    );
+  var logLines = loading
+    ? [h('div', {key:'ld', className:'ll'}, h('span', {className:'li'}, 'Carregando...'))]
+    : logs.length === 0
+    ? [h('div', {key:'em', className:'ll'}, h('span', {className:'li'}, 'Nenhum log encontrado.'))]
+    : logs.map(function(l, i) {
+        return h('div', {key: i, className: 'll'},
+          h('span', {className: 'lts'}, new Date(l.ts).toLocaleTimeString('pt-BR')),
+          l.server ? h('span', {className: 'lsrv'}, '[' + l.server + ']') : null,
+          h('span', {className: lcls[l.level] || 'li'}, l.message)
+        );
+      });
+
+  var execOptions = execs.map(function(e) {
+    var ts  = new Date(e.started_at).toLocaleString('pt-BR');
+    var lbl = ts + ' — ' + e.status + (e.total_checks ? ' — ' + e.passed_checks + '/' + e.total_checks + ' OK' : '');
+    return h('option', {key: e.id, value: e.id}, lbl);
   });
 
   return h('div', {className: 'overlay'},
@@ -361,10 +397,18 @@ function LogModal(props) {
       h('div', {className: 'mb'},
         h('div', {className: 'fg'},
           h('label', null, 'Execucao'),
-          h('select', null,
-            h('option', null, new Date(now-120000).toLocaleString('pt-BR') + ' — success — 5/5 OK'),
-            h('option', null, new Date(now-600000).toLocaleString('pt-BR') + ' — partial — 3/5 OK')
+          h('select', {value: selExec, onChange: function(e){ setSelExec(e.target.value); }, disabled: execs.length === 0},
+            execs.length === 0
+              ? h('option', null, 'Nenhuma execução encontrada')
+              : execOptions
           )
+        ),
+        selExec && h('div', {style:{marginBottom:8}},
+          h('a', {
+            href: API + '/api/reports/execution/' + selExec + '/html',
+            target: '_blank',
+            className: 'btn btn-g btn-sm'
+          }, h(Ico,{n:'download',s:13}), ' Exportar HTML')
         ),
         h('div', {className: 'logview', ref: logRef}, logLines)
       )
