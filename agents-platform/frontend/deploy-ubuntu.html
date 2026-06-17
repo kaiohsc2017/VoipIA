@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AsteriskIA — Guia de Implantação · Ubuntu 22.04 LTS</title>
+<style>
+  :root {
+    --ubuntu: #E95420;
+    --ubuntu-dark: #77216F;
+    --ubuntu-light: #fff3ef;
+    --primary: #6c47ff;
+    --ok: #16a34a;
+    --ok-light: #dcfce7;
+    --err: #dc2626;
+    --err-light: #fee2e2;
+    --warn: #d97706;
+    --warn-light: #fef3c7;
+    --info: #0369a1;
+    --info-light: #e0f2fe;
+    --bg: #f8f9fc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1a2340;
+    --text2: #64748b;
+    --text3: #94a3b8;
+    --sidebar-bg: #2c001e;
+    --code-bg: #0f1117;
+    --code-text: #e2e8f0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; line-height: 1.6; }
+
+  /* Sidebar */
+  .sidebar { width: 270px; min-height: 100vh; background: var(--sidebar-bg); position: fixed; top:0;left:0;bottom:0; overflow-y: auto; z-index: 100; padding-bottom: 40px; }
+  .sidebar-logo { padding: 24px 20px 18px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .sidebar-logo h1 { font-size: 16px; font-weight: 800; color: #fff; letter-spacing: -0.3px; }
+  .sidebar-logo .os { font-size: 11px; color: var(--ubuntu); font-weight: 700; margin-top: 4px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .sidebar-logo .ver { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 2px; }
+  .nav-section { padding: 16px 16px 4px; font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.25); letter-spacing: 1.5px; text-transform: uppercase; }
+  .nav-item { display: block; padding: 8px 18px; font-size: 12px; color: rgba(255,255,255,0.7); text-decoration: none; border-radius: 5px; margin: 1px 8px; transition: background 0.12s; }
+  .nav-item:hover { background: rgba(255,255,255,0.08); }
+  .nav-item.active { background: var(--ubuntu); color: #fff; }
+  .nav-sub { display: block; padding: 6px 18px 6px 30px; font-size: 11px; color: rgba(255,255,255,0.45); text-decoration: none; border-radius: 5px; margin: 1px 8px; }
+  .nav-sub:hover { color: rgba(255,255,255,0.75); }
+
+  /* Main */
+  .main { margin-left: 270px; flex: 1; max-width: 920px; padding: 48px 52px 80px; }
+
+  /* Hero */
+  .hero { background: linear-gradient(135deg, #2c001e 0%, #77216F 60%, var(--ubuntu) 100%); border-radius: 16px; padding: 44px 48px; color: #fff; margin-bottom: 56px; }
+  .hero-os { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; opacity: 0.6; margin-bottom: 10px; }
+  .hero h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.8px; margin-bottom: 10px; }
+  .hero p { font-size: 14px; opacity: 0.8; max-width: 580px; line-height: 1.7; }
+  .hero-meta { display: flex; gap: 16px; margin-top: 24px; flex-wrap: wrap; }
+  .hero-badge { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 8px 14px; font-size: 11px; font-weight: 600; }
+  .hero-badge span { display: block; font-size: 15px; font-weight: 800; margin-top: 2px; }
+
+  /* Section */
+  .section { margin-bottom: 60px; }
+  h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); margin-bottom: 6px; padding-bottom: 10px; border-bottom: 3px solid var(--ubuntu); display: flex; align-items: center; gap: 10px; }
+  h2 .step-badge { background: var(--ubuntu); color: #fff; font-size: 12px; font-weight: 800; padding: 2px 10px; border-radius: 99px; letter-spacing: 0.3px; white-space: nowrap; }
+  h3 { font-size: 16px; font-weight: 700; color: var(--text); margin: 24px 0 10px; }
+  h4 { font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.8px; margin: 18px 0 8px; }
+  p { font-size: 13px; color: var(--text2); margin-bottom: 12px; line-height: 1.75; }
+  p strong { color: var(--text); }
+  ul, ol { padding-left: 20px; margin-bottom: 12px; }
+  li { font-size: 13px; color: var(--text2); line-height: 1.75; margin-bottom: 3px; }
+  li strong { color: var(--text); }
+  code { font-family: 'JetBrains Mono','Fira Code',monospace; font-size: 12px; background: #f1f5f9; color: var(--ubuntu-dark); padding: 1px 6px; border-radius: 4px; }
+
+  /* Code blocks */
+  .code-block { background: var(--code-bg); border-radius: 10px; padding: 0; margin: 12px 0; overflow: hidden; }
+  .code-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: rgba(255,255,255,0.04); border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .code-label { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.4); letter-spacing: 0.5px; font-family: monospace; }
+  .code-prompt { font-size: 10px; color: rgba(255,255,255,0.2); }
+  .code-block pre { font-family: 'JetBrains Mono','Fira Code','Courier New',monospace; font-size: 12.5px; line-height: 1.7; color: var(--code-text); padding: 16px 20px; white-space: pre; overflow-x: auto; }
+  .cmd { color: #93c5fd; }
+  .cmt { color: #6b7280; font-style: italic; }
+  .out { color: #86efac; }
+  .var { color: #fcd34d; }
+  .str { color: #a5f3fc; }
+  .kw { color: #f9a8d4; }
+
+  /* Callouts */
+  .callout { display: flex; gap: 12px; padding: 14px 18px; border-radius: 8px; margin: 14px 0; border-left: 4px solid; font-size: 13px; line-height: 1.65; }
+  .callout-icon { font-size: 17px; flex-shrink: 0; margin-top: 1px; }
+  .callout.info { background: var(--info-light); border-color: var(--info); }
+  .callout.ok { background: var(--ok-light); border-color: var(--ok); }
+  .callout.warn { background: var(--warn-light); border-color: var(--warn); }
+  .callout.err { background: var(--err-light); border-color: var(--err); }
+  .callout.ubuntu { background: var(--ubuntu-light); border-color: var(--ubuntu); }
+  .callout p { margin: 0; color: var(--text); }
+
+  /* Cards */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px 22px; margin-bottom: 16px; }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 16px; }
+  .card-sm { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .card-sm h4 { margin-top: 0; }
+  .card-sm p { margin-bottom: 0; font-size: 12px; }
+
+  /* Steps */
+  .steps { margin: 16px 0; }
+  .step { display: flex; gap: 14px; margin-bottom: 18px; align-items: flex-start; }
+  .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--ubuntu); color: #fff; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+  .step-body h4 { margin-top: 0; margin-bottom: 4px; font-size: 13px; color: var(--text); text-transform: none; letter-spacing: 0; font-weight: 700; }
+  .step-body p { margin-bottom: 0; }
+
+  /* Tables */
+  .tbl { width: 100%; border-collapse: collapse; margin: 10px 0 20px; font-size: 12px; }
+  .tbl th { padding: 9px 12px; text-align: left; font-size: 10px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; background: var(--bg); border-bottom: 2px solid var(--border); }
+  .tbl td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .tbl tr:last-child td { border-bottom: none; }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+  .badge-ok { background: var(--ok-light); color: var(--ok); }
+  .badge-warn { background: var(--warn-light); color: var(--warn); }
+  .badge-err { background: var(--err-light); color: var(--err); }
+  .badge-info { background: var(--info-light); color: var(--info); }
+  .badge-ubuntu { background: var(--ubuntu-light); color: var(--ubuntu); }
+
+  /* Checklist */
+  .checklist { list-style: none; padding: 0; margin: 12px 0; }
+  .checklist li { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; font-size: 13px; color: var(--text2); border-bottom: 1px solid #f1f5f9; }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li::before { content: '☐'; color: var(--text3); font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+  /* Footer */
+  .footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--border); text-align: center; font-size: 11px; color: var(--text3); }
+
+  .anchor { scroll-margin-top: 24px; }
+
+  @media (max-width: 860px) { .sidebar { display: none; } .main { margin-left: 0; padding: 24px; } }
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <h1>AsteriskIA — Deploy</h1>
+    <div class="os">Ubuntu 22.04 LTS</div>
+    <div class="ver">Guia completo de implantação</div>
+  </div>
+  <div class="nav-section">Preparação</div>
+  <a href="#requisitos" class="nav-item">Requisitos</a>
+  <a href="#acesso" class="nav-item">Acesso ao Servidor</a>
+  <a href="#sistema" class="nav-item">Configuração do Sistema</a>
+  <a href="#docker" class="nav-item">Instalação do Docker</a>
+  <a href="#caddy" class="nav-item">Instalação do Caddy</a>
+  <div class="nav-section">Projeto</div>
+  <a href="#clonar" class="nav-item">Clonar Repositório</a>
+  <a href="#env" class="nav-item">Configurar .env</a>
+  <a href="#diretorios" class="nav-item">Criar Diretórios</a>
+  <a href="#build" class="nav-item">Build e Subida</a>
+  <div class="nav-section">Pós-instalação</div>
+  <a href="#verificacao" class="nav-item">Verificação</a>
+  <a href="#primeiro-acesso" class="nav-item">Primeiro Acesso</a>
+  <a href="#agentes" class="nav-item">Ativar Módulo Agentes</a>
+  <a href="#firewall" class="nav-item">Firewall</a>
+  <a href="#troubleshooting" class="nav-item">Troubleshooting</a>
+  <a href="#manutencao" class="nav-item">Manutenção</a>
+</nav>
+
+<main class="main">
+
+  <div class="hero">
+    <div class="hero-os">Ubuntu 22.04 LTS · Jammy Jellyfish</div>
+    <h1>Guia de Implantação — AsteriskIA</h1>
+    <p>Instalação completa do stack AsteriskIA do zero: desde o primeiro login no servidor até o acesso à aplicação em produção com HTTPS, incluindo o módulo de Agentes.</p>
+    <div class="hero-meta">
+      <div class="hero-badge">SO <span>Ubuntu 22.04</span></div>
+      <div class="hero-badge">RAM mínima <span>8 GB</span></div>
+      <div class="hero-badge">CPU mínima <span>4 vCPUs</span></div>
+      <div class="hero-badge">Disco mínimo <span>40 GB</span></div>
+      <div class="hero-badge">Tempo estimado <span>45–60 min</span></div>
+    </div>
+  </div>
+
+  <!-- REQUISITOS -->
+  <section class="section anchor" id="requisitos">
+    <h2><span class="step-badge">PRÉ</span> Requisitos</h2>
+
+    <div class="card-grid">
+      <div class="card-sm">
+        <h4>🖥️ Servidor</h4>
+        <p>VPS ou servidor dedicado com Ubuntu 22.04 LTS (64-bit). Acesso root ou sudo obrigatório.</p>
+      </div>
+      <div class="card-sm">
+        <h4>🌐 Domínio</h4>
+        <p>Um domínio com DNS apontando para o IP do servidor. O Caddy emite o certificado SSL automaticamente.</p>
+      </div>
+      <div class="card-sm">
+        <h4>🔑 Acesso SSH</h4>
+        <p>Chave SSH ou senha para acesso inicial. Recomendamos autenticação por chave.</p>
+      </div>
+      <div class="card-sm">
+        <h4>📦 Credenciais</h4>
+        <p>Token do GitHub (PAT) para clonar o repositório privado. Google Gemini API Key (opcional para IA).</p>
+      </div>
+    </div>
+
+    <h3>Portas que devem estar abertas no firewall/VPS</h3>
+    <div class="card">
+      <table class="tbl">
+        <thead><tr><th>Porta</th><th>Protocolo</th><th>Serviço</th><th>Obrigatório</th></tr></thead>
+        <tbody>
+          <tr><td><strong>22</strong></td><td>TCP</td><td>SSH — acesso ao servidor</td><td><span class="badge badge-err">Sim</span></td></tr>
+          <tr><td><strong>80</strong></td><td>TCP</td><td>HTTP — redirecionamento HTTPS + ACME challenge</td><td><span class="badge badge-err">Sim</span></td></tr>
+          <tr><td><strong>443</strong></td><td>TCP</td><td>HTTPS — aplicação web</td><td><span class="badge badge-err">Sim</span></td></tr>
+          <tr><td><strong>5060</strong></td><td>UDP/TCP</td><td>SIP — tronco de telefonia</td><td><span class="badge badge-warn">VoIP</span></td></tr>
+          <tr><td><strong>10000–10100</strong></td><td>UDP</td><td>RTP — mídia de áudio</td><td><span class="badge badge-warn">VoIP</span></td></tr>
+          <tr><td><strong>8088</strong></td><td>TCP</td><td>WebSocket Asterisk (WebRTC)</td><td><span class="badge badge-warn">WebRTC</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-icon">⚠️</div>
+      <p><strong>DNS antes de começar:</strong> configure o registro A do seu domínio apontando para o IP do servidor <em>antes</em> de iniciar a instalação. O Caddy precisa resolver o domínio para emitir o certificado SSL automaticamente via Let's Encrypt.</p>
+    </div>
+  </section>
+
+  <!-- ACESSO AO SERVIDOR -->
+  <section class="section anchor" id="acesso">
+    <h2><span class="step-badge">PASSO 1</span> Acesso ao Servidor</h2>
+
+    <h3>1.1 — Conectar via SSH</h3>
+    <p>Do seu computador local, abra um terminal e conecte ao servidor:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Terminal local</span><span class="code-prompt">seu-computador $</span></div>
+      <pre><span class="cmt"># Com autenticação por senha</span>
+<span class="cmd">ssh root@SEU_IP_DO_SERVIDOR</span>
+
+<span class="cmt"># Com autenticação por chave SSH (recomendado)</span>
+<span class="cmd">ssh -i ~/.ssh/sua_chave.pem root@SEU_IP_DO_SERVIDOR</span>
+
+<span class="cmt"># Se usar porta SSH diferente da 22</span>
+<span class="cmd">ssh -p 2222 root@SEU_IP_DO_SERVIDOR</span></pre>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ️</div>
+      <p>Na primeira conexão, o SSH pergunta sobre a autenticidade do host. Digite <strong>yes</strong> e pressione Enter para aceitar e salvar a chave do servidor.</p>
+    </div>
+
+    <h3>1.2 — Verificar que está logado como root</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span><span class="code-prompt">root@vps $</span></div>
+      <pre><span class="cmd">whoami</span>
+<span class="out">root</span>
+
+<span class="cmd">hostname</span>
+<span class="out">vps-seu-servidor</span>
+
+<span class="cmd">lsb_release -a</span>
+<span class="out">Distributor ID: Ubuntu
+Release:        22.04
+Codename:       jammy</span></pre>
+    </div>
+
+    <div class="callout ubuntu">
+      <div class="callout-icon">🐧</div>
+      <p>Se não tiver acesso root direto mas tiver sudo, substitua todos os comandos <code>root</code> por <code>sudo -i</code> primeiro para elevar para root, ou prefixe cada comando com <code>sudo</code>.</p>
+    </div>
+  </section>
+
+  <!-- CONFIGURAÇÃO DO SISTEMA -->
+  <section class="section anchor" id="sistema">
+    <h2><span class="step-badge">PASSO 2</span> Configuração do Sistema</h2>
+
+    <h3>2.1 — Atualizar o sistema</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Atualiza lista de pacotes e instala atualizações de segurança</span>
+<span class="cmd">apt-get update -y && apt-get upgrade -y</span>
+
+<span class="cmt"># Instala ferramentas essenciais</span>
+<span class="cmd">apt-get install -y \
+  curl \
+  wget \
+  git \
+  nano \
+  htop \
+  net-tools \
+  unzip \
+  ca-certificates \
+  gnupg \
+  lsb-release \
+  apt-transport-https \
+  software-properties-common \
+  ufw</span></pre>
+    </div>
+
+    <h3>2.2 — Configurar hostname (opcional mas recomendado)</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmd">hostnamectl set-hostname asteriskia-prod</span>
+<span class="cmd">echo "127.0.0.1 asteriskia-prod" >> /etc/hosts</span></pre>
+    </div>
+
+    <h3>2.3 — Configurar fuso horário</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Lista fusos disponíveis</span>
+<span class="cmd">timedatectl list-timezones | grep America/Sao_Paulo</span>
+
+<span class="cmt"># Define fuso horário (ajuste para o seu)</span>
+<span class="cmd">timedatectl set-timezone America/Sao_Paulo</span>
+
+<span class="cmt"># Confirma</span>
+<span class="cmd">timedatectl</span>
+<span class="out">               Local time: Wed 2026-06-17 01:30:00 -03
+           Universal time: Wed 2026-06-17 04:30:00 UTC
+                 RZ zone: America/Sao_Paulo (BRT, -0300)</span></pre>
+    </div>
+
+    <h3>2.4 — Ajustar limites do sistema</h3>
+    <p>O Asterisk e o Docker precisam de limites mais altos para arquivos abertos e processos:</p>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmd">cat >> /etc/security/limits.conf << 'EOF'
+*    soft nofile 65536
+*    hard nofile 65536
+root soft nofile 65536
+root hard nofile 65536
+EOF</span>
+
+<span class="cmd">cat >> /etc/sysctl.conf << 'EOF'
+# Rede — otimizações para SIP/RTP
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.udp_rmem_min = 8192
+net.ipv4.udp_wmem_min = 8192
+# Docker
+net.ipv4.ip_forward = 1
+EOF</span>
+
+<span class="cmd">sysctl -p</span></pre>
+    </div>
+  </section>
+
+  <!-- DOCKER -->
+  <section class="section anchor" id="docker">
+    <h2><span class="step-badge">PASSO 3</span> Instalação do Docker</h2>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ️</div>
+      <p>Instalar o Docker oficial do repositório da Docker Inc., <strong>não</strong> via <code>apt install docker.io</code> (versão desatualizada do Ubuntu). O AsteriskIA requer Docker 24+ e Compose v2.</p>
+    </div>
+
+    <h3>3.1 — Adicionar repositório oficial Docker</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Adiciona chave GPG oficial do Docker</span>
+<span class="cmd">install -m 0755 -d /etc/apt/keyrings</span>
+<span class="cmd">curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  | gpg --dearmor -o /etc/apt/keyrings/docker.gpg</span>
+<span class="cmd">chmod a+r /etc/apt/keyrings/docker.gpg</span>
+
+<span class="cmt"># Adiciona repositório Docker</span>
+<span class="cmd">echo \
+  "deb [arch=$(dpkg --print-architecture) \
+  signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" \
+  | tee /etc/apt/sources.list.d/docker.list > /dev/null</span>
+
+<span class="cmt"># Atualiza e instala Docker + Compose Plugin</span>
+<span class="cmd">apt-get update -y</span>
+<span class="cmd">apt-get install -y \
+  docker-ce \
+  docker-ce-cli \
+  containerd.io \
+  docker-buildx-plugin \
+  docker-compose-plugin</span></pre>
+    </div>
+
+    <h3>3.2 — Verificar instalação</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmd">docker --version</span>
+<span class="out">Docker version 26.1.4, build 5650f9b</span>
+
+<span class="cmd">docker compose version</span>
+<span class="out">Docker Compose version v2.27.1</span>
+
+<span class="cmd">systemctl is-active docker</span>
+<span class="out">active</span></pre>
+    </div>
+
+    <h3>3.3 — Habilitar Docker no boot</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmd">systemctl enable docker</span>
+<span class="cmd">systemctl enable containerd</span></pre>
+    </div>
+
+    <h3>3.4 — Testar com hello-world</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmd">docker run --rm hello-world</span>
+<span class="out">Hello from Docker!
+This message shows that your installation appears to be working correctly.</span></pre>
+    </div>
+  </section>
+
+  <!-- CADDY -->
+  <section class="section anchor" id="caddy">
+    <h2><span class="step-badge">PASSO 4</span> Instalação do Caddy</h2>
+
+    <p>O Caddy é o proxy reverso que gerencia HTTPS automático (Let's Encrypt) e roteia tráfego para os containers Docker. É instalado <strong>no host</strong>, fora do Docker.</p>
+
+    <h3>4.1 — Instalar Caddy</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Adiciona repositório oficial do Caddy</span>
+<span class="cmd">curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+  | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg</span>
+
+<span class="cmd">curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+  | tee /etc/apt/sources.list.d/caddy-stable.list</span>
+
+<span class="cmd">apt-get update -y && apt-get install -y caddy</span>
+
+<span class="cmt"># Verifica versão</span>
+<span class="cmd">caddy version</span>
+<span class="out">v2.8.4 h1:q3...</span></pre>
+    </div>
+
+    <h3>4.2 — Adicionar Caddy à rede Docker</h3>
+    <p>O Caddy precisa enxergar os containers. Para isso, criamos a rede Docker antes de subir os serviços e adicionamos o Caddy a ela:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Cria a rede Docker que os containers usam</span>
+<span class="cmd">docker network create asteriskia-net 2>/dev/null || true</span>
+
+<span class="cmt"># Descobre o nome do processo caddy no namespace de rede</span>
+<span class="cmt"># (necessário para comunicação host → containers)</span>
+<span class="cmd">ip addr show docker0</span></pre>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ️</div>
+      <p>O Caddy roda no host e acessa os containers pelo nome (<code>agents-backend:8000</code>, <code>asteriskia-frontend:80</code>). Para isso funcionar, o Caddy precisa usar a bridge network do Docker. Configuraremos isso no Caddyfile.</p>
+    </div>
+
+    <h3>4.3 — Configurar Caddyfile</h3>
+    <p>Copiaremos o Caddyfile do repositório após clonar o projeto. Por ora, paramos o serviço padrão:</p>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmd">systemctl stop caddy</span>
+<span class="cmd">systemctl enable caddy</span></pre>
+    </div>
+  </section>
+
+  <!-- CLONAR -->
+  <section class="section anchor" id="clonar">
+    <h2><span class="step-badge">PASSO 5</span> Clonar o Repositório</h2>
+
+    <h3>5.1 — Criar diretório da aplicação</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmd">mkdir -p /opt/AsteriskIA</span>
+<span class="cmd">cd /opt</span></pre>
+    </div>
+
+    <h3>5.2 — Clonar com PAT do GitHub</h3>
+    <p>O repositório é privado. Use o Personal Access Token (PAT) fornecido:</p>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Substitua SEU_PAT pelo token real</span>
+<span class="cmd">git clone https://<span class="var">SEU_PAT</span>@github.com/kaiohsc2017/AsteriskIA.git /opt/AsteriskIA</span>
+
+<span class="cmt"># Entra no diretório</span>
+<span class="cmd">cd /opt/AsteriskIA</span>
+
+<span class="cmt"># Confirma último commit</span>
+<span class="cmd">git log --oneline -3</span>
+<span class="out">1c70253 agents: adiciona documentação oficial ao painel
+286150d agents: página Secrets completa no painel
+c352787 agents: fix next_run e typeLabel database na tabela de agentes</span></pre>
+    </div>
+
+    <h3>5.3 — Configurar git para atualizações futuras</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmd">git config user.email "deploy@asteriskia"</span>
+<span class="cmd">git config user.name "AsteriskIA Deploy"</span>
+
+<span class="cmt"># Salva credenciais do PAT para git pull futuro</span>
+<span class="cmd">git config credential.helper store</span>
+<span class="cmd">cat > ~/.git-credentials << 'EOF'
+https://<span class="var">SEU_PAT</span>@github.com
+EOF</span>
+<span class="cmd">chmod 600 ~/.git-credentials</span></pre>
+    </div>
+  </section>
+
+  <!-- ENV -->
+  <section class="section anchor" id="env">
+    <h2><span class="step-badge">PASSO 6</span> Configurar Variáveis de Ambiente</h2>
+
+    <h3>6.1 — Criar o arquivo .env</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmd">cd /opt/AsteriskIA</span>
+<span class="cmd">cp .env.example .env</span>
+<span class="cmd">nano .env</span></pre>
+    </div>
+
+    <h3>6.2 — Preencher variáveis obrigatórias</h3>
+    <p>Edite o <code>.env</code> substituindo cada valor. Os campos marcados com <span class="badge badge-err">obrigatório</span> devem ser preenchidos antes de subir os containers:</p>
+
+    <div class="card">
+      <table class="tbl">
+        <thead><tr><th>Variável</th><th>Importância</th><th>Como obter / valor</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>POSTGRES_DB</code><br><code>POSTGRES_USER</code><br><code>POSTGRES_PASSWORD</code></td>
+            <td><span class="badge badge-err">obrigatório</span></td>
+            <td>Defina valores seguros. Ex: <code>asteriskia</code> / <code>asteriskia</code> / <em>senha forte</em>.</td>
+          </tr>
+          <tr>
+            <td><code>BACKEND_JWT_SECRET</code></td>
+            <td><span class="badge badge-err">obrigatório</span></td>
+            <td>Gere com: <code>openssl rand -hex 32</code>. Deve ter 64 caracteres hex.</td>
+          </tr>
+          <tr>
+            <td><code>BACKEND_ALLOWED_ORIGINS</code></td>
+            <td><span class="badge badge-err">obrigatório</span></td>
+            <td>URL do seu domínio com HTTPS. Ex: <code>https://app.voiphash.com.br</code></td>
+          </tr>
+          <tr>
+            <td><code>ADMIN_USERNAME</code><br><code>ADMIN_PASSWORD</code></td>
+            <td><span class="badge badge-err">obrigatório</span></td>
+            <td>Credenciais do usuário administrador da aplicação web.</td>
+          </tr>
+          <tr>
+            <td><code>INTERNAL_API_KEY</code></td>
+            <td><span class="badge badge-err">obrigatório</span></td>
+            <td>Gere com: <code>openssl rand -hex 32</code>.</td>
+          </tr>
+          <tr>
+            <td><code>SIP_PUBLIC_IP</code></td>
+            <td><span class="badge badge-warn">VoIP</span></td>
+            <td>IP público do servidor: <code>curl -s ifconfig.me</code></td>
+          </tr>
+          <tr>
+            <td><code>SIP_TRUNK_HOST</code></td>
+            <td><span class="badge badge-warn">VoIP</span></td>
+            <td>IP ou host da sua operadora SIP.</td>
+          </tr>
+          <tr>
+            <td><code>GEMINI_API_KEY</code></td>
+            <td><span class="badge badge-info">IA</span></td>
+            <td>Obtenha em <code>aistudio.google.com</code>. Opcional se não usar IA.</td>
+          </tr>
+          <tr>
+            <td><code>TELEGRAM_BOT_TOKEN</code><br><code>TELEGRAM_CHAT_ID</code></td>
+            <td><span class="badge badge-info">alertas</span></td>
+            <td>Crie bot via @BotFather. Chat ID do grupo de alertas.</td>
+          </tr>
+          <tr>
+            <td><code>VITE_API_URL</code></td>
+            <td><span class="badge badge-err">obrigatório</span></td>
+            <td>URL da API com HTTPS. Ex: <code>https://app.voiphash.com.br/api/v1</code></td>
+          </tr>
+          <tr>
+            <td><code>AGENTS_DB_PASS</code></td>
+            <td><span class="badge badge-err">obrigatório</span></td>
+            <td>Senha do banco dos agentes. Ex: <code>openssl rand -hex 16</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>6.3 — Gerar segredos seguros</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor — gere e copie cada valor para o .env</span></div>
+      <pre><span class="cmt"># JWT Secret (64 chars hex)</span>
+<span class="cmd">openssl rand -hex 32</span>
+<span class="out">1eb973b2221ef31fc36fbe7fd01b712a6c7e03ac1683c8f4dbba154d2e17a48a</span>
+
+<span class="cmt"># Internal API Key</span>
+<span class="cmd">openssl rand -hex 32</span>
+
+<span class="cmt"># Agents DB Password</span>
+<span class="cmd">openssl rand -hex 16</span>
+
+<span class="cmt"># IP público do servidor</span>
+<span class="cmd">curl -s ifconfig.me</span>
+<span class="out">200.150.100.50</span></pre>
+    </div>
+
+    <h3>6.4 — Criar diretório de environment dos agentes</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmd">mkdir -p /opt/AsteriskIA/env</span>
+<span class="cmt"># Cria .env.agents vazio (configurado depois pelo painel)</span>
+<span class="cmd">touch /opt/AsteriskIA/env/.env.agents</span>
+<span class="cmd">chmod 600 /opt/AsteriskIA/env/.env.agents</span></pre>
+    </div>
+
+    <h3>6.5 — Proteger o arquivo .env</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmd">chmod 600 /opt/AsteriskIA/.env</span>
+<span class="cmd">chown root:root /opt/AsteriskIA/.env</span></pre>
+    </div>
+  </section>
+
+  <!-- DIRETÓRIOS -->
+  <section class="section anchor" id="diretorios">
+    <h2><span class="step-badge">PASSO 7</span> Criar Diretórios e Configurar Caddy</h2>
+
+    <h3>7.1 — Criar estrutura de diretórios</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Áudios das chamadas Asterisk</span>
+<span class="cmd">mkdir -p /var/asteriskia/recordings</span>
+<span class="cmd">chmod 777 /var/asteriskia/recordings</span>
+
+<span class="cmt"># Logs</span>
+<span class="cmd">mkdir -p /var/log/asteriskia</span>
+
+<span class="cmt"># Dados Caddy (certificados SSL)</span>
+<span class="cmd">mkdir -p /etc/caddy /var/lib/caddy</span></pre>
+    </div>
+
+    <h3>7.2 — Instalar Caddyfile do projeto</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Substitui o Caddyfile padrão pelo do projeto</span>
+<span class="cmd">cp /opt/AsteriskIA/Caddyfile /etc/caddy/Caddyfile</span>
+
+<span class="cmt"># Edita o Caddyfile para colocar seu domínio real</span>
+<span class="cmd">nano /etc/caddy/Caddyfile</span></pre>
+    </div>
+
+    <div class="callout ubuntu">
+      <div class="callout-icon">📝</div>
+      <p>No Caddyfile, substitua <code>app.voiphash.com.br</code> pelo seu domínio real em <strong>todas</strong> as ocorrências. Salve com <code>Ctrl+O</code>, Enter, <code>Ctrl+X</code>.</p>
+    </div>
+
+    <h3>7.3 — Configurar Caddy para acessar rede Docker</h3>
+    <p>O Caddy no host precisa resolver os nomes dos containers. Adicione o IP da bridge Docker ao Caddy:</p>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Verifica IP da bridge Docker (geralmente 172.17.0.1)</span>
+<span class="cmd">docker network inspect asteriskia-net 2>/dev/null \
+  | grep '"Gateway"' | head -1</span>
+<span class="out">                "Gateway": "172.20.0.1"</span>
+
+<span class="cmt"># Se a rede ainda não existir, cria</span>
+<span class="cmd">docker network create asteriskia-net 2>/dev/null; true</span>
+
+<span class="cmt"># Adiciona resolução dos containers no /etc/hosts do host
+# (alternativa: usar IP diretamente no Caddyfile)
+# Os containers estarão disponíveis após o docker compose up</span></pre>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ️</div>
+      <p>O Caddy usa os nomes de container (<code>agents-backend</code>, <code>asteriskia-frontend</code>) que o Docker resolve internamente via DNS. Para o Caddy do host enxergar esses nomes, ele precisa usar o servidor DNS do Docker (<code>127.0.0.11</code>). Isso é gerenciado automaticamente quando o Caddy é iniciado após os containers estarem rodando.</p>
+    </div>
+
+    <h3>7.4 — Configurar systemd do Caddy</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Verifica configuração do Caddyfile</span>
+<span class="cmd">caddy validate --config /etc/caddy/Caddyfile</span>
+<span class="out">Valid configuration</span></pre>
+    </div>
+  </section>
+
+  <!-- BUILD E SUBIDA -->
+  <section class="section anchor" id="build">
+    <h2><span class="step-badge">PASSO 8</span> Build e Subida dos Containers</h2>
+
+    <h3>8.1 — Build das imagens</h3>
+    <p>O primeiro build baixa todas as imagens base e compila os serviços. Pode levar <strong>10–20 minutos</strong> dependendo da conexão.</p>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmd">cd /opt/AsteriskIA</span>
+
+<span class="cmt"># Build de todas as imagens</span>
+<span class="cmd">docker compose build</span>
+
+<span class="cmt"># Aguarde — você verá o progresso de cada serviço</span>
+<span class="out">[+] Building 12/12
+ ✔ asteriskia-backend  Built   142.3s
+ ✔ asteriskia-ai-agent Built    38.1s
+ ✔ asteriskia-scheduler Built   22.5s
+ ✔ asteriskia-agents-api Built  28.4s
+ ✔ asteriskia-frontend Built    45.2s
+ ✔ asteriskia-security Built    18.1s</span></pre>
+    </div>
+
+    <h3>8.2 — Subir todos os containers</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Sobe todos os serviços em background</span>
+<span class="cmd">docker compose up -d</span>
+
+<span class="out">[+] Running 12/12
+ ✔ Container asteriskia-postgres     Started
+ ✔ Container asteriskia-agents-db    Started
+ ✔ Container asteriskia-asterisk     Started
+ ✔ Container asteriskia-backend      Started
+ ✔ Container asteriskia-ai-agent     Started
+ ✔ Container asteriskia-scheduler    Started
+ ✔ Container asteriskia-frontend     Started
+ ✔ Container asteriskia-prometheus   Started
+ ✔ Container asteriskia-grafana      Started
+ ✔ Container asteriskia-security     Started
+ ✔ Container asteriskia-agents-api   Started
+ ✔ Container asteriskia-agents-ui    Started</span></pre>
+    </div>
+
+    <h3>8.3 — Aguardar inicialização</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Aguarda 30 segundos para todos os serviços iniciarem</span>
+<span class="cmd">sleep 30</span>
+
+<span class="cmt"># Verifica status de todos os containers</span>
+<span class="cmd">docker compose ps</span>
+<span class="out">NAME                      STATUS          PORTS
+asteriskia-postgres       running (healthy)   0.0.0.0:5432->5432/tcp
+asteriskia-agents-db      running (healthy)   5432/tcp
+asteriskia-backend        running (healthy)   0.0.0.0:8080->8080/tcp
+asteriskia-asterisk       running             0.0.0.0:5060->5060/udp
+asteriskia-agents-api     running             127.0.0.1:8000->8000/tcp
+asteriskia-agents-ui      running             80/tcp
+asteriskia-frontend       running             80/tcp
+asteriskia-prometheus     running             0.0.0.0:9090->9090/tcp
+asteriskia-grafana        running             0.0.0.0:3000->3000/tcp</span></pre>
+    </div>
+
+    <h3>8.4 — Iniciar Caddy</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Inicia Caddy (irá emitir certificado SSL automaticamente)</span>
+<span class="cmd">systemctl start caddy</span>
+
+<span class="cmt"># Verifica status</span>
+<span class="cmd">systemctl status caddy</span>
+<span class="out">● caddy.service - Caddy
+     Active: active (running) since ...
+     ...
+     caddy    running
+     Certificate obtained for app.seudominio.com</span>
+
+<span class="cmt"># Monitora logs do Caddy em tempo real</span>
+<span class="cmd">journalctl -u caddy -f</span></pre>
+    </div>
+
+    <div class="callout ok">
+      <div class="callout-icon">✅</div>
+      <p>Quando o Caddy mostrar <em>"Certificate obtained"</em> nos logs, o HTTPS está ativo. O certificado Let's Encrypt é renovado automaticamente pelo Caddy a cada 60 dias.</p>
+    </div>
+  </section>
+
+  <!-- VERIFICAÇÃO -->
+  <section class="section anchor" id="verificacao">
+    <h2><span class="step-badge">PASSO 9</span> Verificação da Instalação</h2>
+
+    <h3>9.1 — Verificar health dos serviços principais</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Backend Spring Boot</span>
+<span class="cmd">curl -s http://localhost:8080/actuator/health | python3 -m json.tool</span>
+<span class="out">{"status": "UP"}</span>
+
+<span class="cmt"># Agentes API (FastAPI)</span>
+<span class="cmd">curl -s http://localhost:8000/api/system/health | python3 -m json.tool</span>
+<span class="out">{
+    "status": "ok",
+    "database": "ok",
+    "agents": 0,
+    "running": 0,
+    "version": "2.0.0"
+}</span>
+
+<span class="cmt"># PostgreSQL principal</span>
+<span class="cmd">docker exec asteriskia-postgres pg_isready -U asteriskia</span>
+<span class="out">/var/run/postgresql:5432 - accepting connections</span>
+
+<span class="cmt"># PostgreSQL agentes</span>
+<span class="cmd">docker exec asteriskia-agents-db pg_isready -U agents -d agentsdb</span>
+<span class="out">/var/run/postgresql:5432 - accepting connections</span></pre>
+    </div>
+
+    <h3>9.2 — Verificar via HTTPS (domínio)</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Frontend principal</span>
+<span class="cmd">curl -sI https://app.seudominio.com | head -5</span>
+<span class="out">HTTP/2 200
+content-type: text/html; charset=utf-8</span>
+
+<span class="cmt"># Frontend agentes</span>
+<span class="cmd">curl -sI https://app.seudominio.com/agents/ | head -3</span>
+<span class="out">HTTP/2 200</span>
+
+<span class="cmt"># Health check agentes via HTTPS</span>
+<span class="cmd">curl -s https://app.seudominio.com/agents/api/system/health</span>
+<span class="out">{"status":"ok","database":"ok","agents":0,"running":0,"version":"2.0.0"}</span></pre>
+    </div>
+
+    <h3>9.3 — Verificar logs de cada serviço</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Backend Spring Boot — deve mostrar "Started" sem erros</span>
+<span class="cmd">docker logs asteriskia-backend --tail=20</span>
+
+<span class="cmt"># Agentes API — deve mostrar 2 workers rodando</span>
+<span class="cmd">docker logs asteriskia-agents-api --tail=10</span>
+<span class="out">INFO:     Started server process [12]
+INFO:     Application startup complete.
+INFO:     Started server process [13]
+INFO:     Application startup complete.</span>
+
+<span class="cmt"># Asterisk — deve mostrar "Asterisk Ready"</span>
+<span class="cmd">docker logs asteriskia-asterisk --tail=15</span></pre>
+    </div>
+  </section>
+
+  <!-- PRIMEIRO ACESSO -->
+  <section class="section anchor" id="primeiro-acesso">
+    <h2><span class="step-badge">PASSO 10</span> Primeiro Acesso à Aplicação</h2>
+
+    <h3>10.1 — Acessar a aplicação Telecom</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Abra o browser</h4>
+          <p>Acesse <code>https://app.seudominio.com</code> (substitua pelo seu domínio real).</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Faça login</h4>
+          <p>Use as credenciais definidas no <code>.env</code>: <code>ADMIN_USERNAME</code> e <code>ADMIN_PASSWORD</code>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Verifique o dashboard</h4>
+          <p>O painel do AsteriskIA Telecom deve carregar com os módulos disponíveis.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>10.2 — Acessar a plataforma de Agentes</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Acesse a URL dos agentes</h4>
+          <p>Navegue para <code>https://app.seudominio.com/agents/</code></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Use as mesmas credenciais</h4>
+          <p>O login usa os mesmos usuário e senha do AsteriskIA Telecom (mesma base de usuários, mesmo JWT).</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Dashboard dos Agentes</h4>
+          <p>O dashboard carrega com zero agentes. Isso é esperado — cadastre o primeiro agente pelo menu <strong>Agentes → Novo agente</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ATIVAR AGENTES -->
+  <section class="section anchor" id="agentes">
+    <h2><span class="step-badge">PASSO 11</span> Ativar Módulo de Agentes</h2>
+
+    <h3>11.1 — Configurar IA (opcional)</h3>
+    <p>Para usar IA nos agentes, configure o provedor pelo painel:</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>Acesse Config. IA</h4>
+          <p>Menu lateral → <strong>Config. IA</strong></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>Selecione o provedor</h4>
+          <p>Ex: Google Gemini. Cole a API Key. Clique em <strong>Testar configuração</strong>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>Habilite e salve</h4>
+          <p>Marque <strong>IA habilitada</strong> e clique em <strong>Salvar configuração</strong>. Ativo imediatamente, sem restart.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>11.2 — Cadastrar primeiro servidor SSH</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Painel Web — Servidores → Novo servidor</span></div>
+      <pre><span class="cmt">Nome:        Servidor Prod</span>
+<span class="cmt">Host:        IP_DO_SERVIDOR_ALVO</span>
+<span class="cmt">Porta:       22</span>
+<span class="cmt">Usuário:     root</span>
+<span class="cmt">Autenticação: Senha</span>
+<span class="cmt">Senha:       SENHA_SSH</span></pre>
+    </div>
+
+    <p>Após salvar, clique em <strong>Testar</strong> para validar a conexão SSH.</p>
+
+    <h3>11.3 — Criar primeiro agente</h3>
+    <p>Menu <strong>Agentes → Novo agente</strong>. Configure um agente SSH Test básico para monitorar o próprio servidor:</p>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Formulário — Novo Agente</span></div>
+      <pre><span class="cmt">Nome:        Monitor AsteriskIA</span>
+<span class="cmt">Tipo:        SSH Test</span>
+<span class="cmt">Skill:       Especialista em Docker e Linux Ubuntu</span>
+<span class="cmt">Servidores:  [selecione o servidor cadastrado]</span>
+<span class="cmt">Agendamento: Intervalo / 5m</span>
+<span class="cmt">
+Rules JSON:</span>
+{
+  "checks": [
+    {
+      "name": "Docker rodando",
+      "cmd": "systemctl is-active docker",
+      "expect": "active"
+    },
+    {
+      "name": "Disco livre",
+      "cmd": "df / | awk 'NR==2{print $5}'",
+      "expect_lt": "80%"
+    }
+  ]
+}</pre>
+    </div>
+  </section>
+
+  <!-- FIREWALL -->
+  <section class="section anchor" id="firewall">
+    <h2><span class="step-badge">PASSO 12</span> Configurar Firewall (UFW)</h2>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Regras básicas</span>
+<span class="cmd">ufw default deny incoming</span>
+<span class="cmd">ufw default allow outgoing</span>
+
+<span class="cmt"># SSH — NUNCA bloqueie antes de ter acesso garantido</span>
+<span class="cmd">ufw allow 22/tcp</span>
+
+<span class="cmt"># HTTP e HTTPS (Caddy)</span>
+<span class="cmd">ufw allow 80/tcp</span>
+<span class="cmd">ufw allow 443/tcp</span>
+
+<span class="cmt"># SIP e RTP (VoIP)</span>
+<span class="cmd">ufw allow 5060/udp</span>
+<span class="cmd">ufw allow 5060/tcp</span>
+<span class="cmd">ufw allow 10000:10100/udp</span>
+
+<span class="cmt"># WebSocket Asterisk (WebRTC)</span>
+<span class="cmd">ufw allow 8088/tcp</span>
+
+<span class="cmt"># Ativa o UFW</span>
+<span class="cmd">ufw --force enable</span>
+
+<span class="cmt"># Verifica regras</span>
+<span class="cmd">ufw status verbose</span></pre>
+    </div>
+
+    <div class="callout err">
+      <div class="callout-icon">🚨</div>
+      <p><strong>ATENÇÃO:</strong> Execute <code>ufw allow 22/tcp</code> <em>antes</em> de <code>ufw enable</code>. Se bloquear o SSH antes de liberar a porta, você perderá o acesso ao servidor e precisará usar o console de emergência do provedor.</p>
+    </div>
+  </section>
+
+  <!-- TROUBLESHOOTING -->
+  <section class="section anchor" id="troubleshooting">
+    <h2>Troubleshooting</h2>
+
+    <h3>Container não inicia</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Diagnóstico</span></div>
+      <pre><span class="cmt"># Ver logs do container com erro</span>
+<span class="cmd">docker logs asteriskia-backend --tail=50</span>
+
+<span class="cmt"># Ver eventos recentes do Docker Compose</span>
+<span class="cmd">docker compose events --since 5m</span>
+
+<span class="cmt"># Reiniciar container específico</span>
+<span class="cmd">docker compose restart backend</span></pre>
+    </div>
+
+    <h3>Erro de Flyway (migrations)</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Solução</span></div>
+      <pre><span class="cmt"># Verificar histórico do Flyway</span>
+<span class="cmd">docker exec asteriskia-postgres psql -U asteriskia -d asteriskia \
+  -c "SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank;"</span>
+
+<span class="cmt"># Se necessário, reparar checksums (ver documentação)</span></pre>
+    </div>
+
+    <h3>Caddy não emite certificado SSL</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Diagnóstico</span></div>
+      <pre><span class="cmt"># Verifica logs do Caddy</span>
+<span class="cmd">journalctl -u caddy -n 50 --no-pager</span>
+
+<span class="cmt"># Problemas comuns:
+# 1. DNS não propagou — aguarde até 24h após configurar o registro A
+# 2. Porta 80 bloqueada — verifique UFW e painel do provedor
+# 3. Domínio incorreto no Caddyfile</span>
+
+<span class="cmt"># Testar resolução DNS</span>
+<span class="cmd">dig +short app.seudominio.com</span>
+<span class="out">200.150.100.50</span></pre>
+    </div>
+
+    <h3>Agentes API retornando 401</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Diagnóstico</span></div>
+      <pre><span class="cmt"># Confirma que BACKEND_JWT_SECRET está idêntico nos dois serviços</span>
+<span class="cmd">grep BACKEND_JWT_SECRET /opt/AsteriskIA/.env</span>
+<span class="cmd">docker exec asteriskia-agents-api env | grep BACKEND_JWT_SECRET</span>
+<span class="cmt"># Os valores devem ser iguais</span></pre>
+    </div>
+
+    <h3>Ver todos os logs de uma vez</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Todos os containers em tempo real</span>
+<span class="cmd">docker compose logs -f --tail=20</span>
+
+<span class="cmt"># Apenas erros</span>
+<span class="cmd">docker compose logs --tail=100 2>&1 | grep -i "error\|exception\|failed"</span></pre>
+    </div>
+  </section>
+
+  <!-- MANUTENÇÃO -->
+  <section class="section anchor" id="manutencao">
+    <h2>Manutenção e Atualizações</h2>
+
+    <h3>Atualizar para nova versão</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmd">cd /opt/AsteriskIA</span>
+
+<span class="cmt"># Puxa novas versões</span>
+<span class="cmd">git pull origin main</span>
+
+<span class="cmt"># Rebuild e reinicia containers modificados</span>
+<span class="cmd">docker compose build --no-cache agents-backend</span>
+<span class="cmd">docker compose up -d agents-backend</span>
+
+<span class="cmt"># Frontend (só restart — volume montado)</span>
+<span class="cmd">docker compose restart agents-frontend</span></pre>
+    </div>
+
+    <h3>Backup do banco de dados</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Backup do banco principal</span>
+<span class="cmd">docker exec asteriskia-postgres pg_dump -U asteriskia asteriskia \
+  | gzip > /opt/backup/asteriskia_$(date +%Y%m%d).sql.gz</span>
+
+<span class="cmt"># Backup do banco dos agentes</span>
+<span class="cmd">docker exec asteriskia-agents-db pg_dump -U agents agentsdb \
+  | gzip > /opt/backup/agentsdb_$(date +%Y%m%d).sql.gz</span></pre>
+    </div>
+
+    <h3>Monitorar recursos</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">Servidor</span></div>
+      <pre><span class="cmt"># Uso de recursos por container</span>
+<span class="cmd">docker stats --no-stream</span>
+
+<span class="cmt"># Espaço em disco</span>
+<span class="cmd">df -h / && docker system df</span></pre>
+    </div>
+
+    <h3>Checklist pós-instalação</h3>
+    <ul class="checklist">
+      <li>Todos os containers com status <code>running</code> (docker compose ps)</li>
+      <li>HTTPS funcionando em <code>https://app.seudominio.com</code></li>
+      <li>Login no AsteriskIA Telecom com sucesso</li>
+      <li>Login no AsteriskIA Agentes com sucesso</li>
+      <li>Health check respondendo: <code>/agents/api/system/health</code></li>
+      <li>Primeiro servidor SSH cadastrado e testado</li>
+      <li>Primeiro agente criado e executado manualmente</li>
+      <li>UFW ativo com regras corretas</li>
+      <li>Backup agendado (cron)</li>
+      <li>Uptime monitor externo configurado no health check</li>
+    </ul>
+  </section>
+
+  <div class="footer">
+    <strong>AsteriskIA — Guia de Implantação · Ubuntu 22.04 LTS</strong><br>
+    Stack: Docker + Caddy + PostgreSQL 16 + FastAPI + Spring Boot · v2.0.0
+  </div>
+
+</main>
+
+<script>
+  var sections = document.querySelectorAll('.anchor');
+  var navLinks = document.querySelectorAll('.nav-item');
+  window.addEventListener('scroll', function() {
+    var current = '';
+    sections.forEach(function(s) { if (window.scrollY >= s.offsetTop - 80) current = s.id; });
+    navLinks.forEach(function(a) {
+      a.classList.remove('active');
+      if (a.getAttribute('href') === '#' + current) a.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
