@@ -607,14 +607,35 @@ async def run_agent(agent: dict, broadcast) -> dict:
 
     finished = datetime.now(timezone.utc)
     duration = (finished - started).total_seconds()
-    status   = ("success" if result["failed"] == 0
-                else ("partial" if result["passed"] > 0 else "error"))
 
-    summary = (
-        f"{result['passed']}/{result['total']} verificações OK"
-        + (f", {result['failed']} falha(s)" if result["failed"] else "")
-        + f" em {duration:.1f}s"
-    )
+    # Determina status final:
+    # - Sem servidores/URLs configurados → error (nada foi verificado)
+    # - total=0 mas sem servidores → error
+    # - failed > 0 e passed = 0 → error
+    # - failed > 0 e passed > 0 → partial
+    # - failed = 0 e total > 0 → success
+    # - failed = 0 e total = 0 e havia servidores → error (conexão falhou antes dos checks)
+    no_targets = len(servers) == 0 and not agent.get("target_urls")
+    if no_targets:
+        status = "error"
+    elif result["total"] == 0 and result["failed"] == 0:
+        # Loop executou mas nenhum check rodou = falha de conexão sem checks
+        status = "error"
+    elif result["failed"] == 0:
+        status = "success"
+    elif result["passed"] > 0:
+        status = "partial"
+    else:
+        status = "error"
+
+    if no_targets:
+        summary = "Nenhum servidor ou URL configurado para este agente"
+    else:
+        summary = (
+            f"{result['passed']}/{result['total']} verificações OK"
+            + (f", {result['failed']} falha(s)" if result["failed"] else "")
+            + f" em {duration:.1f}s"
+        )
 
     async with DB() as db:
         await db.execute("""
