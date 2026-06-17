@@ -128,7 +128,7 @@ function _authHeaders(extra) {
 }
 function _apiFetch(p, opts) {
   return fetch(API+p, opts).then(function(r){
-    if (r.status === 401) { clearAuth(); location.reload(); return {}; }
+    if (r.status === 401) { clearAuth(); if (getToken()) location.reload(); return {}; }
     return r.json();
   }).catch(function(){ return {}; });
 }
@@ -1077,15 +1077,17 @@ function App(props) {
     return function(){try{if(ws)ws.close();}catch(e){}};
   },[]);
 
-  var pages = {
-    dashboard: h(Dashboard),
-    agents:    h(Agents, {servers: servers}),
-    servers:   h(Servers),
-    knowledge: h(Knowledge),
-    logs:      h(LogsPage),
-    reports:   h(Reports),
-    llm:       h(LLMSettings)
+  // Renderiza apenas a página ativa — evita mount simultâneo de todos os componentes
+  var pageMap = {
+    dashboard: function(){ return h(Dashboard); },
+    agents:    function(){ return h(Agents, {servers: servers}); },
+    servers:   function(){ return h(Servers); },
+    knowledge: function(){ return h(Knowledge); },
+    logs:      function(){ return h(LogsPage); },
+    reports:   function(){ return h(Reports); },
+    llm:       function(){ return h(LLMSettings); }
   };
+  var activePage = pageMap[page] ? pageMap[page]() : null;
 
   var navItems = NAV.map(function(p) {
     return h('div', {key:p.id, className:'nitem '+(page===p.id?'on':''), onClick:function(){setPage(p.id)}},
@@ -1105,7 +1107,7 @@ function App(props) {
       ),
       h('nav',null,h('div',{className:'nlabel'},'Plataforma'),navItems)
     ),
-    h('div',{className:'main'}, pages[page] || null)
+    h('div',{className:'main'}, activePage)
   )
 }
 
