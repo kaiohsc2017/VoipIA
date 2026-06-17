@@ -56,7 +56,7 @@ async def broadcast(channel: str, data: dict):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    await init_db()   # apenas pool — schema já aplicado pelo migrate.py
     scheduler.set_broadcast(broadcast)
     await scheduler.start()
     yield

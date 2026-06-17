@@ -170,10 +170,17 @@ END $$;
 """
 
 async def init_db():
+    """Inicializa pool de conexões. Schema já aplicado pelo migrate_db() no startup."""
     global _pool
     _pool = await asyncpg.create_pool(_dsn(), min_size=2, max_size=10)
-    async with _pool.acquire() as conn:
+
+async def migrate_db():
+    """Aplica schema/migrações. Deve ser chamado uma única vez antes de forkar workers."""
+    conn = await asyncpg.connect(_dsn())
+    try:
         await conn.execute(SCHEMA)
+    finally:
+        await conn.close()
 
 async def get_db() -> asyncpg.Connection:
     return await _pool.acquire()
