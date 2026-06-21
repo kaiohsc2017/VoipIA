@@ -61,6 +61,8 @@ RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
         --enable format_wav \
         --enable codec_ulaw \
         --enable codec_alaw \
+        --enable codec_g729 \
+        --enable codec_g722 \
         --enable pbx_config \
         --enable res_musiconhold \
         menuselect.makeopts && \
