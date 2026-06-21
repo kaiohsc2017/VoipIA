@@ -59,6 +59,13 @@ public class AiProviderService {
         m("gemini-3-flash-preview",        "Gemini 3 Flash Preview",        "Próxima geração — resposta rápida e raciocínio melhorado",        List.of("speed","deep"), List.of("STT","LLM"));
         m("gemini-3-pro-preview",          "Gemini 3 Pro Preview",          "Próxima geração — máxima capacidade e contexto expandido",        List.of("deep"),         List.of("STT","LLM"));
         m("gemini-3.5-flash",              "Gemini 3.5 Flash",              "Raciocínio avançado com velocidade de Flash",                     List.of("speed","deep"), List.of("STT","LLM"));
+        m("gemini-3.1-flash-lite",         "Gemini 3.1 Flash Lite",         "Compacto e econômico para alto volume de transcrições",           List.of("speed","cost"), List.of("STT","LLM"));
+        m("gemini-3.1-pro-preview",        "Gemini 3.1 Pro Preview",        "Análise profunda, ideal para respostas elaboradas",               List.of("deep"),         List.of("STT","LLM"));
+        m("gemini-2.5-flash-native-audio-latest",          "Gemini 2.5 Flash Audio (latest)", "Otimizado para áudio nativo — melhor acurácia STT em tempo real", List.of("speed","deep"), List.of("STT","LLM"));
+        m("gemini-2.5-flash-native-audio-preview-12-2025", "Gemini 2.5 Flash Audio (dez/25)", "Transcrição nativa de áudio, excelente precisão em PT-BR",       List.of("speed"),        List.of("STT","LLM"));
+        m("gemini-2.5-flash-native-audio-preview-09-2025", "Gemini 2.5 Flash Audio (set/25)", "Versão anterior do áudio nativo, estável e testada",             List.of("speed"),        List.of("STT","LLM"));
+        m("gemini-2.0-flash-001",          "Gemini 2.0 Flash (stable)",     "Versão fixada e estável do Flash 2.0 para produção",              List.of("speed"),        List.of("STT","LLM"));
+        m("gemini-2.0-flash-lite-001",     "Gemini 2.0 Flash Lite (stable)","Versão fixada do Flash Lite — econômico e previsível",            List.of("speed","cost"), List.of("STT","LLM"));
         // Anthropic
         m("claude-opus-4-5",               "Claude Opus 4.5",               "Raciocínio avançado, contexto de 200K tokens, tarefas complexas",  List.of("deep"),         List.of("LLM"));
         m("claude-sonnet-4-5",             "Claude Sonnet 4.5",             "Equilíbrio entre velocidade e profundidade analítica",             List.of("deep","speed"), List.of("LLM"));
@@ -251,15 +258,22 @@ public class AiProviderService {
             return StreamSupport.stream(root.path("models").spliterator(), false)
                 .map(n -> n.path("name").asText().replace("models/",""))
                 .filter(id -> !id.isBlank())
-                // Exclui modelos que nunca são úteis para voz/texto
+                // Exclui modelos que não são úteis para STT/LLM/TTS de voz
                 .filter(id -> {
                     String l = id.toLowerCase();
                     return !l.contains("embedding")
                         && !l.contains("aqa")
-                        && !l.contains("lyria")       // modelos de música
-                        && !l.contains("-image")      // modelos de imagem
-                        && !l.contains("nano-banana") // experimental não textual
-                        && !l.startsWith("gemma");    // Gemma — modelos abertos, mas sem suporte TTS/STT
+                        && !l.contains("lyria")           // geração de música
+                        && !l.contains("-image")          // geração de imagens
+                        && !l.startsWith("imagen")        // Imagen — geração de imagens
+                        && !l.startsWith("veo")           // Veo — geração de vídeo
+                        && !l.contains("robotics")        // controle de robôs
+                        && !l.contains("computer-use")    // automação de desktop
+                        && !l.contains("nano-banana")     // experimental não documentado
+                        && !l.contains("antigravity")     // experimental não documentado
+                        && !l.contains("deep-research")   // pesquisa longa, não adequado para voz
+                        && !l.contains("live-translate")  // tradução ao vivo, não para URA
+                        && !l.startsWith("gemma");        // modelos abertos sem suporte TTS/STT nativo
                 })
                 .toList();
         } catch (Exception e) {
