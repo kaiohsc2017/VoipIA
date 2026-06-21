@@ -151,38 +151,50 @@ public class AiProviderService {
         };
 
         return rawIds.stream()
+            // Pré-filtra por capability: modelos catalogados usam metadados,
+            // modelos desconhecidos usam inferência pelo nome
+            .filter(id -> {
+                AiModelInfo meta = MODEL_METADATA.get(id);
+                if (meta != null) return meta.capabilities().contains(capability);
+                // Para modelos não catalogados, infere pela convenção de nome
+                List<String> inferred = inferCapabilitiesFromName(id);
+                return inferred.contains(capability);
+            })
             .map(id -> enrichModel(id, capability))
             .filter(Objects::nonNull)
-            .sorted(Comparator.comparingInt(m -> scoreModel(m, capability)))
+            // Catalogados (com tags) primeiro, depois por nome
+            .sorted(Comparator.comparingInt((AiModelInfo m) -> scoreModel(m, capability))
+                .thenComparing(AiModelInfo::id))
             .toList();
     }
 
-    /** Enriquece um model ID com metadados internos, filtrando por capability. */
+    /** Enriquece um model ID com metadados internos.
+     *  Para modelos catalogados, filtra pela capability.
+     *  Para modelos desconhecidos vindos da API, inclui diretamente — a filtragem
+     *  por capability já foi feita pelo fetchXxxModels antes de chamar este método.
+     */
     private AiModelInfo enrichModel(String id, String capability) {
         AiModelInfo meta = MODEL_METADATA.get(id);
         if (meta != null) {
-            // Só inclui se o modelo suporta a capability pedida
             if (!meta.capabilities().contains(capability)) return null;
             return meta;
         }
-        // Modelo desconhecido — inferência pelo nome
-        List<String> caps = inferCapabilities(id);
-        if (!caps.contains(capability)) return null;
-        return new AiModelInfo(id, id, "Modelo disponível na conta", List.of(), caps);
+        // Modelo desconhecido — já foi pré-filtrado pela API, inclui sem descartar
+        return new AiModelInfo(id, id, "Modelo disponível na conta", List.of(), List.of(capability));
     }
 
-    /** Score para ordenação: modelos primários (mais usados) primeiro. */
+    /** Score para ordenação: modelos catalogados (com tags/descrição) primeiro. */
     private int scoreModel(AiModelInfo m, String cap) {
-        // Ordena: modelos com tags vêm primeiro, depois por nome
         return m.tags().isEmpty() ? 99 : 0;
     }
 
-    private List<String> inferCapabilities(String id) {
+    private List<String> inferCapabilitiesFromName(String id) {
         List<String> caps = new ArrayList<>();
         String lower = id.toLowerCase();
-        if (lower.contains("tts") || lower.contains("speech") || lower.contains("audio"))      caps.add("TTS");
-        if (lower.contains("whisper") || lower.contains("transcri"))                            caps.add("STT");
-        if (caps.isEmpty())                                                                      caps.addAll(List.of("LLM"));
+        if (lower.contains("tts") || lower.contains("speech"))       caps.add("TTS");
+        if (lower.contains("whisper") || lower.contains("transcri")) caps.add("STT");
+        if (lower.contains("embed"))                                  { /* ignora modelos de embedding */ }
+        else if (caps.isEmpty())                                      caps.add("LLM");
         return caps;
     }
 
@@ -193,13 +205,25 @@ public class AiProviderService {
         try {
             String json = webClientBuilder.build()
                 .get()
-                .uri("https://generativelanguage.googleapis.com/v1beta/models?key=" + apiKey)
+                .uri("https://generativelanguage.googleapis.com/v1beta/models?key=" + apiKey + "&pageSize=100")
                 .retrieve()
                 .bodyToMono(String.class)
                 .timeout(API_TIMEOUT)
                 .block();
             JsonNode root = objectMapper.readTree(json);
             return StreamSupport.stream(root.path("models").spliterator(), false)
+                .filter(n -> {
+                    // Exclui modelos deprecated e de embedding — não úteis para voz/LLM
+                    String name = n.path("name").asText().toLowerCase();
+                    if (name.contains("embedding") || name.contains("aqa")) return false;
+                    // Inclui apenas modelos que suportam generateContent ou predictLongRunning (TTS/STT)
+                    JsonNode methods = n.path("supportedGenerationMethods");
+                    if (methods.isArray() && methods.size() > 0) {
+                        return StreamSupport.stream(methods.spliterator(), false)
+                            .anyMatch(m -> m.asText().startsWith("generate"));
+                    }
+                    return true; // inclui se não há info de métodos
+                })
                 .map(n -> n.path("name").asText().replace("models/",""))
                 .filter(id -> !id.isBlank())
                 .toList();
@@ -225,6 +249,9 @@ public class AiProviderService {
             return StreamSupport.stream(root.path("data").spliterator(), false)
                 .map(n -> n.path("id").asText())
                 .filter(id -> !id.isBlank())
+                // Mantém apenas modelos claude-* (exclui legados/outros)
+                .filter(id -> id.startsWith("claude"))
+                .sorted(java.util.Comparator.reverseOrder()) // mais recentes primeiro
                 .toList();
         } catch (Exception e) {
             log.warn("Erro ao buscar modelos Anthropic: {}", e.getMessage());
@@ -247,6 +274,12 @@ public class AiProviderService {
             return StreamSupport.stream(root.path("data").spliterator(), false)
                 .map(n -> n.path("id").asText())
                 .filter(id -> !id.isBlank())
+                // Exclui modelos de embedding, imagem, moderação e legados
+                .filter(id -> !id.contains("embedding") && !id.contains("dall-e")
+                    && !id.contains("moderat") && !id.contains("babbage")
+                    && !id.contains("davinci") && !id.contains("ada")
+                    && !id.contains("curie") && !id.contains("instruct"))
+                .sorted()
                 .toList();
         } catch (Exception e) {
             log.warn("Erro ao buscar modelos OpenAI: {}", e.getMessage());
