@@ -612,7 +612,11 @@ export default function ModuloURA() {
                 </div>
                 <div>
                   <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 2 }}>Cliente</div>
-                  <div style={{ fontSize: '.9rem' }}>{detailCall.clientName || '—'}</div>
+                  <div style={{ fontSize: '.9rem' }}>{detailCall.clientName || detailCall.callerNumber || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 2 }}>Tipo</div>
+                  <div style={{ fontSize: '.9rem' }}>{detailCall.callType || '—'}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 2 }}>Chamado Jira</div>
@@ -701,6 +705,7 @@ export default function ModuloURA() {
                       <th>Data / Hora</th>
                       <th>Número</th>
                       <th>Cliente</th>
+                      <th>Tipo</th>
                       <th>Chamado Jira</th>
                       <th>Status</th>
                       <th>Duração</th>
@@ -710,7 +715,7 @@ export default function ModuloURA() {
                   </thead>
                   <tbody>
                     {calls.length === 0 ? (
-                      <tr><td colSpan={9} className="table-empty">Nenhuma chamada registrada</td></tr>
+                      <tr><td colSpan={10} className="table-empty">Nenhuma chamada registrada</td></tr>
                     ) : calls.map(c => (
                       <tr key={c.id}
                         onClick={() => setDetailCall(c)}
@@ -720,7 +725,12 @@ export default function ModuloURA() {
                         <td className="td-muted">{c.id}</td>
                         <td className="td-muted">{formatDate(c.callDate)}</td>
                         <td className="mono">{c.callerNumber}</td>
-                        <td>{c.clientName || <span className="text-muted">—</span>}</td>
+                        <td>{c.clientName || c.callerNumber || <span className="text-muted">—</span>}</td>
+                        <td>
+                          {c.callType
+                            ? <span className="badge" style={{ background: c.callType.toLowerCase().includes('incidente') ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)', color: c.callType.toLowerCase().includes('incidente') ? '#dc2626' : '#2563eb' }}>{c.callType}</span>
+                            : <span className="text-muted">—</span>}
+                        </td>
                         <td>
                           {c.jiraIssueKey
                             ? <span className="chip">{c.jiraIssueKey}</span>

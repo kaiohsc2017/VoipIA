@@ -26,6 +26,7 @@ export interface CallRecord {
   jiraIssueKey?: string;
   jiraIssueStatus?: string;
   audioFilePath?: string;
+  callType?: string;
   createdAt: string;
 }
 
