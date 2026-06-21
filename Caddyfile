@@ -69,8 +69,10 @@ app.voiphash.com.br {
         reverse_proxy asteriskia-asterisk:8088
     }
 
-    # ── AsteriskIA Telecom — Frontend React ──────────────────────────────────
-    reverse_proxy asteriskia-frontend:80
+    # ── AsteriskIA Telecom — Frontend React ───────────────────────────────────
+    handle {
+        reverse_proxy asteriskia-frontend:80
+    }
 }
 
 # ── Grafana ───────────────────────────────────────────────────────────────────

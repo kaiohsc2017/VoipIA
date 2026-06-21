@@ -58,3 +58,9 @@ recordings/
 # --- Logs ---
 *.log
 logs/
+
+# --- Backups e arquivos temporários locais ---
+*.bak*
+bkp-config/
+security/config/action.d/
+agente-google.py
