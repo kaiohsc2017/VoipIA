@@ -175,19 +175,37 @@ class JiraCallFlow:
 
     async def _speak(self, text: str) -> bool:
         """
-        Envia TTS ao Asterisk e aguarda a duração REAL do áudio + buffer.
-
-        Retorna False se a conexão foi encerrada pelo Asterisk.
+        Gera TTS e envia ao Asterisk.
+        Envia silêncio durante a geração para manter o canal RTP ativo.
+        Retorna False se a conexão foi encerrada.
         """
         if self.writer.is_closing():
             return False
         try:
             logger.debug("[%s] TTS: %r", self.call_uuid, text[:80])
-            ok, duration = await self.ai.synthesize_speech_streaming(text, self.writer)
+
+            # Envia silêncio durante a geração do TTS (~3-5s no Gemini)
+            # sem isso o Asterisk encerra o canal AudioSocket por inatividade
+            from src.protocol import keep_alive_silence
+            stop_silence = asyncio.Event()
+            silence_task = asyncio.create_task(
+                keep_alive_silence(self.writer, stop_silence)
+            )
+
+            try:
+                ok, duration = await self.ai.synthesize_speech_streaming(text, self.writer)
+            finally:
+                stop_silence.set()
+                try:
+                    await asyncio.wait_for(silence_task, timeout=1.0)
+                except (asyncio.TimeoutError, Exception):
+                    pass
+
             if not ok:
                 logger.warning("[%s] Conexão encerrada durante TTS", self.call_uuid)
                 return False
-            # Aguarda o áudio terminar de tocar + buffer de segurança
+
+            # Aguarda reprodução completa antes de capturar microfone
             wait = duration + _POST_SPEAK_BUFFER_SECS
             logger.debug("[%s] Áudio: %.1fs — aguardando %.1fs", self.call_uuid, duration, wait)
             await asyncio.sleep(wait)
