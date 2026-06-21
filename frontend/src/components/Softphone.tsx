@@ -113,13 +113,44 @@ export default function Softphone() {
 
   function attachRemoteAudio(session: SipSession) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pc = (session as any).connection as RTCPeerConnection | null;
-    if (!pc) return;
-    pc.addEventListener('track', (e: RTCTrackEvent) => {
-      if (e.track.kind === 'audio' && remoteRef.current) {
-        remoteRef.current.srcObject = e.streams[0];
-      }
-    });
+    const getPC = (): RTCPeerConnection | null => (session as any).connection ?? null;
+
+    const tryAttach = () => {
+      const pc = getPC();
+      if (!pc || !remoteRef.current) return;
+
+      // Attach tracks já existentes (chegaram antes do listener)
+      pc.getReceivers().forEach(r => {
+        if (r.track?.kind === 'audio' && remoteRef.current) {
+          const stream = new MediaStream([r.track]);
+          remoteRef.current.srcObject = stream;
+          remoteRef.current.play().catch(() => {/* autoplay policy */});
+        }
+      });
+
+      // Escuta tracks futuros
+      pc.addEventListener('track', (e: RTCTrackEvent) => {
+        if (e.track.kind === 'audio' && remoteRef.current) {
+          remoteRef.current.srcObject = e.streams[0] ?? new MediaStream([e.track]);
+          remoteRef.current.play().catch(() => {/* autoplay policy */});
+        }
+      });
+
+      // ICE state changes — reconecta mídia se necessário
+      pc.addEventListener('iceconnectionstatechange', () => {
+        const state = pc.iceConnectionState;
+        log(`ICE: ${state}`);
+        if (state === 'connected' || state === 'completed') {
+          // Re-tenta attach após ICE conectar
+          setTimeout(tryAttach, 100);
+        }
+      });
+    };
+
+    // Tenta imediatamente e também após peerconnection estar pronto
+    tryAttach();
+    setTimeout(tryAttach, 500);
+    setTimeout(tryAttach, 1500);
   }
 
   function startTimer() {
