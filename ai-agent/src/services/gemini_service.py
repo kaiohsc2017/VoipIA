@@ -318,20 +318,16 @@ class GeminiService:
         raw_24k = b"".join(chunks)
         return _resample_pcm(raw_24k, from_hz=24000, to_hz=8000)
 
-    async def synthesize_speech_streaming(self, text: str, writer) -> bool:
+    async def synthesize_speech_streaming(self, text: str, writer) -> tuple[bool, float]:
         """
-        TTS streaming — envia chunks de áudio ao Asterisk conforme chegam do Gemini.
+        TTS — gera áudio via Gemini e envia ao Asterisk frame a frame.
 
-        Latência do primeiro byte: ~800ms (vs 7s do método bloqueante).
-        Cada chunk 24kHz é resampleado para 8kHz e enviado imediatamente
-        via write_audio, sem acumular o blob completo na memória.
+        Retorna (sucesso, duração_segundos) para que o caller saiba
+        exatamente quanto tempo o áudio dura e possa aguardar corretamente.
 
-        Args:
-            text:   Texto a sintetizar.
-            writer: asyncio.StreamWriter do AudioSocket.
-
-        Returns:
-            True se todos os chunks foram enviados, False se a conexão caiu.
+        O Gemini TTS é síncrono internamente — rodamos em executor para
+        não bloquear o event loop. Após coletar todos os chunks (24kHz PCM),
+        reamostamos para 8kHz e enviamos ao Asterisk via write_audio.
         """
         from src.protocol import write_audio  # import local evita circular
 
@@ -346,7 +342,9 @@ class GeminiService:
             ),
         )
 
-        def _iter_chunks():
+        def _collect_pcm() -> bytes:
+            """Coleta todo o áudio PCM 8kHz em uma única chamada síncrona."""
+            chunks_24k: list[bytes] = []
             for chunk in self._client().models.generate_content_stream(
                 model=get_gemini_model_tts(),
                 contents=text,
@@ -355,27 +353,27 @@ class GeminiService:
                 try:
                     data = chunk.candidates[0].content.parts[0].inline_data.data
                     if data:
-                        yield _resample_pcm(data, from_hz=24000, to_hz=8000)
+                        chunks_24k.append(data)
                 except (IndexError, AttributeError):
                     continue
+            if not chunks_24k:
+                return b""
+            raw_24k = b"".join(chunks_24k)
+            return _resample_pcm(raw_24k, from_hz=24000, to_hz=8000)
 
-        # Coleta todos os chunks em thread separada e envia em sequência.
-        # generate_content_stream é síncrono — precisa rodar em executor.
-        loop = asyncio.get_event_loop()
+        # Gera o áudio completo em thread separada
+        pcm_8k: bytes = await asyncio.to_thread(_collect_pcm)
 
-        chunks: list[bytes] = await loop.run_in_executor(
-            None, lambda: list(_iter_chunks())
-        )
+        if not pcm_8k:
+            logger.warning("TTS retornou áudio vazio para: %r", text[:60])
+            return True, 0.0
 
-        if not chunks:
-            logger.warning("TTS retornou áudio vazio")
-            return True
+        # Duração real em segundos: bytes / (sample_rate * bytes_per_sample)
+        duration_secs = len(pcm_8k) / (8000 * 2)
 
-        for pcm_chunk in chunks:
-            sent = await write_audio(writer, pcm_chunk)
-            if not sent:
-                return False
-        return True
+        # Envia o PCM completo ao Asterisk
+        sent = await write_audio(writer, pcm_8k)
+        return sent, duration_secs
 
     def _llm_sync(self, prompt: str) -> str:
         """LLM via Gemini — gera resposta de texto simples (sem tools)."""

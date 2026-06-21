@@ -54,7 +54,8 @@ class AIService:
     async def synthesize_speech(self, text: str) -> bytes:
         return await self._run("TTS", "synthesize_speech", text)
 
-    async def synthesize_speech_streaming(self, text: str, writer) -> bool:
+    async def synthesize_speech_streaming(self, text: str, writer) -> tuple[bool, float]:
+        """Retorna (sucesso, duração_em_segundos)."""
         return await self._run("TTS", "synthesize_speech_streaming", text, writer)
 
     # ── FallbackRouter ────────────────────────────────────────────────────────
