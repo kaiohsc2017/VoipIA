@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { subscribe } from '../api/websocket';
 import api from '../api/client';
 import type { CallRecord, UraQuestion, PageResponse } from '../api/types';
 import {
@@ -30,14 +31,22 @@ function DashboardTab() {
   const [period, setPeriod] = useState<'week' | 'month'>('week');
   const [loading, setLoading] = useState(true);
 
-  const load = (p: 'week' | 'month') => {
+  const load = useCallback((p: 'week' | 'month') => {
     setLoading(true);
     api.get<TimePoint[]>(`/stats/calls/timeseries?period=${p}`)
       .then(r => setSeries(r.data))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
-  useEffect(() => { load('week'); }, []);
+  // Carrega na montagem e se inscreve no WebSocket para atualizar em tempo real
+  useEffect(() => {
+    load('week');
+    const unsub = subscribe('/topic/calls', () => {
+      // Nova chamada registrada — recarrega o gráfico sem trocar o período
+      load(period);
+    });
+    return () => unsub?.();
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatDateLocal = (d: string) => {
     if (!d) return '';
@@ -107,10 +116,15 @@ function KpiBar() {
   const [stats, setStats] = useState<CallStats | null>(null);
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
 
-  const load = (p: typeof period) =>
+  const load = useCallback((p: typeof period) => {
     api.get<CallStats>(`/stats/calls?period=${p}`).then(r => setStats(r.data));
+  }, []);
 
-  useEffect(() => { load('today'); }, []);
+  useEffect(() => {
+    load('today');
+    const unsub = subscribe('/topic/calls', () => load(period));
+    return () => unsub?.();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!stats) return null;
 

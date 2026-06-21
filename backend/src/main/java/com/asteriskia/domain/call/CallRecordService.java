@@ -58,7 +58,7 @@ public class CallRecordService {
 
         CallRecord record = CallRecord.builder()
                 .callUuid(uuid)
-                .callDate(LocalDateTime.now())
+                .callDate(LocalDateTime.now(java.time.ZoneId.systemDefault()))
                 .callerNumber(callerPhone)
                 .clientName(clientName)
                 .transcription(description)
