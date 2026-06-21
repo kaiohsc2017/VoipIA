@@ -63,11 +63,9 @@ services:
       AST_AMI_USER: ${AST_AMI_USER}
       AST_AMI_PASSWORD: ${AST_AMI_PASSWORD}
       SIP_TRUNK_HOST: ${SIP_TRUNK_HOST}
-      SIP_TRUNK_USER: ${SIP_TRUNK_USER}
-      SIP_TRUNK_PASSWORD: ${SIP_TRUNK_PASSWORD}
       SIP_TRUNK_FROM_DOMAIN: ${SIP_TRUNK_FROM_DOMAIN:-asteriskia.local}
-      # Domínio SIP usado pelo softphone WebRTC (deve bater com window.location.hostname)
       SIP_DOMAIN: ${SIP_DOMAIN:-localhost}
+      SIP_PUBLIC_IP: ${SIP_PUBLIC_IP}
     volumes:
       - ./asterisk/config:/etc/asterisk
       - asterisk_recordings:/var/spool/asterisk/monitor
