@@ -195,6 +195,8 @@ function FluxoURATab() {
 
   // Modal pergunta
   const [showModal, setShowModal] = useState(false);
+  // Modal detalhe da chamada
+  const [detailCall, setDetailCall] = useState<CallRecord | null>(null);
   const [editQ, setEditQ]         = useState<Partial<UraQuestion>>({});
 
   const load = async () => {
@@ -468,6 +470,82 @@ function FluxoURATab() {
         })()}
       </div>
 
+      {/* Modal detalhe da chamada */}
+      {detailCall && (
+        <div className="modal-overlay" onClick={() => setDetailCall(null)}>
+          <div className="modal" style={{ maxWidth: 640, width: '96vw' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>
+                Chamada #{detailCall.id} — {formatDate(detailCall.callDate)}
+              </h3>
+              <button className="btn-close" onClick={() => setDetailCall(null)}>×</button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Info básica */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 2 }}>Número</div>
+                  <div className="mono" style={{ fontSize: '.9rem' }}>{detailCall.callerNumber}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 2 }}>Status</div>
+                  <span className="badge badge-info">{detailCall.jiraIssueStatus || 'Aberto'}</span>
+                </div>
+                <div>
+                  <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 2 }}>Cliente</div>
+                  <div style={{ fontSize: '.9rem' }}>{detailCall.clientName || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 2 }}>Chamado Jira</div>
+                  <div style={{ fontSize: '.9rem' }}>{detailCall.jiraIssueKey
+                    ? <span className="chip">{detailCall.jiraIssueKey}</span>
+                    : '—'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Player de áudio */}
+              <div>
+                <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Gravação da chamada</div>
+                {detailCall.audioFilePath ? (
+                  <audio
+                    controls
+                    src={`/api/v1/calls/${detailCall.id}/audio`}
+                    style={{ width: '100%', height: 36 }}
+                    onError={e => { (e.target as HTMLAudioElement).style.display = 'none'; }}
+                  />
+                ) : (
+                  <span style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>Gravação não disponível</span>
+                )}
+              </div>
+
+              {/* Transcrição completa */}
+              <div>
+                <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Transcrição completa</div>
+                {detailCall.transcription ? (
+                  <pre style={{
+                    background: 'var(--bg-input)', border: '1px solid var(--border-glass)',
+                    borderRadius: 8, padding: '12px 14px', fontSize: '.82rem',
+                    lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                    maxHeight: 240, overflowY: 'auto', fontFamily: 'inherit',
+                    color: 'var(--text-primary)', margin: 0,
+                  }}>
+                    {detailCall.transcription}
+                  </pre>
+                ) : (
+                  <span style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>Transcrição não disponível</span>
+                )}
+              </div>
+
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setDetailCall(null)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal edição de pergunta */}
       {showModal && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}>
@@ -634,7 +712,11 @@ export default function ModuloURA() {
                     {calls.length === 0 ? (
                       <tr><td colSpan={9} className="table-empty">Nenhuma chamada registrada</td></tr>
                     ) : calls.map(c => (
-                      <tr key={c.id}>
+                      <tr key={c.id}
+                        onClick={() => setDetailCall(c)}
+                        style={{ cursor: 'pointer' }}
+                        title="Clique para ver detalhes"
+                      >
                         <td className="td-muted">{c.id}</td>
                         <td className="td-muted">{formatDate(c.callDate)}</td>
                         <td className="mono">{c.callerNumber}</td>
@@ -646,14 +728,14 @@ export default function ModuloURA() {
                         </td>
                         <td><span className="badge badge-info">{c.jiraIssueStatus || 'Aberto'}</span></td>
                         <td className="td-muted">{c.callDurationSecs}s</td>
-                        <td>
+                        <td onClick={e => e.stopPropagation()}>
                           {c.audioFilePath
                             ? <AudioPlayer callId={c.id} />
                             : <span className="text-muted">—</span>}
                         </td>
-                        <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <td className="td-muted" style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {c.transcription
-                            ? <span title={c.transcription} className="td-muted">{c.transcription}</span>
+                            ? <span style={{ opacity: .7 }}>{c.transcription.slice(0, 60)}{c.transcription.length > 60 ? '…' : ''}</span>
                             : <span className="text-muted">—</span>}
                         </td>
                       </tr>

@@ -28,13 +28,45 @@ _BYTES_SAMPLE = 2
 
 # Fator de segurança pós-áudio: aguarda este tempo extra além da duração
 # real para garantir que o cliente ouviu o fim antes de capturar
-_POST_SPEAK_BUFFER_SECS = 0.8
+_POST_SPEAK_BUFFER_SECS = 0.5
 
 # Threshold RMS abaixo do qual o frame é considerado silêncio
 _SILENCE_THRESHOLD = 300
 
 # Segundos de silêncio contínuo para encerrar a captura
-_SILENCE_TIMEOUT_SECS = 2.5
+_SILENCE_TIMEOUT_SECS = 1.8
+
+
+def _trim_silence(pcm: bytes, threshold: int = 300, frame_size: int = 320) -> bytes:
+    """
+    Remove frames de silêncio do início e fim do PCM.
+    Reduz o tamanho do áudio enviado ao STT — menos dados = resposta mais rápida.
+    """
+    import struct
+    frames = [pcm[i:i+frame_size] for i in range(0, len(pcm), frame_size) if len(pcm[i:i+frame_size]) == frame_size]
+    if not frames:
+        return pcm
+
+    def is_silent(frame: bytes) -> bool:
+        samples = struct.unpack(f"<{len(frame)//2}h", frame)
+        rms = (sum(x*x for x in samples) / len(samples)) ** 0.5
+        return rms < threshold
+
+    # Encontra primeiro frame com voz
+    start = 0
+    for i, f in enumerate(frames):
+        if not is_silent(f):
+            start = max(0, i - 2)  # mantém 2 frames antes para contexto
+            break
+
+    # Encontra último frame com voz
+    end = len(frames)
+    for i in range(len(frames) - 1, -1, -1):
+        if not is_silent(frames[i]):
+            end = min(len(frames), i + 3)  # mantém 3 frames depois
+            break
+
+    return b"".join(frames[start:end])
 
 
 class JiraCallFlow:
@@ -168,9 +200,14 @@ class JiraCallFlow:
             return False
 
     async def _listen_and_transcribe(self) -> str | None:
-        """Captura áudio do cliente e transcreve via STT."""
+        """Captura áudio do cliente, remove silêncio e transcreve via STT."""
         audio = await self._capture_audio()
         if not audio:
+            return None
+        # Remove silêncio no início e fim — reduz tamanho do WAV enviado ao Gemini
+        # e elimina o delay de processamento de silêncio desnecessário
+        audio = _trim_silence(audio)
+        if len(audio) < 320 * 5:  # menos de 5 frames (~0.1s) → sem voz real
             return None
         try:
             text = await self.ai.transcribe(audio)
