@@ -183,8 +183,6 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({ open, onToggle
 
   const providerName = (id: string) => providers.find(p => p.id === id)?.name ?? id;
 
-  const hasChanges = Object.values(chains).some(c => c.length > 0);
-
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -482,7 +480,7 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({ open, onToggle
                       <div style={{ padding: '16px', textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                         Nenhum modelo disponível para {modalCap}
                       </div>
-                    ) : models.map((model, idx) => (
+                    ) : models.map((model) => (
                       <div
                         key={model.id}
                         onClick={() => setSelModel(model)}
