@@ -39,15 +39,28 @@ public class CallRecordService {
      * @return Registro da chamada criado
      */
     @Transactional
-    public CallRecord registerCall(String callUuid, Map<String, String> fields) {
+    public CallRecord registerCall(
+            String callUuid,
+            Map<String, String> fields,
+            String audioFilePath,
+            String transcription,
+            String callerNumber) {
+
         log.info("Registrando chamada UUID={}", callUuid);
 
-        // Extrai dados básicos do mapa de campos
-        String clientName = fields.getOrDefault("customfield_nome_cliente", null);
-        String callerPhone = fields.getOrDefault("customfield_telefone", "desconhecido");
-        String description = fields.getOrDefault("description", "");
+        // Número do chamador — prioriza o campo explícito enviado pelo ai-agent
+        String callerPhone = callerNumber != null && !callerNumber.isBlank()
+                ? callerNumber
+                : fields.getOrDefault("customfield_telefone", "desconhecido");
 
-        // Constrói o registro base
+        // Nome do cliente (pode vir do STT das perguntas)
+        String clientName = fields.getOrDefault("customfield_nome_cliente", null);
+
+        // Transcrição — prioriza o campo explícito consolidado
+        String fullTranscription = transcription != null && !transcription.isBlank()
+                ? transcription
+                : fields.getOrDefault("description", "");
+
         UUID uuid;
         try {
             uuid = UUID.fromString(callUuid);
@@ -61,7 +74,8 @@ public class CallRecordService {
                 .callDate(LocalDateTime.now(java.time.ZoneId.systemDefault()))
                 .callerNumber(callerPhone)
                 .clientName(clientName)
-                .transcription(description)
+                .transcription(fullTranscription)
+                .audioFilePath(audioFilePath)
                 .build();
 
         // Primeiro salva para garantir persistência mesmo que o Jira falhe

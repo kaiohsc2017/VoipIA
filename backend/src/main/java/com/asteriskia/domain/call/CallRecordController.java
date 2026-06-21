@@ -53,7 +53,13 @@ public class CallRecordController {
     @Operation(summary = "Registra chamada da URA e abre issue no Jira")
     public ResponseEntity<RegisterCallResponse> registerCall(
             @Valid @RequestBody RegisterCallRequest request) {
-        CallRecord record = service.registerCall(request.callUuid(), request.fields());
+        CallRecord record = service.registerCall(
+                request.callUuid(),
+                request.fields(),
+                request.audioFilePath(),
+                request.transcription(),
+                request.callerNumber()
+        );
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(new RegisterCallResponse(record.getId(), record.getJiraIssueKey()));
@@ -134,7 +140,10 @@ public class CallRecordController {
     /** Request do agente Python para registrar a chamada. */
     public record RegisterCallRequest(
             @NotBlank String callUuid,
-            Map<String, String> fields
+            Map<String, String> fields,
+            String audioFilePath,   // caminho do .wav gravado pelo MixMonitor
+            String transcription,   // transcrição completa consolidada
+            String callerNumber     // número do chamador (CALLERID do Asterisk)
     ) {}
 
     /** Resposta com o ID interno e a chave do issue Jira. */
