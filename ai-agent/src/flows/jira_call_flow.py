@@ -13,7 +13,7 @@ pela tela Fluxo URA sem necessidade de redeploy.
 import asyncio
 import logging
 from src.protocol import read_frame, write_audio, keep_alive_silence
-from src.services.gemini_service import GeminiService
+from src.services.ai_service import AIService
 from src.services import backend_client as bc
 
 logger = logging.getLogger("asteriskia.flow.jira")
@@ -43,7 +43,7 @@ class JiraCallFlow:
         self.call_uuid = call_uuid
         self.reader = reader
         self.writer = writer
-        self.gemini = GeminiService()
+        self.gemini = AIService()
         self.collected_answers: dict[str, str] = {}
 
     async def execute(self) -> None:

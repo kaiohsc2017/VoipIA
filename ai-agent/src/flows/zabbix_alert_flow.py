@@ -8,7 +8,7 @@ sintetiza em voz via TTS e reproduz para o destinatário.
 import asyncio
 import logging
 from src.protocol import read_frame, write_audio
-from src.services.gemini_service import GeminiService
+from src.services.ai_service import AIService
 from src.services import backend_client as bc
 
 logger = logging.getLogger("asteriskia.flow.zabbix")
@@ -40,7 +40,7 @@ class ZabbixAlertFlow:
         self.backend_uuid = call_uuid.removeprefix("alert-")
         self.reader = reader
         self.writer = writer
-        self.gemini = GeminiService()
+        self.gemini = AIService()
 
     async def execute(self) -> None:
         """Executa o fluxo de leitura de alerta."""

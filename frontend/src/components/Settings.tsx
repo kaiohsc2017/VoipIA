@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import api from '../api/client';
+import { AISettingsPanel } from './AISettingsPanel';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -51,21 +52,6 @@ type Tab = 'config' | 'history';
 // ─── Seções de formulário (Gemini, Jira, Zabbix…) ────────────────────────────
 // Tronco SIP e Rotas são gerenciados pelos painéis AsteriskFilePanel acima.
 const SECTIONS: Section[] = [
-  {
-    id: 'gemini',
-    icon: '🤖',
-    title: 'Google Gemini API',
-    description: 'Chave e modelos usados pelo Agente de IA para transcrição (STT), raciocínio (LLM) e síntese de voz (TTS).',
-    requiredKeys: ['GEMINI_API_KEY'],
-    affectedServices: ['ai-agent'],
-    keys: [
-      { key: 'GEMINI_API_KEY',   label: 'API Key',               type: 'password', required: true,
-        hint: 'Obtenha em https://aistudio.google.com/app/apikey' },
-      { key: 'GEMINI_MODEL_STT', label: 'Modelo STT (Voz→Texto)',  placeholder: 'gemini-2.0-flash' },
-      { key: 'GEMINI_MODEL_LLM', label: 'Modelo LLM (Raciocínio)', placeholder: 'gemini-2.0-flash' },
-      { key: 'GEMINI_MODEL_TTS', label: 'Modelo TTS (Texto→Voz)',  placeholder: 'gemini-2.5-flash-preview-tts' },
-    ],
-  },
   {
     id: 'jira',
     icon: '🎫',
@@ -719,6 +705,11 @@ export default function Settings() {
                 onDiscard={() => { setRotasContent(rotasOriginal); setRotasReloadStatus(''); }}
                 onSave={handleSaveRotas}
                 minRows={20}
+              />
+
+              <AISettingsPanel
+                open={openSections.has('ai')}
+                onToggle={() => toggleSection('ai')}
               />
 
               {SECTIONS.map(section => {

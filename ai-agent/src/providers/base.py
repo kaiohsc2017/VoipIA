@@ -1,0 +1,81 @@
+"""
+providers/base.py — Interface base para todos os provedores de IA.
+
+Qualquer provedor novo implementa esta ABC e é automaticamente suportado
+pelo FallbackRouter sem alteração nos flows (JiraCallFlow, ZabbixAlertFlow).
+"""
+from __future__ import annotations
+
+import asyncio
+from abc import ABC, abstractmethod
+
+
+class BaseAIProvider(ABC):
+    """
+    Contrato que todo provedor de IA deve implementar.
+
+    Cada método deve levantar ProviderError em caso de falha recuperável
+    (quota, timeout, erro 5xx) para que o FallbackRouter tente o próximo.
+    """
+
+    @property
+    @abstractmethod
+    def provider_id(self) -> str:
+        """Identificador único: gemini | anthropic | openai | …"""
+
+    @property
+    @abstractmethod
+    def model_id(self) -> str:
+        """ID do modelo configurado nesta instância."""
+
+    @abstractmethod
+    async def transcribe(self, pcm_data: bytes) -> str:
+        """
+        STT — converte áudio PCM 8kHz/16bit/mono em texto.
+        Retorna string vazia se não conseguiu transcrever.
+        """
+
+    @abstractmethod
+    async def generate_response_with_tools(
+        self,
+        system_instruction: str,
+        history: list[dict],
+    ) -> str:
+        """
+        LLM — gera resposta a partir de histórico de conversa.
+        Pode executar function calling internamente.
+        """
+
+    @abstractmethod
+    async def synthesize_speech_streaming(self, text: str, writer) -> bool:
+        """
+        TTS streaming — envia chunks de áudio ao AudioSocket conforme chegam.
+        Retorna True se completou, False se a conexão foi encerrada.
+        """
+
+    async def synthesize_speech(self, text: str) -> bytes:
+        """
+        TTS bloqueante — retorna bytes PCM completo.
+        Implementação padrão coleta o streaming (pode ser sobrescrita).
+        """
+        raise NotImplementedError(f"{self.provider_id} não implementa synthesize_speech bloqueante")
+
+
+class ProviderError(Exception):
+    """
+    Erro recuperável de um provedor — FallbackRouter tenta o próximo.
+    Exemplos: quota excedida, timeout, erro 5xx, key inválida.
+    """
+    def __init__(self, provider: str, model: str, cause: Exception):
+        self.provider = provider
+        self.model    = model
+        self.cause    = cause
+        super().__init__(f"[{provider}/{model}] {type(cause).__name__}: {cause}")
+
+
+class ProviderUnavailableError(Exception):
+    """Todos os provedores da chain falharam."""
+    def __init__(self, capability: str, errors: list[ProviderError]):
+        self.errors = errors
+        msgs = "; ".join(str(e) for e in errors)
+        super().__init__(f"Nenhum provedor disponível para {capability}: {msgs}")
