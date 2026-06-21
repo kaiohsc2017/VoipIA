@@ -54,6 +54,6 @@ def get_config(key: str, default: str = "") -> str:
 
 
 def get_gemini_api_key()   -> str: return get_config("GEMINI_API_KEY", "")
-def get_gemini_model_stt() -> str: return get_config("GEMINI_MODEL_STT", "gemini-2.0-flash")
-def get_gemini_model_llm() -> str: return get_config("GEMINI_MODEL_LLM", "gemini-2.0-flash")
+def get_gemini_model_stt() -> str: return get_config("GEMINI_MODEL_STT", "gemini-2.5-flash")
+def get_gemini_model_llm() -> str: return get_config("GEMINI_MODEL_LLM", "gemini-2.5-flash")
 def get_gemini_model_tts() -> str: return get_config("GEMINI_MODEL_TTS", "gemini-2.5-flash-preview-tts")
