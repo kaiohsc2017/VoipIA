@@ -53,6 +53,9 @@ public class CallRecord {
     @Column(name = "audio_file_path", length = 500)
     private String audioFilePath;
 
+    @Column(name = "call_type", length = 50)
+    private String callType;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

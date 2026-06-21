@@ -69,6 +69,14 @@ public class CallRecordService {
             uuid = UUID.randomUUID();
         }
 
+        // Extrai tipo de atendimento das respostas da URA
+        String callType = fields.entrySet().stream()
+                .filter(e -> e.getKey().toLowerCase().contains("tipo")
+                        || e.getKey().toLowerCase().contains("issuetype")
+                        || e.getKey().toLowerCase().contains("type"))
+                .map(java.util.Map.Entry::getValue)
+                .findFirst().orElse(null);
+
         CallRecord record = CallRecord.builder()
                 .callUuid(uuid)
                 .callDate(LocalDateTime.now(java.time.ZoneId.systemDefault()))
@@ -76,6 +84,7 @@ public class CallRecordService {
                 .clientName(clientName)
                 .transcription(fullTranscription)
                 .audioFilePath(audioFilePath)
+                .callType(callType)
                 .build();
 
         // Primeiro salva para garantir persistência mesmo que o Jira falhe
