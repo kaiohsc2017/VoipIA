@@ -12,7 +12,7 @@ pela tela Fluxo URA sem necessidade de redeploy.
 
 import asyncio
 import logging
-from src.protocol import read_frame, write_audio, keep_alive_silence
+from src.protocol import read_frame, write_audio
 from src.services.ai_service import AIService
 from src.services import backend_client as bc
 
@@ -22,16 +22,32 @@ logger = logging.getLogger("asteriskia.flow.jira")
 _FALLBACK_BOAS_VINDAS  = "Bem-vindo ao sistema de atendimento. Como posso te ajudar?"
 _FALLBACK_ENCERRAMENTO = "Seu chamado foi registrado. Em breve nossa equipe entrará em contato. Obrigado!"
 
+# Taxa de amostragem do AudioSocket (8kHz, 16bit, mono)
+_SAMPLE_RATE  = 8000
+_BYTES_SAMPLE = 2
+
+# Fator de segurança pós-áudio: aguarda este tempo extra além da duração
+# real para garantir que o cliente ouviu o fim antes de capturar
+_POST_SPEAK_BUFFER_SECS = 0.8
+
+# Threshold RMS abaixo do qual o frame é considerado silêncio
+_SILENCE_THRESHOLD = 300
+
+# Segundos de silêncio contínuo para encerrar a captura
+_SILENCE_TIMEOUT_SECS = 2.5
+
 
 class JiraCallFlow:
     """
     Orquestrador do fluxo de URA para abertura de chamado Jira.
 
-    Responsabilidades:
-      1. Buscar mensagens e perguntas ativas da URA no backend
-      2. Reproduzir boas-vindas → informativa (se preenchida) → perguntas
-      3. Acionar o backend para criar o chamado no Jira
-      4. Confirmar o número do chamado ao cliente via mensagem de encerramento
+    Fluxo (sequencial e síncrono — sem paralelismo que cause race):
+      1. Busca settings + perguntas do backend
+      2. Fala boas-vindas → aguarda duração real do áudio + buffer
+      3. Turno livre: ouve → transcreve → responde (LLM)
+      4. Fala mensagem informativa (se preenchida)
+      5. Para cada pergunta: fala → ouve → transcreve → armazena
+      6. Fala confirmação → registra chamado → fala encerramento
     """
 
     def __init__(
@@ -41,231 +57,218 @@ class JiraCallFlow:
         writer: asyncio.StreamWriter,
         caller_number: str = "desconhecido",
     ):
-        self.call_uuid      = call_uuid
-        self.reader         = reader
-        self.writer         = writer
-        self.caller_number  = caller_number
-        self.gemini         = AIService()
+        self.call_uuid     = call_uuid
+        self.reader        = reader
+        self.writer        = writer
+        self.caller_number = caller_number
+        self.ai            = AIService()
         self.collected_answers: dict[str, str] = {}
-        self._all_transcriptions: list[str] = []  # acumula STT da chamada inteira
+        self._transcriptions: list[str]        = []
 
     async def execute(self) -> None:
-        """Executa o fluxo completo da URA."""
-        logger.info(f"[{self.call_uuid}] Iniciando fluxo URA Jira")
+        logger.info("[%s] Iniciando fluxo URA Jira", self.call_uuid)
 
-        # 1. Busca mensagens configuráveis do backend
-        settings = await self._fetch_settings()
+        # 1. Busca settings e perguntas (sequencial — simples e seguro)
+        settings  = await self._fetch_settings()
+        questions = await self._fetch_questions()
+
         boas_vindas  = settings.get("boas_vindas")  or _FALLBACK_BOAS_VINDAS
         informativa  = settings.get("informativa")  or ""
         encerramento = settings.get("encerramento") or _FALLBACK_ENCERRAMENTO
 
-        # 2. Boas-vindas + prefetch de perguntas em paralelo
-        # Enquanto o TTS fala as boas-vindas, já buscamos as perguntas do backend
-        speak_task     = asyncio.create_task(self._speak(boas_vindas))
-        questions_task = asyncio.create_task(self._fetch_questions())
-        await speak_task
-        _prefetched_questions = await questions_task
-
-        # 3. Turno conversacional livre com Function Calling
-        user_audio = await self._capture_audio(silence_timeout=2.5, max_duration=20.0)
-        if user_audio:
-            user_text = await self.gemini.transcribe(user_audio)
-            if user_text:
-                self._all_transcriptions.append(f"Cliente: {user_text}")
-                logger.info(f"[{self.call_uuid}] Cliente disse: '{user_text}'")
-
-                system_prompt = (
-                    "Você é uma assistente virtual de atendimento ao cliente do sistema AsteriskIA. "
-                    "Responda de forma breve, clara e em português do Brasil. "
-                    "Quando o cliente solicitar informações sobre um pedido, use a função disponibilizada. "
-                    "Ao abrir um protocolo, confirme o número gerado para o cliente."
-                )
-
-                response_text = await self.gemini.generate_response_with_tools(
-                    system_instruction=system_prompt,
-                    history=[{"role": "user", "text": user_text}],
-                )
-
-                if response_text:
-                    await self._speak(response_text)
-                    self.collected_answers["description"] = user_text
-
-        # 4. Mensagem informativa (opcional — só fala se tiver conteúdo)
-        if informativa.strip():
-            await self._speak(informativa)
-
-        # 5. Usa perguntas já buscadas em paralelo com as boas-vindas
-        questions = _prefetched_questions
-        if not questions:
-            await self._speak("Desculpe, ocorreu um erro ao carregar as perguntas. Tente novamente.")
+        # 2. Boas-vindas — aguarda o áudio terminar completamente
+        ok = await self._speak(boas_vindas)
+        if not ok:
             return
 
-        # 6. Para cada pergunta: fala → ouve → transcreve → armazena
+        # 3. Turno livre — ouve o cliente e responde com LLM
+        user_text = await self._listen_and_transcribe()
+        if user_text:
+            self._transcriptions.append(f"Cliente: {user_text}")
+            system_prompt = (
+                "Você é uma assistente virtual de atendimento ao cliente. "
+                "Responda de forma breve e clara em português do Brasil. "
+                "Ao abrir um protocolo, confirme o número gerado para o cliente."
+            )
+            response = await self.ai.generate_response_with_tools(
+                system_instruction=system_prompt,
+                history=[{"role": "user", "text": user_text}],
+            )
+            if response:
+                self.collected_answers["description"] = user_text
+                ok = await self._speak(response)
+                if not ok:
+                    return
+
+        # 4. Mensagem informativa (opcional)
+        if informativa.strip():
+            ok = await self._speak(informativa)
+            if not ok:
+                return
+
+        # 5. Perguntas estruturadas — sequencial, uma por vez
+        if not questions:
+            await self._speak("Desculpe, não foi possível carregar as perguntas. Tente novamente.")
+            return
+
         for question in questions:
             answer = await self._ask_question(question["question_text"])
             if answer:
-                self.collected_answers[question["jira_field_key"]] = answer
-                self._all_transcriptions.append(f"[{question['question_text']}] {answer}")
-                logger.info(f"[{self.call_uuid}] Campo '{question['jira_field_key']}' = '{answer}'")
+                key = question["jira_field_key"]
+                self.collected_answers[key] = answer
+                self._transcriptions.append(f"[{question['question_text']}]: {answer}")
+                logger.info("[%s] %s = %r", self.call_uuid, key, answer)
 
-        # 7. Confirmação antes de abrir
-        await self._speak("Obrigado! Estou registrando seu chamado. Por favor, aguarde um momento.")
+        # 6. Confirmação
+        ok = await self._speak("Obrigado! Estou registrando seu chamado. Aguarde um momento.")
+        if not ok:
+            return
 
-        # 8. Notifica backend para criar o chamado
+        # 7. Cria chamado no Jira via backend
         issue_key = await self._create_jira_issue()
 
-        # 9. Mensagem de encerramento — substitui {protocolo} pelo número real
+        # 8. Encerramento
         if issue_key:
-            spoken_key = self._speak_formatted_key(issue_key)
+            spoken_key = self._format_issue_key(issue_key)
             msg = encerramento.replace("{protocolo}", spoken_key)
         else:
-            # Remove placeholder se não houver issue_key
-            msg = encerramento.replace("{protocolo}", "").replace("  ", " ").strip()
+            msg = encerramento.replace("{protocolo}", "").strip()
             if not msg:
-                msg = "Seu atendimento foi registrado. Nossa equipe entrará em contato. Obrigado!"
+                msg = "Atendimento registrado. Nossa equipe entrará em contato. Obrigado!"
 
         await self._speak(msg)
-        logger.info(f"[{self.call_uuid}] Fluxo URA Jira concluído | Chamado: {issue_key}")
+        logger.info("[%s] Fluxo concluído | Jira: %s", self.call_uuid, issue_key)
 
     # ─── helpers ─────────────────────────────────────────────────────────────
 
-    async def _ask_question(self, question_text: str) -> str | None:
-        """Fala a pergunta via TTS e captura/transcreve a resposta do cliente."""
-        await self._speak(question_text)
-        audio_buffer = await self._capture_audio(silence_timeout=2.5, max_duration=15.0)
-        if not audio_buffer:
-            return None
-        transcription = await self.gemini.transcribe(audio_buffer)
-        logger.debug(f"[{self.call_uuid}] STT resultado: '{transcription}'")
-        return transcription
-
     async def _speak(self, text: str) -> bool:
         """
-        Converte texto em áudio (TTS) e envia ao Asterisk via streaming.
+        Envia TTS ao Asterisk e aguarda a duração REAL do áudio + buffer.
 
-        Usa synthesize_speech_streaming — envia chunks de áudio conforme
-        chegam do Gemini (~800ms para o primeiro byte vs 7s bloqueante).
-        O keep_alive_silence não é mais necessário aqui porque o próprio
-        áudio streamed mantém o AudioSocket ativo.
-
-        Returns:
-            True se enviado com sucesso, False se a conexão foi encerrada.
+        Retorna False se a conexão foi encerrada pelo Asterisk.
         """
         if self.writer.is_closing():
             return False
         try:
-            sent = await self.gemini.synthesize_speech_streaming(text, self.writer)
-            if not sent:
-                logger.warning(f"[{self.call_uuid}] Conexão encerrada durante TTS — abortando fala.")
+            logger.debug("[%s] TTS: %r", self.call_uuid, text[:80])
+            ok, duration = await self.ai.synthesize_speech_streaming(text, self.writer)
+            if not ok:
+                logger.warning("[%s] Conexão encerrada durante TTS", self.call_uuid)
                 return False
-            # Aguarda o áudio terminar de tocar no cliente antes de capturar
-            # Estimativa: 12.5 bytes/ms a 8kHz/16bit = ~words*0.3s + 0.5s buffer
-            words = len(text.split())
-            play_duration = max(1.0, words * 0.28) + 0.6
-            await asyncio.sleep(play_duration)
+            # Aguarda o áudio terminar de tocar + buffer de segurança
+            wait = duration + _POST_SPEAK_BUFFER_SECS
+            logger.debug("[%s] Áudio: %.1fs — aguardando %.1fs", self.call_uuid, duration, wait)
+            await asyncio.sleep(wait)
             return True
         except (BrokenPipeError, ConnectionResetError):
-            logger.warning(f"[{self.call_uuid}] Pipe quebrado durante TTS — cliente desligou.")
+            logger.warning("[%s] Pipe quebrado durante TTS", self.call_uuid)
             return False
         except Exception as e:
-            logger.error(f"[{self.call_uuid}] Erro TTS: {e}")
+            logger.error("[%s] Erro TTS: %s", self.call_uuid, e)
             return False
 
-    async def _capture_audio(
-        self,
-        silence_timeout: float = 3.0,
-        max_duration: float = 15.0
-    ) -> bytes:
-        """Captura áudio do cliente até detectar silêncio ou atingir o tempo máximo."""
-        audio_chunks: list[bytes] = []
-        SILENCE_THRESHOLD = 300
-        SAMPLE_RATE = 8000
-        FRAME_BYTES = 320
+    async def _listen_and_transcribe(self) -> str | None:
+        """Captura áudio do cliente e transcreve via STT."""
+        audio = await self._capture_audio()
+        if not audio:
+            return None
+        try:
+            text = await self.ai.transcribe(audio)
+            if text:
+                logger.info("[%s] STT: %r", self.call_uuid, text)
+            return text or None
+        except Exception as e:
+            logger.error("[%s] Erro STT: %s", self.call_uuid, e)
+            return None
 
-        silence_frames = 0
-        max_frames     = int(max_duration  * (SAMPLE_RATE / (FRAME_BYTES // 2)))
-        silence_limit  = int(silence_timeout * (SAMPLE_RATE / (FRAME_BYTES // 2)))
+    async def _ask_question(self, question_text: str) -> str | None:
+        """Fala a pergunta e captura/transcreve a resposta do cliente."""
+        ok = await self._speak(question_text)
+        if not ok:
+            return None
+        return await self._listen_and_transcribe()
+
+    async def _capture_audio(self) -> bytes:
+        """
+        Captura frames de áudio do cliente até detectar silêncio contínuo
+        por _SILENCE_TIMEOUT_SECS ou atingir max_duration.
+        """
+        import struct as _struct
+
+        audio_chunks: list[bytes] = []
+        frame_duration  = 320 / (_SAMPLE_RATE * _BYTES_SAMPLE)  # 0.02s por frame
+        silence_limit   = int(_SILENCE_TIMEOUT_SECS / frame_duration)
+        max_frames      = int(30.0 / frame_duration)  # máximo 30s
+
+        silence_count = 0
 
         for _ in range(max_frames):
-            frame = await asyncio.wait_for(read_frame(self.reader), timeout=5.0)
+            try:
+                frame = await asyncio.wait_for(read_frame(self.reader), timeout=8.0)
+            except asyncio.TimeoutError:
+                logger.debug("[%s] Timeout na leitura de frame — encerrando captura", self.call_uuid)
+                break
+
             if frame is None or frame.is_hangup:
                 break
             if not frame.is_audio:
                 continue
 
-            audio_chunks.append(frame.payload)
+            payload = frame.payload
+            audio_chunks.append(payload)
 
-            import struct as s
-            samples = s.unpack(f"<{len(frame.payload)//2}h", frame.payload)
-            rms = (sum(x**2 for x in samples) / len(samples)) ** 0.5
-            if rms < SILENCE_THRESHOLD:
-                silence_frames += 1
-                if silence_frames >= silence_limit:
+            # RMS para detecção de silêncio
+            samples = _struct.unpack(f"<{len(payload)//2}h", payload)
+            rms = (sum(x * x for x in samples) / len(samples)) ** 0.5
+
+            if rms < _SILENCE_THRESHOLD:
+                silence_count += 1
+                if silence_count >= silence_limit:
+                    logger.debug("[%s] Silêncio detectado após %.1fs", self.call_uuid, len(audio_chunks) * frame_duration)
                     break
             else:
-                silence_frames = 0
+                silence_count = 0
 
         return b"".join(audio_chunks)
 
     async def _fetch_settings(self) -> dict[str, str]:
-        """
-        Busca as mensagens configuráveis da URA no backend.
-        Retorna dict { key: value } — ex: { 'boas_vindas': '...', 'informativa': '', 'encerramento': '...' }
-        """
         try:
             items: list[dict] = await bc.get("/api/v1/ura/settings")
             return {item["key"]: item["value"] for item in items}
         except Exception as e:
-            logger.error(f"[{self.call_uuid}] Erro ao buscar ura_settings, usando fallback: {e}")
+            logger.error("[%s] Erro ao buscar settings URA: %s", self.call_uuid, e)
             return {}
 
     async def _fetch_questions(self) -> list[dict]:
-        """Busca perguntas ativas da URA no backend (autenticado)."""
         try:
             return await bc.get("/api/v1/ura/questions")
         except Exception as e:
-            logger.error(f"[{self.call_uuid}] Erro ao buscar perguntas URA: {e}")
+            logger.error("[%s] Erro ao buscar perguntas URA: %s", self.call_uuid, e)
             return []
 
     async def _create_jira_issue(self) -> str | None:
-        """Envia dados coletados ao backend para criação do chamado no Jira."""
         try:
-            # Consolida todas as transcrições da chamada
-            full_transcription = "\n".join(self._all_transcriptions)
-            if full_transcription and "description" not in self.collected_answers:
-                self.collected_answers["description"] = full_transcription
-
-            # Garante que o número do chamador está nos campos
+            full_transcription = "\n".join(self._transcriptions)
+            self.collected_answers.setdefault("description", full_transcription)
             if self.caller_number and self.caller_number != "desconhecido":
                 self.collected_answers.setdefault("customfield_telefone", self.caller_number)
-
-            # Caminho do arquivo de áudio no volume compartilhado com o backend.
-            # O Asterisk grava em /var/spool/asterisk/monitor (volume asterisk_recordings).
-            # O backend monta o mesmo volume em AUDIO_STORAGE_PATH.
-            # Enviamos apenas o nome do arquivo — o backend resolve o caminho completo.
-            audio_filename = f"{self.call_uuid}.wav"
-            audio_path     = f"/var/spool/asterisk/monitor/{audio_filename}"
 
             payload = {
                 "callUuid":      self.call_uuid,
                 "fields":        self.collected_answers,
-                "audioFilePath": audio_path,
+                "audioFilePath": f"/var/spool/asterisk/monitor/{self.call_uuid}.wav",
                 "transcription": full_transcription,
                 "callerNumber":  self.caller_number,
             }
             data = await bc.post("/api/v1/calls/register", json=payload)
             return data.get("jiraIssueKey")
         except Exception as e:
-            logger.error(f"[{self.call_uuid}] Erro ao criar chamado Jira: {e}")
+            logger.error("[%s] Erro ao registrar chamado: %s", self.call_uuid, e)
             return None
 
     @staticmethod
-    def _speak_formatted_key(key: str) -> str:
-        """Formata a chave do Jira para ser lida de forma natural via TTS.
-        Exemplo: 'PROJ-1234' → 'P R O J, 1234'
-        """
+    def _format_issue_key(key: str) -> str:
         parts = key.split("-")
         if len(parts) == 2:
-            letters = " ".join(parts[0])
-            return f"{letters}, {parts[1]}"
+            return f"{' '.join(parts[0])}, {parts[1]}"
         return key
