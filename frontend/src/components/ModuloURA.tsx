@@ -195,8 +195,6 @@ function FluxoURATab() {
 
   // Modal pergunta
   const [showModal, setShowModal] = useState(false);
-  // Modal detalhe da chamada
-  const [detailCall, setDetailCall] = useState<CallRecord | null>(null);
   const [editQ, setEditQ]         = useState<Partial<UraQuestion>>({});
 
   const load = async () => {
@@ -470,6 +468,126 @@ function FluxoURATab() {
         })()}
       </div>
 
+      {/* Modal edição de pergunta */}
+      {showModal && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}>
+          <div className="modal">
+            <div className="modal-header">
+              <h2>❓ {editQ.id ? 'Editar' : 'Nova'} Pergunta</h2>
+              <button className="btn-close" onClick={() => setShowModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">Ordem</label>
+                <input type="number" className="form-input" value={editQ.questionOrder ?? ''}
+                  onChange={e => setEditQ(q => ({ ...q, questionOrder: +e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Texto da Pergunta (TTS)</label>
+                <textarea className="form-textarea" value={editQ.questionText ?? ''}
+                  onChange={e => setEditQ(q => ({ ...q, questionText: e.target.value }))}
+                  placeholder="Qual é o seu nome completo?" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Campo do Jira (field key)</label>
+                <input type="text" className="form-input" value={editQ.jiraFieldKey ?? ''}
+                  onChange={e => setEditQ(q => ({ ...q, jiraFieldKey: e.target.value }))}
+                  placeholder="customfield_nome_cliente" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Valores válidos <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(separados por vírgula — deixe em branco para resposta livre)</span></label>
+                <input type="text" className="form-input" value={editQ.expectedValues ?? ''}
+                  onChange={e => setEditQ(q => ({ ...q, expectedValues: e.target.value }))}
+                  placeholder="Baixa,Média,Alta" />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={saveQuestion}>
+                {editQ.id ? 'Salvar Alterações' : 'Criar Pergunta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Módulo URA principal ────────────────────────────────────────────────────
+
+export default function ModuloURA() {
+  const [tab, setTab] = useState<'calls' | 'fluxo' | 'dashboard'>('calls');
+  const [calls, setCalls] = useState<CallRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [search, setSearch] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [detailCall, setDetailCall] = useState<CallRecord | null>(null);
+
+  const loadCalls = (p = 0) => {
+    setLoading(true);
+    const params = new URLSearchParams({ page: String(p), size: '20' });
+    if (search) params.set('callerNumber', search);
+    api.get<PageResponse<CallRecord>>(`/calls?${params}`)
+      .then(r => {
+        setCalls(r.data.content ?? []);
+        setTotalPages(r.data.totalPages);
+        setPage(r.data.number);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (tab === 'calls') loadCalls(0);
+  }, [tab]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => { e.preventDefault(); loadCalls(0); };
+
+  const exportUra = async () => {
+    setExporting(true);
+    try {
+      const response = await api.get(`/calls/export`, { responseType: 'blob' });
+      const url  = URL.createObjectURL(new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `chamadas_ura.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Erro ao exportar chamadas. Tente novamente.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="page-header">
+        <h1>🎫 URA</h1>
+        <p>Histórico de chamadas e configuração do fluxo de atendimento</p>
+      </div>
+      <div className="page-body">
+
+        <KpiBar />
+
+        {/* Tabs */}
+        <div className="flex gap-1 mb-2" style={{ marginBottom: 20 }}>
+          <button className={`btn ${tab === 'calls'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('calls')}>
+            📋 Chamadas
+          </button>
+          <button className={`btn ${tab === 'fluxo'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('fluxo')}>
+            🔀 Fluxo URA
+          </button>
+          <button className={`btn ${tab === 'dashboard' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('dashboard')}>
+            📊 Dashboard
+          </button>
+        </div>
+
+        {/* ---- CALLS TAB ---- */}
       {/* Modal detalhe da chamada */}
       {detailCall && (
         <div className="modal-overlay" onClick={() => setDetailCall(null)}>
@@ -546,125 +664,7 @@ function FluxoURATab() {
         </div>
       )}
 
-      {/* Modal edição de pergunta */}
-      {showModal && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}>
-          <div className="modal">
-            <div className="modal-header">
-              <h2>❓ {editQ.id ? 'Editar' : 'Nova'} Pergunta</h2>
-              <button className="btn-close" onClick={() => setShowModal(false)}>×</button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label className="form-label">Ordem</label>
-                <input type="number" className="form-input" value={editQ.questionOrder ?? ''}
-                  onChange={e => setEditQ(q => ({ ...q, questionOrder: +e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Texto da Pergunta (TTS)</label>
-                <textarea className="form-textarea" value={editQ.questionText ?? ''}
-                  onChange={e => setEditQ(q => ({ ...q, questionText: e.target.value }))}
-                  placeholder="Qual é o seu nome completo?" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Campo do Jira (field key)</label>
-                <input type="text" className="form-input" value={editQ.jiraFieldKey ?? ''}
-                  onChange={e => setEditQ(q => ({ ...q, jiraFieldKey: e.target.value }))}
-                  placeholder="customfield_nome_cliente" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Valores válidos <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(separados por vírgula — deixe em branco para resposta livre)</span></label>
-                <input type="text" className="form-input" value={editQ.expectedValues ?? ''}
-                  onChange={e => setEditQ(q => ({ ...q, expectedValues: e.target.value }))}
-                  placeholder="Baixa,Média,Alta" />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={saveQuestion}>
-                {editQ.id ? 'Salvar Alterações' : 'Criar Pergunta'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
 
-// ─── Módulo URA principal ────────────────────────────────────────────────────
-
-export default function ModuloURA() {
-  const [tab, setTab] = useState<'calls' | 'fluxo' | 'dashboard'>('calls');
-  const [calls, setCalls] = useState<CallRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [search, setSearch] = useState('');
-  const [exporting, setExporting] = useState(false);
-
-  const loadCalls = (p = 0) => {
-    setLoading(true);
-    const params = new URLSearchParams({ page: String(p), size: '20' });
-    if (search) params.set('callerNumber', search);
-    api.get<PageResponse<CallRecord>>(`/calls?${params}`)
-      .then(r => {
-        setCalls(r.data.content ?? []);
-        setTotalPages(r.data.totalPages);
-        setPage(r.data.number);
-      })
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    if (tab === 'calls') loadCalls(0);
-  }, [tab]);
-
-  const handleSearchSubmit = (e: React.FormEvent) => { e.preventDefault(); loadCalls(0); };
-
-  const exportUra = async () => {
-    setExporting(true);
-    try {
-      const response = await api.get(`/calls/export`, { responseType: 'blob' });
-      const url  = URL.createObjectURL(new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `chamadas_ura.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      alert('Erro ao exportar chamadas. Tente novamente.');
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  return (
-    <>
-      <div className="page-header">
-        <h1>🎫 URA</h1>
-        <p>Histórico de chamadas e configuração do fluxo de atendimento</p>
-      </div>
-      <div className="page-body">
-
-        <KpiBar />
-
-        {/* Tabs */}
-        <div className="flex gap-1 mb-2" style={{ marginBottom: 20 }}>
-          <button className={`btn ${tab === 'calls'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('calls')}>
-            📋 Chamadas
-          </button>
-          <button className={`btn ${tab === 'fluxo'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('fluxo')}>
-            🔀 Fluxo URA
-          </button>
-          <button className={`btn ${tab === 'dashboard' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('dashboard')}>
-            📊 Dashboard
-          </button>
-        </div>
-
-        {/* ---- CALLS TAB ---- */}
         {tab === 'calls' && (
           <>
             <div className="toolbar">
