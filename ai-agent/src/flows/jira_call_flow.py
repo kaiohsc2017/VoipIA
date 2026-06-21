@@ -67,7 +67,7 @@ class JiraCallFlow:
         _prefetched_questions = await questions_task
 
         # 3. Turno conversacional livre com Function Calling
-        user_audio = await self._capture_audio(silence_timeout=1.5, max_duration=20.0)
+        user_audio = await self._capture_audio(silence_timeout=2.5, max_duration=20.0)
         if user_audio:
             user_text = await self.gemini.transcribe(user_audio)
             if user_text:
@@ -132,7 +132,7 @@ class JiraCallFlow:
     async def _ask_question(self, question_text: str) -> str | None:
         """Fala a pergunta via TTS e captura/transcreve a resposta do cliente."""
         await self._speak(question_text)
-        audio_buffer = await self._capture_audio(silence_timeout=1.5, max_duration=15.0)
+        audio_buffer = await self._capture_audio(silence_timeout=2.5, max_duration=15.0)
         if not audio_buffer:
             return None
         transcription = await self.gemini.transcribe(audio_buffer)
@@ -158,8 +158,11 @@ class JiraCallFlow:
             if not sent:
                 logger.warning(f"[{self.call_uuid}] Conexão encerrada durante TTS — abortando fala.")
                 return False
-            # Pequena pausa para garantir que o último frame chegou ao Asterisk
-            await asyncio.sleep(0.3)
+            # Aguarda o áudio terminar de tocar no cliente antes de capturar
+            # Estimativa: 12.5 bytes/ms a 8kHz/16bit = ~words*0.3s + 0.5s buffer
+            words = len(text.split())
+            play_duration = max(1.0, words * 0.28) + 0.6
+            await asyncio.sleep(play_duration)
             return True
         except (BrokenPipeError, ConnectionResetError):
             logger.warning(f"[{self.call_uuid}] Pipe quebrado durante TTS — cliente desligou.")
@@ -236,8 +239,12 @@ class JiraCallFlow:
             if self.caller_number and self.caller_number != "desconhecido":
                 self.collected_answers.setdefault("customfield_telefone", self.caller_number)
 
-            # Caminho do arquivo de áudio gravado pelo Asterisk
-            audio_path = f"/var/spool/asterisk/monitor/{self.call_uuid}.wav"
+            # Caminho do arquivo de áudio no volume compartilhado com o backend.
+            # O Asterisk grava em /var/spool/asterisk/monitor (volume asterisk_recordings).
+            # O backend monta o mesmo volume em AUDIO_STORAGE_PATH.
+            # Enviamos apenas o nome do arquivo — o backend resolve o caminho completo.
+            audio_filename = f"{self.call_uuid}.wav"
+            audio_path     = f"/var/spool/asterisk/monitor/{audio_filename}"
 
             payload = {
                 "callUuid":      self.call_uuid,

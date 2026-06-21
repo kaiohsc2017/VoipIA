@@ -203,7 +203,9 @@ services:
       SETTINGS_FILE_PATH: /opt/asteriskia/env/.env
       SETTINGS_COMPOSE_DIR: /opt/AsteriskIA
     volumes:
-      - asterisk_recordings:${AUDIO_STORAGE_PATH}
+      # Volume compartilhado com o Asterisk — contém as gravações das chamadas
+      # Montado em caminho fixo para o backend sempre encontrar os arquivos
+      - asterisk_recordings:/var/spool/asterisk/monitor
       # Acesso ao .env para leitura/escrita via SettingsService
       - /opt/AsteriskIA/env:/opt/asteriskia/env
       # Acesso aos configs do Asterisk (pjsip, extensions) para edição via UI

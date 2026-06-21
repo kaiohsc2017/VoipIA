@@ -359,41 +359,23 @@ class GeminiService:
                 except (IndexError, AttributeError):
                     continue
 
-        # Streaming real: envia cada chunk ao Asterisk IMEDIATAMENTE ao chegar
-        # sem acumular — reduz latência do primeiro byte de ~3s para ~400ms.
+        # Coleta todos os chunks em thread separada e envia em sequência.
+        # generate_content_stream é síncrono — precisa rodar em executor.
         loop = asyncio.get_event_loop()
-        queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=8)
 
-        def _run_iter():
-            """Executa o gerador em thread e coloca chunks na queue à medida que chegam."""
-            try:
-                for pcm_chunk in _iter_chunks():
-                    # put_nowait não funciona cross-thread; usa run_coroutine_threadsafe
-                    asyncio.run_coroutine_threadsafe(queue.put(pcm_chunk), loop).result()
-            finally:
-                asyncio.run_coroutine_threadsafe(queue.put(None), loop).result()
+        chunks: list[bytes] = await loop.run_in_executor(
+            None, lambda: list(_iter_chunks())
+        )
 
-        import concurrent.futures
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        producer_future = loop.run_in_executor(executor, _run_iter)
-
-        try:
-            while True:
-                chunk = await asyncio.wait_for(queue.get(), timeout=15.0)
-                if chunk is None:
-                    break
-                sent = await write_audio(writer, chunk)
-                if not sent:
-                    producer_future.cancel()
-                    return False
-            await producer_future
+        if not chunks:
+            logger.warning("TTS retornou áudio vazio")
             return True
-        except asyncio.TimeoutError:
-            logger.error("TTS streaming timeout — Gemini não respondeu em 15s")
-            return False
-        except Exception as e:
-            logger.error("Erro no TTS streaming: %s", e)
-            return False
+
+        for pcm_chunk in chunks:
+            sent = await write_audio(writer, pcm_chunk)
+            if not sent:
+                return False
+        return True
 
     def _llm_sync(self, prompt: str) -> str:
         """LLM via Gemini — gera resposta de texto simples (sem tools)."""
