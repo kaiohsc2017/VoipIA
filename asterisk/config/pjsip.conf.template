@@ -197,7 +197,14 @@ auth = ramal-9002-auth
 aors = 9002
 callerid = "Softphone" <9002>
 identify_by = username,auth_username
+; NAT — essencial para softphone atrás de NAT
 direct_media = no
 force_rport = yes
 rewrite_contact = yes
 rtp_symmetric = yes
+; Sem WebRTC/DTLS — SIP padrão com RTP simples
+media_encryption = no
+use_avpf = no
+ice_support = no
+; Garante que o Asterisk sempre faça bridge (não tenta RTP direto)
+media_use_received_transport = yes
