@@ -169,3 +169,35 @@ ice_support = yes
 rtcp_mux = yes
 force_rport = yes
 rewrite_contact = yes
+
+; --- Ramal 9002 — Softphone físico (Zoiper, Linphone, MicroSIP etc.) ---
+; Usa SIP/UDP padrão — sem WebRTC, sem DTLS
+[ramal-9002-auth]
+type = auth
+auth_type = userpass
+username = 9002
+password = sip9002pass2025
+realm = ${SIP_DOMAIN}
+
+[9002]
+type = aor
+max_contacts = 2
+remove_existing = yes
+qualify_frequency = 30
+
+[9002]
+type = endpoint
+transport = transport-udp
+context = ramais-webrtc
+disallow = all
+allow = ulaw
+allow = alaw
+allow = g722
+auth = ramal-9002-auth
+aors = 9002
+callerid = "Softphone" <9002>
+identify_by = username,auth_username
+direct_media = no
+force_rport = yes
+rewrite_contact = yes
+rtp_symmetric = yes
