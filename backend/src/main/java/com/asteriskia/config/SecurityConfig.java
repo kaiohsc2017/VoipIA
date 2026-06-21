@@ -50,7 +50,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/logout",
                                 "/api/v1/auth/totp/verify", // 2FA: segunda etapa sem JWT
                                 "/api/health",          // health check externo (Caddy, Prometheus, monitoração)
-                                "/api/v1/ai/chain/active", // ai-agent consulta via X-Internal-Key
+                                "/api/v1/ai/chain/active",    // ai-agent consulta chain via X-Internal-Key
+                                "/api/v1/ai/providers/*/key-internal", // ai-agent busca keys via X-Internal-Key
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/api-docs/**",
