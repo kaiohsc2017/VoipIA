@@ -97,7 +97,15 @@ async def handle_connection(
         if flow_type == "ZABBIX_ALERT":
             flow = ZabbixAlertFlow(call_uuid, reader, writer)
         else:
-            flow = JiraCallFlow(call_uuid, reader, writer)
+            # Tenta obter o número do chamador via AMI GetVar (CALLER_NUM setado no dialplan)
+            caller_number = "desconhecido"
+            try:
+                from src.services import backend_client as bc2
+                ami_resp = await bc2.get(f"/api/v1/asterisk/channel-var?uuid={call_uuid}&var=CALLER_NUM")
+                caller_number = ami_resp.get("value", "desconhecido") or "desconhecido"
+            except Exception:
+                pass  # sem caller number — não crítico
+            flow = JiraCallFlow(call_uuid, reader, writer, caller_number=caller_number)
 
         await flow.execute()
 

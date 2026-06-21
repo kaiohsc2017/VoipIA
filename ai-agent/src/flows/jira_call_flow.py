@@ -38,13 +38,16 @@ class JiraCallFlow:
         self,
         call_uuid: str,
         reader: asyncio.StreamReader,
-        writer: asyncio.StreamWriter
+        writer: asyncio.StreamWriter,
+        caller_number: str = "desconhecido",
     ):
-        self.call_uuid = call_uuid
-        self.reader = reader
-        self.writer = writer
-        self.gemini = AIService()
+        self.call_uuid      = call_uuid
+        self.reader         = reader
+        self.writer         = writer
+        self.caller_number  = caller_number
+        self.gemini         = AIService()
         self.collected_answers: dict[str, str] = {}
+        self._all_transcriptions: list[str] = []  # acumula STT da chamada inteira
 
     async def execute(self) -> None:
         """Executa o fluxo completo da URA."""
@@ -64,6 +67,7 @@ class JiraCallFlow:
         if user_audio:
             user_text = await self.gemini.transcribe(user_audio)
             if user_text:
+                self._all_transcriptions.append(f"Cliente: {user_text}")
                 logger.info(f"[{self.call_uuid}] Cliente disse: '{user_text}'")
 
                 system_prompt = (
@@ -97,6 +101,7 @@ class JiraCallFlow:
             answer = await self._ask_question(question["question_text"])
             if answer:
                 self.collected_answers[question["jira_field_key"]] = answer
+                self._all_transcriptions.append(f"[{question['question_text']}] {answer}")
                 logger.info(f"[{self.call_uuid}] Campo '{question['jira_field_key']}' = '{answer}'")
 
         # 7. Confirmação antes de abrir
@@ -220,7 +225,25 @@ class JiraCallFlow:
     async def _create_jira_issue(self) -> str | None:
         """Envia dados coletados ao backend para criação do chamado no Jira."""
         try:
-            payload = {"callUuid": self.call_uuid, "fields": self.collected_answers}
+            # Consolida todas as transcrições da chamada
+            full_transcription = "\n".join(self._all_transcriptions)
+            if full_transcription and "description" not in self.collected_answers:
+                self.collected_answers["description"] = full_transcription
+
+            # Garante que o número do chamador está nos campos
+            if self.caller_number and self.caller_number != "desconhecido":
+                self.collected_answers.setdefault("customfield_telefone", self.caller_number)
+
+            # Caminho do arquivo de áudio gravado pelo Asterisk
+            audio_path = f"/var/spool/asterisk/monitor/{self.call_uuid}.wav"
+
+            payload = {
+                "callUuid":      self.call_uuid,
+                "fields":        self.collected_answers,
+                "audioFilePath": audio_path,
+                "transcription": full_transcription,
+                "callerNumber":  self.caller_number,
+            }
             data = await bc.post("/api/v1/calls/register", json=payload)
             return data.get("jiraIssueKey")
         except Exception as e:
