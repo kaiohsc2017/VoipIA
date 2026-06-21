@@ -28,7 +28,7 @@ _BYTES_SAMPLE = 2
 
 # Fator de segurança pós-áudio: aguarda este tempo extra além da duração
 # real para garantir que o cliente ouviu o fim antes de capturar
-_POST_SPEAK_BUFFER_SECS = 0.5
+_POST_SPEAK_BUFFER_SECS = 2.0
 
 # Threshold RMS abaixo do qual o frame é considerado silêncio
 _SILENCE_THRESHOLD = 300
@@ -199,21 +199,32 @@ class JiraCallFlow:
             logger.error("[%s] Erro TTS: %s", self.call_uuid, e)
             return False
 
+    # Padrões que indicam que o STT captou ruído/TTS em vez de voz humana real
+    _NOISE_PATTERNS = (
+        '[música', '[music', '[ruído', '[noise', '[silêncio', '[silence',
+        '[sem fala', 'sem fala', 'não há fala', 'barulho de máquina',
+        'música instrumental', '[audio', '[som', 'background',
+    )
+
     async def _listen_and_transcribe(self) -> str | None:
         """Captura áudio do cliente, remove silêncio e transcreve via STT."""
         audio = await self._capture_audio()
         if not audio:
             return None
-        # Remove silêncio no início e fim — reduz tamanho do WAV enviado ao Gemini
-        # e elimina o delay de processamento de silêncio desnecessário
         audio = _trim_silence(audio)
-        if len(audio) < 320 * 5:  # menos de 5 frames (~0.1s) → sem voz real
+        if len(audio) < 320 * 10:  # menos de 10 frames (~0.2s) → sem voz real
             return None
         try:
             text = await self.ai.transcribe(audio)
-            if text:
-                logger.info("[%s] STT: %r", self.call_uuid, text)
-            return text or None
+            if not text:
+                return None
+            # Filtra transcrições de ruído/música — o STT captou o áudio da URA
+            text_lower = text.lower().strip()
+            if any(p in text_lower for p in self._NOISE_PATTERNS):
+                logger.debug("[%s] STT filtrou ruído: %r", self.call_uuid, text)
+                return None
+            logger.info("[%s] STT: %r", self.call_uuid, text)
+            return text
         except Exception as e:
             logger.error("[%s] Erro STT: %s", self.call_uuid, e)
             return None
