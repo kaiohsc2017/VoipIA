@@ -101,6 +101,7 @@ public class CallRecordController {
     /**
      * Faz streaming do arquivo de áudio gravado pelo Asterisk.
      * O caminho é relativo ao storage configurado (app.audio.storage-path).
+     * Também busca diretamente em /var/spool/asterisk/monitor (volume compartilhado).
      */
     @GetMapping("/{id}/audio")
     @Operation(summary = "Streaming do áudio gravado da chamada URA")
@@ -110,13 +111,32 @@ public class CallRecordController {
             return ResponseEntity.notFound().build();
         }
 
-        File audioFile = new File(record.getAudioFilePath());
-        if (!audioFile.isAbsolute()) {
-            audioFile = new File(audioStoragePath, record.getAudioFilePath());
+        // Tenta localizar o arquivo em múltiplos caminhos:
+        // 1. Caminho absoluto como recebido do ai-agent
+        // 2. AUDIO_STORAGE_PATH + nome do arquivo
+        // 3. /var/spool/asterisk/monitor + nome do arquivo (volume compartilhado)
+        File audioFile = null;
+        String storedPath = record.getAudioFilePath();
+        String fileName   = new File(storedPath).getName();
+
+        File[] candidates = {
+            new File(storedPath),
+            new File(audioStoragePath, fileName),
+            new File("/var/spool/asterisk/monitor", fileName),
+        };
+
+        for (File candidate : candidates) {
+            if (candidate.exists() && candidate.canRead()) {
+                audioFile = candidate;
+                break;
+            }
         }
 
-        if (!audioFile.exists() || !audioFile.canRead()) {
-            log.warn("Arquivo de áudio não encontrado: {}", audioFile.getAbsolutePath());
+        if (audioFile == null) {
+            log.warn("Arquivo de áudio não encontrado. Tentativas: {}, {}, {}",
+                candidates[0].getAbsolutePath(),
+                candidates[1].getAbsolutePath(),
+                candidates[2].getAbsolutePath());
             return ResponseEntity.notFound().build();
         }
 
