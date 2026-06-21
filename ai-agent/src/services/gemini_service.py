@@ -343,11 +343,16 @@ class GeminiService:
         )
 
         def _collect_pcm() -> bytes:
-            """Coleta todo o áudio PCM 8kHz em uma única chamada síncrona."""
+            """Coleta todo o áudio PCM 8kHz em uma única chamada síncrona.
+            CRÍTICO: o modelo TTS aceita APENAS texto puro — nunca Content/roles.
+            Passar Content com role causa erro 400 INVALID_ARGUMENT.
+            """
             chunks_24k: list[bytes] = []
+            # Garante que text é string pura (não Content, não lista)
+            safe_text = str(text) if not isinstance(text, str) else text
             for chunk in self._client().models.generate_content_stream(
                 model=get_gemini_model_tts(),
-                contents=text,
+                contents=safe_text,
                 config=config,
             ):
                 try:

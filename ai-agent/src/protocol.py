@@ -137,19 +137,32 @@ async def write_audio(writer: asyncio.StreamWriter, pcm_data: bytes) -> bool:
     if writer.is_closing():
         return False
 
-    # Quebra o áudio em frames de 320 bytes
-    for i in range(0, len(pcm_data), FRAME_SIZE):
-        chunk = pcm_data[i:i + FRAME_SIZE]
+    # Envia em frames de 320 bytes com drain a cada DRAIN_EVERY frames.
+    # drain() a cada frame é muito lento; acumular tudo satura o buffer.
+    # Draining a cada ~100ms (5 frames) é o equilíbrio correto.
+    DRAIN_EVERY = 5  # drain a cada 5 frames = 100ms
+    frame_count = 0
 
-        # Preenche o último frame com silêncio se necessário
+    for i in range(0, len(pcm_data), FRAME_SIZE):
+        if writer.is_closing():
+            return False
+
+        chunk = pcm_data[i:i + FRAME_SIZE]
         if len(chunk) < FRAME_SIZE:
             chunk = chunk + b'\x00' * (FRAME_SIZE - len(chunk))
 
-        # Monta e envia o frame: [0x10][len big-endian][payload]
         length_bytes = struct.pack(">H", len(chunk))
         frame = bytes([MSG_TYPE_AUDIO]) + length_bytes + chunk
         writer.write(frame)
+        frame_count += 1
 
+        if frame_count % DRAIN_EVERY == 0:
+            try:
+                await writer.drain()
+            except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError):
+                return False
+
+    # Drain final para garantir que os últimos frames foram enviados
     try:
         await writer.drain()
         return True
