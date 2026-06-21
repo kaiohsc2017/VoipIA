@@ -123,19 +123,12 @@ def build_provider(provider: str, model_id: str, api_key: str, capability: str) 
             return ElevenLabsProvider(model_id, api_key)
 
         case "grok":
-            # Grok usa a mesma interface OpenAI — reutilizamos o provider com base_url diferente
-            from src.providers.openai_provider import OpenAIProvider
-            import openai
-            # Monkey-patch temporário para apontar para xAI
-            orig = openai.OpenAI
-            class GrokClient(OpenAIProvider):
-                def __init__(self, mid, key, cap):
-                    import openai as _sdk
-                    super().__init__(mid, key, cap)
-                    # xAI usa base_url diferente
-                    import src.providers._grok_patch as gp
-                    gp.patch(key)
-            return GrokClient(model_id, api_key, capability)
+            from src.providers.grok_provider import GrokProvider
+            return GrokProvider(model_id, api_key)
+
+        case "perplexity":
+            from src.providers.perplexity_provider import PerplexityProvider
+            return PerplexityProvider(model_id, api_key)
 
         case "local":
             from src.providers.local_provider import LocalProvider

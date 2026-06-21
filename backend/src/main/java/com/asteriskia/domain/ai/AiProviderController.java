@@ -94,6 +94,20 @@ public class AiProviderController {
     }
 
     /**
+     * Endpoint interno — ai-agent busca a API key real de um provedor.
+     * Autenticado via X-Internal-Key (InternalKeyFilter).
+     * Nunca exposto ao frontend — retorna a key sem mascaramento.
+     */
+    @GetMapping("/providers/{id}/key-internal")
+    public ResponseEntity<?> getKeyInternal(@PathVariable String id) {
+        String key = service.getRawKey(id);
+        if (key.isBlank()) {
+            return ResponseEntity.ok(Map.of("apiKey", "", "configured", false));
+        }
+        return ResponseEntity.ok(Map.of("apiKey", key, "configured", true));
+    }
+
+    /**
      * Endpoint interno — ai-agent consulta para saber qual modelo usar.
      * Retorna a chain ativa de todas as capabilities agrupada por capability.
      * Autenticado via X-Internal-Key (InternalKeyFilter).
