@@ -49,6 +49,16 @@ public class AiProviderService {
         m("gemini-2.5-flash-preview",      "Gemini 2.5 Flash Preview",      "Raciocínio rápido com pensamento profundo integrado",             List.of("speed","deep"), List.of("LLM"));
         m("gemini-2.5-flash-preview-tts",  "Gemini 2.5 Flash TTS",          "Voz natural com streaming, excelente suporte a PT-BR",            List.of("voice"),        List.of("TTS"));
         m("gemini-2.0-flash-tts",          "Gemini 2.0 Flash TTS",          "Latência mínima, qualidade de voz adequada para produção",        List.of("speed","voice"),List.of("TTS"));
+        // Novos modelos Gemini 2.5 / 3.x
+        m("gemini-2.5-flash",              "Gemini 2.5 Flash",              "Raciocínio rápido com pensamento profundo integrado",             List.of("speed","deep"), List.of("STT","LLM"));
+        m("gemini-2.5-pro",                "Gemini 2.5 Pro",                "Máxima capacidade, contexto longo, análise avançada",              List.of("deep"),         List.of("STT","LLM"));
+        m("gemini-2.5-flash-lite",         "Gemini 2.5 Flash Lite",         "Ultra-rápido e econômico para alto volume",                       List.of("speed","cost"), List.of("STT","LLM"));
+        m("gemini-2.0-flash-lite",         "Gemini 2.0 Flash Lite",         "Versão leve do Flash, menor custo por token",                     List.of("speed","cost"), List.of("STT","LLM"));
+        m("gemini-2.5-pro-preview-tts",    "Gemini 2.5 Pro TTS",            "Voz de alta qualidade com entonação natural avançada",            List.of("voice","deep"), List.of("TTS"));
+        m("gemini-3.1-flash-tts-preview",  "Gemini 3.1 Flash TTS",          "TTS de próxima geração, streaming ultra-rápido",                  List.of("speed","voice"),List.of("TTS"));
+        m("gemini-3-flash-preview",        "Gemini 3 Flash Preview",        "Próxima geração — resposta rápida e raciocínio melhorado",        List.of("speed","deep"), List.of("STT","LLM"));
+        m("gemini-3-pro-preview",          "Gemini 3 Pro Preview",          "Próxima geração — máxima capacidade e contexto expandido",        List.of("deep"),         List.of("STT","LLM"));
+        m("gemini-3.5-flash",              "Gemini 3.5 Flash",              "Raciocínio avançado com velocidade de Flash",                     List.of("speed","deep"), List.of("STT","LLM"));
         // Anthropic
         m("claude-opus-4-5",               "Claude Opus 4.5",               "Raciocínio avançado, contexto de 200K tokens, tarefas complexas",  List.of("deep"),         List.of("LLM"));
         m("claude-sonnet-4-5",             "Claude Sonnet 4.5",             "Equilíbrio entre velocidade e profundidade analítica",             List.of("deep","speed"), List.of("LLM"));
@@ -188,18 +198,45 @@ public class AiProviderService {
         return m.tags().isEmpty() ? 99 : 0;
     }
 
+    /**
+     * Infere as capabilities de um modelo pelo seu nome.
+     *
+     * Regras (baseadas nas convenções reais das APIs):
+     *   "-tts"           → TTS apenas (Gemini, OpenAI)
+     *   "whisper"        → STT apenas (OpenAI)
+     *   "tts-1", "tts-1-hd" → TTS (OpenAI)
+     *   "eleven_*"       → TTS (ElevenLabs)
+     *   demais           → STT + LLM (Gemini usa generateContent para ambos)
+     */
     private List<String> inferCapabilitiesFromName(String id) {
-        List<String> caps = new ArrayList<>();
         String lower = id.toLowerCase();
-        if (lower.contains("tts") || lower.contains("speech"))       caps.add("TTS");
-        if (lower.contains("whisper") || lower.contains("transcri")) caps.add("STT");
-        if (lower.contains("embed"))                                  { /* ignora modelos de embedding */ }
-        else if (caps.isEmpty())                                      caps.add("LLM");
-        return caps;
+
+        // TTS explícito pelo nome
+        if (lower.contains("-tts") || lower.startsWith("tts-") || lower.startsWith("eleven_")) {
+            return List.of("TTS");
+        }
+        // STT explícito pelo nome
+        if (lower.contains("whisper")) {
+            return List.of("STT");
+        }
+        // Modelos de geração de texto gerais (Gemini, GPT, Claude…)
+        // servem tanto para STT (via áudio inline) quanto LLM
+        return List.of("STT", "LLM");
     }
 
     // ─── Chamadas reais às APIs ───────────────────────────────────────────────
 
+    /**
+     * Busca modelos Gemini e retorna lista completa para STT/LLM/TTS.
+     *
+     * O Gemini não diferencia STT de LLM via supportedGenerationMethods — ambos
+     * usam generateContent. A distinção é feita por convenção de nome:
+     *   TTS  → contém "-tts"
+     *   STT  → todos generateContent exceto -tts, -image, lyria, embedding
+     *   LLM  → todos generateContent exceto -tts, -image, lyria, embedding
+     *
+     * O pré-filtro por capability em fetchModels() aplica a regra correta depois.
+     */
     private List<String> fetchGeminiModels(String apiKey) {
         if (apiKey.isBlank()) return List.of();
         try {
@@ -212,20 +249,18 @@ public class AiProviderService {
                 .block();
             JsonNode root = objectMapper.readTree(json);
             return StreamSupport.stream(root.path("models").spliterator(), false)
-                .filter(n -> {
-                    // Exclui modelos deprecated e de embedding — não úteis para voz/LLM
-                    String name = n.path("name").asText().toLowerCase();
-                    if (name.contains("embedding") || name.contains("aqa")) return false;
-                    // Inclui apenas modelos que suportam generateContent ou predictLongRunning (TTS/STT)
-                    JsonNode methods = n.path("supportedGenerationMethods");
-                    if (methods.isArray() && methods.size() > 0) {
-                        return StreamSupport.stream(methods.spliterator(), false)
-                            .anyMatch(m -> m.asText().startsWith("generate"));
-                    }
-                    return true; // inclui se não há info de métodos
-                })
                 .map(n -> n.path("name").asText().replace("models/",""))
                 .filter(id -> !id.isBlank())
+                // Exclui modelos que nunca são úteis para voz/texto
+                .filter(id -> {
+                    String l = id.toLowerCase();
+                    return !l.contains("embedding")
+                        && !l.contains("aqa")
+                        && !l.contains("lyria")       // modelos de música
+                        && !l.contains("-image")      // modelos de imagem
+                        && !l.contains("nano-banana") // experimental não textual
+                        && !l.startsWith("gemma");    // Gemma — modelos abertos, mas sem suporte TTS/STT
+                })
                 .toList();
         } catch (Exception e) {
             log.warn("Erro ao buscar modelos Gemini: {}", e.getMessage());
