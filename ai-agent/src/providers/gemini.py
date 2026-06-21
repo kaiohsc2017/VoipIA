@@ -156,7 +156,7 @@ class GeminiProvider(BaseAIProvider):
         chunks: list[bytes] = []
         for chunk in _client().models.generate_content_stream(
             model=self._model_id,
-            contents=text,   # string pura — NUNCA Content/roles no TTS
+            contents=_clean_for_tts(str(text)),  # texto limpo — sem markdown/roles
             config=t.GenerateContentConfig(
                 response_modalities=["AUDIO"],
                 speech_config=t.SpeechConfig(
