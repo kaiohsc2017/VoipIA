@@ -59,11 +59,15 @@ class JiraCallFlow:
         informativa  = settings.get("informativa")  or ""
         encerramento = settings.get("encerramento") or _FALLBACK_ENCERRAMENTO
 
-        # 2. Boas-vindas (obrigatória)
-        await self._speak(boas_vindas)
+        # 2. Boas-vindas + prefetch de perguntas em paralelo
+        # Enquanto o TTS fala as boas-vindas, já buscamos as perguntas do backend
+        speak_task     = asyncio.create_task(self._speak(boas_vindas))
+        questions_task = asyncio.create_task(self._fetch_questions())
+        await speak_task
+        _prefetched_questions = await questions_task
 
         # 3. Turno conversacional livre com Function Calling
-        user_audio = await self._capture_audio(silence_timeout=4.0, max_duration=20.0)
+        user_audio = await self._capture_audio(silence_timeout=1.5, max_duration=20.0)
         if user_audio:
             user_text = await self.gemini.transcribe(user_audio)
             if user_text:
@@ -90,8 +94,8 @@ class JiraCallFlow:
         if informativa.strip():
             await self._speak(informativa)
 
-        # 5. Busca perguntas estruturadas da URA
-        questions = await self._fetch_questions()
+        # 5. Usa perguntas já buscadas em paralelo com as boas-vindas
+        questions = _prefetched_questions
         if not questions:
             await self._speak("Desculpe, ocorreu um erro ao carregar as perguntas. Tente novamente.")
             return
@@ -128,7 +132,7 @@ class JiraCallFlow:
     async def _ask_question(self, question_text: str) -> str | None:
         """Fala a pergunta via TTS e captura/transcreve a resposta do cliente."""
         await self._speak(question_text)
-        audio_buffer = await self._capture_audio(silence_timeout=3.0, max_duration=15.0)
+        audio_buffer = await self._capture_audio(silence_timeout=1.5, max_duration=15.0)
         if not audio_buffer:
             return None
         transcription = await self.gemini.transcribe(audio_buffer)
@@ -154,10 +158,8 @@ class JiraCallFlow:
             if not sent:
                 logger.warning(f"[{self.call_uuid}] Conexão encerrada durante TTS — abortando fala.")
                 return False
-            # Pausa proporcional ao texto para o usuário ouvir antes de capturar
-            words = len(text.split())
-            estimated_secs = max(0.5, words / 4.0)
-            await asyncio.sleep(estimated_secs)
+            # Pequena pausa para garantir que o último frame chegou ao Asterisk
+            await asyncio.sleep(0.3)
             return True
         except (BrokenPipeError, ConnectionResetError):
             logger.warning(f"[{self.call_uuid}] Pipe quebrado durante TTS — cliente desligou.")
