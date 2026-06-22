@@ -208,6 +208,7 @@ public class SecurityController {
                 updateIgnoreIp(list);
                 f2bExec("reload");
             }
+            reapplyLockdownIfActive(list);
             auditService.log(request, "SECURITY_WHITELIST_ADD", ip, true);
             return ResponseEntity.ok(Map.of("message", ip + " adicionado à lista branca."));
         } catch (Exception e) {
@@ -225,11 +226,193 @@ public class SecurityController {
             writeWhitelist(list);
             updateIgnoreIp(list);
             f2bExec("reload");
+            reapplyLockdownIfActive(list);
             auditService.log(request, "SECURITY_WHITELIST_REMOVE", ip, true);
             return ResponseEntity.ok(Map.of("message", ip + " removido."));
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
                 .body(Map.of("message", "Erro: " + e.getMessage()));
+        }
+    }
+
+    // ── Lockdown mode — bloqueia tudo, libera apenas whitelist ──────────────
+
+    @GetMapping("/lockdown")
+    public ResponseEntity<Map<String, Object>> lockdownStatus() {
+        boolean active = isLockdownActive();
+        return ResponseEntity.ok(Map.of(
+            "active",      active,
+            "description", active
+                ? "Modo lockdown ATIVO — apenas IPs da whitelist podem conectar ao SIP"
+                : "Modo normal — fail2ban monitora e bloqueia ameaças"
+        ));
+    }
+
+    @PostMapping("/lockdown/enable")
+    public ResponseEntity<Map<String, Object>> enableLockdown(HttpServletRequest request) {
+        try {
+            List<String> whitelist = readWhitelist();
+            applyLockdownIptables(whitelist);
+            applyLockdownAcl(whitelist);
+            writeLockdownFlag(true);
+            auditService.log(request, "SECURITY_LOCKDOWN_ENABLE",
+                "Modo lockdown ativado. Whitelist: " + whitelist.size() + " IPs", true);
+            return ResponseEntity.ok(Map.of(
+                "message", "Lockdown ativado. Apenas IPs da whitelist podem conectar.",
+                "whitelistedIps", whitelist.size()
+            ));
+        } catch (Exception e) {
+            log.error("enableLockdown: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                .body(Map.of("message", "Erro ao ativar lockdown: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/lockdown/disable")
+    public ResponseEntity<Map<String, Object>> disableLockdown(HttpServletRequest request) {
+        try {
+            removeLockdownIptables();
+            restorePermissiveAcl();
+            writeLockdownFlag(false);
+            auditService.log(request, "SECURITY_LOCKDOWN_DISABLE",
+                "Modo lockdown desativado. Voltando ao modo fail2ban.", true);
+            return ResponseEntity.ok(Map.of(
+                "message", "Lockdown desativado. Modo fail2ban ativo."
+            ));
+        } catch (Exception e) {
+            log.error("disableLockdown: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                .body(Map.of("message", "Erro ao desativar lockdown: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Quando a whitelist muda, re-aplica as regras se o lockdown estiver ativo.
+     * Chamado internamente após addWhitelist / removeWhitelist.
+     */
+    private void reapplyLockdownIfActive(List<String> whitelist) {
+        if (!isLockdownActive()) return;
+        try {
+            applyLockdownIptables(whitelist);
+            applyLockdownAcl(whitelist);
+            log.info("Lockdown re-aplicado com {} IPs na whitelist", whitelist.size());
+        } catch (Exception e) {
+            log.error("reapplyLockdownIfActive: {}", e.getMessage(), e);
+        }
+    }
+
+    private boolean isLockdownActive() {
+        try {
+            return Files.exists(Path.of(securityDir, "lockdown.flag"));
+        } catch (Exception e) { return false; }
+    }
+
+    private void writeLockdownFlag(boolean active) throws IOException {
+        Path flag = Path.of(securityDir, "lockdown.flag");
+        Files.createDirectories(flag.getParent());
+        if (active) Files.writeString(flag, "active", StandardCharsets.UTF_8);
+        else        Files.deleteIfExists(flag);
+    }
+
+    /**
+     * Aplica regras iptables de lockdown SIP:
+     * 1. Cria chain ASTERISK_WHITELIST (idempotente)
+     * 2. DROP padrão nas portas SIP (5060 UDP/TCP, 8088 TCP, 10000:10100 UDP)
+     * 3. ACCEPT para cada IP da whitelist
+     */
+    private void applyLockdownIptables(List<String> whitelist) throws IOException, InterruptedException {
+        // Remove chain anterior (idempotente)
+        runIptables("-D", "INPUT", "-j", "ASTERISK_WHITELIST");
+        runIptables("-F", "ASTERISK_WHITELIST");
+        runIptables("-X", "ASTERISK_WHITELIST");
+
+        // Cria nova chain
+        runIptables("-N", "ASTERISK_WHITELIST");
+
+        // ACCEPT para IPs da whitelist (antes do DROP)
+        for (String ip : whitelist) {
+            String cidr = ip.contains("/") ? ip : ip;
+            runIptables("-A", "ASTERISK_WHITELIST", "-s", cidr, "-j", "ACCEPT");
+        }
+
+        // DROP para todo o resto nas portas SIP/RTP
+        runIptables("-A", "ASTERISK_WHITELIST", "-p", "udp", "--dport", "5060", "-j", "DROP");
+        runIptables("-A", "ASTERISK_WHITELIST", "-p", "tcp", "--dport", "5060", "-j", "DROP");
+        runIptables("-A", "ASTERISK_WHITELIST", "-p", "tcp", "--dport", "8088", "-j", "DROP");
+        runIptables("-A", "ASTERISK_WHITELIST", "-p", "udp", "--dport", "10000:10100", "-j", "DROP");
+
+        // Insere a chain no INPUT
+        runIptables("-I", "INPUT", "1", "-j", "ASTERISK_WHITELIST");
+
+        log.info("Lockdown iptables aplicado: {} IPs na whitelist", whitelist.size());
+    }
+
+    private void removeLockdownIptables() {
+        try {
+            runIptables("-D", "INPUT", "-j", "ASTERISK_WHITELIST");
+            runIptables("-F", "ASTERISK_WHITELIST");
+            runIptables("-X", "ASTERISK_WHITELIST");
+            log.info("Lockdown iptables removido");
+        } catch (Exception e) {
+            log.warn("removeLockdownIptables: {}", e.getMessage());
+        }
+    }
+
+    private void runIptables(String... args) throws IOException, InterruptedException {
+        List<String> cmd = new ArrayList<>(List.of("iptables"));
+        cmd.addAll(Arrays.asList(args));
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        p.waitFor(5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Aplica ACL no Asterisk com política whitelist-only:
+     * permit=IP1, permit=IP2, ..., deny=0.0.0.0/0
+     */
+    private void applyLockdownAcl(List<String> whitelist) throws IOException {
+        Path aclPath = Path.of(asteriskConfigDir, "acl.conf");
+        StringBuilder sb = new StringBuilder();
+        sb.append("; AsteriskIA — ACL gerada automaticamente pelo modo lockdown
+");
+        sb.append("; MODO LOCKDOWN ATIVO — apenas whitelist pode conectar
+");
+        sb.append("[whitelist-only]
+");
+        sb.append("type=acl
+");
+        for (String ip : whitelist) {
+            sb.append("permit=").append(ip).append("
+");
+        }
+        sb.append("deny=0.0.0.0/0
+");
+        sb.append("deny=::/0
+");
+        writeAtomic(aclPath, sb.toString());
+        reloadAsteriskAcl();
+    }
+
+    private void restorePermissiveAcl() throws IOException {
+        Path aclPath = Path.of(asteriskConfigDir, "acl.conf");
+        writeAtomic(aclPath,
+            "; AsteriskIA — ACL — modo normal (fail2ban ativo)
+" +
+            "[blacklist]
+type=acl
+");
+        reloadAsteriskAcl();
+    }
+
+    private void reloadAsteriskAcl() {
+        try {
+            List<String> cmd = List.of(
+                "asterisk", "-rx", "acl reload"
+            );
+            new ProcessBuilder(cmd).start().waitFor(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("reloadAsteriskAcl: {}", e.getMessage());
         }
     }
 

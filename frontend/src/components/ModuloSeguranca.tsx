@@ -83,6 +83,10 @@ export default function ModuloSeguranca() {
   // Search
   const [search, setSearch] = useState('');
 
+  // Lockdown
+  const [lockdown,        setLockdown]        = useState(false);
+  const [lockdownLoading, setLockdownLoading] = useState(false);
+
   // Toast
   const [toast, setToast] = useState<{msg:string;ok:boolean}|null>(null);
   const showToast = (ok: boolean, msg: string) => {
@@ -93,14 +97,16 @@ export default function ModuloSeguranca() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [statusRes, bannedRes, threatsRes] = await Promise.all([
+      const [statusRes, bannedRes, threatsRes, lockdownRes] = await Promise.all([
         api.get<Status>('/security/status'),
         api.get<BannedIp[]>('/security/banned'),
         api.get<Threat[]>('/security/threats'),
+        api.get<{active:boolean}>('/security/lockdown'),
       ]);
       setStatus(statusRes.data);
       setBanned(bannedRes.data);
       setThreats(threatsRes.data);
+      setLockdown(lockdownRes.data.active);
     } catch { showToast(false, 'Erro ao carregar dados de segurança.'); }
     finally { setLoading(false); }
   }, []);
@@ -221,7 +227,7 @@ export default function ModuloSeguranca() {
           🛡️ Segurança
         </h1>
         <p style={{ fontSize:'0.82rem', color:'var(--text-muted)', marginTop:4 }}>
-          Proteção SIP via fail2ban + iptables + ACL Asterisk — política libera geral, bloqueia seletivamente
+          {lockdown ? '🔴 MODO LOCKDOWN ATIVO — apenas IPs da lista branca podem conectar ao SIP' : 'Proteção SIP via fail2ban + iptables + ACL Asterisk — política libera geral, bloqueia seletivamente'}
         </p>
       </div>
 
@@ -252,6 +258,46 @@ export default function ModuloSeguranca() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Botão Lockdown */}
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20,
+        padding:'12px 16px', borderRadius:8,
+        background: lockdown ? 'rgba(239,68,68,0.08)' : 'rgba(148,163,184,0.06)',
+        border: `1px solid ${lockdown ? 'rgba(239,68,68,0.3)' : 'var(--border-glass)'}` }}>
+        <div style={{ flex:1 }}>
+          <div style={{ fontWeight:600, fontSize:'0.9rem', color: lockdown ? 'var(--color-text-danger)' : 'var(--text-primary)' }}>
+            {lockdown ? '🔴 Modo Lockdown Ativo' : '🟢 Modo Normal (fail2ban)'}
+          </div>
+          <div style={{ fontSize:'0.78rem', color:'var(--text-muted)', marginTop:2 }}>
+            {lockdown
+              ? 'Todos IPs externos BLOQUEADOS. Apenas whitelist pode conectar ao SIP.'
+              : 'Fail2ban monitora e bloqueia ameaças automaticamente.'}
+          </div>
+        </div>
+        <button
+          disabled={lockdownLoading}
+          onClick={async () => {
+            setLockdownLoading(true);
+            try {
+              const endpoint = lockdown ? '/security/lockdown/disable' : '/security/lockdown/enable';
+              await api.post(endpoint, {});
+              setLockdown(!lockdown);
+              showToast(true, lockdown ? 'Lockdown desativado.' : 'Lockdown ativado! Apenas whitelist pode conectar.');
+              load();
+            } catch { showToast(false, 'Erro ao alterar modo de segurança.'); }
+            finally { setLockdownLoading(false); }
+          }}
+          style={{
+            padding:'8px 18px', borderRadius:8, fontWeight:600, fontSize:'0.85rem',
+            cursor: lockdownLoading ? 'not-allowed' : 'pointer',
+            border:'none', opacity: lockdownLoading ? 0.6 : 1,
+            background: lockdown ? 'var(--color-text-danger)' : 'var(--color-text-primary)',
+            color: '#fff',
+          }}
+        >
+          {lockdownLoading ? '...' : lockdown ? 'Desativar Lockdown' : 'Ativar Lockdown'}
+        </button>
       </div>
 
       {/* Cards de estatísticas */}
