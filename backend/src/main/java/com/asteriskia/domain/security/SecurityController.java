@@ -339,6 +339,8 @@ public class SecurityController {
         script.append("iptables -I INPUT 1 -j ASTERISK_WHITELIST\n");
         script.append("echo '[lockdown] iptables aplicado'\n");
         writeSecurityCmd("lockdown-enable", script.toString());
+        // Salva script persistente para reaplicar após restart do security container
+        writePersistentLockdown(script.toString());
         log.info("Lockdown script enviado para security container: {} IPs", whitelist.size());
     }
 
@@ -350,10 +352,25 @@ public class SecurityController {
                 "iptables -X ASTERISK_WHITELIST 2>/dev/null || true\n" +
                 "echo '[lockdown] iptables removido'\n";
             writeSecurityCmd("lockdown-disable", script);
+            removePersistentLockdown();
             log.info("Lockdown disable script enviado para security container");
         } catch (Exception e) {
             log.warn("removeLockdownIptables: {}", e.getMessage());
         }
+    }
+
+    private void writePersistentLockdown(String script) {
+        try {
+            Path p = Path.of(SECURITY_CMD_DIR, "lockdown-persistent.sh");
+            Files.createDirectories(p.getParent());
+            Files.writeString(p, script, StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        } catch (Exception e) { log.warn("writePersistentLockdown: {}", e.getMessage()); }
+    }
+
+    private void removePersistentLockdown() {
+        try { Files.deleteIfExists(Path.of(SECURITY_CMD_DIR, "lockdown-persistent.sh")); }
+        catch (Exception e) { log.warn("removePersistentLockdown: {}", e.getMessage()); }
     }
 
     /**
