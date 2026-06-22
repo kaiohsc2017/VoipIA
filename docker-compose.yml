@@ -15,6 +15,7 @@ volumes:
   asterisk_recordings:
   asterisk_log:
   fail2ban_socket:
+  security_cmds:
   prometheus_data:
   grafana_data:
   agents_pgdata:
