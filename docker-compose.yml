@@ -302,8 +302,11 @@ services:
       - ./security/config/action.d:/etc/fail2ban/action.d
       # Socket do fail2ban — compartilhado com o backend para fail2ban-client
       - fail2ban_socket:/var/run/fail2ban
-      # Volume de comandos iptables enviados pelo backend
+      # Volume de comandos enviados pelo backend
       - security_cmds:/var/run/asteriskia-security
+      # UFW do host — montado para o security container aplicar regras
+      - /etc/ufw:/etc/ufw
+      - /run/ufw.lock:/run/ufw.lock
     healthcheck:
       test: ["CMD", "fail2ban-client", "ping"]
       interval: 30s

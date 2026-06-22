@@ -318,47 +318,53 @@ public class SecurityController {
     private static final String SECURITY_CMD_DIR = "/var/run/asteriskia-security";
 
     /**
-     * Aplica lockdown SIP via UFW (que é a camada ativa no host Ubuntu).
-     * O host usa nf_tables como backend e o UFW gerencia as regras — inserir
-     * regras iptables raw não é suficiente pois o UFW tem prioridade.
+     * Aplica lockdown SIP via nftables direto.
      *
-     * Estratégia:
-     * 1. UFW deny from any to any port 5060,8088 (bloqueia tudo nas portas SIP)
-     * 2. UFW allow from <whitelist_ip> to any port 5060,8088 (libera whitelist)
-     *    Inseridas ANTES das regras de deny via ufw insert 1
-     * 3. Persiste entre restarts pois UFW salva em /etc/ufw/
+     * O container security usa network_mode:host — compartilha o namespace
+     * de rede do host. As regras nftables aplicadas dentro do container
+     * afetam o host diretamente.
+     *
+     * Usa nft (nftables nativo) para evitar conflito com iptables-legacy vs nf_tables.
+     * Cria uma tabela 'asteriskia' com chain 'sip-lockdown' de alta prioridade
+     * (priority -150, antes do UFW que usa priority -100).
      */
     private void applyLockdownIptables(List<String> whitelist) throws IOException, InterruptedException {
         StringBuilder script = new StringBuilder("#!/bin/bash\n");
-        script.append("# Lockdown SIP via UFW — gerado pelo AsteriskIA\n");
-        script.append("# Remove regras antigas de lockdown\n");
-        script.append("ufw status numbered 2>/dev/null | grep -E '5060|8088|10000' | grep 'DENY IN' | awk -F'[\\[\\]]' '{print $2}' | sort -rn | while read n; do echo y | ufw delete $n 2>/dev/null; done\n");
-        script.append("# Bloqueia portas SIP/RTP para todos\n");
-        script.append("ufw deny in on any to any port 5060 proto udp\n");
-        script.append("ufw deny in on any to any port 5060 proto tcp\n");
-        script.append("ufw deny in on any to any port 8088 proto tcp\n");
-        // Libera whitelist inserindo antes das regras de deny
+        script.append("# AsteriskIA SIP Lockdown via nftables\n");
+        script.append("# Remove tabela anterior se existir\n");
+        script.append("nft delete table ip asteriskia 2>/dev/null || true\n");
+        script.append("# Cria tabela e chain com prioridade -150 (antes do UFW em -100)\n");
+        script.append("nft add table ip asteriskia\n");
+        script.append("nft add chain ip asteriskia sip-lockdown '{ type filter hook input priority -150; policy accept; }'\n");
+        // ACCEPT para IPs da whitelist
         for (String ip : whitelist) {
-            script.append("ufw insert 1 allow from ").append(ip).append(" to any port 5060\n");
-            script.append("ufw insert 1 allow from ").append(ip).append(" to any port 8088\n");
+            script.append("nft add rule ip asteriskia sip-lockdown ip saddr ").append(ip)
+                  .append(" udp dport 5060 accept\n");
+            script.append("nft add rule ip asteriskia sip-lockdown ip saddr ").append(ip)
+                  .append(" tcp dport 5060 accept\n");
+            script.append("nft add rule ip asteriskia sip-lockdown ip saddr ").append(ip)
+                  .append(" tcp dport 8088 accept\n");
         }
-        script.append("ufw reload\n");
-        script.append("echo '[lockdown] UFW lockdown aplicado'\n");
+        // DROP para todos os outros
+        script.append("nft add rule ip asteriskia sip-lockdown udp dport 5060 drop\n");
+        script.append("nft add rule ip asteriskia sip-lockdown tcp dport 5060 drop\n");
+        script.append("nft add rule ip asteriskia sip-lockdown tcp dport 8088 drop\n");
+        script.append("nft add rule ip asteriskia sip-lockdown udp dport 10000-10100 drop\n");
+        script.append("echo '[lockdown] nftables aplicado'\n");
+        script.append("nft list table ip asteriskia\n");
         writeSecurityCmd("lockdown-enable", script.toString());
         writePersistentLockdown(script.toString());
-        log.info("Lockdown UFW script enviado: {} IPs na whitelist", whitelist.size());
+        log.info("Lockdown nftables script enviado: {} IPs na whitelist", whitelist.size());
     }
 
     private void removeLockdownIptables() {
         try {
             String script = "#!/bin/bash\n" +
-                "# Remove lockdown UFW\n" +
-                "ufw status numbered 2>/dev/null | grep -E '5060|8088' | grep -E 'ALLOW IN|DENY IN' | awk -F'[\\[\\]]' '{print $2}' | sort -rn | while read n; do echo y | ufw delete $n 2>/dev/null; done\n" +
-                "ufw reload\n" +
-                "echo '[lockdown] UFW lockdown removido'\n";
+                "nft delete table ip asteriskia 2>/dev/null || true\n" +
+                "echo '[lockdown] nftables removido'\n";
             writeSecurityCmd("lockdown-disable", script);
             removePersistentLockdown();
-            log.info("Lockdown disable UFW script enviado");
+            log.info("Lockdown disable nftables script enviado");
         } catch (Exception e) {
             log.warn("removeLockdownIptables: {}", e.getMessage());
         }
