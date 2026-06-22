@@ -200,6 +200,8 @@ services:
       # Settings Manager — permite ao backend reescrever .env e reiniciar containers
       SETTINGS_FILE_PATH: /opt/asteriskia/env/.env
       SETTINGS_COMPOSE_DIR: /opt/AsteriskIA
+    cap_add:
+      - NET_ADMIN   # necessário para iptables (modo lockdown SIP)
     volumes:
       # Volume compartilhado com o Asterisk — contém as gravações das chamadas
       # Montado em caminho fixo para o backend sempre encontrar os arquivos
