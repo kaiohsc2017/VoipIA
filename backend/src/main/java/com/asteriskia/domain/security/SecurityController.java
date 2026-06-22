@@ -374,22 +374,15 @@ public class SecurityController {
     private void applyLockdownAcl(List<String> whitelist) throws IOException {
         Path aclPath = Path.of(asteriskConfigDir, "acl.conf");
         StringBuilder sb = new StringBuilder();
-        sb.append("; AsteriskIA — ACL gerada automaticamente pelo modo lockdown
-");
-        sb.append("; MODO LOCKDOWN ATIVO — apenas whitelist pode conectar
-");
-        sb.append("[whitelist-only]
-");
-        sb.append("type=acl
-");
+        sb.append("; AsteriskIA — ACL gerada automaticamente pelo modo lockdown\n");
+        sb.append("; MODO LOCKDOWN ATIVO — apenas whitelist pode conectar\n");
+        sb.append("[whitelist-only]\n");
+        sb.append("type=acl\n");
         for (String ip : whitelist) {
-            sb.append("permit=").append(ip).append("
-");
+            sb.append("permit=").append(ip).append("\n");
         }
-        sb.append("deny=0.0.0.0/0
-");
-        sb.append("deny=::/0
-");
+        sb.append("deny=0.0.0.0/0\n");
+        sb.append("deny=::/0\n");
         writeAtomic(aclPath, sb.toString());
         reloadAsteriskAcl();
     }
@@ -397,11 +390,8 @@ public class SecurityController {
     private void restorePermissiveAcl() throws IOException {
         Path aclPath = Path.of(asteriskConfigDir, "acl.conf");
         writeAtomic(aclPath,
-            "; AsteriskIA — ACL — modo normal (fail2ban ativo)
-" +
-            "[blacklist]
-type=acl
-");
+            "; AsteriskIA — ACL — modo normal (fail2ban ativo)\n" +
+            "[blacklist]\ntype=acl\n");
         reloadAsteriskAcl();
     }
 
