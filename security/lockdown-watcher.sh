@@ -5,20 +5,19 @@ mkdir -p "$CMD_DIR"
 echo "[lockdown-watcher] Iniciado"
 
 while true; do
-    # Executa scripts .cmd pendentes
     for f in "$CMD_DIR"/*.cmd; do
         [ -f "$f" ] || continue
         echo "[lockdown-watcher] Executando: $f"
         bash "$f" > "${f%.cmd}.out" 2>&1
-        echo "[lockdown-watcher] Concluído: $(tail -1 ${f%.cmd}.out)"
+        echo "[lockdown-watcher] OK: $(tail -1 ${f%.cmd}.out)"
         rm -f "$f"
     done
 
-    # Reaaplica lockdown se as regras sumiram (ex: restart do Docker)
+    # Reaaplica lockdown se regras sumiram (ex: restart Docker)
     PERSISTENT="$CMD_DIR/lockdown-persistent.sh"
     if [ -f "$PERSISTENT" ]; then
-        if ! iptables-legacy -L DOCKER-USER 2>/dev/null | grep -q "DROP.*dpt:sip"; then
-            echo "[lockdown-watcher] Regras perdidas, reaplicando lockdown..."
+        if ! nft list chain ip filter DOCKER-USER 2>/dev/null | grep -q "dport 5060 drop"; then
+            echo "[lockdown-watcher] Regras perdidas, reaplicando..."
             bash "$PERSISTENT" > /tmp/lockdown-reapply.out 2>&1
         fi
     fi

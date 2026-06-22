@@ -318,40 +318,42 @@ public class SecurityController {
     private static final String SECURITY_CMD_DIR = "/var/run/asteriskia-security";
 
     /**
-     * Aplica lockdown via iptables-legacy na chain DOCKER-USER.
-     * Única chain que bloqueia tráfego antes do DNAT do Docker.
+     * Aplica lockdown via nft na chain DOCKER-USER.
+     * O Docker neste host usa nftables — a chain DOCKER-USER nftables
+     * é processada para todo tráfego destinado a containers.
      */
     private void applyLockdownIptables(List<String> whitelist) throws IOException, InterruptedException {
         StringBuilder script = new StringBuilder("#!/bin/bash\n");
-        script.append("IPT=iptables-legacy\n");
-        script.append("$IPT -F DOCKER-USER 2>/dev/null || true\n");
-        script.append("$IPT -A DOCKER-USER -p tcp --dport 5038 -j DROP\n");
-        script.append("$IPT -A DOCKER-USER -p tcp --dport 8088 -j DROP\n");
-        script.append("$IPT -A DOCKER-USER -p tcp --dport 5060 -j DROP\n");
-        script.append("$IPT -A DOCKER-USER -p udp --dport 5060 -j DROP\n");
-        script.append("$IPT -A DOCKER-USER -j RETURN\n");
+        script.append("# Limpa regras anteriores da DOCKER-USER (exceto AMI que pode já existir)\n");
+        script.append("nft flush chain ip filter DOCKER-USER 2>/dev/null || true\n");
+        script.append("# Whitelist — ACCEPT para IPs autorizados\n");
         for (String ip : whitelist) {
-            script.append("$IPT -I DOCKER-USER 1 -s ").append(ip).append(" -j ACCEPT\n");
+            script.append("nft add rule ip filter DOCKER-USER ip saddr ").append(ip).append(" accept\n");
         }
-        script.append("echo '[lockdown] DOCKER-USER aplicado'\n");
-        script.append("$IPT -L DOCKER-USER --line-numbers\n");
+        script.append("# DROP portas SIP/WebRTC/AMI para todos os outros\n");
+        script.append("nft add rule ip filter DOCKER-USER udp dport 5060 drop\n");
+        script.append("nft add rule ip filter DOCKER-USER tcp dport 5060 drop\n");
+        script.append("nft add rule ip filter DOCKER-USER tcp dport 8088 drop\n");
+        script.append("nft add rule ip filter DOCKER-USER tcp dport 5038 drop\n");
+        script.append("echo '[lockdown] nft DOCKER-USER aplicado'\n");
+        script.append("nft list chain ip filter DOCKER-USER\n");
         writeSecurityCmd("lockdown-enable", script.toString());
         writePersistentLockdown(script.toString());
-        log.info("Lockdown DOCKER-USER enviado: {} IPs", whitelist.size());
+        log.info("Lockdown nft DOCKER-USER enviado: {} IPs", whitelist.size());
     }
 
     private void removeLockdownIptables() {
         try {
             String script = "#!/bin/bash\n" +
-                "iptables-legacy -F DOCKER-USER 2>/dev/null || true\n" +
-                "iptables-legacy -A DOCKER-USER -j RETURN 2>/dev/null || true\n" +
-                "echo '[lockdown] DOCKER-USER restaurado'\n";
+                "nft flush chain ip filter DOCKER-USER 2>/dev/null || true\n" +
+                "echo '[lockdown] DOCKER-USER limpa'\n";
             writeSecurityCmd("lockdown-disable", script);
             removePersistentLockdown();
             log.info("Lockdown disable DOCKER-USER enviado");
         } catch (Exception e) {
             log.warn("removeLockdownIptables: {}", e.getMessage());
         }
+    }
     }
     }
 
