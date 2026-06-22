@@ -212,6 +212,8 @@ services:
       - /opt/AsteriskIA/asterisk/config:/etc/asterisk
       # Socket do fail2ban — permite executar fail2ban-client via backend
       - fail2ban_socket:/var/run/fail2ban
+      # Volume compartilhado para comandos iptables (executados pelo security container)
+      - security_cmds:/var/run/asteriskia-security
       # Configs do security — leitura/escrita dos jails e filtros pela UI
       - /opt/AsteriskIA/security/config:/opt/asteriskia/security/config
       - /opt/AsteriskIA/security:/opt/asteriskia/security
@@ -299,6 +301,8 @@ services:
       - ./security/config/action.d:/etc/fail2ban/action.d
       # Socket do fail2ban — compartilhado com o backend para fail2ban-client
       - fail2ban_socket:/var/run/fail2ban
+      # Volume de comandos iptables enviados pelo backend
+      - security_cmds:/var/run/asteriskia-security
     healthcheck:
       test: ["CMD", "fail2ban-client", "ping"]
       interval: 30s
