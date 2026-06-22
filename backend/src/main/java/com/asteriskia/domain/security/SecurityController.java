@@ -318,42 +318,47 @@ public class SecurityController {
     private static final String SECURITY_CMD_DIR = "/var/run/asteriskia-security";
 
     /**
-     * Aplica regras iptables de lockdown SIP delegando ao container security.
-     * O backend escreve um script .cmd no volume compartilhado;
-     * o security container (network_mode: host, NET_ADMIN) executa e remove.
+     * Aplica lockdown SIP via UFW (que é a camada ativa no host Ubuntu).
+     * O host usa nf_tables como backend e o UFW gerencia as regras — inserir
+     * regras iptables raw não é suficiente pois o UFW tem prioridade.
+     *
+     * Estratégia:
+     * 1. UFW deny from any to any port 5060,8088 (bloqueia tudo nas portas SIP)
+     * 2. UFW allow from <whitelist_ip> to any port 5060,8088 (libera whitelist)
+     *    Inseridas ANTES das regras de deny via ufw insert 1
+     * 3. Persiste entre restarts pois UFW salva em /etc/ufw/
      */
     private void applyLockdownIptables(List<String> whitelist) throws IOException, InterruptedException {
         StringBuilder script = new StringBuilder("#!/bin/bash\n");
-        script.append("# Lockdown SIP — gerado pelo AsteriskIA backend\n");
-        script.append("iptables -D INPUT -j ASTERISK_WHITELIST 2>/dev/null || true\n");
-        script.append("iptables -F ASTERISK_WHITELIST 2>/dev/null || true\n");
-        script.append("iptables -X ASTERISK_WHITELIST 2>/dev/null || true\n");
-        script.append("iptables -N ASTERISK_WHITELIST\n");
+        script.append("# Lockdown SIP via UFW — gerado pelo AsteriskIA\n");
+        script.append("# Remove regras antigas de lockdown\n");
+        script.append("ufw status numbered 2>/dev/null | grep -E '5060|8088|10000' | grep 'DENY IN' | awk -F'[\\[\\]]' '{print $2}' | sort -rn | while read n; do echo y | ufw delete $n 2>/dev/null; done\n");
+        script.append("# Bloqueia portas SIP/RTP para todos\n");
+        script.append("ufw deny in on any to any port 5060 proto udp\n");
+        script.append("ufw deny in on any to any port 5060 proto tcp\n");
+        script.append("ufw deny in on any to any port 8088 proto tcp\n");
+        // Libera whitelist inserindo antes das regras de deny
         for (String ip : whitelist) {
-            script.append("iptables -A ASTERISK_WHITELIST -s ").append(ip).append(" -j ACCEPT\n");
+            script.append("ufw insert 1 allow from ").append(ip).append(" to any port 5060\n");
+            script.append("ufw insert 1 allow from ").append(ip).append(" to any port 8088\n");
         }
-        script.append("iptables -A ASTERISK_WHITELIST -p udp --dport 5060 -j DROP\n");
-        script.append("iptables -A ASTERISK_WHITELIST -p tcp --dport 5060 -j DROP\n");
-        script.append("iptables -A ASTERISK_WHITELIST -p tcp --dport 8088 -j DROP\n");
-        script.append("iptables -A ASTERISK_WHITELIST -p udp --dport 10000:10100 -j DROP\n");
-        script.append("iptables -I INPUT 1 -j ASTERISK_WHITELIST\n");
-        script.append("echo '[lockdown] iptables aplicado'\n");
+        script.append("ufw reload\n");
+        script.append("echo '[lockdown] UFW lockdown aplicado'\n");
         writeSecurityCmd("lockdown-enable", script.toString());
-        // Salva script persistente para reaplicar após restart do security container
         writePersistentLockdown(script.toString());
-        log.info("Lockdown script enviado para security container: {} IPs", whitelist.size());
+        log.info("Lockdown UFW script enviado: {} IPs na whitelist", whitelist.size());
     }
 
     private void removeLockdownIptables() {
         try {
             String script = "#!/bin/bash\n" +
-                "iptables -D INPUT -j ASTERISK_WHITELIST 2>/dev/null || true\n" +
-                "iptables -F ASTERISK_WHITELIST 2>/dev/null || true\n" +
-                "iptables -X ASTERISK_WHITELIST 2>/dev/null || true\n" +
-                "echo '[lockdown] iptables removido'\n";
+                "# Remove lockdown UFW\n" +
+                "ufw status numbered 2>/dev/null | grep -E '5060|8088' | grep -E 'ALLOW IN|DENY IN' | awk -F'[\\[\\]]' '{print $2}' | sort -rn | while read n; do echo y | ufw delete $n 2>/dev/null; done\n" +
+                "ufw reload\n" +
+                "echo '[lockdown] UFW lockdown removido'\n";
             writeSecurityCmd("lockdown-disable", script);
             removePersistentLockdown();
-            log.info("Lockdown disable script enviado para security container");
+            log.info("Lockdown disable UFW script enviado");
         } catch (Exception e) {
             log.warn("removeLockdownIptables: {}", e.getMessage());
         }
