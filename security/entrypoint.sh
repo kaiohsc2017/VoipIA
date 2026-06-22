@@ -3,17 +3,11 @@ set -e
 
 echo "[security] Iniciando AsteriskIA Security Container..."
 
-if ! command -v iptables &>/dev/null; then
-    echo "[security] ERRO: iptables não encontrado"; exit 1
-fi
-
-# Limpa socket antigo do fail2ban (evita "unexpected state" error)
+# Limpa socket antigo do fail2ban
 rm -f /var/run/fail2ban/fail2ban.sock
-
 mkdir -p /var/run/fail2ban
 chmod 750 /var/run/fail2ban
 
-# Diretório de comandos iptables do backend
 CMD_DIR="/var/run/asteriskia-security"
 mkdir -p "$CMD_DIR"
 chmod 777 "$CMD_DIR"
@@ -28,30 +22,37 @@ done
 
 echo "[security] Iniciando fail2ban e watcher de comandos..."
 
-# Watcher de comandos em background — independente do fail2ban
+# Watcher de comandos .cmd
 (while true; do
     for f in "$CMD_DIR"/*.cmd; do
         [ -f "$f" ] || continue
         echo "[security-watcher] Executando: $f"
         bash "$f" > "${f%.cmd}.out" 2>&1
-        echo "[security-watcher] Resultado: $(cat ${f%.cmd}.out)"
+        echo "[security-watcher] OK: $(tail -1 ${f%.cmd}.out)"
         rm -f "$f"
     done
     sleep 1
 done) &
 
-# Watcher de lockdown persistente — reaaplica iptables após restart
-LOCKDOWN_SCRIPT="$CMD_DIR/lockdown-persistent.sh"
+# Watcher de lockdown persistente — reaaplica nftables após restart
 (while true; do
-    sleep 10
-    if [ -f "$LOCKDOWN_SCRIPT" ]; then
-        # Verifica se a chain ainda existe
-        if ! iptables -L ASTERISK_WHITELIST &>/dev/null 2>&1; then
-            echo "[security-watcher] Chain perdida, reaplicando lockdown..."
-            bash "$LOCKDOWN_SCRIPT" 2>/dev/null || true
+    sleep 15
+    PERSISTENT="$CMD_DIR/lockdown-persistent.sh"
+    if [ -f "$PERSISTENT" ]; then
+        if ! nft list table ip asteriskia &>/dev/null 2>&1; then
+            echo "[security-watcher] Tabela nft perdida, reaplicando lockdown..."
+            bash "$PERSISTENT" > /tmp/nft-reapply.out 2>&1 || true
         fi
     fi
 done) &
+
+# Aplica lockdown imediatamente ao iniciar se havia lockdown ativo
+PERSISTENT="$CMD_DIR/lockdown-persistent.sh"
+if [ -f "$PERSISTENT" ]; then
+    echo "[security] Reaplicando lockdown após restart..."
+    bash "$PERSISTENT" > /tmp/nft-startup.out 2>&1 || true
+    echo "[security] Lockdown reaplicado"
+fi
 
 exec fail2ban-server \
     -f \

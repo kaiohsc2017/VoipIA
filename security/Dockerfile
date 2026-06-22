@@ -3,6 +3,7 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     fail2ban \
     iptables \
+    nftables \
     iproute2 \
     python3 \
     curl \
