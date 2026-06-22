@@ -314,57 +314,66 @@ public class SecurityController {
         else        Files.deleteIfExists(flag);
     }
 
+    // Diretório compartilhado com o container security (que tem NET_ADMIN + iptables)
+    private static final String SECURITY_CMD_DIR = "/var/run/asteriskia-security";
+
     /**
-     * Aplica regras iptables de lockdown SIP:
-     * 1. Cria chain ASTERISK_WHITELIST (idempotente)
-     * 2. DROP padrão nas portas SIP (5060 UDP/TCP, 8088 TCP, 10000:10100 UDP)
-     * 3. ACCEPT para cada IP da whitelist
+     * Aplica regras iptables de lockdown SIP delegando ao container security.
+     * O backend escreve um script .cmd no volume compartilhado;
+     * o security container (network_mode: host, NET_ADMIN) executa e remove.
      */
     private void applyLockdownIptables(List<String> whitelist) throws IOException, InterruptedException {
-        // Remove chain anterior (idempotente)
-        runIptables("-D", "INPUT", "-j", "ASTERISK_WHITELIST");
-        runIptables("-F", "ASTERISK_WHITELIST");
-        runIptables("-X", "ASTERISK_WHITELIST");
-
-        // Cria nova chain
-        runIptables("-N", "ASTERISK_WHITELIST");
-
-        // ACCEPT para IPs da whitelist (antes do DROP)
+        StringBuilder script = new StringBuilder("#!/bin/bash\n");
+        script.append("# Lockdown SIP — gerado pelo AsteriskIA backend\n");
+        script.append("iptables -D INPUT -j ASTERISK_WHITELIST 2>/dev/null || true\n");
+        script.append("iptables -F ASTERISK_WHITELIST 2>/dev/null || true\n");
+        script.append("iptables -X ASTERISK_WHITELIST 2>/dev/null || true\n");
+        script.append("iptables -N ASTERISK_WHITELIST\n");
         for (String ip : whitelist) {
-            String cidr = ip.contains("/") ? ip : ip;
-            runIptables("-A", "ASTERISK_WHITELIST", "-s", cidr, "-j", "ACCEPT");
+            script.append("iptables -A ASTERISK_WHITELIST -s ").append(ip).append(" -j ACCEPT\n");
         }
-
-        // DROP para todo o resto nas portas SIP/RTP
-        runIptables("-A", "ASTERISK_WHITELIST", "-p", "udp", "--dport", "5060", "-j", "DROP");
-        runIptables("-A", "ASTERISK_WHITELIST", "-p", "tcp", "--dport", "5060", "-j", "DROP");
-        runIptables("-A", "ASTERISK_WHITELIST", "-p", "tcp", "--dport", "8088", "-j", "DROP");
-        runIptables("-A", "ASTERISK_WHITELIST", "-p", "udp", "--dport", "10000:10100", "-j", "DROP");
-
-        // Insere a chain no INPUT
-        runIptables("-I", "INPUT", "1", "-j", "ASTERISK_WHITELIST");
-
-        log.info("Lockdown iptables aplicado: {} IPs na whitelist", whitelist.size());
+        script.append("iptables -A ASTERISK_WHITELIST -p udp --dport 5060 -j DROP\n");
+        script.append("iptables -A ASTERISK_WHITELIST -p tcp --dport 5060 -j DROP\n");
+        script.append("iptables -A ASTERISK_WHITELIST -p tcp --dport 8088 -j DROP\n");
+        script.append("iptables -A ASTERISK_WHITELIST -p udp --dport 10000:10100 -j DROP\n");
+        script.append("iptables -I INPUT 1 -j ASTERISK_WHITELIST\n");
+        script.append("echo '[lockdown] iptables aplicado'\n");
+        writeSecurityCmd("lockdown-enable", script.toString());
+        log.info("Lockdown script enviado para security container: {} IPs", whitelist.size());
     }
 
     private void removeLockdownIptables() {
         try {
-            runIptables("-D", "INPUT", "-j", "ASTERISK_WHITELIST");
-            runIptables("-F", "ASTERISK_WHITELIST");
-            runIptables("-X", "ASTERISK_WHITELIST");
-            log.info("Lockdown iptables removido");
+            String script = "#!/bin/bash\n" +
+                "iptables -D INPUT -j ASTERISK_WHITELIST 2>/dev/null || true\n" +
+                "iptables -F ASTERISK_WHITELIST 2>/dev/null || true\n" +
+                "iptables -X ASTERISK_WHITELIST 2>/dev/null || true\n" +
+                "echo '[lockdown] iptables removido'\n";
+            writeSecurityCmd("lockdown-disable", script);
+            log.info("Lockdown disable script enviado para security container");
         } catch (Exception e) {
             log.warn("removeLockdownIptables: {}", e.getMessage());
         }
     }
 
-    private void runIptables(String... args) throws IOException, InterruptedException {
-        List<String> cmd = new ArrayList<>(List.of("iptables"));
-        cmd.addAll(Arrays.asList(args));
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        p.waitFor(5, TimeUnit.SECONDS);
+    /**
+     * Escreve um script .cmd no volume compartilhado.
+     * O security container tem um watcher que executa e remove esses scripts.
+     */
+    private void writeSecurityCmd(String name, String script) throws IOException {
+        Path dir = Path.of(SECURITY_CMD_DIR);
+        Files.createDirectories(dir);
+        Path cmdFile = dir.resolve(name + "-" + System.currentTimeMillis() + ".cmd");
+        Files.writeString(cmdFile, script, StandardCharsets.UTF_8,
+            StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        // Aguarda o security container executar (máx 5s)
+        long start = System.currentTimeMillis();
+        while (Files.exists(cmdFile) && System.currentTimeMillis() - start < 5000) {
+            try { Thread.sleep(200); } catch (InterruptedException ignored) {}
+        }
+        if (Files.exists(cmdFile)) {
+            log.warn("Security cmd não foi executado em 5s: {}", cmdFile);
+        }
     }
 
     /**
