@@ -1,111 +1,192 @@
 # AsteriskIA
 
-Sistema de telefonia inteligente integrando **Asterisk + IA (Google Gemini)** em Docker, com três módulos funcionais e dashboard em tempo real:
+Sistema de telefonia inteligente integrando **Asterisk 21 LTS + IA (Google Gemini)** em Docker, com três módulos funcionais, plataforma de agentes de automação e dashboard em tempo real.
 
 | Módulo | Descrição |
 |--------|-----------|
 | 🎫 **Módulo 1** | URA inteligente que abre chamados no Jira Cloud via voz |
 | 📞 **Módulo 2** | Testes automáticos de conectividade de números telefônicos |
 | 🚨 **Módulo 3** | Alertas de infraestrutura via Zabbix → ligação + Telegram |
+| 🤖 **Agentes** | Plataforma de automação com agentes IA (SSH, Web, DB, Logs) |
 
-## Stack Tecnológica
+---
 
-- **PBX**: Asterisk 21 LTS (chan_pjsip + app_audiosocket + WebRTC)
-- **Backend**: Spring Boot 3.x (Java 21) — WAR no Tomcat 11 + WebSocket STOMP
-- **Frontend**: React 18 + TypeScript + Recharts + Softphone WebRTC (JsSIP)
-- **Agente de IA**: Python 3.12 (asyncio + Function Calling Gemini Tools)
-- **Banco de dados**: PostgreSQL 16
-- **IA**: Google Gemini (STT + LLM + TTS + Function Calling)
-- **Monitoração**: Prometheus + Grafana
-- **Infra**: Docker + Docker Compose
+## Stack
 
-## Pré-requisitos
+| Camada | Tecnologia |
+|--------|-----------|
+| PBX | Asterisk 21 LTS — chan_pjsip + app_audiosocket + WebRTC |
+| Backend | Spring Boot 3.3 (Java 21) — WAR no Tomcat 11 + WebSocket STOMP |
+| Frontend | React 18 + TypeScript + Recharts + Softphone WebRTC (JsSIP) |
+| Agentes | FastAPI + Python 3.12 asyncio |
+| IA | Google Gemini 2.5 Flash — STT + LLM + TTS + Function Calling |
+| Banco | PostgreSQL 16 — Flyway V1–V14 (Telecom) + migrate.py (Agentes) |
+| Proxy | Caddy 2 — TLS automático (Let's Encrypt) |
+| Segurança | Fail2ban + nftables (lockdown SIP) |
+| Infra | Docker Compose — 8 containers em rede `172.16.7.0/24` |
 
-- Docker 24+
-- Docker Compose v2
+---
+
+## Requisitos
+
+- Ubuntu 22.04 LTS ou 24.04 LTS
+- Docker 24+ com Compose v2
 - Git
+- Domínio com DNS apontando para o VPS (para TLS automático do Caddy)
 
-## Configuração Inicial
+---
+
+## Instalação rápida
 
 ```bash
-# 1. Clone o repositório
-git clone https://github.com/kaiohsc2017/AsteriskIA.git
-cd AsteriskIA
+curl -fsSL https://app.voiphash.com.br/install.sh | bash
+```
 
-# 2. Configure as variáveis de ambiente
+Ou manualmente:
+
+```bash
+git clone https://github.com/kaiohsc2017/AsteriskIA.git /opt/AsteriskIA
+cd /opt/AsteriskIA
 cp .env.example .env
 # Edite o .env com suas credenciais
-# Gere segredos seguros com: openssl rand -hex 32
-
-# 3. Suba o ambiente
-docker compose up -d
-
-# 4. Verifique os serviços
-docker compose ps
+docker compose up -d --build
 ```
+
+---
 
 ## Acessos
 
-| Serviço | URL | Credenciais |
-|---------|-----|-------------|
-| Frontend | http://localhost | ADMIN_USERNAME / ADMIN_PASSWORD do .env |
-| Backend API | http://localhost:8080/swagger-ui.html | — |
-| Grafana | http://localhost:3000 | admin / GRAFANA_ADMIN_PASSWORD do .env |
-| Prometheus | http://localhost:9090 | — |
+| Serviço | URL |
+|---------|-----|
+| Painel Telecom | https://app.voiphash.com.br |
+| Plataforma Agentes | https://app.voiphash.com.br/agents/ |
+| Documentação | https://app.voiphash.com.br/docs/ |
 
-## Testes Locais com Softphone
+---
 
-### Softphone Desktop (Zoiper / MicroSIP)
+## Containers e IPs
 
-Configure com:
-- **Servidor**: `localhost`
-- **Usuário**: `1001`
-- **Senha**: `ramal1001pass`
-- **Protocolo**: SIP/UDP
+| IP | Container | Serviço |
+|----|-----------|---------|
+| `172.16.7.10` | `asteriskia-caddy` | Proxy reverso HTTPS |
+| `172.16.7.11` | `asteriskia-postgres` | PostgreSQL 16 |
+| `172.16.7.12` | `asteriskia-asterisk` | Asterisk 21 LTS |
+| `172.16.7.13` | `asteriskia-ai-agent` | Agente IA (AudioSocket) |
+| `172.16.7.14` | `asteriskia-backend` | Spring Boot API |
+| `172.16.7.15` | `asteriskia-frontend` | React + Nginx |
+| `172.16.7.16` | `asteriskia-agents-api` | FastAPI Agentes |
+| host | `asteriskia-security` | Fail2ban + nftables |
 
-Disque `1000` para acessar a URA de abertura de chamados (Módulo 1).
+---
 
-### Softphone WebRTC (embutido no navegador)
-
-- Abrir o frontend em `http://localhost`
-- Clicar no botão 📞 no canto inferior direito da tela
-- O ramal `9001` se registra automaticamente no Asterisk via WebSocket (porta 8088)
-- Configurável via `VITE_ASTERISK_WS`, `VITE_SIP_URI` e `VITE_SIP_PASSWORD` no `.env`
-
-## Estrutura do Projeto
+## Estrutura do Repositório
 
 ```
 AsteriskIA/
-├── asterisk/        # Configurações e Dockerfile do Asterisk (WebRTC habilitado)
-├── ai-agent/        # Agente de IA Python (Audiosocket + Gemini + Function Calling)
-├── scheduler/       # Scheduler Python (testes de conectividade e polling Zabbix)
-├── backend/         # API REST Spring Boot (WebSocket STOMP em tempo real)
-├── frontend/        # SPA React (Recharts + Softphone JsSIP + WebSocket)
-├── database/        # Migrations SQL (V1__init_schema, V2__seed_master_data)
-├── monitoring/      # Prometheus + Grafana
-├── nginx-prod.conf  # Config Nginx HOST para produção (HTTPS + WebSocket proxy)
-└── .github/         # CI/CD GitHub Actions (Frontend, Backend, Python, Docker)
+├── asterisk/           # Asterisk 21 — Dockerfile + configs (pjsip, extensions, rtp)
+├── ai-agent/           # Agente IA Python — AudioSocket server (STT → LLM → TTS)
+├── backend/            # Spring Boot — API REST + WebSocket + Flyway migrations
+├── frontend/           # React 18 — SPA + Softphone WebRTC + Nginx
+├── agents-platform/    # Plataforma de Agentes
+│   ├── backend/        # FastAPI — agentes, execuções, scheduler, secrets
+│   └── frontend/       # React 18 UMD — interface dos agentes (servida em /agents/)
+├── security/           # Fail2ban + nftables — lockdown SIP
+├── database/migrations # Flyway SQL (V1–V14)
+├── docs/               # Documentação HTML (deploy-ubuntu, deploy-oracle-linux)
+├── tools/              # Ferramentas CLI (ver abaixo)
+├── docker-compose.yml  # Orquestração completa
+├── Caddyfile           # Configuração do proxy reverso
+└── .env.example        # Template de variáveis de ambiente
 ```
 
-## Deploy em Produção
+---
 
-Para deploy em servidor com HTTPS:
+## Ferramentas CLI (`tools/`)
 
-1. Provisionar servidor Ubuntu 22.04 (mínimo 4 vCPUs / 8 GB RAM)
-2. Instalar Docker: `apt install docker-ce docker-compose-plugin`
-3. Clonar o repositório em `/opt/asteriskia`
-4. Preencher o `.env` com as credenciais reais de produção
-5. Gerar certificado SSL: `certbot certonly --standalone -d SEU_DOMINIO`
-6. Personalizar e instalar o `nginx-prod.conf` com seu domínio
-7. Executar: `docker compose up -d --build`
+### `asteriskia-agent.py` — Agente CLI com memória PostgreSQL
 
-Consulte o [Plano de Implantação em Produção](docs/DEPLOY.md) para o guia completo e detalhado.
+Agente conversacional especialista no projeto AsteriskIA, com memória persistente via RAG (PostgreSQL + pg_trgm). Útil para diagnóstico, troubleshooting e desenvolvimento direto no VPS.
 
-## Documentação
+**Pré-requisitos:**
+```bash
+pip install google-genai psycopg2-binary
+```
 
-- [API REST](http://localhost:8080/swagger-ui.html) (disponível após subir o ambiente)
-- [Nginx de Produção](nginx-prod.conf)
+**Uso:**
+```bash
+python3 tools/asteriskia-agent.py
+```
 
-## Licença
+O agente lê automaticamente `GEMINI_API_KEY` e `DATABASE_URL` do `.env` do projeto.
 
-Proprietário — Todos os direitos reservados.
+**Capacidades:**
+- Memória persistente entre sessões (5 tabelas PostgreSQL via pg_trgm)
+  - `agent_fixes` — correções aplicadas e resultado
+  - `agent_error_patterns` — padrões de erro e causas-raiz conhecidas
+  - `agent_preferences` — preferências do usuário
+  - `agent_project_state` — estado atual do projeto
+  - `agent_sessions` — resumo de sessões anteriores
+- Function calling Gemini para persistir/recuperar memória automaticamente
+- Papéis: Desenvolvedor Sênior · Arquiteto DevOps · Engenheiro Linux
+- Sumarização automática de sessão ao encerrar
+
+### `agente-google.py` — Agente Google Gemini local
+
+Agente conversacional simples sem memória persistente, para consultas rápidas.
+
+```bash
+python3 tools/agente-google.py
+```
+
+---
+
+## Variáveis de Ambiente principais
+
+| Variável | Descrição |
+|----------|-----------|
+| `SIP_PUBLIC_IP` | IP público do VPS — **obrigatório** para RTP/WebRTC funcionar |
+| `GEMINI_API_KEY` | Chave Google AI Studio |
+| `BACKEND_JWT_SECRET` | Secret JWT (32+ chars) — compartilhado com agents-backend |
+| `POSTGRES_PASSWORD` | Senha do banco unificado |
+| `SIP_TRUNK_HOST` | IP do tronco SIP (`186.233.141.64`) |
+
+> ⚠️ Variáveis `VITE_*` são resolvidas em **build time**. Ao alterar, rebuilde o frontend:
+> ```bash
+> docker compose build frontend && docker compose up -d frontend
+> ```
+
+---
+
+## Comandos úteis
+
+```bash
+# Status de todos os containers
+docker compose ps
+
+# Logs em tempo real
+docker compose logs -f <serviço>
+
+# Verificar SIP_PUBLIC_IP injetado no Asterisk
+docker exec asteriskia-asterisk grep "external_media_address" /etc/asterisk/pjsip.conf
+
+# Recarregar PJSIP sem reiniciar
+docker exec asteriskia-asterisk asterisk -rx "module reload res_pjsip.so"
+
+# Status do lockdown SIP
+systemctl status asteriskia-lockdown
+
+# Checar regras nftables
+nft list chain ip filter DOCKER-USER 2>/dev/null
+
+# Recarregar Caddyfile (sem downtime)
+curl -X POST "http://localhost:2019/load" \
+  -H "Content-Type: text/caddyfile" \
+  --data-binary @/opt/AsteriskIA/Caddyfile
+```
+
+---
+
+## Documentação completa
+
+- [Deploy Ubuntu 22/24](https://app.voiphash.com.br/docs/deploy-ubuntu.html)
+- [Plataforma de Agentes](https://app.voiphash.com.br/agents/docs.html)

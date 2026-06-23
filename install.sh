@@ -220,15 +220,12 @@ else
 # ATENÇÃO: Nunca versione este arquivo. Já está no .gitignore.
 # =============================================================================
 
-# ── Aplicação ─────────────────────────────────────────────────────────────────
-APP_URL=https://app.voiphash.com.br
+# ── Administrador ─────────────────────────────────────────────────────────────
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=${ADMIN_PASS}
-ADMIN_EMAIL=admin@voiphash.com.br
 
 # ── JWT ───────────────────────────────────────────────────────────────────────
 BACKEND_JWT_SECRET=${JWT_SECRET}
-JWT_EXPIRATION_MS=86400000
 
 # ── Chave interna (ai-agent ↔ backend) ───────────────────────────────────────
 INTERNAL_API_KEY=${INTERNAL_KEY}
@@ -241,24 +238,36 @@ POSTGRES_PASSWORD=${POSTGRES_PASS}
 # ── Asterisk AMI ──────────────────────────────────────────────────────────────
 AST_AMI_USER=asteriskia
 AST_AMI_PASSWORD=${AMI_PASS}
+AST_AMI_PORT=5038
+AST_OUTBOUND_TRUNK=tronco-sip
+AST_OUTBOUND_CONTEXT=discagem-sainte
 
 # ── SIP ───────────────────────────────────────────────────────────────────────
 # IP público do servidor — OBRIGATÓRIO para RTP/WebRTC funcionar
 SIP_PUBLIC_IP=${PUBLIC_IP}
 SIP_DOMAIN=app.voiphash.com.br
 
-# Tronco SIP da operadora (deixar vazio se não tiver)
-SIP_TRUNK_HOST=
-SIP_TRUNK_USER=
-SIP_TRUNK_PASSWORD=
-SIP_TRUNK_FROM_DOMAIN=
+# Tronco SIP — peer IP-based (sem usuário/senha, fechado por IP)
+SIP_TRUNK_HOST=186.233.141.64
+SIP_TRUNK_FROM_DOMAIN=voiphash.com.br
+
+# ── AudioSocket ───────────────────────────────────────────────────────────────
+AUDIOSOCKET_HOST=ai-agent
+AUDIOSOCKET_PORT=9092
 
 # ── Áudio ─────────────────────────────────────────────────────────────────────
 AUDIO_STORAGE_PATH=/var/spool/asterisk/monitor
 
-# ── IA — configurar pelo painel Settings → Inteligência Artificial ────────────
-# Os modelos são gerenciados no banco (tabela ai_capability_chain)
-# NÃO altere estes campos via .env — use o painel
+# ── Frontend React (VITE_ = build time — rebuilde ao alterar) ─────────────────
+VITE_API_URL=https://app.voiphash.com.br/api/v1
+VITE_ASTERISK_WS=wss://app.voiphash.com.br/asterisk-ws
+VITE_SIP_URI=sip:9001@app.voiphash.com.br
+VITE_SIP_PASSWORD=webrtc9001pass
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
+BACKEND_ALLOWED_ORIGINS=https://app.voiphash.com.br
+
+# ── Google Gemini ─────────────────────────────────────────────────────────────
 GEMINI_API_KEY=
 GEMINI_MODEL_STT=gemini-2.5-flash
 GEMINI_MODEL_LLM=gemini-2.5-flash
@@ -271,16 +280,25 @@ JIRA_API_TOKEN=
 JIRA_PROJECT_KEY=
 
 # ── Zabbix ────────────────────────────────────────────────────────────────────
-ZABBIX_URL=
+ZABBIX_API_URL=
 ZABBIX_USER=
 ZABBIX_PASSWORD=
+ZABBIX_MIN_SEVERITY=4
+ZABBIX_POLL_INTERVAL_MINUTES=5
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 
-# ── Frontend ─────────────────────────────────────────────────────────────────
-VITE_STUN_URL=stun:stun.l.google.com:19302
+# ── Plataforma de Agentes — LLM ───────────────────────────────────────────────
+AGENTS_LLM_PROVIDER=google
+AGENTS_LLM_MODEL=gemini-2.5-flash
+AGENTS_LLM_ENABLED=false
+AGENTS_LLM_GOOGLE_KEY=
+AGENTS_LLM_ANTHROPIC_KEY=
+AGENTS_LLM_OPENAI_KEY=
+AGENTS_LLM_COMPAT_URL=http://localhost:11434/v1
+AGENTS_LLM_COMPAT_KEY=
 EOF
 
     chmod 600 "$ENV_FILE"
