@@ -35,9 +35,15 @@ RUN wget -q https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-21-cu
     tar xzf asterisk.tar.gz && \
     rm asterisk.tar.gz
 
-# Pré-baixa jansson para evitar falha de rede durante configure
-RUN wget -q https://github.com/akheron/jansson/releases/download/v2.14/jansson-2.14.tar.bz2 \
-    -O /tmp/jansson-2.14.1.tar.bz2 2>/dev/null || true
+# Pré-baixa dependências bundled para evitar falha de rede durante configure
+# URLs são as mesmas que o Asterisk usa internamente
+RUN wget -q --retry-connrefused --waitretry=5 --timeout=30 \
+    "https://github.com/akheron/jansson/releases/download/v2.14/jansson-2.14.tar.bz2" \
+    -O /tmp/jansson-2.14.1.tar.bz2 || true && \
+    wget -q --retry-connrefused --waitretry=5 --timeout=30 \
+    "http://www.pjsip.org/release/2.15.1/pjproject-2.15.1.tar.bz2" \
+    -O /tmp/pjproject-2.15.1.tar.bz2 || true && \
+    ls -la /tmp/*.tar.bz2 2>/dev/null || true
 
 RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
     cd "$ASTERISK_DIR" && \
