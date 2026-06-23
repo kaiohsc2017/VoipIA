@@ -318,56 +318,43 @@ public class SecurityController {
     private static final String SECURITY_CMD_DIR = "/var/run/asteriskia-security";
 
     /**
-     * Aplica lockdown SIP via nftables direto.
-     *
-     * O container security usa network_mode:host — compartilha o namespace
-     * de rede do host. As regras nftables aplicadas dentro do container
-     * afetam o host diretamente.
-     *
-     * Usa nft (nftables nativo) para evitar conflito com iptables-legacy vs nf_tables.
-     * Cria uma tabela 'asteriskia' com chain 'sip-lockdown' de alta prioridade
-     * (priority -150, antes do UFW que usa priority -100).
+     * Aplica lockdown via nft na chain DOCKER-USER.
+     * O Docker neste host usa nftables — a chain DOCKER-USER nftables
+     * é processada para todo tráfego destinado a containers.
      */
     private void applyLockdownIptables(List<String> whitelist) throws IOException, InterruptedException {
         StringBuilder script = new StringBuilder("#!/bin/bash\n");
-        script.append("# AsteriskIA SIP Lockdown via nftables\n");
-        script.append("# Remove tabela anterior se existir\n");
-        script.append("nft delete table ip asteriskia 2>/dev/null || true\n");
-        script.append("# Cria tabela e chain com prioridade -150 (antes do UFW em -100)\n");
-        script.append("nft add table ip asteriskia\n");
-        script.append("nft add chain ip asteriskia sip-lockdown '{ type filter hook input priority -150; policy accept; }'\n");
-        // ACCEPT para IPs da whitelist
+        script.append("# Limpa regras anteriores da DOCKER-USER (exceto AMI que pode já existir)\n");
+        script.append("nft flush chain ip filter DOCKER-USER 2>/dev/null || true\n");
+        script.append("# Whitelist — ACCEPT para IPs autorizados\n");
         for (String ip : whitelist) {
-            script.append("nft add rule ip asteriskia sip-lockdown ip saddr ").append(ip)
-                  .append(" udp dport 5060 accept\n");
-            script.append("nft add rule ip asteriskia sip-lockdown ip saddr ").append(ip)
-                  .append(" tcp dport 5060 accept\n");
-            script.append("nft add rule ip asteriskia sip-lockdown ip saddr ").append(ip)
-                  .append(" tcp dport 8088 accept\n");
+            script.append("nft add rule ip filter DOCKER-USER ip saddr ").append(ip).append(" accept\n");
         }
-        // DROP para todos os outros
-        script.append("nft add rule ip asteriskia sip-lockdown udp dport 5060 drop\n");
-        script.append("nft add rule ip asteriskia sip-lockdown tcp dport 5060 drop\n");
-        script.append("nft add rule ip asteriskia sip-lockdown tcp dport 8088 drop\n");
-        script.append("nft add rule ip asteriskia sip-lockdown udp dport 10000-10100 drop\n");
-        script.append("echo '[lockdown] nftables aplicado'\n");
-        script.append("nft list table ip asteriskia\n");
+        script.append("# DROP portas SIP/WebRTC/AMI para todos os outros\n");
+        script.append("nft add rule ip filter DOCKER-USER udp dport 5060 drop\n");
+        script.append("nft add rule ip filter DOCKER-USER tcp dport 5060 drop\n");
+        script.append("nft add rule ip filter DOCKER-USER tcp dport 8088 drop\n");
+        script.append("nft add rule ip filter DOCKER-USER tcp dport 5038 drop\n");
+        script.append("echo '[lockdown] nft DOCKER-USER aplicado'\n");
+        script.append("nft list chain ip filter DOCKER-USER\n");
         writeSecurityCmd("lockdown-enable", script.toString());
         writePersistentLockdown(script.toString());
-        log.info("Lockdown nftables script enviado: {} IPs na whitelist", whitelist.size());
+        log.info("Lockdown nft DOCKER-USER enviado: {} IPs", whitelist.size());
     }
 
     private void removeLockdownIptables() {
         try {
             String script = "#!/bin/bash\n" +
-                "nft delete table ip asteriskia 2>/dev/null || true\n" +
-                "echo '[lockdown] nftables removido'\n";
+                "nft flush chain ip filter DOCKER-USER 2>/dev/null || true\n" +
+                "echo '[lockdown] DOCKER-USER limpa'\n";
             writeSecurityCmd("lockdown-disable", script);
             removePersistentLockdown();
-            log.info("Lockdown disable nftables script enviado");
+            log.info("Lockdown disable DOCKER-USER enviado");
         } catch (Exception e) {
             log.warn("removeLockdownIptables: {}", e.getMessage());
         }
+    }
+    }
     }
 
     private void writePersistentLockdown(String script) {

@@ -107,10 +107,10 @@ services:
       # CRÍTICO: Deve usar a porta interna 8080 do container backend, não a porta exposta no host (8081)
       BACKEND_URL: http://backend:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
-      AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH}
+      AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH:-/var/spool/asterisk/monitor}
       DOTENV_PATH: /opt/asteriskia/env/.env
     volumes:
-      - asterisk_recordings:${AUDIO_STORAGE_PATH}
+      - asterisk_recordings:/var/spool/asterisk/monitor
       - /opt/AsteriskIA/env:/opt/asteriskia/env:ro
     # Porta 9092 (AudioSocket) NAO exposta publicamente.
     # Asterisk acessa via rede Docker interna: ai-agent:9092
@@ -187,7 +187,7 @@ services:
       JIRA_PROJECT_KEY: ${JIRA_PROJECT_KEY}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
-      AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH}
+      AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH:-/var/spool/asterisk/monitor}
       AST_AMI_HOST: asterisk
       AST_AMI_PORT: ${AST_AMI_PORT:-5038}
       AST_AMI_USER: ${AST_AMI_USER}

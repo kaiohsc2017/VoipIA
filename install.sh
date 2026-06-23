@@ -348,9 +348,173 @@ cd "$INSTALL_DIR"
 # Conecta containers à rede do Caddy
 docker network connect caddy-net asteriskia-asterisk 2>/dev/null || true
 
+log_info "Carregando variáveis do .env..."
+set -a; source "$ENV_FILE"; set +a
+
+# ── Build com auto-diagnóstico via IA ────────────────────────────────────────
+ai_fix_build() {
+    local SERVICE="$1"
+    local ERROR_LOG="$2"
+    local GEMINI_KEY="${GEMINI_API_KEY:-}"
+
+    # Sem chave Gemini — pula o auto-fix
+    [ -z "$GEMINI_KEY" ] && return 1
+
+    log_info "🤖 Consultando IA para diagnosticar o erro de build..."
+
+    local DOCKERFILE_CONTENT=""
+    if [ -f "$INSTALL_DIR/$SERVICE/Dockerfile" ]; then
+        DOCKERFILE_CONTENT=$(head -80 "$INSTALL_DIR/$SERVICE/Dockerfile")
+    fi
+
+    local OS_INFO
+    OS_INFO="OS: $OS_NAME $OS_VER | Docker: $(docker --version 2>/dev/null | head -1)"
+
+    # Monta prompt para o Gemini
+    local PROMPT
+    PROMPT=$(cat << PROMPT_EOF
+Você é um engenheiro DevOps especialista em Docker e Asterisk.
+Um build Docker falhou. Analise o erro e forneça APENAS um patch bash para corrigir o Dockerfile ou o ambiente.
+
+Sistema: $OS_INFO
+Serviço: $SERVICE
+
+ERRO:
+$ERROR_LOG
+
+DOCKERFILE (primeiras 80 linhas):
+$DOCKERFILE_CONTENT
+
+Responda SOMENTE com um objeto JSON no formato:
+{
+  "diagnosis": "causa raiz em 1 linha",
+  "fix_type": "dockerfile" ou "env" ou "network",
+  "bash_commands": ["comando1", "comando2"],
+  "dockerfile_patch": "sed -i 's/old/new/g' $INSTALL_DIR/$SERVICE/Dockerfile",
+  "explanation": "o que foi corrigido"
+}
+Não inclua markdown, apenas JSON puro.
+PROMPT_EOF
+)
+
+    # Chama Gemini API
+    local RESPONSE
+    RESPONSE=$(curl -sf --max-time 30         "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$GEMINI_KEY"         -H "Content-Type: application/json"         -d "{"contents":[{"parts":[{"text":$(echo "$PROMPT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")}]}]}"         2>/dev/null)
+
+    [ -z "$RESPONSE" ] && { log_warn "IA não respondeu."; return 1; }
+
+    # Extrai JSON da resposta
+    local AI_JSON
+    AI_JSON=$(echo "$RESPONSE" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    text = data['candidates'][0]['content']['parts'][0]['text']
+    # Remove markdown se houver
+    text = text.strip()
+    if text.startswith('\`\`\`'):
+        text = '
+'.join(text.split('
+')[1:-1])
+    print(text)
+except Exception as e:
+    print('{}')
+" 2>/dev/null)
+
+    [ -z "$AI_JSON" ] || [ "$AI_JSON" = "{}" ] && { log_warn "IA não retornou JSON válido."; return 1; }
+
+    local DIAGNOSIS FIX_TYPE EXPLANATION DOCKERFILE_PATCH
+    DIAGNOSIS=$(echo "$AI_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('diagnosis',''))" 2>/dev/null)
+    FIX_TYPE=$(echo "$AI_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('fix_type',''))" 2>/dev/null)
+    EXPLANATION=$(echo "$AI_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('explanation',''))" 2>/dev/null)
+    DOCKERFILE_PATCH=$(echo "$AI_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('dockerfile_patch',''))" 2>/dev/null)
+
+    echo -e "
+  ${CYAN}🤖 Diagnóstico IA:${NC} $DIAGNOSIS"
+    echo -e "  ${CYAN}Tipo de fix:${NC} $FIX_TYPE"
+    echo -e "  ${CYAN}Solução:${NC} $EXPLANATION"
+
+    # Executa comandos bash sugeridos pela IA
+    local BASH_CMDS
+    BASH_CMDS=$(echo "$AI_JSON" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for cmd in d.get('bash_commands', []):
+    print(cmd)
+" 2>/dev/null)
+
+    if [ -n "$BASH_CMDS" ]; then
+        log_info "Aplicando correções sugeridas pela IA..."
+        while IFS= read -r cmd; do
+            [ -z "$cmd" ] && continue
+            echo -e "  ${GRAY}▶ $cmd${NC}"
+            # Substitui variáveis conhecidas
+            cmd="${cmd//\$INSTALL_DIR/$INSTALL_DIR}"
+            cmd="${cmd//\$SERVICE/$SERVICE}"
+            eval "$cmd" 2>/dev/null || true
+        done <<< "$BASH_CMDS"
+    fi
+
+    # Aplica patch no Dockerfile se houver
+    if [ -n "$DOCKERFILE_PATCH" ]; then
+        DOCKERFILE_PATCH="${DOCKERFILE_PATCH//\$INSTALL_DIR/$INSTALL_DIR}"
+        DOCKERFILE_PATCH="${DOCKERFILE_PATCH//\$SERVICE/$SERVICE}"
+        eval "$DOCKERFILE_PATCH" 2>/dev/null || true
+    fi
+
+    return 0
+}
+
+build_with_ai() {
+    local MAX_RETRIES=3
+    local ATTEMPT=1
+    local BUILD_LOG="/tmp/asteriskia-build.log"
+
+    while [ $ATTEMPT -le $MAX_RETRIES ]; do
+        log_info "Build tentativa $ATTEMPT/$MAX_RETRIES..."
+
+        docker compose build --no-cache 2>&1 | tee "$BUILD_LOG" | tail -8
+
+        if [ ${PIPESTATUS[0]} -eq 0 ]; then
+            log_ok "Build concluído com sucesso!"
+            return 0
+        fi
+
+        log_warn "Build falhou na tentativa $ATTEMPT."
+
+        # Identifica qual serviço falhou
+        local FAILED_SERVICE
+        FAILED_SERVICE=$(grep -oP "target \K\w+" "$BUILD_LOG" | tail -1)
+        FAILED_SERVICE="${FAILED_SERVICE:-asterisk}"
+
+        # Extrai as últimas linhas de erro relevantes
+        local ERROR_EXCERPT
+        ERROR_EXCERPT=$(grep -E "ERROR|error:|Error|FAILED|Cannot|failed" "$BUILD_LOG" | tail -15)
+
+        if [ $ATTEMPT -lt $MAX_RETRIES ]; then
+            # Tenta auto-fix via IA
+            if ai_fix_build "$FAILED_SERVICE" "$ERROR_EXCERPT"; then
+                log_info "Fix aplicado. Tentando build novamente..."
+            else
+                log_warn "Auto-fix não disponível. Aguardando 5s antes de tentar novamente..."
+                sleep 5
+            fi
+        fi
+
+        ATTEMPT=$((ATTEMPT + 1))
+    done
+
+    log_warn "Build falhou após $MAX_RETRIES tentativas."
+    log_warn "Log completo em: $BUILD_LOG"
+    echo -e "
+  Para depurar manualmente:"
+    echo -e "  ${CYAN}docker compose build asterisk 2>&1 | tail -30${NC}"
+    return 1
+}
+
 log_info "Construindo imagens (pode demorar 15-20 min na primeira vez)..."
-log_info "Asterisk 21 com G.729+G.711 será compilado do fonte..."
-docker compose build --no-cache 2>&1 | tail -5
+log_info "Auto-diagnóstico via IA ativo (requer GEMINI_API_KEY no .env)"
+build_with_ai
 
 log_info "Iniciando containers..."
 docker compose up -d

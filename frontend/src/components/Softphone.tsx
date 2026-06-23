@@ -62,8 +62,12 @@ export default function Softphone() {
 
   const rtcConfig = {
     iceServers: [
-      { urls: import.meta.env.VITE_STUN_URL || 'stun:stun.l.google.com:19302' }
-    ]
+      { urls: import.meta.env.VITE_STUN_URL || 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ],
+    iceCandidatePoolSize: 4,
+    bundlePolicy: 'max-bundle' as RTCBundlePolicy,
+    rtcpMuxPolicy: 'require' as RTCRtcpMuxPolicy,
   };
 
   const log = (msg: string) => {
@@ -82,6 +86,11 @@ export default function Softphone() {
       register: true,
       register_expires: 300,
       user_agent: 'AsteriskIA-Softphone/1.0',
+      // Desabilita session timers (evita re-INVITE desnecessário)
+      session_timers: false,
+      // Recuperação de conexão mais rápida
+      connection_recovery_min_interval: 2,
+      connection_recovery_max_interval: 10,
     });
 
     ua.on('registered',   () => { setRegState('registered');    log('Ramal registrado ✓'); });

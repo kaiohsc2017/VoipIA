@@ -35,12 +35,24 @@ RUN wget -q https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-21-cu
     tar xzf asterisk.tar.gz && \
     rm asterisk.tar.gz
 
+# Pré-baixa dependências bundled para evitar falha de rede durante configure
+# URLs são as mesmas que o Asterisk usa internamente
+RUN wget -q --retry-connrefused --waitretry=5 --timeout=30 \
+    "https://github.com/akheron/jansson/releases/download/v2.14/jansson-2.14.tar.bz2" \
+    -O /tmp/jansson-2.14.1.tar.bz2 || true && \
+    wget -q --retry-connrefused --waitretry=5 --timeout=30 \
+    "https://github.com/pjsip/pjproject/archive/refs/tags/2.15.1.tar.gz" \
+    -O /tmp/pjproject-2.15.1.tar.gz && \
+    cd /tmp && tar xzf pjproject-2.15.1.tar.gz && \
+    tar cjf pjproject-2.15.1.tar.bz2 pjproject-2.15.1/ && \
+    rm -rf pjproject-2.15.1/ pjproject-2.15.1.tar.gz && \
+    ls -lh /tmp/pjproject-2.15.1.tar.bz2 || true
+
 RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
     cd "$ASTERISK_DIR" && \
     contrib/scripts/get_mp3_source.sh || true && \
     ./configure \
         --with-pjproject-bundled \
-        --with-jansson-bundled \
         --with-ssl=ssl \
         --with-srtp=/usr && \
     # Verificar se res_srtp vai ser compilado

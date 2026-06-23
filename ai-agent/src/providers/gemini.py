@@ -21,6 +21,19 @@ def _client():
     return _get_global_client()
 
 
+def _clean_for_tts(text: str) -> str:
+    """Remove markdown e prefixos do LLM que causam erro 400 no TTS."""
+    import re
+    t = str(text).strip()
+    t = re.sub(r'\*+', '', t)
+    t = re.sub(r'_+([^_]+)_+', r'', t)
+    t = re.sub(r'`[^`]+`', '', t)
+    for prefix in ('Resultado:', 'Resposta:', 'Assistente:', 'AI:', 'Bot:'):
+        if t.startswith(prefix):
+            t = t[len(prefix):].strip()
+    return t or str(text)
+
+
 class GeminiProvider(BaseAIProvider):
 
     def __init__(self, model_id: str):
