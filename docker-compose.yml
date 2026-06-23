@@ -15,8 +15,9 @@ networks:
       config:
         - subnet: 172.16.7.0/24
           # IPs reservados — NÃO atribuir a containers:
-          #   172.16.7.1  – .10  → gateway + reserva de infraestrutura
-          #   172.16.7.250 – .254 → reserva de infraestrutura
+          #   172.16.7.1  – .9   → gateway + reserva de infraestrutura
+          #   172.16.7.10          → asteriskia-caddy (proxy — IP fixo reservado)
+          #   172.16.7.250 – .254  → reserva de infraestrutura
           # Containers: 172.16.7.11 – 172.16.7.249
 
 volumes:
@@ -325,4 +326,4 @@ services:
       - caddy_config:/config                 # Cache interno do Caddy
     networks:
       asteriskia-net:
-          ipv4_address: 172.16.7.17
+          ipv4_address: 172.16.7.10
