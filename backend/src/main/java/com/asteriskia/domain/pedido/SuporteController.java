@@ -10,8 +10,11 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * SuporteController — Endpoint simulado para integrações de IA (ex: Gemini).
- * Permite a abertura de chamados de suporte pelo AI Agent.
+ * SuporteController — STUB DE DEMONSTRAÇÃO para function calling da IA.
+ *
+ * ⚠️  Gera um protocolo aleatório SEM persistência em banco.
+ *     Consumido por ai-agent/src/services/gemini_service.py (tool abrir_protocolo_suporte).
+ *     Substituir pela integração real (Jira/ITSM) antes de usar em produção.
  */
 @RestController
 @RequestMapping("/api/v1/suporte")

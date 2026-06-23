@@ -114,8 +114,10 @@ services:
     container_name: asteriskia-ai-agent
     restart: unless-stopped
     depends_on:
-      - asterisk
-      - postgres
+      asterisk:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       AUDIOSOCKET_PORT:   ${AUDIOSOCKET_PORT:-9092}
       GEMINI_API_KEY:     ${GEMINI_API_KEY}
@@ -220,6 +222,7 @@ services:
         VITE_ASTERISK_WS:  ${VITE_ASTERISK_WS:-wss://app.voiphash.com.br/asterisk-ws}
         VITE_SIP_URI:      ${VITE_SIP_URI:-sip:9001@app.voiphash.com.br}
         VITE_SIP_PASSWORD: ${VITE_SIP_PASSWORD:-webrtc9001pass}
+        VITE_STUN_URL:     ${VITE_STUN_URL:-stun:stun.l.google.com:19302}
     container_name: asteriskia-frontend
     restart: unless-stopped
     depends_on:
@@ -254,7 +257,9 @@ services:
       - asterisk_log:/var/log/asterisk:ro
       - ./security/config/jail.d:/etc/fail2ban/jail.d
       - ./security/config/filter.d:/etc/fail2ban/filter.d
-      - ./security/config/action.d:/etc/fail2ban/action.d
+      # action.d NÃO é montado: os jails usam apenas actions nativas do fail2ban
+      # (iptables-multiport, iptables-allports). Montar um dir vazio aqui
+      # apagaria essas actions e quebraria os bans.
       - fail2ban_socket:/var/run/fail2ban
       - security_cmds:/var/run/asteriskia-security
       - /etc/ufw:/etc/ufw
@@ -300,6 +305,8 @@ services:
       AGENTS_LLM_COMPAT_URL:      ${AGENTS_LLM_COMPAT_URL:-http://localhost:11434/v1}
       AGENTS_LLM_COMPAT_KEY:      ${AGENTS_LLM_COMPAT_KEY:-}
       BACKEND_JWT_SECRET:         ${BACKEND_JWT_SECRET}
+      # CORS — mesmas origens do backend Telecom (frontend é same-origin)
+      BACKEND_ALLOWED_ORIGINS:    ${BACKEND_ALLOWED_ORIGINS}
     volumes:
       - agents_knowledge:/app/knowledge_docs
       - /opt/AsteriskIA/env:/opt/AsteriskIA/env

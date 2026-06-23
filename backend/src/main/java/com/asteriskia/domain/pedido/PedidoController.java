@@ -9,8 +9,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * PedidoController — Endpoint simulado para integrações de IA (ex: Gemini).
- * Permite a consulta de status de pedidos pelo identificador (CPF ou número).
+ * PedidoController — STUB DE DEMONSTRAÇÃO para function calling da IA.
+ *
+ * ⚠️  Retorna dados FICTÍCIOS para os identificadores 12345678909 e 98765432100.
+ *     Consumido por ai-agent/src/services/gemini_service.py (tool consultar_status_pedido).
+ *     Substituir pela integração real (ERP/WMS) antes de usar em produção.
  */
 @RestController
 @RequestMapping("/api/v1/pedidos")

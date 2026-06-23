@@ -64,7 +64,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AsteriskIA Agents Platform", version="2.0.0", lifespan=lifespan)
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# CORS — restrito às origens configuradas. O frontend é same-origin
+# (servido pelo mesmo domínio via Caddy), então a lista padrão cobre produção.
+_CORS_ORIGINS = [
+    o.strip()
+    for o in os.getenv("BACKEND_ALLOWED_ORIGINS", "https://app.voiphash.com.br").split(",")
+    if o.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_CORS_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ── Middleware JWT ────────────────────────────────────────────────────────────
 @app.middleware("http")

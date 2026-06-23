@@ -11,9 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Diretórios de configuração
+# action.d vem do pacote fail2ban — não recriar (perderia as actions nativas)
 RUN mkdir -p /etc/fail2ban/jail.d \
              /etc/fail2ban/filter.d \
-             /etc/fail2ban/action.d \
              /var/log/asteriskia
 
 COPY config/jail.d/     /etc/fail2ban/jail.d/

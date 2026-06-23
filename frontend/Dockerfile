@@ -31,6 +31,9 @@ ENV VITE_SIP_URI=$VITE_SIP_URI
 ARG VITE_SIP_PASSWORD=webrtc9001pass
 ENV VITE_SIP_PASSWORD=$VITE_SIP_PASSWORD
 
+ARG VITE_STUN_URL=stun:stun.l.google.com:19302
+ENV VITE_STUN_URL=$VITE_STUN_URL
+
 RUN npm run build
 
 # ---------- Stage 2: Nginx ----------

@@ -305,6 +305,19 @@ ufw allow 10000:10100/udp > /dev/null 2>&1  # RTP media
 ufw --force enable > /dev/null 2>&1
 log_ok "UFW configurado"
 
+# ── Lockdown SIP (systemd watcher no host) ────────────────────────────────────
+log_step "8.1 Serviço de lockdown SIP"
+if [ -f "$INSTALL_DIR/security/asteriskia-lockdown.service" ]; then
+    cp "$INSTALL_DIR/security/asteriskia-lockdown.service" /etc/systemd/system/
+    chmod +x "$INSTALL_DIR/security/lockdown-watcher.sh"
+    systemctl daemon-reload
+    systemctl enable --now asteriskia-lockdown 2>/dev/null \
+        && log_ok "Serviço asteriskia-lockdown ativo" \
+        || log_warn "Não foi possível iniciar asteriskia-lockdown — verifique 'systemctl status asteriskia-lockdown'"
+else
+    log_warn "asteriskia-lockdown.service não encontrado — lockdown SIP não instalado"
+fi
+
 # ── Build e subida ────────────────────────────────────────────────────────────
 log_step "9. Build e inicialização dos containers"
 cd "$INSTALL_DIR"

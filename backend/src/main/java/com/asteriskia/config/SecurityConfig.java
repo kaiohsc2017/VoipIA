@@ -16,8 +16,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * Endpoints públicos (sem autenticação):
  *   - POST /api/v1/auth/login        → obter token JWT (frontend)
  *   - GET  /api/health               → health check externo (Caddy, monitoração)
- *   - /swagger-ui/**, /api-docs/**   → documentação
- *   - /actuator/health, /prometheus  → monitoração via Actuator
+ *   - /actuator/health               → health check via Actuator
  *   - /ws/**                         → WebSocket STOMP/SockJS (handshake inicial sem token)
  *
  * Nota sobre /ws: o SockJS faz um GET em /ws/info antes do upgrade WebSocket.
@@ -52,11 +51,7 @@ public class SecurityConfig {
                                 "/api/health",          // health check externo (Caddy, Prometheus, monitoração)
                                 "/api/v1/ai/chain/active",    // ai-agent consulta chain via X-Internal-Key
                                 "/api/v1/ai/providers/*/key-internal", // ai-agent busca keys via X-Internal-Key
-                                "/swagger-ui.html",
-                                "/swagger-ui/**",
-                                "/api-docs/**",
                                 "/actuator/health",
-                                "/actuator/prometheus",
                                 "/ws/**"            // SockJS handshake (GET /ws/info) e upgrade WebSocket
                         ).permitAll()
                         // Todos os demais endpoints exigem autenticação (JWT ou InternalKey)
