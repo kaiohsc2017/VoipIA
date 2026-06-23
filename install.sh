@@ -348,6 +348,9 @@ cd "$INSTALL_DIR"
 # Conecta containers à rede do Caddy
 docker network connect caddy-net asteriskia-asterisk 2>/dev/null || true
 
+log_info "Carregando variáveis do .env..."
+set -a; source "$ENV_FILE"; set +a
+
 log_info "Construindo imagens (pode demorar 15-20 min na primeira vez)..."
 log_info "Asterisk 21 com G.729+G.711 será compilado do fonte..."
 docker compose build --no-cache 2>&1 | tail -5
