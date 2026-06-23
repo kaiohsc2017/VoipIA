@@ -42,8 +42,11 @@ RUN wget -q --retry-connrefused --waitretry=5 --timeout=30 \
     -O /tmp/jansson-2.14.1.tar.bz2 || true && \
     wget -q --retry-connrefused --waitretry=5 --timeout=30 \
     "https://github.com/pjsip/pjproject/archive/refs/tags/2.15.1.tar.gz" \
-    -O /tmp/pjproject-2.15.1.tar.bz2 || true && \
-    ls -la /tmp/*.tar.bz2 2>/dev/null || true
+    -O /tmp/pjproject-2.15.1.tar.gz && \
+    cd /tmp && tar xzf pjproject-2.15.1.tar.gz && \
+    tar cjf pjproject-2.15.1.tar.bz2 pjproject-2.15.1/ && \
+    rm -rf pjproject-2.15.1/ pjproject-2.15.1.tar.gz && \
+    ls -lh /tmp/pjproject-2.15.1.tar.bz2 || true
 
 RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
     cd "$ASTERISK_DIR" && \
