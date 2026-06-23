@@ -73,6 +73,12 @@ app.voiphash.com.br {
     reverse_proxy asteriskia-frontend:80
 }
 
+# ── Documentação ─────────────────────────────────────────────────────────────
+app.voiphash.com.br/docs/* {
+    root * /opt/AsteriskIA/docs
+    file_server
+}
+
 # ── Grafana ───────────────────────────────────────────────────────────────────
 app.voiphash.com.br:3000 {
     reverse_proxy asteriskia-grafana:3000
