@@ -15,7 +15,6 @@ RUN apt-get update && apt-get install -y \
     libncurses5-dev \
     libedit-dev \
     libjansson-dev \
-    libpjproject-dev \
     libxml2-dev \
     libsqlite3-dev \
     uuid-dev \
@@ -36,10 +35,15 @@ RUN wget -q https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-21-cu
     tar xzf asterisk.tar.gz && \
     rm asterisk.tar.gz
 
+# Pré-baixa jansson para evitar falha de rede durante configure
+RUN wget -q https://github.com/akheron/jansson/releases/download/v2.14/jansson-2.14.tar.bz2 \
+    -O /tmp/jansson-2.14.1.tar.bz2 2>/dev/null || true
+
 RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
     cd "$ASTERISK_DIR" && \
     contrib/scripts/get_mp3_source.sh || true && \
     ./configure \
+        --with-pjproject-bundled \
         --with-ssl=ssl \
         --with-srtp=/usr && \
     # Verificar se res_srtp vai ser compilado
