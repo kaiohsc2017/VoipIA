@@ -42,8 +42,11 @@ RUN rm -f /etc/nginx/conf.d/default.conf
 # Copia config customizada (SPA fallback)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copia build estático
+# Copia build estático do Telecom
 COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copia arquivos estáticos da plataforma de Agentes
+COPY agents-platform/frontend /usr/share/nginx/html/agents
 
 EXPOSE 80
 
