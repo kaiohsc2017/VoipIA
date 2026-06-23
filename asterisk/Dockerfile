@@ -41,7 +41,7 @@ RUN wget -q --retry-connrefused --waitretry=5 --timeout=30 \
     "https://github.com/akheron/jansson/releases/download/v2.14/jansson-2.14.tar.bz2" \
     -O /tmp/jansson-2.14.1.tar.bz2 || true && \
     wget -q --retry-connrefused --waitretry=5 --timeout=30 \
-    "http://www.pjsip.org/release/2.15.1/pjproject-2.15.1.tar.bz2" \
+    "https://github.com/pjsip/pjproject/archive/refs/tags/2.15.1.tar.gz" \
     -O /tmp/pjproject-2.15.1.tar.bz2 || true && \
     ls -la /tmp/*.tar.bz2 2>/dev/null || true
 
