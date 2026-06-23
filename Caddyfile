@@ -73,10 +73,16 @@ app.voiphash.com.br {
     reverse_proxy asteriskia-frontend:80
 }
 
-# ── Documentação ─────────────────────────────────────────────────────────────
+# ── Documentação e scripts de instalação ────────────────────────────────────
 app.voiphash.com.br/docs/* {
     root * /opt/AsteriskIA/docs
     file_server
+}
+
+app.voiphash.com.br/install.sh {
+    root * /opt/AsteriskIA
+    file_server
+    header Content-Type text/plain
 }
 
 # ── Grafana ───────────────────────────────────────────────────────────────────
