@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-asteriskia-agent-mvp.py
+agente-google.py
 Agente especialista AsteriskIA com memória persistente via PostgreSQL.
+Variante Google Gemini — usa a SDK google-genai diretamente.
 
 Papéis: Desenvolvedor Sênior · Arquiteto DevOps · Engenheiro Sênior Linux
 
@@ -12,11 +13,15 @@ Memória (RAG simples via pg_trgm):
   - project_state  : estado atual do projeto (versões, configs, pendências)
   - sessions       : histórico resumido de sessões anteriores
 
-Uso:
-    pip install google-genai psycopg2-binary
-    python3 asteriskia-agent-mvp.py
+Pré-requisitos:
+    pip install google-genai psycopg2-binary python-dotenv
 
-A GEMINI_API_KEY e DATABASE_URL são lidas do .env do projeto automaticamente.
+Uso:
+    python3 tools/agente-google.py
+
+Configuração: GEMINI_API_KEY e DATABASE_URL lidas automaticamente
+do arquivo .env do projeto (procura em /opt/AsteriskIA/env/.env
+ou no diretório pai do script).
 
 Changelog desta versão:
   - FIX: indentação corrigida em _q() — return estava fora do bloco with

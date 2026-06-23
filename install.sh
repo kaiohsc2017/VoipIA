@@ -3,8 +3,8 @@
 # install.sh — AsteriskIA v3.1 · Instalação Automatizada
 # =============================================================================
 # Compatível com:
-#   • Ubuntu 22.04 LTS / 24.04 LTS
-#   • Oracle Linux 9 / RHEL 9 / AlmaLinux 9 / Rocky Linux 9
+#   • Ubuntu 22.04 LTS
+#   • Ubuntu 24.04 LTS
 #
 # Uso:
 #   curl -fsSL https://raw.githubusercontent.com/kaiohsc2017/AsteriskIA/main/install.sh | bash
@@ -12,7 +12,7 @@
 #   bash install.sh [--update]
 #
 # Stack instalado:
-#   Docker Engine + Compose v2 · Caddy (container standalone)
+#   Docker Engine + Compose v2 · Caddy (no compose)
 #   Asterisk 21 LTS · Spring Boot 3.3 · React 18 + TypeScript
 #   Python 3.12 asyncio · PostgreSQL 16 · Flyway migrations
 #   Multi-provider AI: Gemini, Anthropic, OpenAI, ElevenLabs, Grok, Perplexity, Ollama
@@ -49,14 +49,8 @@ detect_os() {
             PKG_INSTALL="apt-get install -y -qq"
             DISTRO="ubuntu"
             ;;
-        rhel|centos|almalinux|rocky|ol)
-            PKG_MANAGER="dnf"
-            PKG_UPDATE="dnf check-update -q || true"
-            PKG_INSTALL="dnf install -y -q"
-            DISTRO="rhel"
-            ;;
         *)
-            log_err "OS não suportado: $OS_NAME. Suportados: Ubuntu 22/24, Oracle/RHEL/Alma/Rocky Linux 9."
+            log_err "OS não suportado: $OS_NAME. Suportado: Ubuntu 22.04 LTS e 24.04 LTS."
             ;;
     esac
     log_ok "Sistema detectado: $OS_NAME $OS_VER"
@@ -130,20 +124,11 @@ log_step "2. Instalação de dependências"
 log_info "Atualizando índice de pacotes..."
 $PKG_UPDATE
 
-if [ "$DISTRO" = "ubuntu" ]; then
-    $PKG_INSTALL \
-        curl wget git unzip jq \
-        ca-certificates gnupg lsb-release \
-        ufw fail2ban \
-        gettext-base 2>/dev/null
-elif [ "$DISTRO" = "rhel" ]; then
-    dnf install -y epel-release 2>/dev/null || true
-    $PKG_INSTALL \
-        curl wget git unzip jq \
-        ca-certificates gnupg \
-        firewalld fail2ban \
-        gettext 2>/dev/null
-fi
+$PKG_INSTALL \
+    curl wget git unzip jq \
+    ca-certificates gnupg lsb-release \
+    ufw fail2ban \
+    gettext-base 2>/dev/null
 log_ok "Dependências instaladas"
 
 # ── Docker ────────────────────────────────────────────────────────────────────
@@ -153,21 +138,15 @@ if command -v docker &>/dev/null && docker compose version &>/dev/null 2>&1; the
     log_ok "Docker já instalado: v$DOCKER_VER"
 else
     log_info "Instalando Docker Engine..."
-    if [ "$DISTRO" = "ubuntu" ]; then
-        install -m 0755 -d /etc/apt/keyrings
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-            | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-        chmod a+r /etc/apt/keyrings/docker.gpg
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
 https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
-            > /etc/apt/sources.list.d/docker.list
-        apt-get update -qq
-        apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    elif [ "$DISTRO" = "rhel" ]; then
-        dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo 2>/dev/null || \
-        dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo 2>/dev/null
-        $PKG_INSTALL docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    fi
+        > /etc/apt/sources.list.d/docker.list
+    apt-get update -qq
+    apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     systemctl enable --now docker
     log_ok "Docker instalado"
 fi
@@ -312,32 +291,19 @@ fi
 
 # ── Firewall ──────────────────────────────────────────────────────────────────
 log_step "8. Configuração do Firewall"
-if [ "$DISTRO" = "ubuntu" ]; then
-    ufw --force reset > /dev/null 2>&1
-    ufw default deny incoming > /dev/null 2>&1
-    ufw default allow outgoing > /dev/null 2>&1
-    ufw allow ssh > /dev/null 2>&1
-    ufw allow 80/tcp > /dev/null 2>&1       # HTTP (redirect)
-    ufw allow 443/tcp > /dev/null 2>&1      # HTTPS
-    ufw allow 443/udp > /dev/null 2>&1      # QUIC
-    ufw allow 5060/udp > /dev/null 2>&1     # SIP UDP
-    ufw allow 5060/tcp > /dev/null 2>&1     # SIP TCP
-    ufw allow 8088/tcp > /dev/null 2>&1     # WebRTC WS
-    ufw allow 10000:10100/udp > /dev/null 2>&1  # RTP media
-    ufw --force enable > /dev/null 2>&1
-    log_ok "UFW configurado"
-elif [ "$DISTRO" = "rhel" ]; then
-    systemctl enable --now firewalld 2>/dev/null || true
-    firewall-cmd --permanent --add-service=ssh > /dev/null 2>&1
-    firewall-cmd --permanent --add-service=http > /dev/null 2>&1
-    firewall-cmd --permanent --add-service=https > /dev/null 2>&1
-    firewall-cmd --permanent --add-port=5060/udp > /dev/null 2>&1
-    firewall-cmd --permanent --add-port=5060/tcp > /dev/null 2>&1
-    firewall-cmd --permanent --add-port=8088/tcp > /dev/null 2>&1
-    firewall-cmd --permanent --add-port=10000-10100/udp > /dev/null 2>&1
-    firewall-cmd --reload > /dev/null 2>&1
-    log_ok "Firewalld configurado"
-fi
+ufw --force reset > /dev/null 2>&1
+ufw default deny incoming > /dev/null 2>&1
+ufw default allow outgoing > /dev/null 2>&1
+ufw allow ssh > /dev/null 2>&1
+ufw allow 80/tcp > /dev/null 2>&1       # HTTP (redirect Caddy)
+ufw allow 443/tcp > /dev/null 2>&1      # HTTPS
+ufw allow 443/udp > /dev/null 2>&1      # HTTP/3 QUIC
+ufw allow 5060/udp > /dev/null 2>&1     # SIP UDP
+ufw allow 5060/tcp > /dev/null 2>&1     # SIP TCP
+ufw allow 8088/tcp > /dev/null 2>&1     # WebRTC WS (Asterisk)
+ufw allow 10000:10100/udp > /dev/null 2>&1  # RTP media
+ufw --force enable > /dev/null 2>&1
+log_ok "UFW configurado"
 
 # ── Build e subida ────────────────────────────────────────────────────────────
 log_step "9. Build e inicialização dos containers"

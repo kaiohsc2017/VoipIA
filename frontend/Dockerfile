@@ -46,7 +46,10 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copia arquivos estáticos da plataforma de Agentes
-COPY agents-platform/frontend /usr/share/nginx/html/agents
+# nginx.conf da pasta agents é excluído — não deve ser servido como arquivo estático
+COPY agents-platform/frontend/index.html /usr/share/nginx/html/agents/index.html
+COPY agents-platform/frontend/docs.html  /usr/share/nginx/html/agents/docs.html
+COPY agents-platform/frontend/js         /usr/share/nginx/html/agents/js
 
 EXPOSE 80
 

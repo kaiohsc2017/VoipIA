@@ -37,7 +37,8 @@ type = transport
 protocol = ws
 bind = 0.0.0.0:8088
 ; Permite conexões de qualquer origem (Caddy proxy)
-; local_net aqui não filtra — é só para referência de NAT
+; local_net informa ao Asterisk quais redes são locais (não requerem NAT).
+; 172.16.0.0/12 cobre a subnet Docker 172.16.7.0/24 usada pelo stack.
 local_net = 172.16.0.0/12
 local_net = 10.0.0.0/8
 local_net = 192.168.0.0/16

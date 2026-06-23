@@ -130,13 +130,22 @@ O agente lê automaticamente `GEMINI_API_KEY` e `DATABASE_URL` do `.env` do proj
 - Papéis: Desenvolvedor Sênior · Arquiteto DevOps · Engenheiro Linux
 - Sumarização automática de sessão ao encerrar
 
-### `agente-google.py` — Agente Google Gemini local
+### `agente-google.py` — Agente Google Gemini com memória PostgreSQL
 
-Agente conversacional simples sem memória persistente, para consultas rápidas.
+Variante do `asteriskia-agent.py` que usa a SDK `google-genai` diretamente.
+Possui o mesmo sistema de memória RAG via PostgreSQL + pg_trgm.
 
+**Pré-requisitos:**
+```bash
+pip install google-genai psycopg2-binary python-dotenv
+```
+
+**Uso:**
 ```bash
 python3 tools/agente-google.py
 ```
+
+Lê `GEMINI_API_KEY` e `DATABASE_URL` automaticamente do `.env` do projeto.
 
 ---
 

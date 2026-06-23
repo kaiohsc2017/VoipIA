@@ -133,6 +133,13 @@ services:
     networks:
       asteriskia-net:
           ipv4_address: 172.16.7.13
+    healthcheck:
+      # Verifica se o servidor TCP AudioSocket está aceitando conexões
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/9092' 2>/dev/null && echo ok || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   # ---------------------------------------------------------------------------
   # Backend — Spring Boot 3.3 (Tomcat 11, JRE 21)
@@ -299,6 +306,13 @@ services:
     networks:
       asteriskia-net:
           ipv4_address: 172.16.7.16
+    healthcheck:
+      # Usa o endpoint público de health do FastAPI
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/system/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   # ---------------------------------------------------------------------------
   # Caddy 2 — Proxy reverso HTTPS com TLS automático (Let's Encrypt)
@@ -310,10 +324,14 @@ services:
     container_name: asteriskia-caddy
     restart: unless-stopped
     depends_on:
-      - frontend
-      - backend
-      - agents-backend
-      - asterisk
+      frontend:
+        condition: service_started   # nginx não tem healthcheck — started é suficiente
+      backend:
+        condition: service_healthy
+      agents-backend:
+        condition: service_healthy
+      asterisk:
+        condition: service_healthy
     ports:
       - "80:80"      # HTTP → redireciona automaticamente para HTTPS
       - "443:443"    # HTTPS (TLS gerenciado pelo Caddy / Let's Encrypt)
