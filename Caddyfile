@@ -96,31 +96,3 @@ app.voiphash.com.br:3000 {
 app.voiphash.com.br:9090 {
     reverse_proxy asteriskia-prometheus:9090
 }
-
-# ── n8n ───────────────────────────────────────────────────────────────────────
-n8n.voiphash.com.br {
-    reverse_proxy n8n-app:5678
-}
-
-# ── Manager Telecom ───────────────────────────────────────────────────────────
-manager.voiphash.com.br {
-    reverse_proxy ManagerTelecom-Web:8080
-
-    header Access-Control-Allow-Origin "*"
-    header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-    header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Cookie"
-    header Access-Control-Allow-Credentials "true"
-}
-
-# ── Dipapel ───────────────────────────────────────────────────────────────────
-dipapel.xyz {
-    reverse_proxy app-dipapel:3000
-}
-
-# ── Claw ──────────────────────────────────────────────────────────────────────
-claw.voiphash.com.br {
-    reverse_proxy 10.0.3.1:18789 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-    }
-}
