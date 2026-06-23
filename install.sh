@@ -173,25 +173,9 @@ https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
 fi
 
 # ── Caddy ─────────────────────────────────────────────────────────────────────
+# Caddy faz parte do docker compose — não é necessário iniciar manualmente.
 log_step "4. Caddy (proxy reverso HTTPS)"
-if docker ps --filter "name=caddy-proxy" --format "{{.Names}}" | grep -q caddy-proxy 2>/dev/null; then
-    log_ok "Caddy já rodando"
-else
-    log_info "Iniciando container Caddy..."
-    docker network create caddy-net 2>/dev/null || true
-    docker run -d \
-        --name caddy-proxy \
-        --restart unless-stopped \
-        --network caddy-net \
-        -p 80:80 -p 443:443 -p 443:443/udp \
-        -p 2019:2019 \
-        -v caddy_data:/data \
-        -v caddy_config:/config \
-        caddy:2-alpine \
-        caddy run --config /dev/stdin --adapter caddyfile <<< 'localhost { respond "Caddy OK" }'
-    sleep 3
-    log_ok "Caddy iniciado"
-fi
+log_info "Caddy sobe junto com o stack via docker compose (próximo passo)"
 
 # ── Repositório ───────────────────────────────────────────────────────────────
 log_step "5. Repositório AsteriskIA"
@@ -295,10 +279,6 @@ ZABBIX_PASSWORD=
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 
-# ── Grafana ───────────────────────────────────────────────────────────────────
-GRAFANA_ADMIN_USER=admin
-GRAFANA_ADMIN_PASSWORD=$(gen_pass)
-
 # ── Frontend ─────────────────────────────────────────────────────────────────
 VITE_STUN_URL=stun:stun.l.google.com:19302
 EOF
@@ -344,9 +324,6 @@ fi
 # ── Build e subida ────────────────────────────────────────────────────────────
 log_step "9. Build e inicialização dos containers"
 cd "$INSTALL_DIR"
-
-# Conecta containers à rede do Caddy
-docker network connect caddy-net asteriskia-asterisk 2>/dev/null || true
 
 log_info "Carregando variáveis do .env..."
 set -a; source "$ENV_FILE"; set +a
@@ -516,27 +493,14 @@ log_info "Construindo imagens (pode demorar 15-20 min na primeira vez)..."
 log_info "Auto-diagnóstico via IA ativo (requer GEMINI_API_KEY no .env)"
 build_with_ai
 
-log_info "Iniciando containers..."
-docker compose up -d
-
-log_info "Aguardando serviços inicializarem..."
-sleep 20
-
-# ── Caddy config ──────────────────────────────────────────────────────────────
-log_step "10. Configuração do Caddy (HTTPS)"
-log_info "Carregando Caddyfile..."
-docker network connect caddy-net asteriskia-frontend 2>/dev/null || true
-docker network connect caddy-net asteriskia-backend 2>/dev/null || true
-docker network connect caddy-net asteriskia-asterisk 2>/dev/null || true
-docker network connect caddy-net asteriskia-agents-api 2>/dev/null || true
-docker network connect caddy-net asteriskia-agents-ui 2>/dev/null || true
-
-sleep 5
-curl -sf -X POST "http://localhost:2019/load" \
-    -H "Content-Type: text/caddyfile" \
-    --data-binary @"$INSTALL_DIR/Caddyfile" 2>/dev/null \
-    && log_ok "Caddyfile carregado — HTTPS ativo" \
-    || log_warn "Admin API Caddy não respondeu. Execute manualmente:"
+# ── Verificação do Caddy ───────────────────────────────────────────────────────
+# O Caddy faz parte do compose — sobe junto e carrega o Caddyfile automaticamente.
+log_step "10. Verificação do Caddy (HTTPS)"
+if docker inspect --format='{{.State.Status}}' asteriskia-caddy 2>/dev/null | grep -q running; then
+    log_ok "Caddy rodando — HTTPS ativo em https://app.voiphash.com.br"
+else
+    log_warn "Caddy ainda não respondeu. Verifique: docker compose logs caddy"
+fi
 
 # ── Verificação ───────────────────────────────────────────────────────────────
 log_step "11. Verificação da instalação"
@@ -559,10 +523,10 @@ check_container "asteriskia-frontend"
 check_container "asteriskia-asterisk"
 check_container "asteriskia-ai-agent"
 
-if curl -sf --max-time 10 "http://localhost:8081/api/health" > /dev/null 2>&1; then
-    log_ok "Backend API respondendo em :8081"
+if curl -sf --max-time 10 "https://app.voiphash.com.br/api/v1/health" > /dev/null 2>&1; then
+    log_ok "Backend API respondendo via HTTPS"
 else
-    log_warn "Backend API: não respondeu (pode estar inicializando)"
+    log_warn "Backend API: não respondeu ainda (pode estar inicializando)"
 fi
 
 # ── Ramal 9002 ────────────────────────────────────────────────────────────────

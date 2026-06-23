@@ -1,25 +1,32 @@
 # =============================================================================
 # Caddyfile — AsteriskIA
-# AsteriskIA Telecom : rotas principais (/, /api/*, /ws/*, /asterisk-ws*)
-# AsteriskIA Agentes : rotas sob /agents/*
+# Proxy reverso HTTPS com TLS automático (Let's Encrypt).
+#
+# Rotas:
+#   app.voiphash.com.br        → Telecom (frontend + API + WebSockets)
+#   app.voiphash.com.br/agents → Plataforma de Agentes (frontend + API + WS)
+#   app.voiphash.com.br/docs   → Documentação estática (HTML)
+#   claw.voiphash.com.br       → Proxy interno (10.0.3.1:18789)
 # =============================================================================
 
 {
+    # API de administração — acessível apenas internamente (rede Docker)
     admin "0.0.0.0:2019"
 }
 
 app.voiphash.com.br {
 
-    # ── AsteriskIA Agentes — API ──────────────────────────────────────────────
+    # ── Agentes — API (FastAPI) ───────────────────────────────────────────────
+    # Prefixo /agents é removido antes de encaminhar ao backend de agentes.
     @agents-api {
         path /agents/api/*
     }
     handle @agents-api {
         uri strip_prefix /agents
-        reverse_proxy agents-backend:8000
+        reverse_proxy asteriskia-agents-api:8000
     }
 
-    # ── AsteriskIA Agentes — WebSocket logs em tempo real ─────────────────────
+    # ── Agentes — WebSocket (logs em tempo real) ──────────────────────────────
     @agents-ws {
         header Connection *Upgrade*
         header Upgrade websocket
@@ -27,20 +34,30 @@ app.voiphash.com.br {
     }
     handle @agents-ws {
         uri strip_prefix /agents
-        reverse_proxy agents-backend:8000
+        reverse_proxy asteriskia-agents-api:8000
     }
 
-    # ── AsteriskIA Agentes — Frontend ─────────────────────────────────────────
+    # ── Agentes — Frontend (React SPA servida pelo nginx do frontend) ─────────
     @agents-ui {
         path /agents*
     }
     handle @agents-ui {
         uri strip_prefix /agents
         uri replace "" "/"
-        reverse_proxy agents-frontend:80
+        reverse_proxy asteriskia-frontend:80
     }
 
-    # ── AsteriskIA Telecom — API backend Spring Boot ──────────────────────────
+    # ── Documentação estática ─────────────────────────────────────────────────
+    # Arquivos HTML servidos diretamente pelo Caddy a partir do volume montado.
+    @docs {
+        path /docs/*
+    }
+    handle @docs {
+        root * /srv/docs
+        file_server
+    }
+
+    # ── Telecom — API (Spring Boot) ───────────────────────────────────────────
     @api {
         path /api/*
     }
@@ -48,7 +65,7 @@ app.voiphash.com.br {
         reverse_proxy asteriskia-backend:8080
     }
 
-    # ── AsteriskIA Telecom — WebSocket backend ────────────────────────────────
+    # ── Telecom — WebSocket STOMP (dashboard em tempo real) ───────────────────
     @ws {
         header Connection *Upgrade*
         header Upgrade websocket
@@ -58,7 +75,8 @@ app.voiphash.com.br {
         reverse_proxy asteriskia-backend:8080
     }
 
-    # ── AsteriskIA Telecom — WebSocket Asterisk (softphone WebRTC) ───────────
+    # ── Telecom — WebSocket Asterisk (softphone WebRTC) ──────────────────────
+    # Caddy termina TLS (wss://) e repassa como ws:// para o Asterisk na 8088.
     @asterisk-ws {
         header Connection *Upgrade*
         header Upgrade websocket
@@ -69,30 +87,16 @@ app.voiphash.com.br {
         reverse_proxy asteriskia-asterisk:8088
     }
 
-    # ── AsteriskIA Telecom — Frontend React ───────────────────────────────────
+    # ── Telecom — Frontend React (catch-all) ──────────────────────────────────
     handle {
         reverse_proxy asteriskia-frontend:80
     }
 }
 
-# ── Documentação e scripts de instalação ────────────────────────────────────
-app.voiphash.com.br/docs/* {
-    root * /opt/AsteriskIA/docs
-    file_server
-}
-
-app.voiphash.com.br/install.sh {
-    root * /opt/AsteriskIA
-    file_server
-    header Content-Type text/plain
-}
-
-# ── Grafana ───────────────────────────────────────────────────────────────────
-app.voiphash.com.br:3000 {
-    reverse_proxy asteriskia-grafana:3000
-}
-
-# ── Prometheus ────────────────────────────────────────────────────────────────
-app.voiphash.com.br:9090 {
-    reverse_proxy asteriskia-prometheus:9090
+# ── Claw — proxy para serviço interno ────────────────────────────────────────
+claw.voiphash.com.br {
+    reverse_proxy 10.0.3.1:18789 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
 }

@@ -1,75 +1,42 @@
 #!/usr/bin/env bash
-# ============================================================
+# =============================================================================
 # deploy.sh — Deploy AsteriskIA na VPS
-# Execute diretamente na VPS: bash deploy.sh
-# ============================================================
+# Puxa o código mais recente e reinicia apenas os containers afetados.
+#
+# Uso:
+#   bash deploy.sh           → atualiza e reinicia todo o stack
+#   bash deploy.sh --build   → força rebuild de todas as imagens
+# =============================================================================
 set -euo pipefail
 
 APP_DIR="/opt/AsteriskIA"
-BACKEND_DIR="$APP_DIR/backend"
-FRONTEND_DIR="$APP_DIR/frontend"
-FRONTEND_DIST="$FRONTEND_DIR/dist"
-NGINX_WEBROOT="/var/www/asteriskia"   # ajuste se necessário
-BACKEND_SERVICE="asteriskia-backend"
-JAVA_JAR="$BACKEND_DIR/target/asteriskia-backend-*.jar"
+FORCE_BUILD="${1:-}"
 
-echo "======================================================"
-echo "  Deploy AsteriskIA — $(date '+%d/%m/%Y %H:%M:%S')"
-echo "======================================================"
+log()  { echo -e "\n\033[1;34m[$(date '+%H:%M:%S')]\033[0m $*"; }
+ok()   { echo -e "\033[0;32m✔\033[0m $*"; }
+fail() { echo -e "\033[0;31m✖\033[0m $*"; exit 1; }
 
-# --- 1. Git pull ---
-echo ""
-echo "[1/5] Atualizando código..."
+log "Deploy AsteriskIA — $(date '+%d/%m/%Y %H:%M:%S')"
+
+# ── 1. Atualiza o código ──────────────────────────────────────────────────────
+log "1/3 · Atualizando repositório..."
 cd "$APP_DIR"
 git pull origin main
+ok "Repositório atualizado"
 
-# --- 2. Build backend ---
-echo ""
-echo "[2/5] Compilando backend Spring Boot..."
-cd "$BACKEND_DIR"
-./mvnw clean package -DskipTests -q
-echo "     Backend compilado com sucesso."
-
-# --- 3. Reiniciar serviço backend ---
-echo ""
-echo "[3/5] Reiniciando serviço backend..."
-if systemctl is-active --quiet "$BACKEND_SERVICE"; then
-  systemctl restart "$BACKEND_SERVICE"
+# ── 2. Sobe o stack ───────────────────────────────────────────────────────────
+log "2/3 · Subindo stack Docker..."
+if [ "$FORCE_BUILD" = "--build" ]; then
+    docker compose up -d --build
 else
-  systemctl start "$BACKEND_SERVICE"
+    # Pull de imagens externas (postgres, caddy) + rebuild das locais alteradas
+    docker compose up -d --build
 fi
-sleep 3
-systemctl is-active "$BACKEND_SERVICE" && echo "     Serviço backend: RODANDO ✓" || echo "     ATENÇÃO: backend não iniciou — verifique 'journalctl -u $BACKEND_SERVICE -n 30'"
+ok "Stack subindo"
 
-# --- 4. Copiar frontend (dist já compilado e commitado) ---
-echo ""
-echo "[4/5] Publicando frontend..."
-if [ -d "$NGINX_WEBROOT" ]; then
-  rm -rf "$NGINX_WEBROOT"/*
-  cp -r "$FRONTEND_DIST"/. "$NGINX_WEBROOT"/
-  echo "     Frontend copiado para $NGINX_WEBROOT ✓"
-else
-  echo "     Diretório $NGINX_WEBROOT não existe — tentando localizar webroot nginx..."
-  # Tenta detectar webroot pelo nginx.conf
-  DETECTED=$(grep -r 'root ' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null | grep -v '#' | awk '{print $2}' | tr -d ';' | head -1)
-  if [ -n "$DETECTED" ]; then
-    echo "     Webroot detectado: $DETECTED"
-    rm -rf "$DETECTED"/*
-    cp -r "$FRONTEND_DIST"/. "$DETECTED"/
-    echo "     Frontend copiado ✓"
-  else
-    echo "     ATENÇÃO: não foi possível detectar o webroot. Copie manualmente:"
-    echo "     cp -r $FRONTEND_DIST/. /seu/webroot/"
-  fi
-fi
+# ── 3. Aguarda healthchecks ───────────────────────────────────────────────────
+log "3/3 · Verificando serviços..."
+sleep 5
+docker compose ps --format "table {{.Name}}\t{{.Status}}"
 
-# --- 5. Recarregar nginx ---
-echo ""
-echo "[5/5] Recarregando nginx..."
-nginx -t 2>&1 && systemctl reload nginx && echo "     Nginx recarregado ✓"
-
-echo ""
-echo "======================================================"
-echo "  Deploy concluído! $(date '+%d/%m/%Y %H:%M:%S')"
-echo "  Acesse: https://app.voiphash.com.br"
-echo "======================================================"
+log "Deploy concluído · https://app.voiphash.com.br"
