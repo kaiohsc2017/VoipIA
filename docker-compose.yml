@@ -11,6 +11,13 @@
 networks:
   asteriskia-net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.7.0/24
+          # IPs reservados — NÃO atribuir a containers:
+          #   172.16.7.1  – .10  → gateway + reserva de infraestrutura
+          #   172.16.7.250 – .254 → reserva de infraestrutura
+          # Containers: 172.16.7.11 – 172.16.7.249
 
 volumes:
   postgres_data:          # Dados persistentes do PostgreSQL
@@ -42,7 +49,8 @@ services:
       # Remova esta linha se não precisar de acesso externo ao banco.
       - "${POSTGRES_PORT:-5432}:5432"
     networks:
-      - asteriskia-net
+      asteriskia-net:
+          ipv4_address: 172.16.7.11
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
@@ -85,7 +93,8 @@ services:
       - "8088:8088/tcp"              # HTTP/WS para WebRTC (acessado via Caddy)
       - "10000-10100:10000-10100/udp" # RTP — fluxo de mídia
     networks:
-      - asteriskia-net
+      asteriskia-net:
+          ipv4_address: 172.16.7.12
     healthcheck:
       test: ["CMD", "asterisk", "-rx", "core show uptime"]
       interval: 30s
@@ -121,7 +130,8 @@ services:
       - asterisk_recordings:/var/spool/asterisk/monitor
       - /opt/AsteriskIA/env:/opt/asteriskia/env:ro
     networks:
-      - asteriskia-net
+      asteriskia-net:
+          ipv4_address: 172.16.7.13
 
   # ---------------------------------------------------------------------------
   # Backend — Spring Boot 3.3 (Tomcat 11, JRE 21)
@@ -180,7 +190,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/AsteriskIA:/opt/AsteriskIA:ro
     networks:
-      - asteriskia-net
+      asteriskia-net:
+          ipv4_address: 172.16.7.14
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -207,7 +218,8 @@ services:
       backend:
         condition: service_healthy
     networks:
-      - asteriskia-net
+      asteriskia-net:
+          ipv4_address: 172.16.7.15
 
   # ---------------------------------------------------------------------------
   # Security — Fail2ban + nftables (lockdown SIP)
@@ -284,7 +296,8 @@ services:
       - agents_knowledge:/app/knowledge_docs
       - /opt/AsteriskIA/env:/opt/AsteriskIA/env
     networks:
-      - asteriskia-net
+      asteriskia-net:
+          ipv4_address: 172.16.7.16
 
   # ---------------------------------------------------------------------------
   # Caddy 2 — Proxy reverso HTTPS com TLS automático (Let's Encrypt)
@@ -311,4 +324,5 @@ services:
       - caddy_data:/data                     # Certificados TLS (persistente)
       - caddy_config:/config                 # Cache interno do Caddy
     networks:
-      - asteriskia-net
+      asteriskia-net:
+          ipv4_address: 172.16.7.17
