@@ -63,4 +63,3 @@ logs/
 *.bak*
 bkp-config/
 security/config/action.d/
-agente-google.py
