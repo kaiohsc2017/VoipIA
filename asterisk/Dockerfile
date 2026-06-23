@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     libncurses5-dev \
     libedit-dev \
     libjansson-dev \
+    libpjproject-dev \
     libxml2-dev \
     libsqlite3-dev \
     uuid-dev \
@@ -39,8 +40,6 @@ RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
     cd "$ASTERISK_DIR" && \
     contrib/scripts/get_mp3_source.sh || true && \
     ./configure \
-        --with-pjproject-bundled \
-        --with-jansson-bundled \
         --with-ssl=ssl \
         --with-srtp=/usr && \
     # Verificar se res_srtp vai ser compilado
