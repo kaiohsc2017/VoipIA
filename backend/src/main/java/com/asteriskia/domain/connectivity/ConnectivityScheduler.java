@@ -38,7 +38,7 @@ public class ConnectivityScheduler {
 
     @Scheduled(fixedDelayString = "${app.scheduler.poll-interval-ms:60000}")
     public void runCycle() {
-        List<NumberTest> tests = numberTestRepo.findByIsActiveTrue();
+        List<NumberTest> tests = numberTestRepo.findByIsActive(true);
         if (tests.isEmpty()) return;
         log.debug("Scheduler: {} testes ativos", tests.size());
         for (NumberTest test : tests) {
