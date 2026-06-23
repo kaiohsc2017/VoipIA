@@ -354,8 +354,6 @@ public class SecurityController {
             log.warn("removeLockdownIptables: {}", e.getMessage());
         }
     }
-    }
-    }
 
     private void writePersistentLockdown(String script) {
         try {
