@@ -38,12 +38,13 @@ app.voiphash.com.br {
     }
 
     # ── Agentes — Frontend (React SPA servida pelo nginx do frontend) ─────────
+    # NÃO remover o prefixo /agents — o nginx tem location /agents/ com alias
+    # para servir os arquivos corretos. Se strip_prefix fosse feito aqui,
+    # o nginx receberia "/" e serviria o dashboard Telecom.
     @agents-ui {
         path /agents*
     }
     handle @agents-ui {
-        uri strip_prefix /agents
-        uri replace "" "/"
         reverse_proxy asteriskia-frontend:80
     }
 
