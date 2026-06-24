@@ -136,8 +136,8 @@ services:
       asteriskia-net:
           ipv4_address: 172.16.7.13
     healthcheck:
-      # Verifica se o servidor TCP AudioSocket está aceitando conexões
-      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/9092' 2>/dev/null && echo ok || exit 1"]
+      # Verifica se o servidor TCP AudioSocket está aceitando conexões na porta 9092
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('localhost',9092),2); s.close()"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -314,8 +314,8 @@ services:
       asteriskia-net:
           ipv4_address: 172.16.7.16
     healthcheck:
-      # Usa o endpoint público de health do FastAPI
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/system/health"]
+      # Usa o endpoint público de health do FastAPI (curl não existe na imagem slim)
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/system/health', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3
