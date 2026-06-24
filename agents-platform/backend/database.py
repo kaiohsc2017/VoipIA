@@ -1,18 +1,21 @@
 """database.py — conexão e schema PostgreSQL da plataforma de agentes"""
 import asyncpg, os
 from typing import AsyncGenerator
+from urllib.parse import quote_plus
 
 _pool: asyncpg.Pool | None = None
 
 def _dsn() -> str:
-    return (
-        os.environ.get("AGENTS_DATABASE_URL")
-        or f"postgresql://{os.environ.get('AGENTS_DB_USER','agents')}:"
-           f"{os.environ.get('AGENTS_DB_PASS','agents')}@"
-           f"{os.environ.get('AGENTS_DB_HOST','agents-postgres')}:"
-           f"{os.environ.get('AGENTS_DB_PORT','5432')}/"
-           f"{os.environ.get('AGENTS_DB_NAME','agentsdb')}"
-    )
+    """Monta DSN para o asyncpg. URL-encoda a senha para suportar caracteres
+    especiais como @ e # que quebrariam o parsing da URL."""
+    if url := os.environ.get("AGENTS_DATABASE_URL"):
+        return url
+    user = os.environ.get("AGENTS_DB_USER", "asteriskia")
+    pwd  = quote_plus(os.environ.get("AGENTS_DB_PASS", "asteriskia"))
+    host = os.environ.get("AGENTS_DB_HOST", "postgres")
+    port = os.environ.get("AGENTS_DB_PORT", "5432")
+    db   = os.environ.get("AGENTS_DB_NAME", "asteriskia")
+    return f"postgresql://{user}:{pwd}@{host}:{port}/{db}"
 
 SCHEMA = """
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
