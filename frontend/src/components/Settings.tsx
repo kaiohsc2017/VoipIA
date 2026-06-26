@@ -127,7 +127,6 @@ const SECTIONS: Section[] = [
       { key: 'POSTGRES_PASSWORD',       label: 'Senha PostgreSQL',            type: 'password' },
       { key: 'BACKEND_ALLOWED_ORIGINS', label: 'CORS — Origens Permitidas',   placeholder: 'https://app.voiphash.com.br',
         hint: 'URLs do frontend que podem acessar a API. Separe por vírgula.' },
-      { key: 'GRAFANA_ADMIN_PASSWORD',  label: 'Senha do Grafana',            type: 'password' },
       { key: 'VITE_API_URL',            label: 'URL da API (Frontend)',        placeholder: 'https://app.voiphash.com.br/api/v1' },
       { key: 'VITE_ASTERISK_WS',        label: 'WebSocket Asterisk (WebRTC)', placeholder: 'wss://app.voiphash.com.br/ws' },
     ],
@@ -335,7 +334,7 @@ export default function Settings() {
   const [applyingSection_label, setApplyingLabel] = useState('');
   const [toast, setToast]                   = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [revealedKeys, setRevealedKeys]     = useState<Set<string>>(new Set());
-  const [openSections, setOpenSections]     = useState<Set<string>>(new Set(['sip', 'rotas', ...SECTIONS.map(s => s.id)]));
+  const [openSections, setOpenSections]     = useState<Set<string>>(new Set());
   const [testingSection, setTestingSection] = useState<Record<string, 'idle' | 'loading' | 'ok' | 'error'>>({});
   const [testResults, setTestResults]       = useState<Record<string, string>>({});
   const [activeTab, setActiveTab]           = useState<Tab>('config');
@@ -663,50 +662,6 @@ export default function Settings() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-              {/* ── Painel Tronco SIP ──────────────────────────────────────── */}
-              <AsteriskFilePanel
-                panelId="sip"
-                icon="🔌"
-                title="Tronco SIP (Operadora)"
-                description={<>Edite o bloco <code style={codeStyle}>[tronco-sip]</code> do <code style={codeStyle}>pjsip.conf.template</code>. Ao salvar, o Asterisk executa <code style={codeStyle}>module reload res_pjsip</code> automaticamente.</>}
-                hint={<>📌 Chamadas de <strong>entrada e saída</strong> usam este mesmo tronco. O campo <code style={codeStyle}>host</code> atualiza <code style={codeStyle}>SIP_TRUNK_HOST</code> no .env.</>}
-                value={sipBlock}
-                original={sipOriginal}
-                saving={sipSaving}
-                isLoading={astConfigLoading}
-                reloadStatus={sipReloadStatus}
-                reloadLabel="PJSIP"
-                saveLabel="💾 Salvar e Recarregar PJSIP"
-                open={openSections.has('sip')}
-                onToggle={() => toggleSection('sip')}
-                onChange={setSipBlock}
-                onDiscard={() => { setSipBlock(sipOriginal); setSipReloadStatus(''); }}
-                onSave={handleSaveSipRaw}
-                minRows={10}
-              />
-
-              {/* ── Painel Rotas ───────────────────────────────────────────── */}
-              <AsteriskFilePanel
-                panelId="rotas"
-                icon="🗺️"
-                title="Rotas (extensions.conf)"
-                description={<>Edite o plano de discagem completo — contextos de entrada (<code style={codeStyle}>recepcao-tronco</code>), saída e ramais internos. Ao salvar, executa <code style={codeStyle}>dialplan reload</code>.</>}
-                hint={<>📌 Contextos de saída usam <code style={codeStyle}>PJSIP/&lt;número&gt;@tronco-sip</code>. Não é necessário reiniciar o container.</>}
-                value={rotasContent}
-                original={rotasOriginal}
-                saving={rotasSaving}
-                isLoading={astConfigLoading}
-                reloadStatus={rotasReloadStatus}
-                reloadLabel="Dialplan"
-                saveLabel="💾 Salvar e Recarregar Dialplan"
-                open={openSections.has('rotas')}
-                onToggle={() => toggleSection('rotas')}
-                onChange={setRotasContent}
-                onDiscard={() => { setRotasContent(rotasOriginal); setRotasReloadStatus(''); }}
-                onSave={handleSaveRotas}
-                minRows={20}
-              />
-
               <AISettingsPanel
                 open={openSections.has('ai')}
                 onToggle={() => toggleSection('ai')}
@@ -877,6 +832,51 @@ export default function Settings() {
                   </div>
                 );
               })}
+
+              {/* ── Painel Tronco SIP ──────────────────────────────────────── */}
+              <AsteriskFilePanel
+                panelId="sip"
+                icon="🔌"
+                title="Tronco SIP (Operadora)"
+                description={<>Edite o bloco <code style={codeStyle}>[tronco-sip]</code> do <code style={codeStyle}>pjsip.conf.template</code>. Ao salvar, o Asterisk executa <code style={codeStyle}>module reload res_pjsip</code> automaticamente.</>}
+                hint={<>📌 Chamadas de <strong>entrada e saída</strong> usam este mesmo tronco. O campo <code style={codeStyle}>host</code> atualiza <code style={codeStyle}>SIP_TRUNK_HOST</code> no .env.</>}
+                value={sipBlock}
+                original={sipOriginal}
+                saving={sipSaving}
+                isLoading={astConfigLoading}
+                reloadStatus={sipReloadStatus}
+                reloadLabel="PJSIP"
+                saveLabel="💾 Salvar e Recarregar PJSIP"
+                open={openSections.has('sip')}
+                onToggle={() => toggleSection('sip')}
+                onChange={setSipBlock}
+                onDiscard={() => { setSipBlock(sipOriginal); setSipReloadStatus(''); }}
+                onSave={handleSaveSipRaw}
+                minRows={10}
+              />
+
+              {/* ── Painel Rotas ───────────────────────────────────────────── */}
+              <AsteriskFilePanel
+                panelId="rotas"
+                icon="🗺️"
+                title="Rotas (extensions.conf)"
+                description={<>Edite o plano de discagem completo — contextos de entrada (<code style={codeStyle}>recepcao-tronco</code>), saída e ramais internos. Ao salvar, executa <code style={codeStyle}>dialplan reload</code>.</>}
+                hint={<>📌 Contextos de saída usam <code style={codeStyle}>PJSIP/&lt;número&gt;@tronco-sip</code>. Não é necessário reiniciar o container.</>}
+                value={rotasContent}
+                original={rotasOriginal}
+                saving={rotasSaving}
+                isLoading={astConfigLoading}
+                reloadStatus={rotasReloadStatus}
+                reloadLabel="Dialplan"
+                saveLabel="💾 Salvar e Recarregar Dialplan"
+                open={openSections.has('rotas')}
+                onToggle={() => toggleSection('rotas')}
+                onChange={setRotasContent}
+                onDiscard={() => { setRotasContent(rotasOriginal); setRotasReloadStatus(''); }}
+                onSave={handleSaveRotas}
+                minRows={20}
+              />
+
             </div>
 
             {/* Log do apply */}
