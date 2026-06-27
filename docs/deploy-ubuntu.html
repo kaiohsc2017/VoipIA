@@ -176,18 +176,9 @@ docker run --rm hello-world</span>
 
 <div class="section anchor" id="caddy">
   <h2><span class="step-badge">03</span> Caddy (HTTPS)</h2>
-  <div class="code-block">
-    <div class="code-header"><span class="code-label">bash</span></div>
-    <pre><span class="cmd">docker network create caddy-net
-
-docker run -d \
-  --name caddy-proxy \
-  --restart unless-stopped \
-  --network caddy-net \
-  -p 80:80 -p 443:443 -p 443:443/udp -p 2019:2019 \
-  -v caddy_data:/data -v caddy_config:/config \
-  caddy:2-alpine \
-  caddy run --config /dev/stdin --adapter caddyfile &lt;&lt;&lt; 'localhost { respond "OK" }'</span></pre>
+  <div class="callout info">
+    <div class="callout-icon">ℹ️</div>
+    <p>O Caddy faz parte do <code>docker compose</code> — não é necessário instalá-lo separadamente. Ele sobe automaticamente no passo <strong>06 (Build e Inicialização)</strong>, obtém o certificado TLS via Let's Encrypt e configura as rotas automaticamente.</p>
   </div>
 </div>
 
@@ -235,26 +226,28 @@ nano /opt/AsteriskIA/env/.env</span></pre>
     <pre><span class="cmd">docker compose build --no-cache 2>&amp;1 | tail -10
 docker compose up -d
 docker compose ps</span>
-<span class="out">asteriskia-postgres     Up (healthy)
+<span class="out">asteriskia-caddy        Up
+asteriskia-postgres     Up (healthy)
 asteriskia-backend      Up (healthy)
 asteriskia-frontend     Up
 asteriskia-asterisk     Up (healthy)
-asteriskia-ai-agent     Up</span></pre>
+asteriskia-ai-agent     Up
+asteriskia-agents-api   Up
+asteriskia-security     Up (healthy)</span></pre>
   </div>
 </div>
 
 <div class="section anchor" id="caddy-config">
-  <h2><span class="step-badge">07</span> Configurar Caddy</h2>
+  <h2><span class="step-badge">07</span> Verificar Caddy</h2>
   <div class="code-block">
     <div class="code-header"><span class="code-label">bash</span></div>
-    <pre><span class="cmd">for c in asteriskia-frontend asteriskia-backend asteriskia-asterisk \
-          asteriskia-agents-api asteriskia-agents-ui; do
-  docker network connect caddy-net $c 2>/dev/null || true
-done
+    <pre><span class="cmt"># Caddy sobe junto com o compose — verificar se obteve TLS</span>
+<span class="cmd">docker logs asteriskia-caddy --tail=10</span>
+<span class="out">{"level":"info","msg":"served key authentication","identifier":"app.voiphash.com.br"}
+{"level":"info","msg":"authorization finalized","identifier":"app.voiphash.com.br","authz_status":"valid"}</span>
 
-curl -X POST "http://localhost:2019/load" \
-  -H "Content-Type: text/caddyfile" \
-  --data-binary @/opt/AsteriskIA/Caddyfile</span>
+<span class="cmt"># Recarregar Caddyfile sem downtime (após editar o arquivo)</span>
+<span class="cmd">curl -X POST http://localhost:2019/load   -H "Content-Type: text/caddyfile"   --data-binary @/opt/AsteriskIA/Caddyfile</span>
 <span class="out">{"id":""}</span></pre>
   </div>
 </div>
@@ -264,8 +257,8 @@ curl -X POST "http://localhost:2019/load" \
   <div class="code-block">
     <div class="code-header"><span class="code-label">bash</span></div>
     <pre><span class="cmt"># Health do backend</span>
-<span class="cmd">curl -s http://localhost:8081/api/health</span>
-<span class="out">{"status":"UP","service":"asteriskia-backend"}</span>
+<span class="cmd">curl -s https://app.voiphash.com.br/api/v1/actuator/health</span>
+<span class="out">{"status":"UP"}</span>
 
 <span class="cmt"># SIP_PUBLIC_IP — CRÍTICO</span>
 <span class="cmd">docker exec asteriskia-asterisk grep "external_media_address" /etc/asterisk/pjsip.conf</span>

@@ -1,8 +1,6 @@
 package com.asteriskia.domain.user;
 
 import com.asteriskia.domain.audit.AuditService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -29,7 +27,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
-@Tag(name = "Users", description = "Gerenciamento de usuários e ramais SIP WebRTC")
 public class UserController {
 
     private final AppUserRepository userRepo;
@@ -44,24 +41,21 @@ public class UserController {
     // -----------------------------------------------------------------------
 
     @GetMapping
-    @Operation(summary = "Lista todos os usuários")
-    public ResponseEntity<List<UserResponse>> listUsers() {
+        public ResponseEntity<List<UserResponse>> listUsers() {
         return ResponseEntity.ok(
                 userRepo.findAll().stream().map(UserResponse::from).toList()
         );
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Busca usuário por ID")
-    public ResponseEntity<UserResponse> getUser(@PathVariable Integer id) {
+        public ResponseEntity<UserResponse> getUser(@PathVariable Integer id) {
         return userRepo.findById(id)
                 .map(u -> ResponseEntity.ok(UserResponse.from(u)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping
-    @Operation(summary = "Cria usuário — atribui próximo ramal disponível automaticamente")
-    public ResponseEntity<?> createUser(@Valid @RequestBody CreateUserRequest req,
+        public ResponseEntity<?> createUser(@Valid @RequestBody CreateUserRequest req,
                                         HttpServletRequest httpRequest) {
         if (userRepo.findByUsername(req.username()).isPresent()) {
             return ResponseEntity.badRequest().body(new ErrorResponse("Username já existe: " + req.username()));
@@ -87,8 +81,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Atualiza nome, senha e/ou status do usuário")
-    public ResponseEntity<?> updateUser(@PathVariable Integer id,
+        public ResponseEntity<?> updateUser(@PathVariable Integer id,
                                         @Valid @RequestBody UpdateUserRequest req,
                                         HttpServletRequest httpRequest) {
         return userRepo.findById(id)
@@ -119,7 +112,6 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Desativa usuário (soft delete — preserva o ramal)")
     public ResponseEntity<Void> deactivateUser(@PathVariable Integer id,
                                                HttpServletRequest httpRequest) {
         return userRepo.findById(id)

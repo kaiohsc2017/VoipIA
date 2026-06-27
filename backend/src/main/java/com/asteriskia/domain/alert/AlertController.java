@@ -1,7 +1,5 @@
 package com.asteriskia.domain.alert;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +25,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
-@Tag(name = "Alerts", description = "Alertas de infraestrutura Zabbix e contatos de plantão (Módulo 3)")
 public class AlertController {
 
     private final AlertService service;
@@ -41,8 +38,7 @@ public class AlertController {
 
     /** Consumido pelo agente Python: busca dados do incidente para leitura via TTS. */
     @GetMapping("/alert-calls/by-uuid/{uuid}")
-    @Operation(summary = "Busca alert call pelo UUID do Asterisk")
-    public ResponseEntity<AlertCall> getByUuid(@PathVariable String uuid) {
+        public ResponseEntity<AlertCall> getByUuid(@PathVariable String uuid) {
         return service.findByUuid(uuid)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -50,8 +46,7 @@ public class AlertController {
 
     /** Consumido pelo agente Python: atualiza status após o fluxo de voz. */
     @PatchMapping("/alert-calls/by-uuid/{uuid}")
-    @Operation(summary = "Atualiza status da chamada de alerta")
-    public ResponseEntity<Void> updateStatus(
+        public ResponseEntity<Void> updateStatus(
             @PathVariable String uuid,
             @Valid @RequestBody UpdateStatusRequest request) {
         service.updateCallStatus(uuid, request.callStatus());
@@ -59,7 +54,6 @@ public class AlertController {
     }
 
     @GetMapping("/alert-calls")
-    @Operation(summary = "Lista histórico de alertas (paginado)")
     public ResponseEntity<Page<AlertCall>> listAlerts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -67,8 +61,7 @@ public class AlertController {
     }
 
     @GetMapping("/alert-calls/{id}")
-    @Operation(summary = "Detalhe de um alerta")
-    public ResponseEntity<AlertCall> getAlert(@PathVariable Long id) {
+        public ResponseEntity<AlertCall> getAlert(@PathVariable Long id) {
         return service.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -78,8 +71,7 @@ public class AlertController {
      * Faz streaming do arquivo de audio gravado pelo Asterisk para alertas.
      */
     @GetMapping("/alert-calls/{id}/audio")
-    @Operation(summary = "Streaming do audio gravado do alerta Zabbix")
-    public ResponseEntity<Resource> getAudio(@PathVariable Long id) {
+        public ResponseEntity<Resource> getAudio(@PathVariable Long id) {
         var optRecord = service.findById(id);
         if (optRecord.isEmpty()) {
             return ResponseEntity.<Resource>notFound().build();
@@ -113,28 +105,24 @@ public class AlertController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/alert-contacts")
-    @Operation(summary = "Lista contatos de plantão ativos")
-    public ResponseEntity<List<AlertContact>> listContacts(@RequestParam(required = false) Long operationId) {
+        public ResponseEntity<List<AlertContact>> listContacts(@RequestParam(required = false) Long operationId) {
         return ResponseEntity.ok(service.findActiveContacts(operationId));
     }
 
     @PostMapping("/alert-contacts")
-    @Operation(summary = "Cadastra contato de plantão")
-    public ResponseEntity<AlertContact> createContact(@Valid @RequestBody AlertContact contact) {
+        public ResponseEntity<AlertContact> createContact(@Valid @RequestBody AlertContact contact) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.saveContact(contact));
     }
 
     @PutMapping("/alert-contacts/{id}")
-    @Operation(summary = "Atualiza contato de plantão")
-    public ResponseEntity<AlertContact> updateContact(
+        public ResponseEntity<AlertContact> updateContact(
             @PathVariable Integer id, @Valid @RequestBody AlertContact contact) {
         contact.setId(id);
         return ResponseEntity.ok(service.saveContact(contact));
     }
 
     @DeleteMapping("/alert-contacts/{id}")
-    @Operation(summary = "Remove contato de plantão")
-    public ResponseEntity<Void> deleteContact(@PathVariable Integer id) {
+        public ResponseEntity<Void> deleteContact(@PathVariable Integer id) {
         service.deleteContact(id);
         return ResponseEntity.noContent().build();
     }

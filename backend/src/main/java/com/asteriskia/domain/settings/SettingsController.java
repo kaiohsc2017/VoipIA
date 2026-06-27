@@ -1,8 +1,6 @@
 package com.asteriskia.domain.settings;
 
 import com.asteriskia.domain.audit.AuditService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,14 +27,12 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/settings")
 @RequiredArgsConstructor
-@Tag(name = "Settings", description = "Gestão das configurações do sistema via arquivo .env")
 public class SettingsController {
 
     private final SettingsService settingsService;
     private final AuditService    auditService;
 
     @GetMapping
-    @Operation(summary = "Lê as configurações atuais do sistema (campos secretos mascarados)")
     public ResponseEntity<?> getSettings() {
         try {
             return ResponseEntity.ok(settingsService.readAsMap());
@@ -48,7 +44,6 @@ public class SettingsController {
     }
 
     @PostMapping
-    @Operation(summary = "Salva configurações no .env (não reinicia serviços). Cria backup e registra histórico.")
     public ResponseEntity<?> saveSettings(
             @RequestBody Map<String, String> updates,
             Authentication auth,
@@ -81,8 +76,7 @@ public class SettingsController {
      * Se "services" estiver ausente ou vazio, reinicia TODOS os serviços (comportamento antigo).
      */
     @PostMapping("/apply")
-    @Operation(summary = "Inicia apply assíncrono. Body opcional: { services: [...] } para reiniciar só o necessário.")
-    public ResponseEntity<?> startApply(
+        public ResponseEntity<?> startApply(
             @RequestBody(required = false) Map<String, Object> body,
             HttpServletRequest request) {
         try {
@@ -105,8 +99,7 @@ public class SettingsController {
     }
 
     @GetMapping("/apply/{jobId}")
-    @Operation(summary = "Consulta estado e log de um job de apply.")
-    public ResponseEntity<?> getApplyStatus(@PathVariable String jobId) {
+        public ResponseEntity<?> getApplyStatus(@PathVariable String jobId) {
         return settingsService.getApplyStatus(jobId)
                 .map(job -> ResponseEntity.ok((Object) new ApplyStatusResponse(
                         job.getId(), job.getStatus().name().toLowerCase(), job.getLog())))
@@ -114,8 +107,7 @@ public class SettingsController {
     }
 
     @GetMapping("/history")
-    @Operation(summary = "Retorna histórico das últimas alterações de configuração.")
-    public ResponseEntity<?> getHistory(@RequestParam(defaultValue = "50") int limit) {
+        public ResponseEntity<?> getHistory(@RequestParam(defaultValue = "50") int limit) {
         try {
             List<HistoryEntryDTO> dtos = settingsService.getHistory(limit).stream()
                     .map(r -> new HistoryEntryDTO(r.getId(), r.getChangedAt(), r.getChangedBy(),

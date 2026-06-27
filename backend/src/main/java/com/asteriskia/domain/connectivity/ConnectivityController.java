@@ -4,8 +4,6 @@ import com.asteriskia.domain.masterdata.BusinessUnitRepository;
 import com.asteriskia.domain.masterdata.ClientRepository;
 import com.asteriskia.domain.masterdata.OperationRepository;
 import com.asteriskia.domain.masterdata.SegmentRepository;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +35,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
-@Tag(name = "Connectivity Tests", description = "Testes de conectividade telefônica (Módulo 2)")
 public class ConnectivityController {
 
     private final NumberTestRepository    numberTestRepo;
@@ -53,8 +50,7 @@ public class ConnectivityController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/number-tests")
-    @Operation(summary = "Lista testes de conectividade")
-    public ResponseEntity<List<NumberTest>> listNumberTests(
+        public ResponseEntity<List<NumberTest>> listNumberTests(
             @RequestParam(required = false) Boolean active) {
         List<NumberTest> result = active != null
                 ? numberTestRepo.findByIsActive(active)
@@ -63,30 +59,26 @@ public class ConnectivityController {
     }
 
     @GetMapping("/number-tests/{id}")
-    @Operation(summary = "Busca teste por ID")
-    public ResponseEntity<NumberTest> getNumberTest(@PathVariable Long id) {
+        public ResponseEntity<NumberTest> getNumberTest(@PathVariable Long id) {
         return numberTestRepo.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/number-tests")
-    @Operation(summary = "Cria configuração de teste")
-    public ResponseEntity<NumberTest> createNumberTest(@Valid @RequestBody NumberTest test) {
+        public ResponseEntity<NumberTest> createNumberTest(@Valid @RequestBody NumberTest test) {
         return ResponseEntity.status(HttpStatus.CREATED).body(numberTestRepo.save(test));
     }
 
     @PutMapping("/number-tests/{id}")
-    @Operation(summary = "Atualiza configuração de teste")
-    public ResponseEntity<NumberTest> updateNumberTest(
+        public ResponseEntity<NumberTest> updateNumberTest(
             @PathVariable Long id, @Valid @RequestBody NumberTest test) {
         test.setId(id);
         return ResponseEntity.ok(numberTestRepo.save(test));
     }
 
     @PatchMapping("/number-tests/{id}/active")
-    @Operation(summary = "Ativa/desativa teste")
-    @Transactional
+        @Transactional
     public ResponseEntity<Void> setActive(@PathVariable Long id, @RequestParam boolean active) {
         numberTestRepo.findById(id).ifPresent(t -> {
             t.setIsActive(active);
@@ -96,8 +88,7 @@ public class ConnectivityController {
     }
 
     @DeleteMapping("/number-tests/{id}")
-    @Operation(summary = "Remove configuração de teste")
-    public ResponseEntity<Void> deleteNumberTest(@PathVariable Long id) {
+        public ResponseEntity<Void> deleteNumberTest(@PathVariable Long id) {
         numberTestRepo.deleteById(id);
         return ResponseEntity.noContent().build();
     }
@@ -107,7 +98,6 @@ public class ConnectivityController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/test-results")
-    @Operation(summary = "Lista resultados de testes (paginado, com filtros de período, status e dados mestres)")
     public ResponseEntity<Page<TestResult>> listResults(
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "50") int size,
@@ -130,8 +120,7 @@ public class ConnectivityController {
 
     /** Consumido pelo Scheduler Python para registrar cada resultado de chamada. */
     @PostMapping("/test-results")
-    @Operation(summary = "Registra resultado de execução de teste")
-    public ResponseEntity<TestResult> registerResult(@Valid @RequestBody TestResult result) {
+        public ResponseEntity<TestResult> registerResult(@Valid @RequestBody TestResult result) {
         log.info("Resultado de teste registrado: numberTest={} status={}",
                 result.getNumberTest() != null ? result.getNumberTest().getId() : "?",
                 result.getStatus());

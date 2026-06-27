@@ -1,7 +1,6 @@
 package com.asteriskia.domain.masterdata;
 
 import com.asteriskia.domain.audit.AuditService;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +31,6 @@ import com.asteriskia.domain.connectivity.NumberTestRepository;
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
-@Tag(name = "Master Data", description = "CRUD de BU, Segmentos, Clientes e Operações (Módulo 2)")
 public class MasterDataController {
 
     private final BusinessUnitRepository buRepo;
@@ -47,8 +45,7 @@ public class MasterDataController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/business-units")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Lista Business Units")
-    public ResponseEntity<List<BusinessUnit>> listBUs(@RequestParam(required = false) Boolean active) {
+        public ResponseEntity<List<BusinessUnit>> listBUs(@RequestParam(required = false) Boolean active) {
         List<BusinessUnit> result = active != null
                 ? buRepo.findByIsActive(active)
                 : buRepo.findAll();
@@ -56,8 +53,7 @@ public class MasterDataController {
     }
 
     @PostMapping("/business-units")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Cria Business Unit")
-    public ResponseEntity<BusinessUnit> createBU(@Valid @RequestBody BusinessUnit bu,
+        public ResponseEntity<BusinessUnit> createBU(@Valid @RequestBody BusinessUnit bu,
                                                   HttpServletRequest req) {
         BusinessUnit saved = buRepo.save(bu);
         auditService.log(req, "MASTERDATA_CREATE", "BusinessUnit criada: '" + saved.getName() + "' (id=" + saved.getId() + ")", true);
@@ -65,8 +61,7 @@ public class MasterDataController {
     }
 
     @PutMapping("/business-units/{id}")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Atualiza Business Unit")
-    public ResponseEntity<BusinessUnit> updateBU(@PathVariable Integer id, @Valid @RequestBody BusinessUnit bu,
+        public ResponseEntity<BusinessUnit> updateBU(@PathVariable Integer id, @Valid @RequestBody BusinessUnit bu,
                                                   HttpServletRequest req) {
         bu.setId(id);
         BusinessUnit saved = buRepo.save(bu);
@@ -75,8 +70,7 @@ public class MasterDataController {
     }
 
     @DeleteMapping("/business-units/{id}")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Remove Business Unit")
-    public ResponseEntity<Void> deleteBU(@PathVariable Integer id, HttpServletRequest req) {
+        public ResponseEntity<Void> deleteBU(@PathVariable Integer id, HttpServletRequest req) {
         auditService.log(req, "MASTERDATA_DELETE", "BusinessUnit removida (id=" + id + ")", true);
         buRepo.deleteById(id);
         return ResponseEntity.noContent().build();
@@ -87,8 +81,7 @@ public class MasterDataController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/segments")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Lista Segmentos")
-    public ResponseEntity<List<Segment>> listSegments(@RequestParam(required = false) Boolean active) {
+        public ResponseEntity<List<Segment>> listSegments(@RequestParam(required = false) Boolean active) {
         List<Segment> result = active != null
                 ? segRepo.findByIsActive(active)
                 : segRepo.findAll();
@@ -96,16 +89,14 @@ public class MasterDataController {
     }
 
     @PostMapping("/segments")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Cria Segmento")
-    public ResponseEntity<Segment> createSegment(@Valid @RequestBody Segment seg, HttpServletRequest req) {
+        public ResponseEntity<Segment> createSegment(@Valid @RequestBody Segment seg, HttpServletRequest req) {
         Segment saved = segRepo.save(seg);
         auditService.log(req, "MASTERDATA_CREATE", "Segmento criado: '" + saved.getName() + "' (id=" + saved.getId() + ")", true);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @PutMapping("/segments/{id}")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Atualiza Segmento")
-    public ResponseEntity<Segment> updateSegment(@PathVariable Integer id, @Valid @RequestBody Segment seg,
+        public ResponseEntity<Segment> updateSegment(@PathVariable Integer id, @Valid @RequestBody Segment seg,
                                                   HttpServletRequest req) {
         seg.setId(id);
         Segment saved = segRepo.save(seg);
@@ -114,8 +105,7 @@ public class MasterDataController {
     }
 
     @DeleteMapping("/segments/{id}")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Remove Segmento")
-    public ResponseEntity<Void> deleteSegment(@PathVariable Integer id, HttpServletRequest req) {
+        public ResponseEntity<Void> deleteSegment(@PathVariable Integer id, HttpServletRequest req) {
         auditService.log(req, "MASTERDATA_DELETE", "Segmento removido (id=" + id + ")", true);
         segRepo.deleteById(id);
         return ResponseEntity.noContent().build();
@@ -126,8 +116,7 @@ public class MasterDataController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/clients")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Lista Clientes")
-    public ResponseEntity<List<Client>> listClients(@RequestParam(required = false) Boolean active) {
+        public ResponseEntity<List<Client>> listClients(@RequestParam(required = false) Boolean active) {
         List<Client> result = active != null
                 ? clientRepo.findByIsActive(active)
                 : clientRepo.findAll();
@@ -135,16 +124,14 @@ public class MasterDataController {
     }
 
     @PostMapping("/clients")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Cria Cliente")
-    public ResponseEntity<Client> createClient(@Valid @RequestBody Client client, HttpServletRequest req) {
+        public ResponseEntity<Client> createClient(@Valid @RequestBody Client client, HttpServletRequest req) {
         Client saved = clientRepo.save(client);
         auditService.log(req, "MASTERDATA_CREATE", "Cliente criado: '" + saved.getName() + "' (id=" + saved.getId() + ")", true);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @PutMapping("/clients/{id}")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Atualiza Cliente")
-    public ResponseEntity<Client> updateClient(@PathVariable Integer id, @Valid @RequestBody Client client,
+        public ResponseEntity<Client> updateClient(@PathVariable Integer id, @Valid @RequestBody Client client,
                                                 HttpServletRequest req) {
         client.setId(id);
         Client saved = clientRepo.save(client);
@@ -153,8 +140,7 @@ public class MasterDataController {
     }
 
     @DeleteMapping("/clients/{id}")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Remove Cliente")
-    public ResponseEntity<Void> deleteClient(@PathVariable Integer id, HttpServletRequest req) {
+        public ResponseEntity<Void> deleteClient(@PathVariable Integer id, HttpServletRequest req) {
         auditService.log(req, "MASTERDATA_DELETE", "Cliente removido (id=" + id + ")", true);
         clientRepo.deleteById(id);
         return ResponseEntity.noContent().build();
@@ -162,8 +148,7 @@ public class MasterDataController {
 
     /** Vincula operação a cliente (N:N). */
     @PostMapping("/clients/{clientId}/operations/{operationId}")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Vincula operação ao cliente")
-    @Transactional
+        @Transactional
     public ResponseEntity<Void> addOperation(@PathVariable Integer clientId, @PathVariable Integer operationId,
                                               HttpServletRequest req) {
         Client client = clientRepo.findById(clientId)
@@ -179,8 +164,7 @@ public class MasterDataController {
 
     /** Lista operações disponíveis para um cliente. */
     @GetMapping("/clients/{clientId}/operations")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Lista operações vinculadas ao cliente")
-    public ResponseEntity<List<Operation>> getClientOperations(@PathVariable Integer clientId) {
+        public ResponseEntity<List<Operation>> getClientOperations(@PathVariable Integer clientId) {
         Client client = clientRepo.findById(clientId)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado: " + clientId));
         return ResponseEntity.ok(client.getOperations().stream().toList());
@@ -191,8 +175,7 @@ public class MasterDataController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/operations")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Lista Operações")
-    public ResponseEntity<List<Operation>> listOps(@RequestParam(required = false) Boolean active) {
+        public ResponseEntity<List<Operation>> listOps(@RequestParam(required = false) Boolean active) {
         List<Operation> result = active != null
                 ? opRepo.findByIsActive(active)
                 : opRepo.findAll();
@@ -200,16 +183,14 @@ public class MasterDataController {
     }
 
     @PostMapping("/operations")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Cria Operação")
-    public ResponseEntity<Operation> createOp(@Valid @RequestBody Operation op, HttpServletRequest req) {
+        public ResponseEntity<Operation> createOp(@Valid @RequestBody Operation op, HttpServletRequest req) {
         Operation saved = opRepo.save(op);
         auditService.log(req, "MASTERDATA_CREATE", "Operação criada: '" + saved.getName() + "' (id=" + saved.getId() + ")", true);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @PutMapping("/operations/{id}")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Atualiza Operação")
-    public ResponseEntity<Operation> updateOp(@PathVariable Integer id, @Valid @RequestBody Operation op,
+        public ResponseEntity<Operation> updateOp(@PathVariable Integer id, @Valid @RequestBody Operation op,
                                                HttpServletRequest req) {
         op.setId(id);
         Operation saved = opRepo.save(op);
@@ -218,8 +199,7 @@ public class MasterDataController {
     }
 
     @DeleteMapping("/operations/{id}")
-    @io.swagger.v3.oas.annotations.Operation(summary = "Remove Operação")
-    public ResponseEntity<Void> deleteOp(@PathVariable Integer id, HttpServletRequest req) {
+        public ResponseEntity<Void> deleteOp(@PathVariable Integer id, HttpServletRequest req) {
         auditService.log(req, "MASTERDATA_DELETE", "Operação removida (id=" + id + ")", true);
         opRepo.deleteById(id);
         return ResponseEntity.noContent().build();

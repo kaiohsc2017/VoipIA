@@ -33,30 +33,17 @@ logger = logging.getLogger("asteriskia.gemini")
 
 # ─── Tool definitions (declaradas para o Gemini) ──────────────────────────────
 
+# ─── Tool: abrir_protocolo_suporte ───────────────────────────────────────────
+# consultar_status_pedido foi removida — sem ERP integrado (era stub fictício).
+# Integração real: abrir_protocolo_suporte → backend → JiraIntegrationService.
 _TOOLS = genai_types.Tool(
     function_declarations=[
         genai_types.FunctionDeclaration(
-            name="consultar_status_pedido",
-            description=(
-                "Consulta o status de um pedido pelo número de protocolo ou CPF do cliente. "
-                "Use quando o cliente mencionar um protocolo, número de pedido ou seu CPF."
-            ),
-            parameters=genai_types.Schema(
-                type=genai_types.Type.OBJECT,
-                properties={
-                    "identificador": genai_types.Schema(
-                        type=genai_types.Type.STRING,
-                        description="CPF (somente números) ou número de protocolo do pedido",
-                    )
-                },
-                required=["identificador"],
-            ),
-        ),
-        genai_types.FunctionDeclaration(
             name="abrir_protocolo_suporte",
             description=(
-                "Abre um novo protocolo de suporte para o cliente. "
-                "Use quando o cliente solicitar abertura de chamado ou suporte técnico."
+                "Abre um novo chamado no Jira para o cliente. "
+                "Use quando o cliente solicitar abertura de chamado, suporte técnico "
+                "ou registrar um problema. Retorna o número do protocolo gerado."
             ),
             parameters=genai_types.Schema(
                 type=genai_types.Type.OBJECT,
@@ -78,49 +65,12 @@ _TOOLS = genai_types.Tool(
 )
 
 
-# Em produção, chamadas REST reais ao backend.
-
-_protocolo_counter = 3000
-
-
 def _execute_tool(tool_name: str, args: dict[str, Any]) -> str:
     """
     Executa a função solicitada pelo Gemini e retorna o resultado como string JSON.
     Esta é a camada de integração entre o LLM e o mundo real.
     """
-    global _protocolo_counter
-
-    if tool_name == "consultar_status_pedido":
-        ident = args.get("identificador", "").strip().replace(".", "").replace("-", "")
-        try:
-            import httpx
-            from src.config import BACKEND_URL, INTERNAL_API_KEY
-            headers = {"X-Internal-Key": INTERNAL_API_KEY, "Content-Type": "application/json"}
-            
-            resp = httpx.get(f"{BACKEND_URL}/api/v1/pedidos/{ident}", headers=headers, timeout=10.0)
-            if resp.status_code == 200:
-                pedido = resp.json()
-                return json.dumps({
-                    "encontrado": True,
-                    "protocolo": pedido.get("protocolo", "N/A"),
-                    "produto": pedido.get("produto", "N/A"),
-                    "status": pedido.get("status", "N/A"),
-                    "previsao_entrega": pedido.get("previsao", "N/A"),
-                    "transportadora": pedido.get("transportadora", "N/A"),
-                }, ensure_ascii=False)
-            else:
-                return json.dumps({
-                    "encontrado": False,
-                    "mensagem": f"Não foi encontrado nenhum pedido para o identificador '{ident}'.",
-                }, ensure_ascii=False)
-        except Exception as e:
-            logger.error("Erro na chamada REST consultar_status_pedido: %s", e)
-            return json.dumps({
-                "encontrado": False,
-                "mensagem": f"Sistema indisponível no momento para consultar o pedido '{ident}'.",
-            }, ensure_ascii=False)
-
-    elif tool_name == "abrir_protocolo_suporte":
+    if tool_name == "abrir_protocolo_suporte":
         descricao = args.get("descricao", "Sem descrição")
         prioridade = args.get("prioridade", "MEDIA")
         

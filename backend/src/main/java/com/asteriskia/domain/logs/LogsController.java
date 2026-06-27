@@ -1,8 +1,6 @@
 package com.asteriskia.domain.logs;
 
 import com.asteriskia.domain.audit.AuditService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +23,6 @@ import java.util.concurrent.*;
 @RestController
 @RequestMapping("/api/v1/logs")
 @RequiredArgsConstructor
-@Tag(name = "Logs", description = "Logs Docker e Asterisk — snapshot, stream SSE e download")
 public class LogsController {
 
     private final AuditService auditService;
@@ -57,8 +54,7 @@ public class LogsController {
     // ── Docker snapshot ───────────────────────────────────────────────────────
 
     @GetMapping("/docker")
-    @Operation(summary = "Últimas N linhas dos containers selecionados")
-    public ResponseEntity<Map<String, Object>> dockerSnapshot(
+        public ResponseEntity<Map<String, Object>> dockerSnapshot(
             @RequestParam(defaultValue = "") String services,
             @RequestParam(defaultValue = "200") int lines,
             @RequestParam(defaultValue = "") String levels) {
@@ -79,7 +75,6 @@ public class LogsController {
     // ── Docker histórico ──────────────────────────────────────────────────────
 
     @GetMapping("/docker/history")
-    @Operation(summary = "Logs de um período (from/to: yyyy-MM-dd)")
     public ResponseEntity<Map<String, Object>> dockerHistory(
             @RequestParam(defaultValue = "") String services,
             @RequestParam(defaultValue = "500") int lines,
@@ -106,8 +101,7 @@ public class LogsController {
     // ── Docker SSE ────────────────────────────────────────────────────────────
 
     @GetMapping(value = "/docker/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @Operation(summary = "Stream SSE de logs Docker em tempo real")
-    public SseEmitter dockerStream(
+        public SseEmitter dockerStream(
             @RequestParam(defaultValue = "") String services,
             @RequestParam(defaultValue = "") String levels) {
 
@@ -186,8 +180,7 @@ public class LogsController {
     // ── Asterisk status (AMI) ─────────────────────────────────────────────────
 
     @GetMapping("/asterisk/status")
-    @Operation(summary = "Status ao vivo do Asterisk via AMI")
-    public ResponseEntity<Map<String, Object>> asteriskStatus() {
+        public ResponseEntity<Map<String, Object>> asteriskStatus() {
         Map<String,Object> result = new LinkedHashMap<>();
         try (Socket s = new Socket(amiHost, amiPort)) {
             s.setSoTimeout(AMI_TIMEOUT);
@@ -225,8 +218,7 @@ public class LogsController {
     // ── Asterisk snapshot ─────────────────────────────────────────────────────
 
     @GetMapping("/asterisk")
-    @Operation(summary = "Últimas N linhas do log do Asterisk")
-    public ResponseEntity<Map<String, Object>> asteriskSnapshot(
+        public ResponseEntity<Map<String, Object>> asteriskSnapshot(
             @RequestParam(defaultValue = "300") int lines,
             @RequestParam(defaultValue = "") String levels) {
         try {
@@ -246,8 +238,7 @@ public class LogsController {
     // ── Asterisk SSE ──────────────────────────────────────────────────────────
 
     @GetMapping(value = "/asterisk/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    @Operation(summary = "Stream SSE do log do Asterisk em tempo real")
-    public SseEmitter asteriskStream(@RequestParam(defaultValue = "") String levels) {
+        public SseEmitter asteriskStream(@RequestParam(defaultValue = "") String levels) {
         SseEmitter emitter = new SseEmitter((long) SSE_TIMEOUT);
         Thread.ofVirtual().name("log-stream-asterisk").start(() -> {
             try {

@@ -3,8 +3,6 @@ package com.asteriskia.config;
 import com.asteriskia.domain.audit.AuditService;
 import com.asteriskia.domain.user.AppUser;
 import com.asteriskia.domain.user.AppUserRepository;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -31,7 +29,6 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-@Tag(name = "Auth", description = "Autenticação JWT")
 public class AuthController {
 
     private final JwtService          jwtService;
@@ -48,8 +45,7 @@ public class AuthController {
     private String adminPassword;
 
     @PostMapping("/login")
-    @Operation(summary = "Autenticar usuário e obter token JWT")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request,
+        public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request,
                                    HttpServletRequest httpRequest) {
 
         // 1. Tenta autenticar via tabela app_users (BCrypt)
@@ -108,8 +104,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    @Operation(summary = "Renovar token JWT usando o Refresh Token")
-    public ResponseEntity<?> refresh(@RequestBody Map<String, String> body) {
+        public ResponseEntity<?> refresh(@RequestBody Map<String, String> body) {
         String reqRefreshToken = body.get("refreshToken");
         if (reqRefreshToken == null || reqRefreshToken.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse("Refresh token não fornecido"));
@@ -143,7 +138,6 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    @Operation(summary = "Logout (revoga refresh token)")
     public ResponseEntity<?> logout(@RequestBody Map<String, String> body) {
         String reqRefreshToken = body.get("refreshToken");
         if (reqRefreshToken != null && !reqRefreshToken.isBlank()) {

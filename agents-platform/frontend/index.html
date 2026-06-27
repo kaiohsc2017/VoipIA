@@ -1492,6 +1492,83 @@ function LLMSettings() {
 }
 
 
+
+// ── LOGIN ─────────────────────────────────────────────────────────────────────
+// Autentica via POST /api/v1/auth/login (backend Telecom).
+// O agents-backend valida o mesmo JWT secret — token compartilhado.
+function Login(props) {
+  var userS  = useState('');  var user = userS[0];  var setUser = userS[1];
+  var passS  = useState('');  var pass = passS[0];  var setPass = passS[1];
+  var errS   = useState('');  var err  = errS[0];   var setErr  = errS[1];
+  var loadS  = useState(false); var load = loadS[0]; var setLoad = loadS[1];
+
+  function submit(e) {
+    e.preventDefault();
+    if (!user.trim() || !pass.trim()) { setErr('Preencha usuario e senha.'); return; }
+    setLoad(true); setErr('');
+    fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: user.trim(), password: pass})
+    })
+    .then(function(r) {
+      if (!r.ok) { return r.json().then(function(d){ throw new Error(d.message || 'Credenciais invalidas'); }); }
+      return r.json();
+    })
+    .then(function(d) {
+      if (d.requiresTotp) { setErr('2FA nao suportado neste painel.'); return; }
+      var tok = d.token || d.accessToken || d.access_token || '';
+      if (!tok) { setErr('Resposta inesperada do servidor.'); return; }
+      localStorage.setItem(TOKEN_KEY, tok);
+      if (d.refreshToken) localStorage.setItem(REFRESH_KEY, d.refreshToken);
+      localStorage.setItem(USER_KEY, d.username || user.trim());
+      props.onLogin(tok, d.username || user.trim());
+    })
+    .catch(function(e) { setErr(e.message || 'Falha ao conectar.'); })
+    .finally(function() { setLoad(false); });
+  }
+
+  return h('div', {className: 'login-page'},
+    h('div', {className: 'login-card'},
+      h('div', {className: 'login-logo'},
+        h('div', {className: 'login-logo-icon'}, 'A'),
+        h('div', null,
+          h('div', {className: 'login-logo-text'}, 'AsteriskIA Agentes'),
+          h('div', {className: 'login-logo-sub'}, 'Plataforma de Automacao')
+        )
+      ),
+      h('p', {className: 'login-title'}, 'Bem-vindo'),
+      h('p', {className: 'login-sub'}, 'Entre com suas credenciais do AsteriskIA'),
+      err ? h('div', {className: 'login-err'},
+        h('span', null, '⚠'),
+        h('span', null, err)
+      ) : null,
+      h('form', {onSubmit: submit},
+        h('div', {className: 'login-field'},
+          h('label', null, 'Usuario'),
+          h('input', {
+            type: 'text', value: user, autoFocus: true,
+            placeholder: 'admin',
+            onChange: function(e){ setUser(e.target.value); setErr(''); }
+          })
+        ),
+        h('div', {className: 'login-field'},
+          h('label', null, 'Senha'),
+          h('input', {
+            type: 'password', value: pass,
+            placeholder: '••••••••',
+            onChange: function(e){ setPass(e.target.value); setErr(''); }
+          })
+        ),
+        h('button', {className: 'btn btn-p login-btn', type: 'submit', disabled: load},
+          load ? h('span', {className: 'login-spinner'}) : null,
+          load ? ' Entrando...' : 'Entrar'
+        )
+      )
+    )
+  );
+}
+
 function Root() {
   var authS=useState(getToken()); var token=authS[0]; var setToken=authS[1];
   var userS=useState(getUser());  var user=userS[0];  var setUser=userS[1];

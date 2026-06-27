@@ -1,7 +1,5 @@
 package com.asteriskia.domain.call;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +30,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/calls")
 @RequiredArgsConstructor
-@Tag(name = "Call Records", description = "Registro de chamadas da URA e integração com Jira (Módulo 1)")
 public class CallRecordController {
 
     private final CallRecordService service;
@@ -50,8 +47,7 @@ public class CallRecordController {
      * }
      */
     @PostMapping("/register")
-    @Operation(summary = "Registra chamada da URA e abre issue no Jira")
-    public ResponseEntity<RegisterCallResponse> registerCall(
+        public ResponseEntity<RegisterCallResponse> registerCall(
             @Valid @RequestBody RegisterCallRequest request) {
         CallRecord record = service.registerCall(
                 request.callUuid(),
@@ -66,7 +62,6 @@ public class CallRecordController {
     }
 
     @GetMapping
-    @Operation(summary = "Lista chamadas (paginado)")
     public ResponseEntity<Page<CallRecord>> listCalls(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -79,14 +74,12 @@ public class CallRecordController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Detalhe de uma chamada")
-    public ResponseEntity<CallRecord> getCall(@PathVariable Long id) {
+        public ResponseEntity<CallRecord> getCall(@PathVariable Long id) {
         return ResponseEntity.ok(service.findById(id));
     }
 
     @GetMapping("/export")
-    @Operation(summary = "Exportar chamadas para Excel")
-    public ResponseEntity<byte[]> exportCalls() throws java.io.IOException {
+        public ResponseEntity<byte[]> exportCalls() throws java.io.IOException {
         java.util.List<CallRecord> records = service.findAll(PageRequest.of(0, 10000)).getContent();
         byte[] excelBytes = excelExportService.exportCallRecordsToExcel(records);
 
@@ -104,8 +97,7 @@ public class CallRecordController {
      * Também busca diretamente em /var/spool/asterisk/monitor (volume compartilhado).
      */
     @GetMapping("/{id}/audio")
-    @Operation(summary = "Streaming do áudio gravado da chamada URA")
-    public ResponseEntity<Resource> getAudio(@PathVariable Long id) {
+        public ResponseEntity<Resource> getAudio(@PathVariable Long id) {
         CallRecord record = service.findById(id);
         if (record.getAudioFilePath() == null || record.getAudioFilePath().isBlank()) {
             return ResponseEntity.notFound().build();

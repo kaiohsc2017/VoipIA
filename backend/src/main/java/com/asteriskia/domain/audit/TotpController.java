@@ -4,8 +4,6 @@ import com.asteriskia.config.JwtService;
 import com.asteriskia.config.RefreshTokenService;
 import com.asteriskia.domain.user.AppUser;
 import com.asteriskia.domain.user.AppUserRepository;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +30,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/auth/totp")
 @RequiredArgsConstructor
-@Tag(name = "2FA TOTP", description = "Configuração e validação de dois fatores (Fase 13)")
 public class TotpController {
 
     private final TotpService         totpService;
@@ -44,8 +41,7 @@ public class TotpController {
     // ── Setup: gera segredo + QR Code (usuário autenticado) ──────────────────
 
     @PostMapping("/setup")
-    @Operation(summary = "Gera segredo TOTP e URL de QR Code para configuração")
-    public ResponseEntity<?> setup(HttpServletRequest request) {
+        public ResponseEntity<?> setup(HttpServletRequest request) {
         String username = currentUsername();
         if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 
@@ -73,8 +69,7 @@ public class TotpController {
     // ── Enable: confirma o setup com o primeiro código ────────────────────────
 
     @PostMapping("/enable")
-    @Operation(summary = "Ativa o 2FA após confirmação com o primeiro código TOTP")
-    public ResponseEntity<?> enable(@RequestBody Map<String, String> body,
+        public ResponseEntity<?> enable(@RequestBody Map<String, String> body,
                                     HttpServletRequest request) {
         String username = currentUsername();
         if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -102,7 +97,6 @@ public class TotpController {
     // ── Disable: desativa o 2FA ───────────────────────────────────────────────
 
     @PostMapping("/disable")
-    @Operation(summary = "Desativa o 2FA (exige confirmação com código TOTP atual)")
     public ResponseEntity<?> disable(@RequestBody Map<String, String> body,
                                      HttpServletRequest request) {
         String username = currentUsername();
@@ -131,8 +125,7 @@ public class TotpController {
     // ── Verify: segunda etapa do login (valida código + retorna JWT final) ────
 
     @PostMapping("/verify")
-    @Operation(summary = "Segunda etapa do login: valida código TOTP e retorna JWT")
-    public ResponseEntity<?> verify(@RequestBody Map<String, String> body,
+        public ResponseEntity<?> verify(@RequestBody Map<String, String> body,
                                     HttpServletRequest request) {
         String tempToken = body.getOrDefault("tempToken", "");
         String code      = body.getOrDefault("code", "");
@@ -183,8 +176,7 @@ public class TotpController {
     // ── Status do 2FA do usuário logado ──────────────────────────────────────
 
     @GetMapping("/status")
-    @Operation(summary = "Retorna se o 2FA está ativo para o usuário autenticado")
-    public ResponseEntity<?> status() {
+        public ResponseEntity<?> status() {
         String username = currentUsername();
         if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         AppUser user = userRepo.findByUsername(username).orElse(null);

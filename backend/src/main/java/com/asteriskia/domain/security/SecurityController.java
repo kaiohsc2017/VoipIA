@@ -1,8 +1,6 @@
 package com.asteriskia.domain.security;
 
 import com.asteriskia.domain.audit.AuditService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +21,6 @@ import java.util.stream.*;
 @RestController
 @RequestMapping("/api/v1/security")
 @RequiredArgsConstructor
-@Tag(name = "Security", description = "Proteção SIP via fail2ban + iptables + ACL Asterisk")
 public class SecurityController {
 
     private final AuditService auditService;

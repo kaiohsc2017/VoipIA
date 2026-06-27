@@ -137,11 +137,11 @@ services:
           ipv4_address: 172.16.7.13
     healthcheck:
       # Verifica se o servidor TCP AudioSocket está aceitando conexões na porta 9092
-      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('localhost',9092),2); s.close()"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
+      test: ["CMD", "python", "-c", "import socket,sys; s=socket.socket(); s.settimeout(3); r=s.connect_ex(('localhost',9092)); s.close(); sys.exit(r)"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 30s
 
   # ---------------------------------------------------------------------------
   # Backend — Spring Boot 3.3 (Tomcat 11, JRE 21)
@@ -315,11 +315,11 @@ services:
           ipv4_address: 172.16.7.16
     healthcheck:
       # Usa o endpoint público de health do FastAPI (curl não existe na imagem slim)
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/system/health', timeout=3)"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://localhost:8000/api/system/health', timeout=4)"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 40s
 
   # ---------------------------------------------------------------------------
   # Caddy 2 — Proxy reverso HTTPS com TLS automático (Let's Encrypt)

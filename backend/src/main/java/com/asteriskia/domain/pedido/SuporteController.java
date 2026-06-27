@@ -1,7 +1,5 @@
 package com.asteriskia.domain.pedido;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,12 +16,10 @@ import java.util.UUID;
  */
 @RestController
 @RequestMapping("/api/v1/suporte")
-@Tag(name = "Suporte", description = "Endpoints para abertura de chamados (Simulação IA)")
 public class SuporteController {
 
     @PostMapping("/abrir")
-    @Operation(summary = "Abre um novo protocolo de suporte")
-    public ResponseEntity<Map<String, Object>> abrirProtocolo(@RequestBody Map<String, Object> request) {
+        public ResponseEntity<Map<String, Object>> abrirProtocolo(@RequestBody Map<String, Object> request) {
         // Simula a criação de um ticket de suporte e gera um protocolo único
         String descricao = (String) request.getOrDefault("descricao", "Sem descrição");
         String prioridade = (String) request.getOrDefault("prioridade", "MEDIA");

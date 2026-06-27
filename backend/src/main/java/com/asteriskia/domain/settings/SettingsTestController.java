@@ -1,8 +1,6 @@
 package com.asteriskia.domain.settings;
 
 import com.asteriskia.integration.jira.JiraIntegrationService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
@@ -29,7 +27,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/settings/test")
 @RequiredArgsConstructor
-@Tag(name = "Settings — Testes", description = "Testes de conectividade por seção de configurações")
 public class SettingsTestController {
 
     private final RestTemplate          restTemplate;
@@ -40,8 +37,7 @@ public class SettingsTestController {
     // -------------------------------------------------------------------------
 
     @PostMapping("/jira")
-    @Operation(summary = "Testa conectividade com o Jira Cloud usando as credenciais fornecidas")
-    public ResponseEntity<?> testJira(@RequestBody Map<String, String> body) {
+        public ResponseEntity<?> testJira(@RequestBody Map<String, String> body) {
         String baseUrl = body.getOrDefault("JIRA_BASE_URL", "").trim();
         String email   = body.getOrDefault("JIRA_USER_EMAIL", "").trim();
         String token   = body.getOrDefault("JIRA_API_TOKEN", "").trim();
@@ -65,8 +61,7 @@ public class SettingsTestController {
     // -------------------------------------------------------------------------
 
     @PostMapping("/zabbix")
-    @Operation(summary = "Testa conectividade com o Zabbix usando as credenciais fornecidas")
-    public ResponseEntity<?> testZabbix(@RequestBody Map<String, String> body) {
+        public ResponseEntity<?> testZabbix(@RequestBody Map<String, String> body) {
         String apiUrl   = body.getOrDefault("ZABBIX_API_URL", "").trim();
         String user     = body.getOrDefault("ZABBIX_USER", "").trim();
         String password = body.getOrDefault("ZABBIX_PASSWORD", "").trim();
@@ -109,8 +104,7 @@ public class SettingsTestController {
     // -------------------------------------------------------------------------
 
     @PostMapping("/telegram")
-    @Operation(summary = "Testa o Bot Token do Telegram chamando getMe")
-    public ResponseEntity<?> testTelegram(@RequestBody Map<String, String> body) {
+        public ResponseEntity<?> testTelegram(@RequestBody Map<String, String> body) {
         String token = body.getOrDefault("TELEGRAM_BOT_TOKEN", "").trim();
 
         if (token.isEmpty() || isMasked(token)) {
@@ -141,8 +135,7 @@ public class SettingsTestController {
     // -------------------------------------------------------------------------
 
     @PostMapping("/sip")
-    @Operation(summary = "Verifica se o host do tronco SIP resolve via DNS")
-    public ResponseEntity<?> testSip(@RequestBody Map<String, String> body) {
+        public ResponseEntity<?> testSip(@RequestBody Map<String, String> body) {
         String host = body.getOrDefault("SIP_TRUNK_HOST", "").trim();
 
         if (host.isEmpty()) {

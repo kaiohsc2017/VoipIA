@@ -1,7 +1,5 @@
 package com.asteriskia.domain.config;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,14 +21,12 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/config")
 @RequiredArgsConstructor
-@Tag(name = "System Config", description = "Configurações dinâmicas — sem restart de container")
 public class SystemConfigController {
 
     private static final String MASK = "••••••••";
     private final ConfigService configService;
 
     @GetMapping
-    @Operation(summary = "Lista todas as configurações (secrets mascarados)")
     public ResponseEntity<List<ConfigDTO>> getAll() {
         List<ConfigDTO> dtos = configService.findAll().stream()
                 .map(c -> new ConfigDTO(
@@ -45,7 +41,6 @@ public class SystemConfigController {
     }
 
     @PutMapping("/{key}")
-    @Operation(summary = "Atualiza o valor de uma configuração (efeito imediato, sem restart)")
     public ResponseEntity<?> update(
             @PathVariable String key,
             @RequestBody Map<String, String> body,
@@ -64,7 +59,6 @@ public class SystemConfigController {
     }
 
     @PostMapping("/batch")
-    @Operation(summary = "Atualiza múltiplas configurações de uma vez (ex: salvar seção inteira)")
     public ResponseEntity<?> updateBatch(
             @RequestBody Map<String, String> updates,
             Authentication auth) {

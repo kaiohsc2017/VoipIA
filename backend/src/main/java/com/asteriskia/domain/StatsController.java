@@ -3,8 +3,6 @@ package com.asteriskia.domain;
 import com.asteriskia.domain.alert.AlertCall;
 import com.asteriskia.domain.call.CallRecord;
 import com.asteriskia.domain.connectivity.TestResult;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -31,7 +29,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/stats")
 @RequiredArgsConstructor
-@Tag(name = "Statistics", description = "KPIs e estatísticas para dashboards por módulo")
 public class StatsController {
 
     private final StatsCallRepository callRepo;
@@ -44,8 +41,7 @@ public class StatsController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/connectivity")
-    @Operation(summary = "KPIs do Módulo 2 — Testes de Conectividade")
-    public ResponseEntity<Map<String, Object>> connectivityStats(
+        public ResponseEntity<Map<String, Object>> connectivityStats(
             @RequestParam(defaultValue = "today") String period) {
 
         LocalDateTime[] range = getRange(period);
@@ -91,8 +87,7 @@ public class StatsController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/calls")
-    @Operation(summary = "KPIs do Módulo 1 — URA e Jira")
-    public ResponseEntity<Map<String, Object>> callStats(
+        public ResponseEntity<Map<String, Object>> callStats(
             @RequestParam(defaultValue = "today") String period) {
 
         LocalDateTime[] range = getRange(period);
@@ -120,7 +115,6 @@ public class StatsController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/calls/timeseries")
-    @Operation(summary = "Série temporal de chamadas por dia (Módulo 1)")
     public ResponseEntity<List<Map<String, Object>>> callsTimeseries(
             @RequestParam(defaultValue = "week") String period) {
 
@@ -147,8 +141,7 @@ public class StatsController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/alerts")
-    @Operation(summary = "KPIs do Módulo 3 — Alertas Zabbix")
-    public ResponseEntity<Map<String, Object>> alertStats(
+        public ResponseEntity<Map<String, Object>> alertStats(
             @RequestParam(defaultValue = "today") String period) {
 
         LocalDateTime[] range = getRange(period);

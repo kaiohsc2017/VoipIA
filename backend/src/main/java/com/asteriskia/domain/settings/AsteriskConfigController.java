@@ -1,8 +1,6 @@
 package com.asteriskia.domain.settings;
 
 import com.asteriskia.domain.audit.AuditService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +36,6 @@ import java.util.regex.*;
 @RestController
 @RequestMapping("/api/v1/asterisk-config")
 @RequiredArgsConstructor
-@Tag(name = "Asterisk Config", description = "Edição de tronco SIP e rotas diretamente nos arquivos do Asterisk")
 public class AsteriskConfigController {
 
     private final SettingsService settingsService;
@@ -74,8 +71,7 @@ public class AsteriskConfigController {
     // =========================================================================
 
     @GetMapping("/tronco")
-    @Operation(summary = "Retorna o bloco [tronco-sip] atual do pjsip.conf.template")
-    public ResponseEntity<?> getTronco() {
+        public ResponseEntity<?> getTronco() {
         try {
             String template = readFile("pjsip.conf.template");
             String block    = extractSection(template, "tronco-sip");
@@ -88,8 +84,7 @@ public class AsteriskConfigController {
     }
 
     @PostMapping("/tronco")
-    @Operation(summary = "Salva o bloco [tronco-sip] e recarrega res_pjsip no Asterisk")
-    public ResponseEntity<?> saveTronco(
+        public ResponseEntity<?> saveTronco(
             @RequestBody Map<String, String> body,
             Authentication auth,
             HttpServletRequest request) {
@@ -136,8 +131,7 @@ public class AsteriskConfigController {
     // =========================================================================
 
     @GetMapping("/rotas")
-    @Operation(summary = "Retorna o conteúdo completo do extensions.conf")
-    public ResponseEntity<?> getRotas() {
+        public ResponseEntity<?> getRotas() {
         try {
             String content = readFile("extensions.conf");
             return ResponseEntity.ok(Map.of("content", content));
@@ -149,8 +143,7 @@ public class AsteriskConfigController {
     }
 
     @PostMapping("/rotas")
-    @Operation(summary = "Salva o extensions.conf e recarrega o dialplan no Asterisk")
-    public ResponseEntity<?> saveRotas(
+        public ResponseEntity<?> saveRotas(
             @RequestBody Map<String, String> body,
             Authentication auth,
             HttpServletRequest request) {

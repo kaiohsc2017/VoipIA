@@ -1,7 +1,5 @@
 package com.asteriskia.domain.ura;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,7 +19,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/ura/questions")
 @RequiredArgsConstructor
-@Tag(name = "URA Questions", description = "Gerenciamento das perguntas da URA (Módulo 1)")
 public class UraQuestionController {
 
     private final UraQuestionService service;
@@ -32,8 +29,7 @@ public class UraQuestionController {
      * [{ "jira_field_key": "...", "question_text": "..." }, ...]
      */
     @GetMapping
-    @Operation(summary = "Lista perguntas ativas da URA")
-    public ResponseEntity<List<UraQuestionResponse>> getActiveQuestions() {
+        public ResponseEntity<List<UraQuestionResponse>> getActiveQuestions() {
         List<UraQuestionResponse> questions = service.findActiveQuestions()
                 .stream()
                 .map(UraQuestionResponse::from)
@@ -42,20 +38,17 @@ public class UraQuestionController {
     }
 
     @GetMapping("/all")
-    @Operation(summary = "Lista todas as perguntas (admin)")
     public ResponseEntity<List<UraQuestion>> getAllQuestions() {
         return ResponseEntity.ok(service.findAll());
     }
 
     @PostMapping
-    @Operation(summary = "Cria nova pergunta da URA")
-    public ResponseEntity<UraQuestion> createQuestion(@Valid @RequestBody UraQuestion question) {
+        public ResponseEntity<UraQuestion> createQuestion(@Valid @RequestBody UraQuestion question) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.save(question));
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Atualiza pergunta da URA")
-    public ResponseEntity<UraQuestion> updateQuestion(
+        public ResponseEntity<UraQuestion> updateQuestion(
             @PathVariable Integer id,
             @Valid @RequestBody UraQuestion question) {
         question.setId(id);
@@ -63,15 +56,13 @@ public class UraQuestionController {
     }
 
     @PatchMapping("/{id}/active")
-    @Operation(summary = "Ativa ou desativa pergunta")
-    public ResponseEntity<Void> setActive(@PathVariable Integer id, @RequestParam boolean active) {
+        public ResponseEntity<Void> setActive(@PathVariable Integer id, @RequestParam boolean active) {
         service.setActive(id, active);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Remove pergunta da URA")
-    public ResponseEntity<Void> deleteQuestion(@PathVariable Integer id) {
+        public ResponseEntity<Void> deleteQuestion(@PathVariable Integer id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }

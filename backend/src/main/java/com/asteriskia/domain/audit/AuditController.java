@@ -1,7 +1,5 @@
 package com.asteriskia.domain.audit;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -22,14 +20,12 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/audit")
 @RequiredArgsConstructor
-@Tag(name = "Auditoria", description = "Log de auditoria de segurança (Fase 13)")
 public class AuditController {
 
     private final AuditLogRepository repo;
 
     @GetMapping
-    @Operation(summary = "Lista log de auditoria com filtros opcionais")
-    public ResponseEntity<Page<AuditLog>> list(
+        public ResponseEntity<Page<AuditLog>> list(
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "50") int size,
             @RequestParam(required = false)    String username,
@@ -43,7 +39,6 @@ public class AuditController {
     }
 
     @GetMapping("/logins")
-    @Operation(summary = "Últimos eventos de login (bem-sucedidos e falhos)")
     public ResponseEntity<List<AuditLog>> logins(
             @RequestParam(defaultValue = "100") int limit) {
         return ResponseEntity.ok(
@@ -53,8 +48,7 @@ public class AuditController {
     }
 
     @GetMapping("/actions")
-    @Operation(summary = "Lista de tipos de ação disponíveis para filtro")
-    public ResponseEntity<List<String>> actions() {
+        public ResponseEntity<List<String>> actions() {
         return ResponseEntity.ok(List.of(
                 "LOGIN", "LOGIN_FAILED", "SETTINGS_CHANGE",
                 "USER_CREATE", "USER_UPDATE", "USER_DELETE",

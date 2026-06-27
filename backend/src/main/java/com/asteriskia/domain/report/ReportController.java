@@ -4,8 +4,6 @@ import com.asteriskia.domain.call.CallRecord;
 import com.asteriskia.domain.call.CallRecordRepository;
 import com.asteriskia.domain.connectivity.ConnectivityReportRepository;
 import com.asteriskia.domain.connectivity.TestResult;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -46,7 +44,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/v1/reports")
 @RequiredArgsConstructor
-@Tag(name = "Reports", description = "Exportação de relatórios em CSV (Fase 11)")
 public class ReportController {
 
     private final ConnectivityReportRepository connectivityReportRepository;
@@ -60,8 +57,7 @@ public class ReportController {
     // -------------------------------------------------------------------------
 
     @GetMapping("/connectivity")
-    @Operation(summary = "Exporta resultados de testes de conectividade em CSV")
-    public ResponseEntity<byte[]> exportConnectivity(
+        public ResponseEntity<byte[]> exportConnectivity(
             @RequestParam(required = false) String month,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateTo,
@@ -95,8 +91,7 @@ public class ReportController {
     // -------------------------------------------------------------------------
 
     @GetMapping("/connectivity/summary")
-    @Operation(summary = "Sumário mensal de conectividade agrupado por BU e Cliente")
-    public ResponseEntity<List<ConnectivitySummaryDTO>> connectivitySummary(
+        public ResponseEntity<List<ConnectivitySummaryDTO>> connectivitySummary(
             @RequestParam(defaultValue = "") String month) {
 
         LocalDateTime from, to;
@@ -140,8 +135,7 @@ public class ReportController {
     // -------------------------------------------------------------------------
 
     @GetMapping("/ura")
-    @Operation(summary = "Exporta histórico de chamadas URA em CSV")
-    public ResponseEntity<byte[]> exportUra(
+        public ResponseEntity<byte[]> exportUra(
             @RequestParam(required = false) String month,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateTo) {
