@@ -19,7 +19,7 @@ import java.util.UUID;
 public class SuporteController {
 
     @PostMapping("/abrir")
-        public ResponseEntity<Map<String, Object>> abrirProtocolo(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> abrirProtocolo(@RequestBody Map<String, Object> request) {
         // Simula a criação de um ticket de suporte e gera um protocolo único
         String descricao = (String) request.getOrDefault("descricao", "Sem descrição");
         String prioridade = (String) request.getOrDefault("prioridade", "MEDIA");
