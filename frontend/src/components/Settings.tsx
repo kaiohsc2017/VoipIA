@@ -69,6 +69,8 @@ const SECTIONS: Section[] = [
         hint: 'Gere em https://id.atlassian.com/manage-profile/security/api-tokens' },
       { key: 'JIRA_PROJECT_KEY', label: 'Chave do Projeto',       placeholder: 'SUP', required: true,
         hint: 'Sigla do projeto onde os chamados serão criados (ex: SUP, TI, PROJ).' },
+      { key: 'JIRA_ISSUE_TYPE',  label: 'Tipo de Issue',           placeholder: 'Task',
+        hint: 'Tipo de issue criado pela URA. Deve existir no projeto Jira (ex: Task, Bug, Support, Service Request).' },
     ],
   },
   {

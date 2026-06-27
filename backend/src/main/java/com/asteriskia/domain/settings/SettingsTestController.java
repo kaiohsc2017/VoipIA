@@ -1,5 +1,6 @@
 package com.asteriskia.domain.settings;
 
+import com.asteriskia.integration.jira.JiraIntegrationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -10,8 +11,6 @@ import org.springframework.web.client.RestTemplate;
 
 import java.net.InetAddress;
 import java.net.URI;
-import java.time.Duration;
-import java.util.Base64;
 import java.util.Map;
 
 /**
@@ -33,7 +32,8 @@ import java.util.Map;
 @Tag(name = "Settings — Testes", description = "Testes de conectividade por seção de configurações")
 public class SettingsTestController {
 
-    private final RestTemplate restTemplate;
+    private final RestTemplate          restTemplate;
+    private final JiraIntegrationService jiraService;
 
     // -------------------------------------------------------------------------
     // Jira
@@ -42,34 +42,18 @@ public class SettingsTestController {
     @PostMapping("/jira")
     @Operation(summary = "Testa conectividade com o Jira Cloud usando as credenciais fornecidas")
     public ResponseEntity<?> testJira(@RequestBody Map<String, String> body) {
-        String baseUrl  = body.getOrDefault("JIRA_BASE_URL", "").trim();
-        String email    = body.getOrDefault("JIRA_USER_EMAIL", "").trim();
-        String token    = body.getOrDefault("JIRA_API_TOKEN", "").trim();
+        String baseUrl = body.getOrDefault("JIRA_BASE_URL", "").trim();
+        String email   = body.getOrDefault("JIRA_USER_EMAIL", "").trim();
+        String token   = body.getOrDefault("JIRA_API_TOKEN", "").trim();
 
         if (baseUrl.isEmpty() || email.isEmpty() || token.isEmpty() || isMasked(token)) {
             return bad("Preencha os campos JIRA_BASE_URL, JIRA_USER_EMAIL e JIRA_API_TOKEN antes de testar.");
         }
 
         try {
-            URI uri = URI.create(baseUrl.replaceAll("/+$", "") + "/rest/api/3/myself");
-            String creds = Base64.getEncoder()
-                    .encodeToString((email + ":" + token).getBytes());
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Basic " + creds);
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            ResponseEntity<Map> resp = restTemplate.exchange(
-                    uri, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
-
-            if (resp.getStatusCode().is2xxSuccessful()) {
-                String displayName = resp.getBody() != null
-                        ? String.valueOf(resp.getBody().getOrDefault("displayName", "?"))
-                        : "?";
-                return ok("Conectado ao Jira! Usuário: " + displayName);
-            } else {
-                return bad("Jira retornou status " + resp.getStatusCode() + ". Verifique as credenciais.");
-            }
+            // Usa o mesmo WebClient + headers da integração real (API v3)
+            String displayName = jiraService.testConnection(baseUrl, email, token);
+            return ok("Conectado ao Jira! Usuário: " + displayName);
         } catch (Exception e) {
             log.warn("Teste Jira falhou: {}", e.getMessage());
             return bad("Falha ao conectar: " + sanitize(e.getMessage()));

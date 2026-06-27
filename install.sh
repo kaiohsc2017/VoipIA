@@ -257,6 +257,7 @@ JIRA_BASE_URL=
 JIRA_USER_EMAIL=
 JIRA_API_TOKEN=
 JIRA_PROJECT_KEY=
+JIRA_ISSUE_TYPE=Task
 
 # ── Zabbix ────────────────────────────────────────────────────────────────────
 ZABBIX_API_URL=
