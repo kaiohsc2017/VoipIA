@@ -137,7 +137,7 @@ services:
           ipv4_address: 172.16.7.13
     healthcheck:
       # Verifica se o servidor TCP AudioSocket está aceitando conexões na porta 9092
-      test: ["CMD", "python", "-c", "import socket,sys; s=socket.socket(); s.settimeout(3); r=s.connect_ex(('localhost',9092)); s.close(); sys.exit(r)"]
+      test: ['CMD', 'python', '-c', 'import socket,sys; s=socket.socket(); s.settimeout(3); r=s.connect_ex(("localhost",9092)); s.close(); sys.exit(r)']
       interval: 20s
       timeout: 8s
       retries: 5
