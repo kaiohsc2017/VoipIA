@@ -209,7 +209,7 @@ AsteriskIA/
 │       │   ├── connectivity/    # ConnectivityScheduler — Módulo 2
 │       │   ├── logs/            # LogsController — stream docker logs via SSE
 │       │   ├── masterdata/      # MasterDataController — dados de referência
-│       │   ├── pedido/          # PedidoController/SuporteController — STUBS (function calling)
+│       │   ├── pedido/          # SuporteController — abre chamado no Jira (function calling da IA)
 │       │   ├── report/          # ReportController — relatórios e Excel
 │       │   ├── security/        # SecurityController — fail2ban via socket
 │       │   ├── settings/        # SettingsService, SettingsController, SettingsTestController
@@ -270,6 +270,8 @@ AsteriskIA/
 | `BACKEND_JWT_SECRET` | backend, agents-api | Compartilhado — HS256, 32+ chars |
 | `POSTGRES_PASSWORD` | postgres, backend, agents-api | Senha pode conter caracteres especiais — agents-api faz URL-encode |
 | `INTERNAL_API_KEY` | backend, ai-agent | Autenticação interna entre serviços |
+| `JIRA_ISSUE_TYPE` | backend (Jira) | Tipo de issue da URA (ex: Task, Support) |
+| `VITE_STUN_URL` | frontend (build time) | STUN para ICE do softphone WebRTC |
 | `VITE_*` | frontend (build time) | Rebuild obrigatório ao alterar |
 
 ---
@@ -330,8 +332,8 @@ Para diagnosticar, sempre verificar primeiro:
 5. Logs do ai-agent durante uma chamada de teste
 
 ### 🟡 Importantes
-- `PedidoController` e `SuporteController` são stubs de demonstração — precisam de integração real com ERP/ITSM antes de produção real
-- `SPRINGDOC_ENABLED` está `false` por padrão — habilitar apenas em dev com `SPRINGDOC_ENABLED=true` no `.env`
+- `SuporteController` cria issues reais no Jira via function calling da IA (tool `abrir_protocolo_suporte`)
+- Swagger/OpenAPI foi removido do projeto (dependência springdoc retirada do pom.xml)
 
 ---
 

@@ -242,6 +242,7 @@ VITE_API_URL=https://app.voiphash.com.br/api/v1
 VITE_ASTERISK_WS=wss://app.voiphash.com.br/asterisk-ws
 VITE_SIP_URI=sip:9001@app.voiphash.com.br
 VITE_SIP_PASSWORD=webrtc9001pass
+VITE_STUN_URL=stun:stun.l.google.com:19302
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 BACKEND_ALLOWED_ORIGINS=https://app.voiphash.com.br
@@ -322,6 +323,14 @@ fi
 # ── Build e subida ────────────────────────────────────────────────────────────
 log_step "9. Build e inicialização dos containers"
 cd "$INSTALL_DIR"
+
+# O docker compose lê o .env da raiz do projeto, mas o arquivo real fica em
+# env/.env (montado como volume nos containers). Cria symlink para ambos
+# verem o mesmo arquivo. Sem isso, variáveis como SIP_PUBLIC_IP ficam vazias.
+if [ ! -e "$INSTALL_DIR/.env" ]; then
+    ln -sf "$ENV_FILE" "$INSTALL_DIR/.env"
+    log_ok "Symlink .env criado (raiz -> env/.env)"
+fi
 
 log_info "Carregando variáveis do .env..."
 set -a; source "$ENV_FILE"; set +a
@@ -521,7 +530,7 @@ check_container "asteriskia-frontend"
 check_container "asteriskia-asterisk"
 check_container "asteriskia-ai-agent"
 
-if curl -sf --max-time 10 "https://app.voiphash.com.br/api/v1/health" > /dev/null 2>&1; then
+if curl -sf --max-time 10 "https://app.voiphash.com.br/api/health" > /dev/null 2>&1; then
     log_ok "Backend API respondendo via HTTPS"
 else
     log_warn "Backend API: não respondeu ainda (pode estar inicializando)"

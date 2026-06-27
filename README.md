@@ -158,6 +158,8 @@ Lê `GEMINI_API_KEY` e `DATABASE_URL` automaticamente do `.env` do projeto.
 | `BACKEND_JWT_SECRET` | Secret JWT (32+ chars) — compartilhado com agents-backend |
 | `POSTGRES_PASSWORD` | Senha do banco unificado |
 | `SIP_TRUNK_HOST` | IP do tronco SIP (`186.233.141.64`) |
+| `JIRA_ISSUE_TYPE` | Tipo de issue criado pela URA (ex: `Task`, `Support`) |
+| `VITE_STUN_URL` | Servidor STUN para ICE do softphone WebRTC |
 
 > ⚠️ Variáveis `VITE_*` são resolvidas em **build time**. Ao alterar, rebuilde o frontend:
 > ```bash

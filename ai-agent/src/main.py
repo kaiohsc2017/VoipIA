@@ -97,15 +97,10 @@ async def handle_connection(
         if flow_type == "ZABBIX_ALERT":
             flow = ZabbixAlertFlow(call_uuid, reader, writer)
         else:
-            # Tenta obter o número do chamador via AMI GetVar (CALLER_NUM setado no dialplan)
-            caller_number = "desconhecido"
-            try:
-                from src.services import backend_client as bc2
-                ami_resp = await bc2.get(f"/api/v1/asterisk/channel-var?uuid={call_uuid}&var=CALLER_NUM")
-                caller_number = ami_resp.get("value", "desconhecido") or "desconhecido"
-            except Exception:
-                pass  # sem caller number — não crítico
-            flow = JiraCallFlow(call_uuid, reader, writer, caller_number=caller_number)
+            # O número do chamador é coletado durante o fluxo da URA (perguntas)
+            # e consolidado na transcrição. O protocolo AudioSocket transmite
+            # apenas o UUID binário — não há canal para o CALLER_NUM aqui.
+            flow = JiraCallFlow(call_uuid, reader, writer)
 
         await flow.execute()
 
