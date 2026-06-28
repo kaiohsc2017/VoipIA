@@ -68,3 +68,6 @@ security/config/action.d/
 security/lockdown.flag
 security/whitelist.txt
 asterisk/config/acl.conf
+
+# --- Claude Code (sessão local — não versionar) ---
+.claude/settings.local.json
