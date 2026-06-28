@@ -5,6 +5,8 @@ import com.asteriskia.domain.call.CallRecord;
 import com.asteriskia.domain.connectivity.TestResult;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,12 +14,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Repository;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.*;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * StatsController — KPIs agregados por módulo para os dashboards (Fases 7).
@@ -25,11 +28,27 @@ import java.util.Map;
  * GET /api/v1/stats/connectivity?period=today|week|month
  * GET /api/v1/stats/calls?period=today|week|month
  * GET /api/v1/stats/alerts?period=today|week|month
+ * GET /api/v1/stats/trunk-status  → status do tronco SIP via qualify AMI
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/stats")
 @RequiredArgsConstructor
 public class StatsController {
+
+    @Value("${app.asterisk.ami.host:asterisk}")
+    private String amiHost;
+
+    @Value("${app.asterisk.ami.port:5038}")
+    private int amiPort;
+
+    @Value("${app.asterisk.ami.user:asteriskia}")
+    private String amiUser;
+
+    @Value("${app.asterisk.ami.password:asteriskia_ami_pass}")
+    private String amiPassword;
+
+    private static final int AMI_TIMEOUT_MS = 8_000;
 
     private final StatsCallRepository callRepo;
     private final StatsTestResultRepository testResultRepo;
@@ -167,6 +186,69 @@ public class StatsController {
         stats.put("telegramSuccessRatePct", telegramRate);
 
         return ResponseEntity.ok(stats);
+    }
+
+    // -----------------------------------------------------------------------
+    // Tronco SIP — status via qualify AMI
+    // -----------------------------------------------------------------------
+
+    @GetMapping("/trunk-status")
+    public ResponseEntity<Map<String, Object>> trunkStatus() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("checkedAt", Instant.now().toString());
+        try (Socket s = new Socket(amiHost, amiPort)) {
+            s.setSoTimeout(AMI_TIMEOUT_MS);
+            BufferedReader r = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
+            PrintWriter    w = new PrintWriter(new OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8), true);
+            r.readLine(); // banner
+
+            sendAmiBlock(w, "Action", "Login", "Username", amiUser, "Secret", amiPassword);
+            if (!readAmiBlock(r).contains("Success")) {
+                result.put("status", "UNKNOWN"); result.put("rttMs", -1); result.put("error", "ami_auth");
+                return ResponseEntity.ok(result);
+            }
+
+            sendAmiBlock(w, "Action", "Command", "Command", "pjsip show contacts");
+            String contacts = readAmiBlock(r);
+            sendAmiBlock(w, "Action", "Logoff");
+
+            result.put("status", "UNKNOWN");
+            result.put("rttMs", -1);
+            for (String line : contacts.split("\n")) {
+                if (!line.contains("tronco-sip")) continue;
+                if (line.contains("Avail") && !line.contains("Unavail")) {
+                    result.put("status", "ONLINE");
+                    result.put("rttMs", parseRttMs(line));
+                } else {
+                    result.put("status", "OFFLINE");
+                    result.put("rttMs", -1);
+                }
+                break;
+            }
+        } catch (Exception e) {
+            log.warn("trunk-status AMI error: {}", e.getMessage());
+            result.put("status", "UNKNOWN"); result.put("rttMs", -1); result.put("error", e.getMessage());
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    private int parseRttMs(String line) {
+        String[] parts = line.trim().split("\\s+");
+        try { return (int) Double.parseDouble(parts[parts.length - 1]); }
+        catch (NumberFormatException e) { return -1; }
+    }
+
+    private void sendAmiBlock(PrintWriter w, String... kv) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < kv.length - 1; i += 2)
+            sb.append(kv[i]).append(": ").append(kv[i + 1]).append("\r\n");
+        sb.append("\r\n"); w.print(sb); w.flush();
+    }
+
+    private String readAmiBlock(BufferedReader r) throws IOException {
+        StringBuilder sb = new StringBuilder(); String line;
+        while ((line = r.readLine()) != null) { if (line.isEmpty()) break; sb.append(line).append("\n"); }
+        return sb.toString();
     }
 
     // -----------------------------------------------------------------------

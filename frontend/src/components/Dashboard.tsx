@@ -119,6 +119,12 @@ function Heatmap({ results }: { results: TestResult[] }) {
 
 type ActivityTab = 'tests' | 'calls' | 'alerts';
 
+interface TrunkStatus {
+  status: 'ONLINE' | 'OFFLINE' | 'UNKNOWN';
+  rttMs: number;
+  checkedAt: string;
+}
+
 export default function Dashboard() {
   const [calls, setCalls]     = useState<CallRecord[]>([]);
   const [results, setResults] = useState<TestResult[]>([]);
@@ -126,6 +132,16 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [wsStatus, setWsStatus] = useState<'connecting' | 'live' | 'offline'>('connecting');
   const [activityTab, setActivityTab] = useState<ActivityTab>('tests');
+  const [trunkStatus, setTrunkStatus] = useState<TrunkStatus | null>(null);
+
+  const fetchTrunkStatus = useCallback(async () => {
+    try {
+      const res = await api.get<TrunkStatus>('/stats/trunk-status');
+      setTrunkStatus(res.data);
+    } catch {
+      setTrunkStatus({ status: 'UNKNOWN', rttMs: -1, checkedAt: new Date().toISOString() });
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -144,9 +160,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadData();
+    fetchTrunkStatus();
 
     const ws = connectWebSocket(() => setWsStatus('live'));
     ws.onDisconnect = () => setWsStatus('offline');
+
+    const trunkInterval = setInterval(fetchTrunkStatus, 60_000);
 
     const unsubCalls = subscribe<CallRecord>('/topic/calls', (newCall) => {
       setCalls(prev => [newCall, ...prev].slice(0, 20));
@@ -158,8 +177,8 @@ export default function Dashboard() {
       setAlerts(prev => [newAlert, ...prev].slice(0, 20));
     });
 
-    return () => { unsubCalls(); unsubResults(); unsubAlerts(); };
-  }, [loadData]);
+    return () => { unsubCalls(); unsubResults(); unsubAlerts(); clearInterval(trunkInterval); };
+  }, [loadData, fetchTrunkStatus]);
 
   // ─── KPIs ──────────────────────────────────────────────────────────────────
   const today = new Date().toDateString();
@@ -264,6 +283,13 @@ export default function Dashboard() {
           <KpiCard icon="📡" value={alertsToday}      label="Alertas Zabbix Hoje"
             badge={alertsToday === 0 ? 'Nenhum' : `${alertsToday} disparo${alertsToday > 1 ? 's' : ''}`}
             badgeClass={alertsToday === 0 ? 'success' : 'warning'} />
+          <KpiCard
+            icon="🌐"
+            value={trunkStatus == null ? '…' : trunkStatus.status === 'ONLINE' ? 'Online' : trunkStatus.status === 'OFFLINE' ? 'Offline' : '—'}
+            label="Tronco SIP"
+            badge={trunkStatus == null ? 'Verificando…' : trunkStatus.status === 'ONLINE' && trunkStatus.rttMs >= 0 ? `${trunkStatus.rttMs}ms RTT` : trunkStatus.status === 'OFFLINE' ? 'Sem resposta' : 'Indisponível'}
+            badgeClass={trunkStatus?.status === 'ONLINE' ? 'success' : trunkStatus?.status === 'OFFLINE' ? 'danger' : 'gray'}
+          />
         </div>
 
         {/* ── Area Chart ─────────────────────────────────────────────────── */}
