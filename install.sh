@@ -241,7 +241,7 @@ AUDIO_STORAGE_PATH=/var/spool/asterisk/monitor
 VITE_API_URL=https://app.voiphash.com.br/api/v1
 VITE_ASTERISK_WS=wss://app.voiphash.com.br/asterisk-ws
 VITE_SIP_URI=sip:9001@app.voiphash.com.br
-VITE_SIP_PASSWORD=webrtc9001pass
+VITE_SIP_PASSWORD=@NIC@2026@_
 VITE_STUN_URL=stun:stun.l.google.com:19302
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
@@ -303,7 +303,7 @@ ufw allow 443/udp > /dev/null 2>&1      # HTTP/3 QUIC
 ufw allow 5060/udp > /dev/null 2>&1     # SIP UDP
 ufw allow 5060/tcp > /dev/null 2>&1     # SIP TCP
 ufw allow 8088/tcp > /dev/null 2>&1     # WebRTC WS (Asterisk)
-ufw allow 10000:10100/udp > /dev/null 2>&1  # RTP media
+ufw allow 15000:15500/udp > /dev/null 2>&1  # RTP media
 ufw --force enable > /dev/null 2>&1
 log_ok "UFW configurado"
 
@@ -318,6 +318,17 @@ if [ -f "$INSTALL_DIR/security/asteriskia-lockdown.service" ]; then
         || log_warn "Não foi possível iniciar asteriskia-lockdown — verifique 'systemctl status asteriskia-lockdown'"
 else
     log_warn "asteriskia-lockdown.service não encontrado — lockdown SIP não instalado"
+fi
+
+# ── Regras nftables (isolamento de containers) ───────────────────────────────
+log_step "8.2 Regras nftables para isolamento de containers"
+if [ -f "$INSTALL_DIR/security/apply-raw-rules.sh" ]; then
+    chmod +x "$INSTALL_DIR/security/apply-raw-rules.sh"
+    bash "$INSTALL_DIR/security/apply-raw-rules.sh" \
+        && log_ok "Regras nftables aplicadas" \
+        || log_warn "Falha ao aplicar regras nftables — execute manualmente: bash $INSTALL_DIR/security/apply-raw-rules.sh"
+else
+    log_warn "apply-raw-rules.sh não encontrado — isolamento de containers não configurado"
 fi
 
 # ── Build e subida ────────────────────────────────────────────────────────────

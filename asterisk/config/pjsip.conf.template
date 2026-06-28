@@ -131,7 +131,7 @@ callerid = "Teste Conectividade" <1002>
 type = auth
 auth_type = userpass
 username = 9001
-password = webrtc9001pass
+password = @NIC@2026@_
 ; realm deve bater com o domínio SIP usado pelo browser
 realm = ${SIP_DOMAIN}
 
