@@ -31,8 +31,10 @@ class AIService:
 
     # ── STT ──────────────────────────────────────────────────────────────────
 
-    async def transcribe(self, pcm_data: bytes) -> str:
-        return await self._run("STT", "transcribe", pcm_data)
+    async def transcribe(self, pcm_data: bytes, hint: str = "") -> str:
+        method = "transcribe_with_hint" if hint else "transcribe"
+        args   = (pcm_data, hint) if hint else (pcm_data,)
+        return await self._run("STT", method, *args)
 
     # ── LLM ──────────────────────────────────────────────────────────────────
 

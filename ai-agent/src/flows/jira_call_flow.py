@@ -63,11 +63,12 @@ def _trim_silence(pcm: bytes, threshold: int = 300, frame_size: int = 320) -> by
         rms = (sum(x*x for x in samples) / len(samples)) ** 0.5
         return rms < threshold
 
-    # Encontra primeiro frame com voz
+    # Encontra primeiro frame com voz — mantém 5 frames antes (100ms) para
+    # não cortar consoantes iniciais (ex: "k" de "kaio", "c" de "cinco")
     start = 0
     for i, f in enumerate(frames):
         if not is_silent(f):
-            start = max(0, i - 2)  # mantém 2 frames antes para contexto
+            start = max(0, i - 5)
             break
 
     # Encontra último frame com voz
@@ -138,7 +139,10 @@ class JiraCallFlow:
             return
 
         for question in questions:
-            answer = await self._ask_question(question["question_text"])
+            answer = await self._ask_question(
+                question["question_text"],
+                question.get("jira_field_key", ""),
+            )
             if answer:
                 key = question["jira_field_key"]
                 self.collected_answers[key] = answer
@@ -298,10 +302,106 @@ class JiraCallFlow:
         'música instrumental', '[audio', '[som', 'background',
     )
 
+    # Mapa de palavras numéricas → dígito (BR Portuguese)
+    _NUMBER_WORDS: dict[str, str] = {
+        "zero": "0", "um": "1", "uma": "1", "dois": "2", "duas": "2",
+        "três": "3", "tres": "3", "quatro": "4", "cinco": "5",
+        "seis": "6", "sete": "7", "oito": "8", "nove": "9",
+    }
+
+    @staticmethod
+    def _build_stt_hint(question_text: str, field_key: str) -> str:
+        """
+        Monta o prompt de contexto enviado ao STT conforme o tipo de campo.
+
+        O contexto reduz ambiguidade: o modelo sabe que deve transcrever
+        um ramal (dígitos), um login (com ponto) ou texto livre.
+        """
+        fk = field_key.lower()
+
+        if any(k in fk for k in ("telefone", "ramal", "phone", "fone")):
+            return (
+                f"Contexto: {question_text}\n"
+                "O usuário irá falar um número de ramal ou telefone dígito por dígito "
+                "(ex: 'cinco zero zero quatro'). "
+                "Transcreva APENAS os dígitos em algarismos, sem espaços (ex: 5004). "
+                "Ignore palavras como 'ramal' ou 'número'. "
+                "Retorne somente os dígitos."
+            )
+
+        if any(k in fk for k in ("nome", "login", "user", "email", "mail")):
+            return (
+                f"Contexto: {question_text}\n"
+                "O usuário irá falar um login de rede no formato nome.sobrenome. "
+                "Se disser 'ponto', escreva '.' (sem espaço). "
+                "Exemplo: 'kaio ponto correa' → 'kaio.correa'. "
+                "Retorne apenas o login, sem pontuação extra."
+            )
+
+        if any(k in fk for k in ("priority", "prioridade", "urgencia", "urgência")):
+            return (
+                f"Contexto: {question_text}\n"
+                "O usuário irá falar a prioridade: Baixa, Média ou Alta. "
+                "Transcreva exatamente a palavra de prioridade que foi dita. "
+                "Normalize variações: 'media' → 'Média', 'alta urgencia' → 'Alta'."
+            )
+
+        return (
+            f"Contexto: {question_text}\n"
+            "Transcreva em português do Brasil exatamente o que foi dito. "
+            "Retorne apenas o texto transcrito."
+        )
+
+    @staticmethod
+    def _normalize_transcription(text: str, field_key: str) -> str:
+        """
+        Normaliza a transcrição do STT para o campo específico.
+
+        Converte palavras faladas em representações canônicas:
+        - Ramais/telefones: palavras numéricas → dígitos, remove prefixo "ramal"
+        - Logins: "ponto" → ".", remove espaços entre partes do login
+        - Prioridades: normaliza capitalização
+        """
+        import re
+        fk = field_key.lower()
+
+        if any(k in fk for k in ("telefone", "ramal", "phone", "fone")):
+            # Converte palavras numéricas para dígitos
+            for word, digit in JiraCallFlow._NUMBER_WORDS.items():
+                text = re.sub(rf'\b{word}\b', digit, text, flags=re.IGNORECASE)
+            # Remove espaços entre dígitos consecutivos: "5 0 0 4" → "5004"
+            text = re.sub(r'(?<=\d)\s+(?=\d)', '', text)
+            # Remove prefixo "ramal " ou "número " se capturado
+            text = re.sub(r'^(ramal|número|numero|tel|fone)\s*', '', text, flags=re.IGNORECASE)
+            return text.strip()
+
+        if any(k in fk for k in ("nome", "login", "user", "email", "mail")):
+            # Converte "ponto" → "." (com ou sem espaços ao redor)
+            text = re.sub(r'\s*\bponto\b\s*', '.', text, flags=re.IGNORECASE)
+            # Remove espaços ao redor de pontos restantes: "kaio . correa" → "kaio.correa"
+            text = re.sub(r'\s*\.\s*', '.', text)
+            # Remove prefixo "login" ou "usuário" se capturado acidentalmente
+            text = re.sub(r'^(login|usuário|usuario|user)\s*[:;]?\s*', '', text, flags=re.IGNORECASE)
+            return text.strip()
+
+        if any(k in fk for k in ("priority", "prioridade", "urgencia", "urgência")):
+            tl = text.lower().strip()
+            if "alta" in tl or "urgente" in tl or "crítica" in tl or "critica" in tl:
+                return "Alta"
+            if "média" in tl or "media" in tl or "moderada" in tl:
+                return "Média"
+            if "baixa" in tl or "menor" in tl:
+                return "Baixa"
+            return text
+
+        return text
+
     async def _listen_and_transcribe(
         self,
         silence_timeout: float = _SILENCE_TIMEOUT_SECS,
         max_duration: float = _MAX_CAPTURE_PERGUNTA,
+        hint: str = "",
+        field_key: str = "",
     ) -> str | None:
         """Captura áudio do cliente, remove silêncio e transcreve via STT."""
         audio = await self._capture_audio(silence_timeout=silence_timeout, max_duration=max_duration)
@@ -311,7 +411,7 @@ class JiraCallFlow:
         if len(audio) < 320 * 10:  # menos de 10 frames (~0.2s) → sem voz real
             return None
         try:
-            text = await self.ai.transcribe(audio)
+            text = await self.ai.transcribe(audio, hint=hint)
             if not text:
                 return None
             # Filtra transcrições de ruído/música — o STT captou o áudio da URA
@@ -319,18 +419,20 @@ class JiraCallFlow:
             if any(p in text_lower for p in self._NOISE_PATTERNS):
                 logger.debug("[%s] STT filtrou ruído: %r", self.call_uuid, text)
                 return None
-            logger.info("[%s] STT: %r", self.call_uuid, text)
+            text = self._normalize_transcription(text, field_key)
+            logger.info("[%s] STT[%s]: %r", self.call_uuid, field_key or "?", text)
             return text
         except Exception as e:
             logger.error("[%s] Erro STT: %s", self.call_uuid, e)
             return None
 
-    async def _ask_question(self, question_text: str) -> str | None:
+    async def _ask_question(self, question_text: str, field_key: str = "") -> str | None:
         """Reproduz a pergunta (do cache) e captura/transcreve a resposta do cliente."""
         ok = await self._play_cached(question_text)
         if not ok:
             return None
-        return await self._listen_and_transcribe()  # usa _SILENCE_TIMEOUT_SECS padrão
+        hint = self._build_stt_hint(question_text, field_key)
+        return await self._listen_and_transcribe(hint=hint, field_key=field_key)
 
     async def _capture_audio(
         self,

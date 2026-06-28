@@ -35,6 +35,18 @@ class BaseAIProvider(ABC):
         Retorna string vazia se não conseguiu transcrever.
         """
 
+    async def transcribe_with_hint(self, pcm_data: bytes, hint: str) -> str:
+        """
+        STT com contexto semântico — melhora a acurácia para dados estruturados.
+
+        O hint descreve o tipo de dado esperado (ramal, login, prioridade…),
+        permitindo que o modelo STT use o contexto para acertos mais precisos.
+
+        Implementação padrão ignora o hint e chama transcribe() normalmente.
+        Provedores que suportam contexto devem sobrescrever este método.
+        """
+        return await self.transcribe(pcm_data)
+
     @abstractmethod
     async def generate_response_with_tools(
         self,

@@ -58,11 +58,17 @@ class GeminiProvider(BaseAIProvider):
 
     async def transcribe(self, pcm_data: bytes) -> str:
         try:
-            return await asyncio.to_thread(self._transcribe_sync, pcm_data)
+            return await asyncio.to_thread(self._transcribe_sync, pcm_data, "")
         except Exception as e:
             raise ProviderError("gemini", self._model_id, e) from e
 
-    def _transcribe_sync(self, pcm_data: bytes) -> str:
+    async def transcribe_with_hint(self, pcm_data: bytes, hint: str) -> str:
+        try:
+            return await asyncio.to_thread(self._transcribe_sync, pcm_data, hint)
+        except Exception as e:
+            raise ProviderError("gemini", self._model_id, e) from e
+
+    def _transcribe_sync(self, pcm_data: bytes, hint: str = "") -> str:
         from google.genai import types as t
 
         buf = io.BytesIO()
@@ -70,10 +76,18 @@ class GeminiProvider(BaseAIProvider):
             wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(8000)
             wf.writeframes(pcm_data)
 
+        if hint:
+            prompt = hint
+        else:
+            prompt = (
+                "Transcreva em português do Brasil exatamente o que foi dito. "
+                "Retorne apenas o texto transcrito, sem explicações."
+            )
+
         resp = _client().models.generate_content(
             model=self._model_id,
             contents=[t.Content(parts=[
-                t.Part(text="Transcreva em português do Brasil. Apenas o texto:"),
+                t.Part(text=prompt),
                 t.Part(inline_data=t.Blob(mime_type="audio/wav", data=buf.getvalue())),
             ])],
         )
