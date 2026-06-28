@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Requ
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+from jose import jwt as _jwt, JWTError
 import asyncio, json, os
 
 from database import init_db
@@ -100,7 +101,6 @@ async def jwt_middleware(request: Request, call_next):
         return JSONResponse({"detail": "Não autenticado"}, status_code=401)
     token = auth[7:]
     try:
-        from jose import jwt as _jwt, JWTError
         payload = _jwt.decode(token, JWT_KEY, algorithms=["HS256"])
         request.state.user = payload.get("sub", "")
         # Rejeita tokens de 2FA em etapa pendente
@@ -123,7 +123,6 @@ def _ws_auth(token: str | None) -> bool:
     if not token:
         return False
     try:
-        from jose import jwt as _jwt, JWTError
         payload = _jwt.decode(token, JWT_KEY, algorithms=["HS256"])
         return not payload.get("totp_pending", False)
     except JWTError:

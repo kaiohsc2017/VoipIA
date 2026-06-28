@@ -12,7 +12,7 @@ Todos os executors:
   2. Se não coberto, consultam memória coletiva dos agentes
   3. Se ainda sem resposta, fazem fallback para Gemini com contexto completo
 """
-import asyncio, json, re, aiohttp, asyncssh, os, logging
+import asyncio, json, re, aiohttp, asyncssh, os, logging, shlex
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 from database import DB
@@ -483,9 +483,12 @@ class LogMonitorExecutor:
                             alert_if = check.get("alert_if_found", True)
                             fix      = check.get("fix_hint", "")
 
-                            # Comando: últimas N linhas do arquivo filtradas pelo padrão
-                            cmd = (f"tail -n {lines} {filepath} 2>/dev/null | "
-                                   f"grep -iE '{pattern}' 2>/dev/null || true")
+                            # Valida filepath e pattern antes de interpolar no shell
+                            safe_lines   = max(1, min(int(lines), 10000))
+                            safe_filepath = shlex.quote(filepath)
+                            safe_pattern  = shlex.quote(pattern)
+                            cmd = (f"tail -n {safe_lines} {safe_filepath} 2>/dev/null | "
+                                   f"grep -iE {safe_pattern} 2>/dev/null || true")
 
                             try:
                                 result = await asyncio.wait_for(
@@ -741,11 +744,14 @@ async def _apply_retention():
             exec_days  = int(cfg["executions_days"])
             alert_days = int(cfg["alerts_days"])
             dl = await db.fetchval(
-                f"DELETE FROM execution_logs WHERE ts < NOW() - INTERVAL '{logs_days} days' RETURNING COUNT(*)")
+                "DELETE FROM execution_logs WHERE ts < NOW() - ($1 * INTERVAL '1 day') RETURNING COUNT(*)",
+                logs_days)
             de = await db.fetchval(
-                f"DELETE FROM executions WHERE started_at < NOW() - INTERVAL '{exec_days} days' AND status != 'running' RETURNING COUNT(*)")
+                "DELETE FROM executions WHERE started_at < NOW() - ($1 * INTERVAL '1 day') AND status != 'running' RETURNING COUNT(*)",
+                exec_days)
             da = await db.fetchval(
-                f"DELETE FROM alerts WHERE sent_at < NOW() - INTERVAL '{alert_days} days' RETURNING COUNT(*)")
+                "DELETE FROM alerts WHERE sent_at < NOW() - ($1 * INTERVAL '1 day') RETURNING COUNT(*)",
+                alert_days)
             if any([dl, de, da]):
                 logger.info("[retention] %s execuções, %s logs, %s alertas removidos", de, dl, da)
     except Exception as e:
@@ -757,8 +763,10 @@ def _calc_next_run(agent: dict):
     from datetime import timedelta
     schedule = agent.get("schedule") or {}
     if isinstance(schedule, str):
-        try: schedule = json.loads(schedule)
-        except: return None
+        try:
+            schedule = json.loads(schedule)
+        except (json.JSONDecodeError, TypeError):
+            return None
     stype  = schedule.get("type", "interval")
     value  = schedule.get("value", "5m")
     active = schedule.get("active", True)
@@ -774,8 +782,8 @@ def _calc_next_run(agent: dict):
             return croniter(value, now).get_next(datetime)
         elif stype == "always":
             return now + timedelta(seconds=10)
-    except Exception:
-        pass
+    except (ValueError, KeyError) as e:
+        logger.warning("_calc_next_run: parse falhou: %s", e)
     return None
 
 

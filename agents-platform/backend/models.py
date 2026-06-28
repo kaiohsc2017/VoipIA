@@ -30,8 +30,8 @@ class AgentCreate(BaseModel):
     description: Optional[str] = None
     type: str   # 'ssh_test' | 'web_monitor' | 'log_monitor' | 'database'
     skill: str  # contexto/prompt do especialista
-    server_ids: List[str] = []
-    target_urls: List[str] = []
+    server_ids: List[str] = Field(default_factory=list)
+    target_urls: List[str] = Field(default_factory=list)
     rules: dict = Field(default_factory=dict)
     schedule: AgentSchedule = Field(default_factory=AgentSchedule)
     notify_telegram: bool = False
