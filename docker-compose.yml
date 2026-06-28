@@ -29,6 +29,7 @@ volumes:
   agents_knowledge:       # Base de conhecimento da plataforma de agentes
   caddy_data:             # Certificados TLS gerenciados pelo Caddy
   caddy_config:           # Cache de configuração interno do Caddy
+  ura_audio_cache:        # PCM pré-gerado para mensagens estáticas da URA
 
 services:
 
@@ -129,7 +130,9 @@ services:
       INTERNAL_API_KEY:   ${INTERNAL_API_KEY}
       AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH:-/var/spool/asterisk/monitor}
       DOTENV_PATH:        /opt/asteriskia/env/.env
+      URA_CACHE_DIR:      /cache/ura
     volumes:
+      - ura_audio_cache:/cache/ura
       - asterisk_recordings:/var/spool/asterisk/monitor
       - /opt/AsteriskIA/env:/opt/asteriskia/env:ro
     networks:

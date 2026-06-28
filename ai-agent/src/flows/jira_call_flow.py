@@ -12,8 +12,9 @@ pela tela Fluxo URA sem necessidade de redeploy.
 
 import asyncio
 import logging
-from src.protocol import read_frame, write_audio
+from src.protocol import read_frame, write_audio_paced
 from src.services.ai_service import AIService
+from src.services.audio_cache import audio_cache as _audio_cache
 from src.services import backend_client as bc
 
 logger = logging.getLogger("asteriskia.flow.jira")
@@ -120,8 +121,8 @@ class JiraCallFlow:
         informativa  = settings.get("informativa")  or ""
         encerramento = settings.get("encerramento") or _FALLBACK_ENCERRAMENTO
 
-        # 2. Boas-vindas — aguarda o áudio terminar completamente
-        ok = await self._speak(boas_vindas)
+        # 2. Boas-vindas — reproduz do cache (sem latência TTS)
+        ok = await self._play_cached(boas_vindas)
         if not ok:
             return
 
@@ -147,9 +148,9 @@ class JiraCallFlow:
                 if not ok:
                     return
 
-        # 4. Mensagem informativa (opcional)
+        # 4. Mensagem informativa (opcional) — do cache se preenchida
         if informativa.strip():
-            ok = await self._speak(informativa)
+            ok = await self._play_cached(informativa)
             if not ok:
                 return
 
@@ -166,8 +167,8 @@ class JiraCallFlow:
                 self._transcriptions.append(f"[{question['question_text']}]: {answer}")
                 logger.info("[%s] %s = %r", self.call_uuid, key, answer)
 
-        # 6. Confirmação
-        ok = await self._speak("Obrigado! Estou registrando seu chamado. Aguarde um momento.")
+        # 6. Confirmação — mensagem estática, serve do cache
+        ok = await self._play_cached("Obrigado! Estou registrando seu chamado. Aguarde um momento.")
         if not ok:
             return
 
@@ -234,6 +235,52 @@ class JiraCallFlow:
             logger.error("[%s] Erro TTS: %s", self.call_uuid, e)
             return False
 
+    async def _play_cached(self, text: str) -> bool:
+        """
+        Reproduz mensagem via PCM pré-gerado em disco — sem chamada TTS em tempo real.
+
+        Zero latência de TTS: o PCM é lido do cache local.
+        Fallback automático para _speak() se o cache não estiver disponível.
+        """
+        import time
+        if not text or not text.strip():
+            logger.warning("[%s] _play_cached ignorado — texto vazio", self.call_uuid)
+            return True
+
+        pcm = await _audio_cache.get_or_generate(text, self.ai)
+        if not pcm:
+            logger.warning("[%s] Cache indisponível — usando TTS em tempo real", self.call_uuid)
+            return await self._speak(text)
+
+        if self.writer.is_closing():
+            return False
+
+        try:
+            duration = len(pcm) / (_SAMPLE_RATE * _BYTES_SAMPLE)
+            logger.debug(
+                "[%s] Reproduzindo cache PCM: %.1fs (%d bytes)",
+                self.call_uuid, duration, len(pcm),
+            )
+            t_start = time.monotonic()
+            ok = await write_audio_paced(self.writer, pcm)
+            elapsed = time.monotonic() - t_start
+
+            if not ok:
+                logger.warning("[%s] Conexão encerrada durante reprodução do cache", self.call_uuid)
+                return False
+
+            remaining = max(0.0, duration - elapsed) + _POST_SPEAK_BUFFER_SECS
+            await asyncio.sleep(remaining)
+
+            hangup = await self._drain_reader()
+            return not hangup
+        except (BrokenPipeError, ConnectionResetError):
+            logger.warning("[%s] Pipe quebrado durante reprodução do cache", self.call_uuid)
+            return False
+        except Exception as e:
+            logger.error("[%s] Erro na reprodução do cache: %s — usando TTS em tempo real", self.call_uuid, e)
+            return await self._speak(text)
+
     async def _drain_reader(self) -> bool:
         """
         Descarta frames acumulados no reader durante geração/reprodução do TTS.
@@ -297,8 +344,8 @@ class JiraCallFlow:
             return None
 
     async def _ask_question(self, question_text: str) -> str | None:
-        """Fala a pergunta e captura/transcreve a resposta do cliente."""
-        ok = await self._speak(question_text)
+        """Reproduz a pergunta (do cache) e captura/transcreve a resposta do cliente."""
+        ok = await self._play_cached(question_text)
         if not ok:
             return None
         return await self._listen_and_transcribe()  # usa _SILENCE_TIMEOUT_SECS padrão

@@ -15,6 +15,8 @@ from src.protocol import read_frame
 from src.flows.jira_call_flow import JiraCallFlow
 from src.flows.zabbix_alert_flow import ZabbixAlertFlow
 from src.services import backend_client as bc
+from src.services.ai_service import AIService
+from src.services.audio_cache import audio_cache
 
 # Configuração de logging estruturado
 logging.basicConfig(
@@ -23,6 +25,44 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 logger = logging.getLogger("asteriskia.main")
+
+
+async def _sync_audio_cache() -> None:
+    """
+    Sincroniza o cache de áudio TTS com os textos atuais da URA.
+
+    Chamado no startup e a cada 60s. Gera PCM apenas para textos sem cache;
+    textos já presentes são ignorados (cache hit imediato).
+    """
+    try:
+        settings_raw, questions_raw = await asyncio.gather(
+            bc.get("/api/v1/ura/settings"),
+            bc.get("/api/v1/ura/questions"),
+        )
+        texts: list[str] = []
+        if isinstance(settings_raw, list):
+            texts += [
+                item["value"] for item in settings_raw
+                if item.get("value", "").strip()
+            ]
+        if isinstance(questions_raw, list):
+            texts += [
+                q["question_text"] for q in questions_raw
+                if q.get("question_text", "").strip()
+            ]
+        if texts:
+            await audio_cache.warm_up(texts, AIService())
+    except Exception as e:
+        logger.warning("Sincronização do cache de áudio falhou: %s — continuando sem cache", e)
+
+
+async def _cache_refresh_loop() -> None:
+    """Warm-up inicial + refresh periódico do cache de áudio a cada 60 segundos."""
+    await asyncio.sleep(10)  # aguarda backend estar pronto
+    await _sync_audio_cache()
+    while True:
+        await asyncio.sleep(60)
+        await _sync_audio_cache()
 
 
 async def _detect_flow_type(call_uuid: str) -> str:
@@ -127,6 +167,8 @@ async def main() -> None:
 
     addr = server.sockets[0].getsockname()
     logger.info(f"=== AsteriskIA Agente de IA iniciado em {addr} ===")
+
+    asyncio.create_task(_cache_refresh_loop())  # warm-up + refresh em background
 
     async with server:
         await server.serve_forever()
