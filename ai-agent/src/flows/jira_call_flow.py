@@ -26,9 +26,10 @@ _FALLBACK_ENCERRAMENTO = "Seu chamado foi registrado. Em breve nossa equipe entr
 _SAMPLE_RATE  = 8000
 _BYTES_SAMPLE = 2
 
-# Fator de segurança pós-áudio: aguarda este tempo extra além da duração
-# real para garantir que o cliente ouviu o fim antes de capturar
-_POST_SPEAK_BUFFER_SECS = 2.0
+# Buffer pós-áudio: com write_audio_paced (pacing real-time), a função retorna
+# ~junto com o fim da reprodução — 0.8s é suficiente para cobrir jitter do
+# event loop e latência de rede interna Docker.
+_POST_SPEAK_BUFFER_SECS = 0.8
 
 # Threshold RMS abaixo do qual o frame é considerado silêncio
 _SILENCE_THRESHOLD = 300
@@ -175,40 +176,41 @@ class JiraCallFlow:
 
     async def _speak(self, text: str) -> bool:
         """
-        Gera TTS e envia ao Asterisk.
-        Envia silêncio durante a geração para manter o canal RTP ativo.
-        Retorna False se a conexão foi encerrada.
+        Gera TTS e envia ao Asterisk em streaming real-time.
+
+        O provider gerencia keep_alive internamente — não é necessário aqui.
+        Com write_audio_paced, a função retorna ~junto com o fim da reprodução,
+        então elapsed ≈ TTFT + duration e o tempo de espera residual é mínimo.
+        Ao final, drena frames acumulados no reader durante o TTS para evitar
+        que ruído/silêncio do período de espera seja transcrito como resposta.
         """
+        import time
         if self.writer.is_closing():
             return False
         try:
             logger.debug("[%s] TTS: %r", self.call_uuid, text[:80])
 
-            # Envia silêncio durante a geração do TTS (~3-5s no Gemini)
-            # sem isso o Asterisk encerra o canal AudioSocket por inatividade
-            from src.protocol import keep_alive_silence
-            stop_silence = asyncio.Event()
-            silence_task = asyncio.create_task(
-                keep_alive_silence(self.writer, stop_silence)
-            )
-
-            try:
-                ok, duration = await self.ai.synthesize_speech_streaming(text, self.writer)
-            finally:
-                stop_silence.set()
-                try:
-                    await asyncio.wait_for(silence_task, timeout=1.0)
-                except (asyncio.TimeoutError, Exception):
-                    pass
+            t_start = time.monotonic()
+            ok, duration = await self.ai.synthesize_speech_streaming(text, self.writer)
+            elapsed = time.monotonic() - t_start
 
             if not ok:
                 logger.warning("[%s] Conexão encerrada durante TTS", self.call_uuid)
                 return False
 
-            # Aguarda reprodução completa antes de capturar microfone
-            wait = duration + _POST_SPEAK_BUFFER_SECS
-            logger.debug("[%s] Áudio: %.1fs — aguardando %.1fs", self.call_uuid, duration, wait)
-            await asyncio.sleep(wait)
+            # Com pacing real-time, elapsed ≈ TTFT + duration.
+            # Aguarda somente o áudio residual (se elapsed < duration) + buffer.
+            remaining = max(0.0, duration - elapsed) + _POST_SPEAK_BUFFER_SECS
+            logger.debug(
+                "[%s] Áudio: %.1fs | elapsed: %.1fs | aguardando: %.1fs",
+                self.call_uuid, duration, elapsed, remaining,
+            )
+            await asyncio.sleep(remaining)
+
+            # Drena frames acumulados durante TTS para evitar dessincronismo
+            hangup = await self._drain_reader()
+            if hangup:
+                return False
             return True
         except (BrokenPipeError, ConnectionResetError):
             logger.warning("[%s] Pipe quebrado durante TTS", self.call_uuid)
@@ -216,6 +218,34 @@ class JiraCallFlow:
         except Exception as e:
             logger.error("[%s] Erro TTS: %s", self.call_uuid, e)
             return False
+
+    async def _drain_reader(self) -> bool:
+        """
+        Descarta frames acumulados no reader durante geração/reprodução do TTS.
+
+        O Asterisk envia áudio do microfone continuamente — mesmo quando o
+        cliente está escutando a URA. Esses frames precisam ser descartados
+        antes de iniciar a captura real para que o STT não transcreva ruído
+        de fundo capturado durante a fala da URA como resposta do cliente.
+
+        Timeout 50ms: esvazia o buffer já preenchido (frames buffered chegam
+        em <1ms), e é pequeno o suficiente para não cortar resposta do cliente
+        (o cliente tipicamente demora >500ms para falar após ouvir a pergunta).
+
+        Retorna True se detectou hangup durante a drenagem.
+        """
+        drained = 0
+        try:
+            while True:
+                frame = await asyncio.wait_for(read_frame(self.reader), timeout=0.05)
+                if frame is None or frame.is_hangup:
+                    return True  # hangup detectado
+                drained += 1
+        except asyncio.TimeoutError:
+            pass
+        if drained:
+            logger.debug("[%s] Drenados %d frames stale pós-TTS", self.call_uuid, drained)
+        return False
 
     # Padrões que indicam que o STT captou ruído/TTS em vez de voz humana real
     _NOISE_PATTERNS = (

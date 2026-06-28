@@ -118,6 +118,44 @@ async def keep_alive_silence(writer: asyncio.StreamWriter, stop_event: asyncio.E
         await asyncio.sleep(INTERVAL)
 
 
+async def write_audio_paced(writer: asyncio.StreamWriter, pcm_data: bytes) -> bool:
+    """
+    Envia áudio PCM com pacing real-time: 20ms de sleep por frame de 320 bytes.
+
+    Diferente de write_audio (que envia tudo de uma vez), esta função sincroniza
+    o envio com o ritmo de reprodução — a função retorna aproximadamente quando
+    o último frame está sendo reproduzido no Asterisk. Isso permite calcular o
+    tempo de espera pós-fala com precisão, sem margem de segurança excessiva.
+    """
+    FRAME_SIZE = 320
+    DRAIN_EVERY = 5
+
+    if writer.is_closing():
+        return False
+
+    frame_count = 0
+    for i in range(0, len(pcm_data), FRAME_SIZE):
+        if writer.is_closing():
+            return False
+        chunk = pcm_data[i:i + FRAME_SIZE]
+        if len(chunk) < FRAME_SIZE:
+            chunk = chunk + b'\x00' * (FRAME_SIZE - len(chunk))
+        writer.write(bytes([MSG_TYPE_AUDIO]) + struct.pack(">H", FRAME_SIZE) + chunk)
+        frame_count += 1
+        await asyncio.sleep(0.02)  # cadência real-time: 20ms por frame de 320 bytes
+        if frame_count % DRAIN_EVERY == 0:
+            try:
+                await writer.drain()
+            except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError):
+                return False
+
+    try:
+        await writer.drain()
+        return True
+    except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError):
+        return False
+
+
 async def write_audio(writer: asyncio.StreamWriter, pcm_data: bytes) -> bool:
     """
     Envia um frame de áudio PCM de volta para o Asterisk via Audiosocket.

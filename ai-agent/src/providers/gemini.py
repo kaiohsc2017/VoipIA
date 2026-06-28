@@ -146,15 +146,92 @@ class GeminiProvider(BaseAIProvider):
     # ── TTS ──────────────────────────────────────────────────────────────────
 
     async def synthesize_speech_streaming(self, text: str, writer) -> tuple[bool, float]:
+        """
+        TTS streaming real — envia chunks ao Asterisk conforme chegam do Gemini.
+
+        Fluxo:
+          1. Inicia keep_alive_silence para manter o canal vivo durante a geração
+          2. Thread Gemini: recebe chunks 24kHz, decima 3x → 8kHz, enfileira
+          3. Para cada chunk: para o silêncio antes do 1º frame de áudio real,
+             depois chama write_audio_paced (cadência real-time — 20ms/frame)
+          4. Retorna (sucesso, duração_segundos) quando o último frame foi enviado
+
+        Benefícios vs. versão anterior (collect-all-then-send):
+          - Primeiro áudio chega ao cliente em ~TTFT (~2-3s vs. 5-7s)
+          - write_audio_paced garante que a função retorna ~junto com fim da reprodução
+          - Caller buffer acumula somente TTFT frames antes do primeiro envio
+        """
+        from src.protocol import write_audio_paced, keep_alive_silence
+        from google.genai import types as t
+        import numpy as np
+
+        config = t.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=t.SpeechConfig(
+                voice_config=t.VoiceConfig(
+                    prebuilt_voice_config=t.PrebuiltVoiceConfig(voice_name="Aoede")
+                )
+            ),
+        )
+
+        queue: asyncio.Queue = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+        stop_silence = asyncio.Event()
+        silence_task = asyncio.create_task(keep_alive_silence(writer, stop_silence))
+
+        def _stream_to_queue() -> None:
+            """Roda em thread: recebe chunks Gemini, decima 24kHz→8kHz, enfileira."""
+            try:
+                for chunk in _client().models.generate_content_stream(
+                    model=self._model_id,
+                    contents=_clean_for_tts(str(text)),
+                    config=config,
+                ):
+                    try:
+                        data = chunk.candidates[0].content.parts[0].inline_data.data
+                        if data:
+                            # Decimação exata 3:1 — 24000/8000=3, sem aliasing perceptível em voz
+                            samples = np.frombuffer(data, dtype=np.int16)
+                            loop.call_soon_threadsafe(queue.put_nowait, samples[::3].tobytes())
+                    except (IndexError, AttributeError):
+                        continue
+            except Exception as e:
+                logger.error("[TTS] Erro no stream Gemini: %s", e)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)  # sentinela de fim
+
+        stream_task = asyncio.create_task(asyncio.to_thread(_stream_to_queue))
+        total_bytes = 0
+        ok = True
+        first_chunk = True
+
         try:
-            pcm = await asyncio.to_thread(self._tts_sync, str(text))
-            if not pcm:
-                return True, 0.0
-            from src.protocol import write_audio
-            sent = await write_audio(writer, pcm)
-            return sent, len(pcm) / (8000 * 2)
+            while True:
+                pcm_8k = await queue.get()
+                if pcm_8k is None:
+                    break
+                if first_chunk:
+                    # Para o silêncio antes de enviar o primeiro frame real
+                    # (evita interleave de silence + áudio no writer)
+                    stop_silence.set()
+                    first_chunk = False
+                if not await write_audio_paced(writer, pcm_8k):
+                    ok = False
+                    break
+                total_bytes += len(pcm_8k)
         except Exception as e:
+            ok = False
             raise ProviderError("gemini", self._model_id, e) from e
+        finally:
+            stop_silence.set()
+            try:
+                await asyncio.wait_for(asyncio.shield(silence_task), timeout=0.2)
+            except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+                pass
+            await stream_task  # aguarda thread finalizar para evitar leak
+
+        duration = total_bytes / (8000 * 2) if total_bytes > 0 else 0.0
+        return ok, duration
 
     async def synthesize_speech(self, text: str) -> bytes:
         try:
