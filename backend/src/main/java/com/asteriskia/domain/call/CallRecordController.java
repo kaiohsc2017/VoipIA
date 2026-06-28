@@ -54,7 +54,8 @@ public class CallRecordController {
                 request.fields(),
                 request.audioFilePath(),
                 request.transcription(),
-                request.callerNumber()
+                request.callerNumber(),
+                request.callDurationSecs()
         );
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -153,9 +154,10 @@ public class CallRecordController {
     public record RegisterCallRequest(
             @NotBlank String callUuid,
             Map<String, String> fields,
-            String audioFilePath,   // caminho do .wav gravado pelo MixMonitor
-            String transcription,   // transcrição completa consolidada
-            String callerNumber     // número do chamador (CALLERID do Asterisk)
+            String audioFilePath,     // caminho do .wav gravado pelo agente Python
+            String transcription,     // transcrição completa consolidada
+            String callerNumber,      // número do chamador (CALLERID do Asterisk)
+            Integer callDurationSecs  // duração total da chamada em segundos
     ) {}
 
     /** Resposta com o ID interno e a chave do issue Jira. */

@@ -12,6 +12,8 @@ pela tela Fluxo URA sem necessidade de redeploy.
 
 import asyncio
 import logging
+import time
+import wave
 from src.protocol import read_frame, write_audio_paced
 from src.services.ai_service import AIService
 from src.services.audio_cache import audio_cache as _audio_cache
@@ -101,15 +103,18 @@ class JiraCallFlow:
         writer: asyncio.StreamWriter,
         caller_number: str = "desconhecido",
     ):
-        self.call_uuid     = call_uuid
-        self.reader        = reader
-        self.writer        = writer
-        self.caller_number = caller_number
-        self.ai            = AIService()
+        self.call_uuid          = call_uuid
+        self.reader             = reader
+        self.writer             = writer
+        self.caller_number      = caller_number
+        self.ai                 = AIService()
         self.collected_answers: dict[str, str] = {}
         self._transcriptions: list[str]        = []
+        self._recorded_audio: list[bytes]      = []   # frames capturados para gravação WAV
+        self._call_start_time: float           = 0.0  # início do fluxo para cálculo de duração
 
     async def execute(self) -> None:
+        self._call_start_time = time.monotonic()
         logger.info("[%s] Iniciando fluxo URA Jira", self.call_uuid)
 
         # 1. Busca settings e perguntas em paralelo para reduzir latência inicial
@@ -141,10 +146,11 @@ class JiraCallFlow:
         for question in questions:
             answer = await self._ask_question(
                 question["question_text"],
-                question.get("jira_field_key", ""),
+                question.get("jiraFieldKey") or question.get("jira_field_key", ""),
+                question.get("expectedValues") or question.get("expected_values", ""),
             )
             if answer:
-                key = question["jira_field_key"]
+                key = question.get("jiraFieldKey") or question.get("jira_field_key", "")
                 self.collected_answers[key] = answer
                 self._transcriptions.append(f"[{question['question_text']}]: {answer}")
                 logger.info("[%s] %s = %r", self.call_uuid, key, answer)
@@ -154,8 +160,17 @@ class JiraCallFlow:
         if not ok:
             return
 
-        # 6. Cria chamado no Jira via backend
-        issue_key = await self._create_jira_issue()
+        # 6. Grava WAV com voz do chamador (MixMonitor não captura audio do AudioSocket)
+        audio_path = f"/var/spool/asterisk/monitor/{self.call_uuid}.wav"
+        try:
+            self._write_wav(audio_path)
+        except Exception as e:
+            logger.warning("[%s] Erro ao salvar gravação: %s", self.call_uuid, e)
+            audio_path = None
+
+        # 7. Cria chamado no Jira via backend
+        call_duration = int(time.monotonic() - self._call_start_time)
+        issue_key = await self._create_jira_issue(audio_path=audio_path, duration_secs=call_duration)
 
         # 7. Encerramento
         if issue_key:
@@ -310,12 +325,12 @@ class JiraCallFlow:
     }
 
     @staticmethod
-    def _build_stt_hint(question_text: str, field_key: str) -> str:
+    def _build_stt_hint(question_text: str, field_key: str, expected_values: str = "") -> str:
         """
         Monta o prompt de contexto enviado ao STT conforme o tipo de campo.
 
         O contexto reduz ambiguidade: o modelo sabe que deve transcrever
-        um ramal (dígitos), um login (com ponto) ou texto livre.
+        um ramal (dígitos), um login (com ponto), tipo de ticket ou texto livre.
         """
         fk = field_key.lower()
 
@@ -346,6 +361,31 @@ class JiraCallFlow:
                 "Normalize variações: 'media' → 'Média', 'alta urgencia' → 'Alta'."
             )
 
+        # Tipo de ticket (incidente vs. requisição) — campo type_ticket, issuetype ou similar
+        if any(k in fk for k in ("type_ticket", "issuetype", "tipo")) or (
+            "type" in fk and not any(k in fk for k in ("telefone", "ramal", "nome", "login", "priority", "prioridade"))
+        ):
+            opts = expected_values if expected_values else "Incidente, Requisição"
+            return (
+                f"Contexto: {question_text}\n"
+                f"O usuário deve escolher entre: {opts}. "
+                "Transcreva exatamente uma das opções. "
+                "Mapeie: 'problema', 'falha', 'parou', 'erro' → 'Incidente'; "
+                "'solicitação', 'nova', 'acesso', 'instalação', 'serviço' → 'Requisição'. "
+                "Retorne apenas a opção escolhida."
+            )
+
+        # Campo com valores esperados explícitos (qualquer campo configurado com expected_values)
+        if expected_values:
+            vals = [v.strip() for v in expected_values.split(",") if v.strip()]
+            if vals:
+                return (
+                    f"Contexto: {question_text}\n"
+                    f"O usuário deve responder com uma destas opções: {', '.join(vals)}. "
+                    "Transcreva exatamente uma das opções acima. "
+                    "Retorne apenas a opção escolhida."
+                )
+
         return (
             f"Contexto: {question_text}\n"
             "Transcreva em português do Brasil exatamente o que foi dito. "
@@ -353,7 +393,7 @@ class JiraCallFlow:
         )
 
     @staticmethod
-    def _normalize_transcription(text: str, field_key: str) -> str:
+    def _normalize_transcription(text: str, field_key: str, expected_values: str = "") -> str:
         """
         Normaliza a transcrição do STT para o campo específico.
 
@@ -394,6 +434,17 @@ class JiraCallFlow:
                 return "Baixa"
             return text
 
+        # Tipo de ticket — normaliza para Incidente ou Requisição
+        if any(k in fk for k in ("type_ticket", "issuetype", "tipo")) or (
+            "type" in fk and not any(k in fk for k in ("telefone", "ramal", "nome", "login", "priority", "prioridade"))
+        ):
+            tl = text.lower().strip()
+            if any(w in tl for w in ("incidente", "incident", "problema", "bug", "erro", "falha", "parou", "quebrou", "crítico", "critico")):
+                return "Incidente"
+            if any(w in tl for w in ("solicitação", "solicitacao", "requisição", "requisicao", "request", "nova", "novo", "serviço", "servico", "acesso", "instalação", "instalacao", "abertura")):
+                return "Requisição"
+            return text
+
         return text
 
     async def _listen_and_transcribe(
@@ -402,6 +453,7 @@ class JiraCallFlow:
         max_duration: float = _MAX_CAPTURE_PERGUNTA,
         hint: str = "",
         field_key: str = "",
+        expected_values: str = "",
     ) -> str | None:
         """Captura áudio do cliente, remove silêncio e transcreve via STT."""
         audio = await self._capture_audio(silence_timeout=silence_timeout, max_duration=max_duration)
@@ -419,20 +471,20 @@ class JiraCallFlow:
             if any(p in text_lower for p in self._NOISE_PATTERNS):
                 logger.debug("[%s] STT filtrou ruído: %r", self.call_uuid, text)
                 return None
-            text = self._normalize_transcription(text, field_key)
+            text = self._normalize_transcription(text, field_key, expected_values)
             logger.info("[%s] STT[%s]: %r", self.call_uuid, field_key or "?", text)
             return text
         except Exception as e:
             logger.error("[%s] Erro STT: %s", self.call_uuid, e)
             return None
 
-    async def _ask_question(self, question_text: str, field_key: str = "") -> str | None:
+    async def _ask_question(self, question_text: str, field_key: str = "", expected_values: str = "") -> str | None:
         """Reproduz a pergunta (do cache) e captura/transcreve a resposta do cliente."""
         ok = await self._play_cached(question_text)
         if not ok:
             return None
-        hint = self._build_stt_hint(question_text, field_key)
-        return await self._listen_and_transcribe(hint=hint, field_key=field_key)
+        hint = self._build_stt_hint(question_text, field_key, expected_values)
+        return await self._listen_and_transcribe(hint=hint, field_key=field_key, expected_values=expected_values)
 
     async def _capture_audio(
         self,
@@ -474,6 +526,7 @@ class JiraCallFlow:
 
             payload = frame.payload
             audio_chunks.append(payload)
+            self._recorded_audio.append(payload)  # acumula para gravação WAV
 
             samples = _struct.unpack(f"<{len(payload)//2}h", payload)
             rms = (sum(x * x for x in samples) / len(samples)) ** 0.5
@@ -511,7 +564,25 @@ class JiraCallFlow:
             logger.error("[%s] Erro ao buscar perguntas URA: %s", self.call_uuid, e)
             return []
 
-    async def _create_jira_issue(self) -> str | None:
+    def _write_wav(self, path: str) -> None:
+        """Escreve os frames capturados em disco como arquivo WAV 8kHz/16bit/mono."""
+        if not self._recorded_audio:
+            logger.warning("[%s] Sem áudio gravado — arquivo WAV não será criado", self.call_uuid)
+            return
+        pcm = b"".join(self._recorded_audio)
+        with wave.open(path, 'wb') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)       # 16-bit
+            wf.setframerate(_SAMPLE_RATE)
+            wf.writeframes(pcm)
+        logger.info("[%s] Gravação salva: %s (%d bytes / %.1fs)",
+                    self.call_uuid, path, len(pcm), len(pcm) / (_SAMPLE_RATE * _BYTES_SAMPLE))
+
+    async def _create_jira_issue(
+        self,
+        audio_path: str | None = None,
+        duration_secs: int = 0,
+    ) -> str | None:
         try:
             full_transcription = "\n".join(self._transcriptions)
             self.collected_answers.setdefault("description", full_transcription)
@@ -519,11 +590,12 @@ class JiraCallFlow:
                 self.collected_answers.setdefault("customfield_telefone", self.caller_number)
 
             payload = {
-                "callUuid":      self.call_uuid,
-                "fields":        self.collected_answers,
-                "audioFilePath": f"/var/spool/asterisk/monitor/{self.call_uuid}.wav",
-                "transcription": full_transcription,
-                "callerNumber":  self.caller_number,
+                "callUuid":         self.call_uuid,
+                "fields":           self.collected_answers,
+                "audioFilePath":    audio_path or f"/var/spool/asterisk/monitor/{self.call_uuid}.wav",
+                "transcription":    full_transcription,
+                "callerNumber":     self.caller_number,
+                "callDurationSecs": duration_secs,
             }
             data = await bc.post("/api/v1/calls/register", json=payload)
             return data.get("jiraIssueKey")

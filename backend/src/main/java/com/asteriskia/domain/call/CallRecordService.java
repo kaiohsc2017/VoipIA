@@ -44,12 +44,15 @@ public class CallRecordService {
             Map<String, String> fields,
             String audioFilePath,
             String transcription,
-            String callerNumber) {
+            String callerNumber,
+            Integer callDurationSecs) {
 
         log.info("Registrando chamada UUID={}", callUuid);
 
-        // Número do chamador — prioriza o campo explícito enviado pelo ai-agent
+        // Número do chamador — usa o valor explícito se for real (não "desconhecido"),
+        // caso contrário cai no ramal informado pelo usuário durante a URA.
         String callerPhone = callerNumber != null && !callerNumber.isBlank()
+                    && !"desconhecido".equals(callerNumber)
                 ? callerNumber
                 : fields.getOrDefault("customfield_telefone", "desconhecido");
 
@@ -85,6 +88,7 @@ public class CallRecordService {
                 .transcription(fullTranscription)
                 .audioFilePath(audioFilePath)
                 .callType(callType)
+                .callDurationSecs(callDurationSecs != null ? callDurationSecs : 0)
                 .build();
 
         // Primeiro salva para garantir persistência mesmo que o Jira falhe
