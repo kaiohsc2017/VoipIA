@@ -211,9 +211,14 @@ class GeminiProvider(BaseAIProvider):
                 if pcm_8k is None:
                     break
                 if first_chunk:
-                    # Para o silêncio antes de enviar o primeiro frame real
-                    # (evita interleave de silence + áudio no writer)
+                    # Para o silêncio e aguarda o task terminar ANTES de iniciar
+                    # write_audio_paced — evita race condition de drain() concorrente
+                    # no mesmo writer (asyncio.StreamWriter não é seguro para drain concorrente).
                     stop_silence.set()
+                    try:
+                        await asyncio.wait_for(asyncio.shield(silence_task), timeout=0.1)
+                    except (asyncio.TimeoutError, asyncio.CancelledError):
+                        pass
                     first_chunk = False
                 if not await write_audio_paced(writer, pcm_8k):
                     ok = False

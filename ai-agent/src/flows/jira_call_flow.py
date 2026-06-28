@@ -40,7 +40,11 @@ _SILENCE_THRESHOLD = 700
 _SILENCE_TIMEOUT_SECS = 2.0
 
 # Timeout de silêncio para o turno livre (mais curto — o usuário pode não saber que deve falar)
-_TURNO_LIVRE_SILENCE_SECS = 4.0
+_TURNO_LIVRE_SILENCE_SECS = 3.0
+
+# Duração máxima de captura em segundos (relógio real — garante encerramento independente de frame timing)
+_MAX_CAPTURE_TURNO_LIVRE = 6.0   # turno livre: até 6s de relógio
+_MAX_CAPTURE_PERGUNTA    = 12.0  # perguntas: até 12s de relógio
 
 
 def _trim_silence(pcm: bytes, threshold: int = 300, frame_size: int = 320) -> bytes:
@@ -121,8 +125,11 @@ class JiraCallFlow:
         if not ok:
             return
 
-        # 3. Turno livre — ouve o cliente e responde com LLM (timeout curto)
-        user_text = await self._listen_and_transcribe(silence_timeout=_TURNO_LIVRE_SILENCE_SECS)
+        # 3. Turno livre — ouve com limite de tempo rígido
+        user_text = await self._listen_and_transcribe(
+            silence_timeout=_TURNO_LIVRE_SILENCE_SECS,
+            max_duration=_MAX_CAPTURE_TURNO_LIVRE,
+        )
         if user_text:
             self._transcriptions.append(f"Cliente: {user_text}")
             system_prompt = (
@@ -185,15 +192,16 @@ class JiraCallFlow:
         """
         Gera TTS e envia ao Asterisk em streaming real-time.
 
-        O provider gerencia keep_alive internamente — não é necessário aqui.
-        Com write_audio_paced, a função retorna ~junto com o fim da reprodução,
-        então elapsed ≈ TTFT + duration e o tempo de espera residual é mínimo.
-        Ao final, drena frames acumulados no reader durante o TTS para evitar
-        que ruído/silêncio do período de espera seja transcrito como resposta.
+        Com write_audio_paced, a função retorna ~junto com o fim da reprodução.
+        Ao final, drena frames acumulados no reader durante o TTS.
         """
         import time
         if self.writer.is_closing():
             return False
+        # Texto vazio causaria erro 400 no Gemini TTS
+        if not text or not text.strip():
+            logger.warning("[%s] _speak ignorado — texto vazio", self.call_uuid)
+            return True
         try:
             logger.debug("[%s] TTS: %r", self.call_uuid, text[:80])
 
@@ -261,9 +269,13 @@ class JiraCallFlow:
         'música instrumental', '[audio', '[som', 'background',
     )
 
-    async def _listen_and_transcribe(self, silence_timeout: float = _SILENCE_TIMEOUT_SECS) -> str | None:
+    async def _listen_and_transcribe(
+        self,
+        silence_timeout: float = _SILENCE_TIMEOUT_SECS,
+        max_duration: float = _MAX_CAPTURE_PERGUNTA,
+    ) -> str | None:
         """Captura áudio do cliente, remove silêncio e transcreve via STT."""
-        audio = await self._capture_audio(silence_timeout=silence_timeout)
+        audio = await self._capture_audio(silence_timeout=silence_timeout, max_duration=max_duration)
         if not audio:
             return None
         audio = _trim_silence(audio)
@@ -291,25 +303,37 @@ class JiraCallFlow:
             return None
         return await self._listen_and_transcribe()  # usa _SILENCE_TIMEOUT_SECS padrão
 
-    async def _capture_audio(self, silence_timeout: float = _SILENCE_TIMEOUT_SECS) -> bytes:
+    async def _capture_audio(
+        self,
+        silence_timeout: float = _SILENCE_TIMEOUT_SECS,
+        max_duration: float = _MAX_CAPTURE_PERGUNTA,
+    ) -> bytes:
         """
-        Captura frames de áudio do cliente até detectar silêncio contínuo
-        por silence_timeout segundos ou atingir max_duration.
+        Captura frames de áudio até silêncio ou timeout de relógio real.
+
+        Usa time.monotonic() para garantir encerramento em max_duration segundos
+        independente de overhead do asyncio ou jitter de frames WebRTC/RTP.
         """
         import struct as _struct
+        import time
 
         audio_chunks: list[bytes] = []
-        frame_duration  = 320 / (_SAMPLE_RATE * _BYTES_SAMPLE)  # 0.02s por frame
-        silence_limit   = int(silence_timeout / frame_duration)
-        max_frames      = int(30.0 / frame_duration)  # máximo 30s
+        frame_duration = 320 / (_SAMPLE_RATE * _BYTES_SAMPLE)  # 0.02s por frame
+        silence_limit  = int(silence_timeout / frame_duration)
 
         silence_count = 0
+        t_start = time.monotonic()
 
-        for _ in range(max_frames):
+        while True:
+            # Limite de tempo de relógio real — imune a jitter de frames
+            if time.monotonic() - t_start >= max_duration:
+                logger.debug("[%s] Captura encerrada por limite de %.1fs", self.call_uuid, max_duration)
+                break
+
             try:
-                frame = await asyncio.wait_for(read_frame(self.reader), timeout=8.0)
+                frame = await asyncio.wait_for(read_frame(self.reader), timeout=2.0)
             except asyncio.TimeoutError:
-                logger.debug("[%s] Timeout na leitura de frame — encerrando captura", self.call_uuid)
+                logger.debug("[%s] Timeout de frame — encerrando captura", self.call_uuid)
                 break
 
             if frame is None or frame.is_hangup:
@@ -320,14 +344,14 @@ class JiraCallFlow:
             payload = frame.payload
             audio_chunks.append(payload)
 
-            # RMS para detecção de silêncio
             samples = _struct.unpack(f"<{len(payload)//2}h", payload)
             rms = (sum(x * x for x in samples) / len(samples)) ** 0.5
 
             if rms < _SILENCE_THRESHOLD:
                 silence_count += 1
                 if silence_count >= silence_limit:
-                    logger.debug("[%s] Silêncio detectado após %.1fs", self.call_uuid, len(audio_chunks) * frame_duration)
+                    elapsed = time.monotonic() - t_start
+                    logger.debug("[%s] Silêncio detectado em %.1fs", self.call_uuid, elapsed)
                     break
             else:
                 silence_count = 0
