@@ -61,10 +61,10 @@ async def dashboard_summary():
 @router.get("/dashboard/period")
 async def dashboard_period(period: str = "day"):
     """Tabela 'Por período': totais por agente em 24h / 7d / 30d."""
-    intervals = {"day": "24 hours", "week": "7 days", "month": "30 days"}
-    interval  = intervals.get(period, "24 hours")
+    if period not in {"day", "week", "month"}:
+        period = "day"
     async with DB() as db:
-        rows = await db.fetch(f"""
+        rows = await db.fetch("""
             SELECT
                 a.name AS agent_name,
                 COUNT(*)                                        AS total,
@@ -74,10 +74,14 @@ async def dashboard_period(period: str = "day"):
                 COALESCE(SUM(e.failed_checks), 0)              AS failures
             FROM executions e
             JOIN agents a ON a.id = e.agent_id
-            WHERE e.started_at >= NOW() - INTERVAL '{interval}'
+            WHERE e.started_at >= NOW() - CASE $1
+                WHEN 'day'  THEN INTERVAL '24 hours'
+                WHEN 'week' THEN INTERVAL '7 days'
+                ELSE             INTERVAL '30 days'
+            END
             GROUP BY a.id, a.name
             ORDER BY a.name
-        """)
+        """, period)
         return [dict(r) for r in rows]
 
 @router.get("/alerts")

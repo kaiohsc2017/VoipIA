@@ -168,7 +168,7 @@ DO $$ BEGIN
   ALTER TABLE agents ADD COLUMN IF NOT EXISTS notify_webhook_url TEXT;
   ALTER TABLE agents ADD COLUMN IF NOT EXISTS on_failure_trigger_agent_id UUID;
   ALTER TABLE agents ADD COLUMN IF NOT EXISTS schedules JSONB[] DEFAULT '{}';
-EXCEPTION WHEN OTHERS THEN NULL;
+EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 """
 
@@ -186,9 +186,13 @@ async def migrate_db():
         await conn.close()
 
 async def get_db() -> asyncpg.Connection:
+    """Descontinuado — use `async with DB() as db:` para evitar connection leaks."""
+    import warnings
+    warnings.warn("get_db() está descontinuado; use `async with DB() as db:`", DeprecationWarning, stacklevel=2)
     return await _pool.acquire()
 
 async def release_db(conn):
+    """Descontinuado — use `async with DB() as db:` para evitar connection leaks."""
     await _pool.release(conn)
 
 class DB:

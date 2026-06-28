@@ -3,8 +3,10 @@ from fastapi import APIRouter, HTTPException, Request
 from uuid import UUID
 from models import AgentCreate, AgentOut
 from database import DB
-import json, uuid
+import json, uuid, logging
 from datetime import datetime, timezone
+
+logger = logging.getLogger("asteriskia.agents")
 
 router = APIRouter()
 
@@ -68,7 +70,7 @@ async def update_agent(agent_id: UUID, body: AgentCreate, request: Request):
         scheduler = request.app.state.scheduler
         scheduler.reload_agent(agent)
     except Exception as e:
-        print(f"[agents] reload_agent error: {e}")
+        logger.warning("[agents] reload_agent error: %s", e)
     return agent
 
 @router.delete("/{agent_id}")

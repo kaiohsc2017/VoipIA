@@ -337,7 +337,14 @@ class JiraCallFlow:
 
     async def _fetch_questions(self) -> list[dict]:
         try:
-            return await bc.get("/api/v1/ura/questions")
+            result = await bc.get("/api/v1/ura/questions")
+            if not isinstance(result, list):
+                logger.error(
+                    "[%s] Backend retornou formato inesperado para perguntas: %s",
+                    self.call_uuid, type(result).__name__,
+                )
+                return []
+            return result
         except Exception as e:
             logger.error("[%s] Erro ao buscar perguntas URA: %s", self.call_uuid, e)
             return []

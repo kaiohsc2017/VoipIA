@@ -2,7 +2,9 @@
 from fastapi import APIRouter, HTTPException
 from uuid import UUID
 from database import DB
-import asyncio
+import asyncio, logging
+
+logger = logging.getLogger("asteriskia.system")
 
 router = APIRouter()
 
@@ -16,8 +18,8 @@ async def health():
         async with DB() as db:
             await db.fetchval("SELECT 1")
             db_ok = True
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("[health] DB check falhou: %s", e)
 
     agents_count = 0
     running_count = 0
@@ -25,8 +27,8 @@ async def health():
         async with DB() as db:
             agents_count  = await db.fetchval("SELECT COUNT(*) FROM agents")
             running_count = await db.fetchval("SELECT COUNT(*) FROM agents WHERE status='running'")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("[health] Contagem de agentes falhou: %s", e)
 
     status = "ok" if db_ok else "degraded"
     return {

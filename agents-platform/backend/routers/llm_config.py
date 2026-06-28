@@ -36,11 +36,6 @@ async def llm_config_read():
             masked[k] = v
     return {"values": masked, "has_file": True}
 
-@router.get("/config/full")
-async def llm_config_full():
-    """Lê o .env.agents com os valores completos — para edição no formulário."""
-    return {"values": read_env_file()}
-
 @router.post("/config")
 async def llm_config_save(body: LLMSaveRequest):
     """Salva o .env.agents e recarrega a configuração em memória."""

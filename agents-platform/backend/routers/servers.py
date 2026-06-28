@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from uuid import UUID
 from models import ServerCreate
 from database import DB
+from executor import _build_ssh_kwargs
 import asyncssh, json
 
 router = APIRouter()
@@ -50,13 +51,9 @@ async def test_connection(server_id: UUID):
         row = await db.fetchrow("SELECT * FROM servers WHERE id=$1", server_id)
         if not row: raise HTTPException(404)
     try:
-        kwargs = dict(host=row["host"], port=row["port"], username=row["username"],
-                      known_hosts=None, connect_timeout=10)
-        if row["auth_type"] == "key" and row["ssh_key"]:
-            kwargs["client_keys"] = [asyncssh.import_private_key(row["ssh_key"])]
-        else:
-            kwargs["password"] = row["password"]
-        async with asyncssh.connect(**kwargs) as conn:
+        srv = dict(row)
+        srv["connect_timeout"] = 10
+        async with asyncssh.connect(**_build_ssh_kwargs(srv)) as conn:
             result = await conn.run("echo ok && uname -a", check=True)
             return {"ok": True, "output": result.stdout.strip()}
     except Exception as e:

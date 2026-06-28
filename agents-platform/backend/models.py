@@ -12,7 +12,7 @@ class ServerCreate(BaseModel):
     auth_type: str = "password"   # 'password' | 'key'
     password: Optional[str] = None
     ssh_key: Optional[str] = None
-    tags: List[str] = []
+    tags: List[str] = Field(default_factory=list)
 
 class ServerOut(ServerCreate):
     id: UUID
@@ -32,8 +32,8 @@ class AgentCreate(BaseModel):
     skill: str  # contexto/prompt do especialista
     server_ids: List[str] = []
     target_urls: List[str] = []
-    rules: dict = {}
-    schedule: AgentSchedule = AgentSchedule()
+    rules: dict = Field(default_factory=dict)
+    schedule: AgentSchedule = Field(default_factory=AgentSchedule)
     notify_telegram: bool = False
     telegram_chat: Optional[str] = None
     notify_email: bool = False
@@ -80,8 +80,8 @@ class MemoryEntry(BaseModel):
     mtype: str
     title: str
     content: str
-    metadata: dict = {}
-    tags: List[str] = []
+    metadata: dict = Field(default_factory=dict)
+    tags: List[str] = Field(default_factory=list)
 
 class AlertOut(BaseModel):
     id: int

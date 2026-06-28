@@ -1,8 +1,10 @@
 """scheduler.py — agendador de execuções com suporte a cron"""
-import asyncio, json
+import asyncio, json, logging
 from datetime import datetime, timezone, timedelta
 from database import DB
 from executor import run_agent
+
+logger = logging.getLogger("asteriskia.scheduler")
 
 try:
     from croniter import croniter
@@ -77,7 +79,7 @@ class AgentScheduler:
             try:
                 await run_agent(agent, self._broadcast or self._noop_broadcast)
             except Exception as e:
-                print(f"[scheduler] Erro agente {agent['name']}: {e}")
+                logger.error("[scheduler] Erro agente %s: %s", agent["name"], e)
 
             if stype == "once":
                 break

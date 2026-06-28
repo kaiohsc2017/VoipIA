@@ -40,18 +40,30 @@ def _is_public(path: str) -> bool:
 ws_clients: dict[str, list[WebSocket]] = {}
 
 async def broadcast(channel: str, data: dict):
-    """Envia para todos os WebSocket inscritos no canal."""
+    """Envia para todos os WebSocket inscritos no canal, removendo conexões mortas."""
+    dead: list = []
     for ws in ws_clients.get(channel, []):
         try:
             await ws.send_json(data)
         except Exception:
+            dead.append(ws)
+    for ws in dead:
+        try:
+            ws_clients[channel].remove(ws)
+        except (ValueError, KeyError):
             pass
     # Alertas também vão para o canal global da UI
     if data.get("level") in ("error", "warning") and channel != "__alerts__":
+        dead = []
         for ws in ws_clients.get("__alerts__", []):
             try:
                 await ws.send_json(data)
             except Exception:
+                dead.append(ws)
+        for ws in dead:
+            try:
+                ws_clients["__alerts__"].remove(ws)
+            except (ValueError, KeyError):
                 pass
 
 @asynccontextmanager
@@ -94,7 +106,7 @@ async def jwt_middleware(request: Request, call_next):
         # Rejeita tokens de 2FA em etapa pendente
         if payload.get("totp_pending"):
             return JSONResponse({"detail": "2FA pendente"}, status_code=401)
-    except Exception:
+    except JWTError:
         return JSONResponse({"detail": "Token inválido ou expirado"}, status_code=401)
     return await call_next(request)
 
@@ -111,10 +123,10 @@ def _ws_auth(token: str | None) -> bool:
     if not token:
         return False
     try:
-        from jose import jwt as _jwt
+        from jose import jwt as _jwt, JWTError
         payload = _jwt.decode(token, JWT_KEY, algorithms=["HS256"])
         return not payload.get("totp_pending", False)
-    except Exception:
+    except JWTError:
         return False
 
 @app.websocket("/ws/agent/{agent_id}/logs")

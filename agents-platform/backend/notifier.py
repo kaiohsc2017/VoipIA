@@ -1,7 +1,9 @@
 """notifier.py — envio de alertas: Telegram, Web, E-mail, Webhook"""
-import aiohttp, os, json, smtplib, ssl
+import asyncio, aiohttp, os, json, smtplib, ssl, logging
 from email.mime.text import MIMEText
 from datetime import datetime, timezone
+
+logger = logging.getLogger("asteriskia.notifier")
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 SMTP_HOST      = os.environ.get("AGENTS_SMTP_HOST", "")
@@ -25,24 +27,30 @@ async def send_telegram(chat_id: str, message: str) -> bool:
     except Exception:
         return False
 
+
+def _send_email_sync(to: str, subject: str, body: str) -> bool:
+    """Envio SMTP síncrono — deve ser chamado apenas via asyncio.to_thread."""
+    msg = MIMEText(body, "html", "utf-8")
+    msg["Subject"] = subject
+    msg["From"]    = SMTP_FROM
+    msg["To"]      = to
+    ctx = ssl.create_default_context()
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as srv:
+        srv.ehlo()
+        srv.starttls(context=ctx)
+        srv.login(SMTP_USER, SMTP_PASS)
+        srv.sendmail(SMTP_FROM, [to], msg.as_string())
+    return True
+
+
 async def send_email(to: str, subject: str, body: str) -> bool:
-    """Envia e-mail via SMTP configurado nas variáveis de ambiente."""
+    """Envia e-mail via SMTP sem bloquear o event loop."""
     if not SMTP_HOST or not SMTP_USER or not to:
         return False
     try:
-        msg = MIMEText(body, "html", "utf-8")
-        msg["Subject"] = subject
-        msg["From"]    = SMTP_FROM
-        msg["To"]      = to
-        ctx = ssl.create_default_context()
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as srv:
-            srv.ehlo()
-            srv.starttls(context=ctx)
-            srv.login(SMTP_USER, SMTP_PASS)
-            srv.sendmail(SMTP_FROM, [to], msg.as_string())
-        return True
+        return await asyncio.to_thread(_send_email_sync, to, subject, body)
     except Exception as e:
-        print(f"[notifier] e-mail error: {e}")
+        logger.error("[notifier] e-mail error: %s", e)
         return False
 
 async def send_webhook(url: str, payload: dict) -> bool:
@@ -58,7 +66,7 @@ async def send_webhook(url: str, payload: dict) -> bool:
             ) as r:
                 return r.status < 400
     except Exception as e:
-        print(f"[notifier] webhook error: {e}")
+        logger.error("[notifier] webhook error: %s", e)
         return False
 
 async def send_web_alert(agent_id: str, level: str, message: str):

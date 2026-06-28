@@ -1,6 +1,7 @@
 """routers/reports.py — relatório de execução e alertas"""
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
+from html import escape as _esc
 from uuid import UUID
 from database import DB
 
@@ -66,24 +67,41 @@ async def execution_report_html(execution_id: UUID):
 
     rows_fail = ""
     for f in data["failures"]:
-        fix = f["fix_hint"] or "—"
-        rows_fail += f"<tr><td>{f['server']}</td><td>{f['name']}</td><td>{f['reason']}</td><td style='color:#16a34a'>{fix}</td></tr>"
+        fix = _esc(str(f["fix_hint"] or "—"))
+        rows_fail += (
+            f"<tr><td>{_esc(str(f['server']))}</td>"
+            f"<td>{_esc(str(f['name']))}</td>"
+            f"<td>{_esc(str(f['reason']))}</td>"
+            f"<td style='color:#16a34a'>{fix}</td></tr>"
+        )
 
     rows_ai = ""
     for s in data["ai_suggestions"]:
-        rows_ai += f"<tr><td>{s['server']}</td><td style='white-space:pre-wrap'>{s['message']}</td></tr>"
+        rows_ai += (
+            f"<tr><td>{_esc(str(s['server']))}</td>"
+            f"<td style='white-space:pre-wrap'>{_esc(str(s['message']))}</td></tr>"
+        )
 
     rows_log = ""
     colors = {"success":"#16a34a","error":"#dc2626","warning":"#d97706","info":"#2563eb"}
     for l in data["logs"][-100:]:
         c   = colors.get(l["level"], "#666")
         ts  = str(l.get("ts",""))[:19].replace("T"," ")
-        srv = l.get("server") or ""
-        rows_log += f"<tr><td style='color:#888;font-size:11px'>{ts}</td><td style='color:{c};font-weight:500'>{l['level']}</td><td style='color:#555'>{srv}</td><td>{l['message']}</td></tr>"
+        srv = _esc(str(l.get("server") or ""))
+        rows_log += (
+            f"<tr><td style='color:#888;font-size:11px'>{ts}</td>"
+            f"<td style='color:{c};font-weight:500'>{_esc(str(l['level']))}</td>"
+            f"<td style='color:#555'>{srv}</td>"
+            f"<td>{_esc(str(l['message']))}</td></tr>"
+        )
+
+    agent_name = _esc(str(ex.get('agent_name', '')))
+    status_txt = _esc(str(ex.get('status', '')))
+    summary_txt = _esc(str(ex.get('summary', '')))
 
     html = f"""<!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="UTF-8">
-<title>Relatório — {ex.get('agent_name','')}</title>
+<title>Relatório — {agent_name}</title>
 <style>
   body{{font-family:Inter,sans-serif;background:#f0f4f8;color:#1a2340;margin:0;padding:24px}}
   .card{{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:20px 24px;margin-bottom:16px}}
@@ -99,7 +117,7 @@ async def execution_report_html(execution_id: UUID):
   @media print{{body{{padding:0}} .card{{break-inside:avoid}}}}
 </style></head><body>
 <div class="card">
-  <h1>{ex.get('agent_name','')} <span class="badge">{ex.get('status','').upper()}</span></h1>
+  <h1>{agent_name} <span class="badge">{status_txt.upper()}</span></h1>
   <div class="meta">
     <span>Início: {started}</span>
     <span>Duração: {dur}</span>
@@ -107,7 +125,7 @@ async def execution_report_html(execution_id: UUID):
     <span class="err">✗ {ex.get('failed_checks',0)} falhas</span>
     <span>Total: {ex.get('total_checks',0)}</span>
   </div>
-  <p style="font-size:13px;color:#4a5568">{ex.get('summary','')}</p>
+  <p style="font-size:13px;color:#4a5568">{summary_txt}</p>
 </div>
 
 {"" if not data["failures"] else f'''

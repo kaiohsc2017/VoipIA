@@ -12,12 +12,43 @@ Todos os executors:
   2. Se não coberto, consultam memória coletiva dos agentes
   3. Se ainda sem resposta, fazem fallback para Gemini com contexto completo
 """
-import asyncio, json, re, aiohttp, asyncssh, os
+import asyncio, json, re, aiohttp, asyncssh, os, logging
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 from database import DB
 from notifier import send_telegram, send_web_alert
 from llm import ask as llm_ask, is_enabled as llm_enabled
+
+logger = logging.getLogger("asteriskia.executor")
+
+try:
+    from croniter import croniter as _croniter  # noqa: F401
+    HAS_CRONITER = True
+except ImportError:
+    HAS_CRONITER = False
+
+_SSH_KNOWN_HOSTS = os.environ.get("SSH_KNOWN_HOSTS_FILE", "")
+
+
+def _build_ssh_kwargs(server: dict) -> dict:
+    """Monta kwargs para asyncssh.connect() centralizando host key checking."""
+    kwargs: dict = dict(
+        host=server["host"],
+        port=server["port"],
+        username=server["username"],
+        known_hosts=_SSH_KNOWN_HOSTS or None,
+        connect_timeout=15,
+    )
+    if not _SSH_KNOWN_HOSTS:
+        logger.warning(
+            "SSH sem verificação de host key para %s — defina SSH_KNOWN_HOSTS_FILE no .env",
+            server["host"],
+        )
+    if server.get("auth_type") == "key" and server.get("ssh_key"):
+        kwargs["client_keys"] = [asyncssh.import_private_key(server["ssh_key"])]
+    else:
+        kwargs["password"] = server.get("password", "")
+    return kwargs
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,7 +96,11 @@ async def memory_recall(agent_id: UUID, query: str) -> str:
     return "\n\n".join(parts)
 
 async def memory_save(agent_id: UUID, mtype: str, title: str, content: str,
-                      metadata: dict = {}, tags: list = []):
+                      metadata: dict | None = None, tags: list | None = None):
+    if metadata is None:
+        metadata = {}
+    if tags is None:
+        tags = []
     async with DB() as db:
         await db.execute("""
             INSERT INTO agent_memory (agent_id,mtype,title,content,metadata,tags)
@@ -123,14 +158,7 @@ class SSHTestExecutor:
         })
 
     async def _connect(self, server: dict):
-        kwargs = dict(host=server["host"], port=server["port"],
-                      username=server["username"], known_hosts=None,
-                      connect_timeout=15)
-        if server["auth_type"] == "key" and server.get("ssh_key"):
-            kwargs["client_keys"] = [asyncssh.import_private_key(server["ssh_key"])]
-        else:
-            kwargs["password"] = server.get("password", "")
-        return await asyncssh.connect(**kwargs)
+        return await asyncssh.connect(**_build_ssh_kwargs(server))
 
     def _evaluate(self, check: dict, stdout: str, exit_code: int) -> tuple[bool, str]:
         out = stdout.strip()
@@ -426,14 +454,7 @@ class LogMonitorExecutor:
         })
 
     async def _connect(self, server: dict):
-        kwargs = dict(host=server["host"], port=server["port"],
-                      username=server["username"], known_hosts=None,
-                      connect_timeout=15)
-        if server["auth_type"] == "key" and server.get("ssh_key"):
-            kwargs["client_keys"] = [asyncssh.import_private_key(server["ssh_key"])]
-        else:
-            kwargs["password"] = server.get("password", "")
-        return await asyncssh.connect(**kwargs)
+        return await asyncssh.connect(**_build_ssh_kwargs(server))
 
     async def run(self, servers: list[dict]) -> dict:
         total = passed = failed = 0
@@ -716,13 +737,19 @@ async def _apply_retention():
             cfg = await db.fetchrow("SELECT * FROM retention_config WHERE id=1")
             if not cfg:
                 return
-            dl = await db.fetchval(f"DELETE FROM execution_logs WHERE ts < NOW() - INTERVAL '{cfg['logs_days']} days' RETURNING COUNT(*)")
-            de = await db.fetchval(f"DELETE FROM executions WHERE started_at < NOW() - INTERVAL '{cfg['executions_days']} days' AND status != 'running' RETURNING COUNT(*)")
-            da = await db.fetchval(f"DELETE FROM alerts WHERE sent_at < NOW() - INTERVAL '{cfg['alerts_days']} days' RETURNING COUNT(*)")
+            logs_days  = int(cfg["logs_days"])
+            exec_days  = int(cfg["executions_days"])
+            alert_days = int(cfg["alerts_days"])
+            dl = await db.fetchval(
+                f"DELETE FROM execution_logs WHERE ts < NOW() - INTERVAL '{logs_days} days' RETURNING COUNT(*)")
+            de = await db.fetchval(
+                f"DELETE FROM executions WHERE started_at < NOW() - INTERVAL '{exec_days} days' AND status != 'running' RETURNING COUNT(*)")
+            da = await db.fetchval(
+                f"DELETE FROM alerts WHERE sent_at < NOW() - INTERVAL '{alert_days} days' RETURNING COUNT(*)")
             if any([dl, de, da]):
-                print(f"[retention] {de} execuções, {dl} logs, {da} alertas removidos")
+                logger.info("[retention] %s execuções, %s logs, %s alertas removidos", de, dl, da)
     except Exception as e:
-        print(f"[retention] Erro: {e}")
+        logger.error("[retention] Erro: %s", e)
 
 
 def _calc_next_run(agent: dict):
@@ -743,7 +770,7 @@ def _calc_next_run(agent: dict):
             secs  = int(value[:-1]) * units.get(value[-1], 60)
             return now + timedelta(seconds=secs)
         elif stype == "cron" and HAS_CRONITER:
-            from croniter import croniter
+            from croniter import croniter  # noqa: F811
             return croniter(value, now).get_next(datetime)
         elif stype == "always":
             return now + timedelta(seconds=10)
@@ -846,15 +873,7 @@ async def run_agent(agent: dict, broadcast, _chain_depth: int = 0) -> dict:
                     if fix_cmd and check.get("auto_fix", False):
                         srv = servers[0]
                         try:
-                            import asyncssh as _ssh
-                            kwargs = dict(host=srv["host"], port=srv["port"],
-                                          username=srv["username"], known_hosts=None,
-                                          connect_timeout=15)
-                            if srv.get("auth_type") == "key" and srv.get("ssh_key"):
-                                kwargs["client_keys"] = [_ssh.import_private_key(srv["ssh_key"])]
-                            else:
-                                kwargs["password"] = srv.get("password", "")
-                            async with await _ssh.connect(**kwargs) as conn:
+                            async with await asyncssh.connect(**_build_ssh_kwargs(srv)) as conn:
                                 r = await asyncio.wait_for(conn.run(fix_cmd), timeout=30)
                                 await db.execute("""
                                     INSERT INTO execution_logs
@@ -882,10 +901,10 @@ async def run_agent(agent: dict, broadcast, _chain_depth: int = 0) -> dict:
                     trow = await db.fetchrow(
                         "SELECT * FROM agents WHERE id=$1", UUID(str(trigger_id)))
                 if trow:
-                    print(f"[chain] {agent['name']} → {trow['name']}")
+                    logger.info("[chain] %s → %s", agent["name"], trow["name"])
                     asyncio.create_task(run_agent(dict(trow), broadcast, _chain_depth + 1))
             except Exception as e:
-                print(f"[chain] Erro: {e}")
+                logger.error("[chain] Erro: %s", e)
 
         await broadcast(str(agent_id), {
             "ts": finished.isoformat(), "level": "info",

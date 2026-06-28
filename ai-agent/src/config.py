@@ -26,8 +26,18 @@ load_dotenv(_ENV_PATH if _ENV_PATH.exists() else None)
 AUDIOSOCKET_HOST: str   = os.getenv("AUDIOSOCKET_HOST", "0.0.0.0")
 AUDIOSOCKET_PORT: int   = int(os.getenv("AUDIOSOCKET_PORT", "9092"))
 BACKEND_URL: str        = os.getenv("BACKEND_URL", "http://backend:8080")
-INTERNAL_API_KEY: str   = os.getenv("INTERNAL_API_KEY", "internal_changeme_dev")
 AUDIO_STORAGE_PATH: str = os.getenv("AUDIO_STORAGE_PATH", "/var/asteriskia/recordings")
+
+_raw_internal_key = os.getenv("INTERNAL_API_KEY", "")
+if not _raw_internal_key:
+    import logging as _log
+    _log.getLogger("asteriskia.config").critical(
+        "INTERNAL_API_KEY não configurada — defina no arquivo .env")
+elif _raw_internal_key == "internal_changeme_dev":
+    import logging as _log
+    _log.getLogger("asteriskia.config").critical(
+        "INTERNAL_API_KEY com valor padrão inseguro — altere no arquivo .env")
+INTERNAL_API_KEY: str = _raw_internal_key
 
 # --- Protocolo Audiosocket — constantes imutaveis ---
 

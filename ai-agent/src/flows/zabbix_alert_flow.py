@@ -44,12 +44,12 @@ class ZabbixAlertFlow:
 
     async def execute(self) -> None:
         """Executa o fluxo de leitura de alerta."""
-        logger.info(f"[{self.call_uuid}] Iniciando fluxo de alerta Zabbix")
+        logger.info("[%s] Iniciando fluxo de alerta Zabbix", self.call_uuid)
 
         # 1. Busca dados do incidente no backend
         alert_data = await self._fetch_alert_data()
         if not alert_data:
-            logger.error(f"[{self.call_uuid}] Dados do alerta não encontrados")
+            logger.error("[%s] Dados do alerta não encontrados", self.call_uuid)
             return
 
         incident_summary = alert_data.get("zabbixIncidentSummary", "Incidente não especificado")
@@ -74,18 +74,18 @@ class ZabbixAlertFlow:
             words = len(voice_message.split())
             await asyncio.sleep(max(5.0, words / 2.5))
         except Exception as e:
-            logger.error(f"[{self.call_uuid}] Erro ao reproduzir alerta: {e}")
+            logger.error("[%s] Erro ao reproduzir alerta: %s", self.call_uuid, e)
 
         # 4. Notifica backend que a chamada foi atendida e o alerta lido
         await self._update_call_status("ATENDIDA")
-        logger.info(f"[{self.call_uuid}] Fluxo de alerta Zabbix concluído")
+        logger.info("[%s] Fluxo de alerta Zabbix concluído", self.call_uuid)
 
     async def _fetch_alert_data(self) -> dict | None:
         """Busca dados do alerta no backend pelo UUID da chamada (autenticado)."""
         try:
             return await bc.get(f"/api/v1/alert-calls/by-uuid/{self.backend_uuid}")
         except Exception as e:
-            logger.error(f"[{self.call_uuid}] Erro ao buscar dados do alerta: {e}")
+            logger.error("[%s] Erro ao buscar dados do alerta: %s", self.call_uuid, e)
             return None
 
     async def _update_call_status(self, status: str) -> None:
@@ -96,4 +96,4 @@ class ZabbixAlertFlow:
                 json={"callStatus": status}
             )
         except Exception as e:
-            logger.error(f"[{self.call_uuid}] Erro ao atualizar status do alerta: {e}")
+            logger.error("[%s] Erro ao atualizar status do alerta: %s", self.call_uuid, e)
