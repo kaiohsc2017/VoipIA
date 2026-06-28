@@ -50,6 +50,8 @@ async def _sync_audio_cache() -> None:
                 q["question_text"] for q in questions_raw
                 if q.get("question_text", "").strip()
             ]
+        # Mensagens hardcoded usadas via _play_cached — pré-gerar para latência zero
+        texts += ["Obrigado! Estou registrando seu chamado. Aguarde um momento."]
         if texts:
             await audio_cache.warm_up(texts, AIService())
     except Exception as e:

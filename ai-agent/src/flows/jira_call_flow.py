@@ -268,16 +268,20 @@ class JiraCallFlow:
         antes de iniciar a captura real para que o STT não transcreva ruído
         de fundo capturado durante a fala da URA como resposta do cliente.
 
-        Timeout 50ms: esvazia o buffer já preenchido (frames buffered chegam
-        em <1ms), e é pequeno o suficiente para não cortar resposta do cliente
-        (o cliente tipicamente demora >500ms para falar após ouvir a pergunta).
+        Timeout 5ms: esvazia o buffer já acumulado (leituras de buffer são
+        instantâneas), e é MENOR que o intervalo entre frames do Asterisk
+        (~20ms). Após o buffer esvaziar, o próximo frame leva ~20ms para
+        chegar — como 20ms > 5ms, o timeout é acionado e o loop sai.
+
+        Usar 50ms causava loop infinito: Asterisk envia 1 frame a cada 20ms,
+        e 20ms < 50ms → novo frame sempre chegava antes do timeout → trava.
 
         Retorna True se detectou hangup durante a drenagem.
         """
         drained = 0
         try:
             while True:
-                frame = await asyncio.wait_for(read_frame(self.reader), timeout=0.05)
+                frame = await asyncio.wait_for(read_frame(self.reader), timeout=0.005)
                 if frame is None or frame.is_hangup:
                     return True  # hangup detectado
                 drained += 1
