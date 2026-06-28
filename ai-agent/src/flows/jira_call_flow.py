@@ -126,35 +126,13 @@ class JiraCallFlow:
         if not ok:
             return
 
-        # 3. Turno livre — ouve com limite de tempo rígido
-        user_text = await self._listen_and_transcribe(
-            silence_timeout=_TURNO_LIVRE_SILENCE_SECS,
-            max_duration=_MAX_CAPTURE_TURNO_LIVRE,
-        )
-        if user_text:
-            self._transcriptions.append(f"Cliente: {user_text}")
-            system_prompt = (
-                "Você é uma assistente virtual de atendimento ao cliente. "
-                "Responda de forma breve e clara em português do Brasil. "
-                "Ao abrir um protocolo, confirme o número gerado para o cliente."
-            )
-            response = await self.ai.generate_response_with_tools(
-                system_instruction=system_prompt,
-                history=[{"role": "user", "text": user_text}],
-            )
-            if response:
-                self.collected_answers["description"] = user_text
-                ok = await self._speak(response)
-                if not ok:
-                    return
-
-        # 4. Mensagem informativa (opcional) — do cache se preenchida
+        # 3. Mensagem informativa (opcional) — do cache se preenchida
         if informativa.strip():
             ok = await self._play_cached(informativa)
             if not ok:
                 return
 
-        # 5. Perguntas estruturadas — sequencial, uma por vez
+        # 4. Perguntas estruturadas — sequencial, uma por vez
         if not questions:
             await self._speak("Desculpe, não foi possível carregar as perguntas. Tente novamente.")
             return
@@ -167,15 +145,15 @@ class JiraCallFlow:
                 self._transcriptions.append(f"[{question['question_text']}]: {answer}")
                 logger.info("[%s] %s = %r", self.call_uuid, key, answer)
 
-        # 6. Confirmação — mensagem estática, serve do cache
+        # 5. Confirmação — mensagem estática, serve do cache
         ok = await self._play_cached("Obrigado! Estou registrando seu chamado. Aguarde um momento.")
         if not ok:
             return
 
-        # 7. Cria chamado no Jira via backend
+        # 6. Cria chamado no Jira via backend
         issue_key = await self._create_jira_issue()
 
-        # 8. Encerramento
+        # 7. Encerramento
         if issue_key:
             spoken_key = self._format_issue_key(issue_key)
             msg = encerramento.replace("{protocolo}", spoken_key)

@@ -22,16 +22,23 @@ def _client():
 
 
 def _clean_for_tts(text: str) -> str:
-    """Remove markdown e prefixos do LLM que causam erro 400 no TTS."""
+    """
+    Limpa markdown e formata o texto para o modelo TTS.
+
+    O prefixo "Fale: " previne que textos que começam com verbos imperativos
+    (ex: "Informe...", "Diga...", "Confirme...") sejam interpretados como
+    instruções ao modelo — causando erro 400 INVALID_ARGUMENT.
+    """
     import re
     t = str(text).strip()
     t = re.sub(r'\*+', '', t)
-    t = re.sub(r'_+([^_]+)_+', r'', t)
+    t = re.sub(r'_+([^_]+)_+', r'\1', t)
     t = re.sub(r'`[^`]+`', '', t)
     for prefix in ('Resultado:', 'Resposta:', 'Assistente:', 'AI:', 'Bot:'):
         if t.startswith(prefix):
             t = t[len(prefix):].strip()
-    return t or str(text)
+    t = t or str(text)
+    return f"Fale: {t}"
 
 
 class GeminiProvider(BaseAIProvider):
@@ -155,11 +162,6 @@ class GeminiProvider(BaseAIProvider):
           3. Para cada chunk: para o silêncio antes do 1º frame de áudio real,
              depois chama write_audio_paced (cadência real-time — 20ms/frame)
           4. Retorna (sucesso, duração_segundos) quando o último frame foi enviado
-
-        Benefícios vs. versão anterior (collect-all-then-send):
-          - Primeiro áudio chega ao cliente em ~TTFT (~2-3s vs. 5-7s)
-          - write_audio_paced garante que a função retorna ~junto com fim da reprodução
-          - Caller buffer acumula somente TTFT frames antes do primeiro envio
         """
         from src.protocol import write_audio_paced, keep_alive_silence
         from google.genai import types as t
@@ -251,7 +253,7 @@ class GeminiProvider(BaseAIProvider):
         chunks: list[bytes] = []
         for chunk in _client().models.generate_content_stream(
             model=self._model_id,
-            contents=_clean_for_tts(str(text)),  # texto limpo — sem markdown/roles
+            contents=_clean_for_tts(str(text)),
             config=t.GenerateContentConfig(
                 response_modalities=["AUDIO"],
                 speech_config=t.SpeechConfig(
