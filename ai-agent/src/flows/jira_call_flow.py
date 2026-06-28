@@ -31,11 +31,16 @@ _BYTES_SAMPLE = 2
 # event loop e latência de rede interna Docker.
 _POST_SPEAK_BUFFER_SECS = 0.8
 
-# Threshold RMS abaixo do qual o frame é considerado silêncio
-_SILENCE_THRESHOLD = 300
+# Threshold RMS abaixo do qual o frame é considerado silêncio.
+# Ruído de linha telefônica típico (codec G.711, 8kHz): RMS 300-700.
+# Threshold=700 garante que hiss/ruído de fundo não impeça a detecção de silêncio.
+_SILENCE_THRESHOLD = 700
 
-# Segundos de silêncio contínuo para encerrar a captura
-_SILENCE_TIMEOUT_SECS = 1.8
+# Segundos de silêncio contínuo para encerrar a captura (perguntas estruturadas)
+_SILENCE_TIMEOUT_SECS = 2.0
+
+# Timeout de silêncio para o turno livre (mais curto — o usuário pode não saber que deve falar)
+_TURNO_LIVRE_SILENCE_SECS = 4.0
 
 
 def _trim_silence(pcm: bytes, threshold: int = 300, frame_size: int = 320) -> bytes:
@@ -101,9 +106,11 @@ class JiraCallFlow:
     async def execute(self) -> None:
         logger.info("[%s] Iniciando fluxo URA Jira", self.call_uuid)
 
-        # 1. Busca settings e perguntas (sequencial — simples e seguro)
-        settings  = await self._fetch_settings()
-        questions = await self._fetch_questions()
+        # 1. Busca settings e perguntas em paralelo para reduzir latência inicial
+        settings, questions = await asyncio.gather(
+            self._fetch_settings(),
+            self._fetch_questions(),
+        )
 
         boas_vindas  = settings.get("boas_vindas")  or _FALLBACK_BOAS_VINDAS
         informativa  = settings.get("informativa")  or ""
@@ -114,8 +121,8 @@ class JiraCallFlow:
         if not ok:
             return
 
-        # 3. Turno livre — ouve o cliente e responde com LLM
-        user_text = await self._listen_and_transcribe()
+        # 3. Turno livre — ouve o cliente e responde com LLM (timeout curto)
+        user_text = await self._listen_and_transcribe(silence_timeout=_TURNO_LIVRE_SILENCE_SECS)
         if user_text:
             self._transcriptions.append(f"Cliente: {user_text}")
             system_prompt = (
@@ -254,9 +261,9 @@ class JiraCallFlow:
         'música instrumental', '[audio', '[som', 'background',
     )
 
-    async def _listen_and_transcribe(self) -> str | None:
+    async def _listen_and_transcribe(self, silence_timeout: float = _SILENCE_TIMEOUT_SECS) -> str | None:
         """Captura áudio do cliente, remove silêncio e transcreve via STT."""
-        audio = await self._capture_audio()
+        audio = await self._capture_audio(silence_timeout=silence_timeout)
         if not audio:
             return None
         audio = _trim_silence(audio)
@@ -282,18 +289,18 @@ class JiraCallFlow:
         ok = await self._speak(question_text)
         if not ok:
             return None
-        return await self._listen_and_transcribe()
+        return await self._listen_and_transcribe()  # usa _SILENCE_TIMEOUT_SECS padrão
 
-    async def _capture_audio(self) -> bytes:
+    async def _capture_audio(self, silence_timeout: float = _SILENCE_TIMEOUT_SECS) -> bytes:
         """
         Captura frames de áudio do cliente até detectar silêncio contínuo
-        por _SILENCE_TIMEOUT_SECS ou atingir max_duration.
+        por silence_timeout segundos ou atingir max_duration.
         """
         import struct as _struct
 
         audio_chunks: list[bytes] = []
         frame_duration  = 320 / (_SAMPLE_RATE * _BYTES_SAMPLE)  # 0.02s por frame
-        silence_limit   = int(_SILENCE_TIMEOUT_SECS / frame_duration)
+        silence_limit   = int(silence_timeout / frame_duration)
         max_frames      = int(30.0 / frame_duration)  # máximo 30s
 
         silence_count = 0
