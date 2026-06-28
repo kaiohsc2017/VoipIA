@@ -209,7 +209,9 @@ public class StatsController {
             }
 
             sendAmiBlock(w, "Action", "Command", "Command", "pjsip show contacts");
-            String contacts = readAmiBlock(r);
+            // O AMI envia Command em dois blocos: cabeçalho "Response: Success" + linhas "Output:".
+            // Lemos diretamente até encontrar a linha terminadora do pjsip show contacts.
+            String contacts = readCommandOutput(r);
             sendAmiBlock(w, "Action", "Logoff");
 
             result.put("status", "UNKNOWN");
@@ -248,6 +250,16 @@ public class StatsController {
     private String readAmiBlock(BufferedReader r) throws IOException {
         StringBuilder sb = new StringBuilder(); String line;
         while ((line = r.readLine()) != null) { if (line.isEmpty()) break; sb.append(line).append("\n"); }
+        return sb.toString();
+    }
+
+    /** Lê linhas do AMI até encontrar a sentinela de fim do 'pjsip show contacts'. */
+    private String readCommandOutput(BufferedReader r) throws IOException {
+        StringBuilder sb = new StringBuilder(); String line;
+        while ((line = r.readLine()) != null) {
+            sb.append(line).append("\n");
+            if (line.startsWith("Output: Objects found:") || line.contains("--END COMMAND--")) break;
+        }
         return sb.toString();
     }
 
