@@ -10,7 +10,7 @@
 [global]
 type = global
 default_realm = ${SIP_DOMAIN}
-keep_alive_interval = 90
+keep_alive_interval = 30
 
 ; ---------------------------------------------------------------
 ; TRANSPORTE UDP

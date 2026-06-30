@@ -84,7 +84,7 @@ export default function Softphone() {
       password: sipPassword,
       display_name: `Ramal ${extension}`,
       register: true,
-      register_expires: 300,
+      register_expires: 90,
       user_agent: 'AsteriskIA-Softphone/1.0',
       // Desabilita session timers (evita re-INVITE desnecessário)
       session_timers: false,
@@ -96,6 +96,8 @@ export default function Softphone() {
     ua.on('registered',   () => { setRegState('registered');    log('Ramal registrado ✓'); });
     ua.on('unregistered', () => { setRegState('unregistered');  log('Ramal desregistrado'); });
     ua.on('registrationFailed', () => { setRegState('failed');  log('Falha no registro'); });
+    ua.on('connected',    () => log('WebSocket conectado'));
+    ua.on('disconnected', () => log('WebSocket desconectado — reconectando…'));
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ua.on('newRTCSession', (e: any) => {
@@ -116,7 +118,19 @@ export default function Softphone() {
     setRegState('registering');
     log('Conectando ao Asterisk…');
 
-    return () => { ua.stop(); };
+    // Re-registra quando a aba volta ao foco — previne WebSocket morto após throttling do browser
+    const handleVisibility = () => {
+      if (!document.hidden && uaRef.current?.isRegistered() === false) {
+        log('Aba retomada — re-registrando…');
+        uaRef.current.register();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      ua.stop();
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
