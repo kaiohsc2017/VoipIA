@@ -55,21 +55,27 @@ export default function Softphone() {
   const [logLines,  setLogLines]  = useState<string[]>([]);
   const [duration,  setDuration]  = useState(0);
 
-  const uaRef         = useRef<JsSIP.UA | null>(null);
-  const sessionRef    = useRef<SipSession>(null);
-  const remoteRef     = useRef<HTMLAudioElement | null>(null);
-  const timerRef      = useRef<ReturnType<typeof setInterval> | null>(null);
-  const callStateRef  = useRef<CallState>('idle');
-  const dialTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const uaRef          = useRef<JsSIP.UA | null>(null);
+  const sessionRef     = useRef<SipSession>(null);
+  const remoteRef      = useRef<HTMLAudioElement | null>(null);
+  const timerRef       = useRef<ReturnType<typeof setInterval> | null>(null);
+  const callStateRef   = useRef<CallState>('idle');
+  const dialTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+
+  // TURN server para relay de RTP quando STUN falha (redes corporativas/VPN)
+  const turnEntry = import.meta.env.VITE_TURN_URL ? [{
+    urls:       import.meta.env.VITE_TURN_URL,
+    username:   import.meta.env.VITE_TURN_USER       ?? 'asteriskia',
+    credential: import.meta.env.VITE_TURN_CREDENTIAL ?? '',
+  }] : [];
 
   const rtcConfig = {
     iceServers: [
       { urls: import.meta.env.VITE_STUN_URL || 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
+      ...turnEntry,
     ],
-    iceCandidatePoolSize: 4,
-    bundlePolicy: 'max-bundle' as RTCBundlePolicy,
-    rtcpMuxPolicy: 'require' as RTCRtcpMuxPolicy,
   };
 
   const log = (msg: string) => {
@@ -83,7 +89,7 @@ export default function Softphone() {
   };
 
   useEffect(() => {
-    JsSIP.debug.disable('JsSIP:*');
+    JsSIP.debug.enable('JsSIP:*');
     const socket = new JsSIP.WebSocketInterface(wsUrl);
     const ua = new JsSIP.UA({
       sockets: [socket],
@@ -129,6 +135,53 @@ export default function Softphone() {
         session.on('ended',   () => endSession('Chamada encerrada'));
         session.on('failed',  () => endSession('Chamada falhou'));
         session.on('peerconnection', () => attachRemoteAudio(session));
+      } else {
+        // Sainte: 'peerconnection' disparou antes de newRTCSession — acessa PC diretamente
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const pc = (session as any).connection as RTCPeerConnection | null;
+        if (pc) {
+          log(`[3] PeerConnection (ICE=${pc.iceGatheringState})`);
+          pc.addEventListener('icegatheringstatechange', () =>
+            log(`[ICE-PC] ${pc.iceGatheringState}`)
+          );
+        }
+
+        let iceReadyCb: (() => void) | null = null;
+        let iceDone = false;
+
+        // Força envio do INVITE após 15s se ICE não completar (STUN/TURN ainda pendente)
+        const iceTimeout = setTimeout(() => {
+          if (!iceDone) {
+            if (iceReadyCb) {
+              iceDone = true;
+              log('[ICE] timeout 15s — forçando INVITE com candidatos disponíveis');
+              iceReadyCb();
+            } else {
+              log('[ICE] timeout 15s — nenhum candidato ainda (createOffer travado?)');
+            }
+          }
+        }, 15000);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        session.on('icecandidate', (data: any) => {
+          iceReadyCb = data.ready;
+          const type = (data.candidate?.type) ?? 'null';
+          log(`[ICE] candidato: ${type}`);
+          // IP público (srflx/relay) disponível → envia INVITE imediatamente
+          if (type === 'srflx' || type === 'relay') {
+            iceDone = true;
+            clearTimeout(iceTimeout);
+            log('[ICE] IP público confirmado — enviando INVITE');
+            data.ready();
+          }
+        });
+
+        session.on('connecting', () => log('[2.5] connecting — SDP em preparação'));
+        session.on('sending', () => {
+          iceDone = true;
+          clearTimeout(iceTimeout);
+          log('[2.8] INVITE enviado →');
+        });
       }
     });
 
@@ -203,6 +256,8 @@ export default function Softphone() {
   function endSession(msg: string) {
     if (dialTimerRef.current) { clearTimeout(dialTimerRef.current); dialTimerRef.current = null; }
     if (timerRef.current) clearInterval(timerRef.current);
+    localStreamRef.current?.getTracks().forEach(t => t.stop());
+    localStreamRef.current = null;
     sessionRef.current = null;
     updateCallState('ended');
     setMuted(false);
@@ -210,36 +265,58 @@ export default function Softphone() {
     setTimeout(() => updateCallState('idle'), 2000);
   }
 
-  function dial() {
+  async function dial() {
     if (!uaRef.current || !dialInput.trim() || callState !== 'idle') return;
     if (!uaRef.current.isRegistered()) {
       log('Aguardando registro SIP — tente novamente em instantes');
       return;
     }
 
+    // Adquire o stream aqui e passa diretamente ao JsSIP — evita getUserMedia interno travar
+    log('[MIC] Solicitando microfone…');
+    let localStream: MediaStream;
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      log('[MIC] Microfone OK ✓');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      log(`[MIC] ERRO — ${msg}`);
+      return;
+    }
+    localStreamRef.current = localStream;
+
     const sipHost = sipDomain;
     const target = dialInput.trim().includes('@')
       ? `sip:${dialInput.trim()}`
       : `sip:${dialInput.trim()}@${sipHost}`;
 
-    const session: SipSession = uaRef.current.call(target, {
-      mediaConstraints: { audio: true, video: false },
-      rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false },
-      pcConfig: rtcConfig,
-    });
+    log(`[1] Iniciando: ${target}`);
 
+    let session: SipSession;
+    try {
+      session = uaRef.current.call(target, {
+        mediaStream: localStream,
+        rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false },
+        pcConfig: rtcConfig,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log(`[ERRO] ua.call falhou: ${msg}`);
+      return;
+    }
+
+    log(`[2] Sessão criada`);
     sessionRef.current = session;
     updateCallState('calling');
-    log(`Discando para ${dialInput}…`);
 
     // Timeout de 30s — libera UI se o INVITE nunca receber resposta
     dialTimerRef.current = setTimeout(() => {
       dialTimerRef.current = null;
       try { sessionRef.current?.terminate(); } catch { /* já encerrada */ }
-      endSession('Falhou: Sem resposta (timeout)');
+      endSession('Falhou: Sem resposta (timeout 30s)');
     }, 30_000);
 
-    session.on('progress', () => log('Chamando…'));
+    session.on('progress', () => log('[4] Chamando…'));
     session.on('confirmed', () => { updateCallState('active'); startTimer(); log('Chamada conectada ✓'); });
     session.on('ended',  () => endSession('Chamada encerrada'));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

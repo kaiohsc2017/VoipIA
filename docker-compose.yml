@@ -225,7 +225,10 @@ services:
         VITE_ASTERISK_WS:  ${VITE_ASTERISK_WS:-wss://app.voiphash.com.br/asterisk-ws}
         VITE_SIP_URI:      ${VITE_SIP_URI:-sip:9001@app.voiphash.com.br}
         VITE_SIP_PASSWORD: ${VITE_SIP_PASSWORD:-webrtc9001pass}
-        VITE_STUN_URL:     ${VITE_STUN_URL:-stun:stun.l.google.com:19302}
+        VITE_STUN_URL:        ${VITE_STUN_URL:-stun:stun.l.google.com:19302}
+        VITE_TURN_URL:        ${VITE_TURN_URL:-}
+        VITE_TURN_USER:       ${VITE_TURN_USER:-asteriskia}
+        VITE_TURN_CREDENTIAL: ${VITE_TURN_CREDENTIAL:-}
     container_name: asteriskia-frontend
     restart: unless-stopped
     depends_on:
@@ -234,6 +237,23 @@ services:
     networks:
       asteriskia-net:
           ipv4_address: 172.16.7.15
+
+  # ---------------------------------------------------------------------------
+  # TURN Server — Coturn para relay de RTP WebRTC
+  # network_mode: host é obrigatório: o TURN aloca portas UDP no host para
+  # relay bidirecional entre browser e Asterisk.
+  # Credencial passada via --user para não ser hardcoded no arquivo de config.
+  # ---------------------------------------------------------------------------
+  coturn:
+    image: coturn/coturn:4.6.2
+    container_name: asteriskia-coturn
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: >-
+      -c /etc/coturn/turnserver.conf
+      --user=asteriskia:${TURN_CREDENTIAL}
 
   # ---------------------------------------------------------------------------
   # Security — Fail2ban + nftables (lockdown SIP)
