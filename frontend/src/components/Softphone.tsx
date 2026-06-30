@@ -55,10 +55,12 @@ export default function Softphone() {
   const [logLines,  setLogLines]  = useState<string[]>([]);
   const [duration,  setDuration]  = useState(0);
 
-  const uaRef      = useRef<JsSIP.UA | null>(null);
-  const sessionRef = useRef<SipSession>(null);
-  const remoteRef  = useRef<HTMLAudioElement | null>(null);
-  const timerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const uaRef         = useRef<JsSIP.UA | null>(null);
+  const sessionRef    = useRef<SipSession>(null);
+  const remoteRef     = useRef<HTMLAudioElement | null>(null);
+  const timerRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const callStateRef  = useRef<CallState>('idle');
+  const dialTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const rtcConfig = {
     iceServers: [
@@ -73,6 +75,11 @@ export default function Softphone() {
   const log = (msg: string) => {
     const ts = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setLogLines(prev => [`[${ts}] ${msg}`, ...prev].slice(0, 20));
+  };
+
+  const updateCallState = (state: CallState) => {
+    callStateRef.current = state;
+    setCallState(state);
   };
 
   useEffect(() => {
@@ -97,7 +104,19 @@ export default function Softphone() {
     ua.on('unregistered', () => { setRegState('unregistered');  log('Ramal desregistrado'); });
     ua.on('registrationFailed', () => { setRegState('failed');  log('Falha no registro'); });
     ua.on('connected',    () => log('WebSocket conectado'));
-    ua.on('disconnected', () => log('WebSocket desconectado — reconectando…'));
+    ua.on('disconnected', () => {
+      log('WebSocket desconectado — reconectando…');
+      const cs = callStateRef.current;
+      if (cs === 'calling' || cs === 'active' || cs === 'incoming') {
+        if (dialTimerRef.current) { clearTimeout(dialTimerRef.current); dialTimerRef.current = null; }
+        try { sessionRef.current?.terminate(); } catch { /* já encerrada */ }
+        callStateRef.current = 'ended';
+        setCallState('ended');
+        setMuted(false);
+        log('Chamada interrompida — WebSocket desconectado');
+        setTimeout(() => { callStateRef.current = 'idle'; setCallState('idle'); }, 2000);
+      }
+    });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ua.on('newRTCSession', (e: any) => {
@@ -182,16 +201,22 @@ export default function Softphone() {
   }
 
   function endSession(msg: string) {
+    if (dialTimerRef.current) { clearTimeout(dialTimerRef.current); dialTimerRef.current = null; }
     if (timerRef.current) clearInterval(timerRef.current);
     sessionRef.current = null;
-    setCallState('ended');
+    updateCallState('ended');
     setMuted(false);
     log(msg);
-    setTimeout(() => setCallState('idle'), 2000);
+    setTimeout(() => updateCallState('idle'), 2000);
   }
 
   function dial() {
     if (!uaRef.current || !dialInput.trim() || callState !== 'idle') return;
+    if (!uaRef.current.isRegistered()) {
+      log('Aguardando registro SIP — tente novamente em instantes');
+      return;
+    }
+
     const sipHost = sipDomain;
     const target = dialInput.trim().includes('@')
       ? `sip:${dialInput.trim()}`
@@ -204,11 +229,18 @@ export default function Softphone() {
     });
 
     sessionRef.current = session;
-    setCallState('calling');
+    updateCallState('calling');
     log(`Discando para ${dialInput}…`);
 
+    // Timeout de 30s — libera UI se o INVITE nunca receber resposta
+    dialTimerRef.current = setTimeout(() => {
+      dialTimerRef.current = null;
+      try { sessionRef.current?.terminate(); } catch { /* já encerrada */ }
+      endSession('Falhou: Sem resposta (timeout)');
+    }, 30_000);
+
     session.on('progress', () => log('Chamando…'));
-    session.on('confirmed', () => { setCallState('active'); startTimer(); log('Chamada conectada ✓'); });
+    session.on('confirmed', () => { updateCallState('active'); startTimer(); log('Chamada conectada ✓'); });
     session.on('ended',  () => endSession('Chamada encerrada'));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     session.on('failed', (e: any) => {
@@ -228,7 +260,7 @@ export default function Softphone() {
       mediaConstraints: { audio: true, video: false },
       pcConfig: rtcConfig 
     });
-    sessionRef.current.on('confirmed', () => { setCallState('active'); startTimer(); log('Chamada atendida'); });
+    sessionRef.current.on('confirmed', () => { updateCallState('active'); startTimer(); log('Chamada atendida'); });
     attachRemoteAudio(sessionRef.current);
   }
 
