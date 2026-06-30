@@ -63,18 +63,21 @@ export default function Softphone() {
   const dialTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
 
-  // TURN server para relay de RTP quando STUN falha (redes corporativas/VPN)
-  const turnEntry = import.meta.env.VITE_TURN_URL ? [{
-    urls:       import.meta.env.VITE_TURN_URL,
-    username:   import.meta.env.VITE_TURN_USER       ?? 'asteriskia',
-    credential: import.meta.env.VITE_TURN_CREDENTIAL ?? '',
-  }] : [];
+  // TURN server — UDP, TCP e TLS para máxima compatibilidade com firewalls corporativos
+  const turnBase = import.meta.env.VITE_TURN_URL ?? '';
+  const turnUser = import.meta.env.VITE_TURN_USER ?? 'asteriskia';
+  const turnCred = import.meta.env.VITE_TURN_CREDENTIAL ?? '';
+  const turnEntries = turnBase ? [
+    { urls: turnBase,                                  username: turnUser, credential: turnCred },
+    { urls: `${turnBase}?transport=tcp`,               username: turnUser, credential: turnCred },
+    { urls: turnBase.replace('turn:', 'turns:').replace(':3478', ':5349'), username: turnUser, credential: turnCred },
+  ] : [];
 
   const rtcConfig = {
     iceServers: [
       { urls: import.meta.env.VITE_STUN_URL || 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
-      ...turnEntry,
+      ...turnEntries,
     ],
   };
 

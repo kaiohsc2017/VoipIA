@@ -249,8 +249,10 @@ services:
     container_name: asteriskia-coturn
     restart: unless-stopped
     network_mode: host
+    user: root
     volumes:
       - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - /var/lib/docker/volumes/asteriskia_caddy_data/_data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/app.voiphash.com.br:/etc/coturn/tls:ro
     command: >-
       -c /etc/coturn/turnserver.conf
       --user=asteriskia:${TURN_CREDENTIAL}
