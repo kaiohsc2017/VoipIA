@@ -5,17 +5,15 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
 import type { Ura } from '../api/types';
+import FluxoURATab from './FluxoURATab';
 
-interface Props {
-  onSelect: (uraId: number) => void;
-}
-
-export default function UraManagementTab({ onSelect }: Props) {
+export default function UraManagementTab() {
   const [uras, setUras] = useState<Ura[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editUra, setEditUra] = useState<Partial<Ura>>({});
   const [error, setError] = useState<string | null>(null);
+  const [configuringUra, setConfiguringUra] = useState<Ura | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -66,6 +64,22 @@ export default function UraManagementTab({ onSelect }: Props) {
     return <div className="loading-state"><div className="spinner" />Carregando URAs…</div>;
   }
 
+  if (configuringUra) {
+    return (
+      <>
+        <div className="toolbar">
+          <div className="toolbar-left">
+            <button className="btn btn-ghost btn-sm" onClick={() => setConfiguringUra(null)}>← Voltar para lista de URAs</button>
+            <span style={{ fontSize: '.9rem', fontWeight: 600, marginLeft: 12 }}>
+              Configurando: {configuringUra.name} <span className="mono" style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(ramal {configuringUra.extension})</span>
+            </span>
+          </div>
+        </div>
+        <FluxoURATab uraId={configuringUra.id} />
+      </>
+    );
+  }
+
   return (
     <>
       <div className="toolbar">
@@ -102,7 +116,7 @@ export default function UraManagementTab({ onSelect }: Props) {
                 </td>
                 <td><span className={`badge ${u.active ? 'badge-success' : 'badge-gray'}`}>{u.active ? 'Ativa' : 'Inativa'}</span></td>
                 <td style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-ghost btn-sm" onClick={() => onSelect(u.id)}>Configurar</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setConfiguringUra(u)}>Configurar</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => openEdit(u)}>Editar</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => remove(u)} disabled={u.id === 1}>Remover</button>
                 </td>
