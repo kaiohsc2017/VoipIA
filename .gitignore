@@ -13,6 +13,7 @@ env/
 # O arquivo .template fica no git; o real fica no servidor ou é gerado
 asterisk/config/pjsip.conf
 asterisk/config/manager.conf
+asterisk/config/extensions.conf
 
 # --- Java / Maven ---
 backend/target/

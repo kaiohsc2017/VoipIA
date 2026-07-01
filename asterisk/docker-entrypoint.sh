@@ -16,7 +16,7 @@ fi
 
 # Variáveis que devem ser substituídas nos templates
 # NUNCA adicionar variáveis do dialplan Asterisk aqui (${EXTEN}, ${CALLERID}, etc.)
-VARS='${AST_AMI_USER}${AST_AMI_PASSWORD}${SIP_TRUNK_HOST}${SIP_TRUNK_FROM_DOMAIN}${SIP_DOMAIN}${SIP_PUBLIC_IP}'
+VARS='${AST_AMI_USER}${AST_AMI_PASSWORD}${SIP_TRUNK_HOST}${SIP_TRUNK_FROM_DOMAIN}${SIP_DOMAIN}${SIP_PUBLIC_IP}${INTERNAL_API_KEY}'
 
 # Processa arquivos *.conf.template → *.conf
 for f in /etc/asterisk/*.conf.template; do

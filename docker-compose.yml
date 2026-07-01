@@ -84,6 +84,9 @@ services:
       #     's/external_media_address = $/external_media_address = SEU_IP/' \
       #     /etc/asterisk/pjsip.conf
       SIP_PUBLIC_IP:          ${SIP_PUBLIC_IP}
+      # Usado pelo dialplan (CURL) para autenticar no backend ao registrar
+      # a qual URA uma chamada pertence — mesma chave usada pelo ai-agent.
+      INTERNAL_API_KEY:       ${INTERNAL_API_KEY}
     volumes:
       - ./asterisk/config:/etc/asterisk
       - asterisk_recordings:/var/spool/asterisk/monitor

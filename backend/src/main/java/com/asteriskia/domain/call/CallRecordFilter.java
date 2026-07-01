@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
  * Qualquer campo nulo/em branco é ignorado na query.
  */
 public record CallRecordFilter(
+        Integer uraId,
         String callerNumber,
         String clientName,
         String ramal,

@@ -14,6 +14,9 @@ public final class CallRecordSpecifications {
         return (root, query, cb) -> {
             var predicates = cb.conjunction();
 
+            if (filter.uraId() != null) {
+                predicates = cb.and(predicates, cb.equal(root.get("uraId"), filter.uraId()));
+            }
             if (hasText(filter.callerNumber())) {
                 predicates = cb.and(predicates, cb.like(root.get("callerNumber"), "%" + filter.callerNumber() + "%"));
             }

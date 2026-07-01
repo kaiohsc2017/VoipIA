@@ -29,29 +29,35 @@ logger = logging.getLogger("asteriskia.main")
 
 async def _sync_audio_cache() -> None:
     """
-    Sincroniza o cache de áudio TTS com os textos atuais da URA.
+    Sincroniza o cache de áudio TTS com os textos de TODAS as URAs ativas.
 
     Chamado no startup e a cada 60s. Gera PCM apenas para textos sem cache;
     textos já presentes são ignorados (cache hit imediato).
     """
     try:
-        settings_raw, questions_raw = await asyncio.gather(
-            bc.get("/api/v1/ura/settings"),
-            bc.get("/api/v1/ura/questions"),
-        )
-        texts: list[str] = []
-        if isinstance(settings_raw, list):
-            texts += [
-                item["value"] for item in settings_raw
-                if item.get("value", "").strip()
-            ]
-        if isinstance(questions_raw, list):
-            texts += [
-                q["question_text"] for q in questions_raw
-                if q.get("question_text", "").strip()
-            ]
-        # Mensagens hardcoded usadas via _play_cached — pré-gerar para latência zero
-        texts += ["Obrigado! Estou registrando seu chamado. Aguarde um momento."]
+        uras = await bc.get("/api/v1/uras")
+        if not isinstance(uras, list):
+            return
+
+        texts: list[str] = ["Obrigado! Estou registrando seu chamado. Aguarde um momento."]
+
+        for ura in uras:
+            if not ura.get("active", True):
+                continue
+            ura_id = ura["id"]
+            try:
+                settings_raw, questions_raw = await asyncio.gather(
+                    bc.get(f"/api/v1/uras/{ura_id}/settings"),
+                    bc.get(f"/api/v1/uras/{ura_id}/questions"),
+                )
+            except Exception as e:
+                logger.warning("Falha ao buscar settings/questions da URA %s: %s", ura_id, e)
+                continue
+            if isinstance(settings_raw, list):
+                texts += [item["value"] for item in settings_raw if item.get("value", "").strip()]
+            if isinstance(questions_raw, list):
+                texts += [q["question_text"] for q in questions_raw if q.get("question_text", "").strip()]
+
         if texts:
             await audio_cache.warm_up(texts, AIService())
     except Exception as e:
@@ -93,6 +99,28 @@ async def _detect_flow_type(call_uuid: str) -> str:
     except Exception:
         # 404 ou qualquer erro de rede → assume JiraCallFlow (padrão seguro)
         return "JIRA_CALL"
+
+
+DEFAULT_URA_ID = 1  # URA legada (service desk, ramal 1000) — fallback seguro
+
+
+async def _resolve_ura_id(call_uuid: str) -> int:
+    """
+    Resolve qual URA conduz esta chamada.
+
+    O dialplan do Asterisk registra a correlação uuid→ramal via CURL logo
+    após gerar o UUID (ver extensions.conf, faixa _2XXX) e ANTES de conectar
+    ao AudioSocket — mesmo princípio do lookup usado para ZABBIX_ALERT, só
+    que quem registra aqui é o próprio dialplan, não o backend Java.
+
+    Se não houver registro (ex: ramal 1000 legado, ou o CURL falhou/expirou),
+    cai na URA padrão — nunca derruba a chamada por isso.
+    """
+    try:
+        result = await bc.get(f"/api/v1/internal/ura-routing/by-uuid/{call_uuid}")
+        return int(result)
+    except Exception:
+        return DEFAULT_URA_ID
 
 
 async def handle_connection(
@@ -142,7 +170,9 @@ async def handle_connection(
             # O número do chamador é coletado durante o fluxo da URA (perguntas)
             # e consolidado na transcrição. O protocolo AudioSocket transmite
             # apenas o UUID binário — não há canal para o CALLER_NUM aqui.
-            flow = JiraCallFlow(call_uuid, reader, writer)
+            ura_id = await _resolve_ura_id(call_uuid)
+            logger.info(f"URA resolvida: id={ura_id} | UUID: {call_uuid}")
+            flow = JiraCallFlow(call_uuid, reader, writer, ura_id=ura_id)
 
         await flow.execute()
 

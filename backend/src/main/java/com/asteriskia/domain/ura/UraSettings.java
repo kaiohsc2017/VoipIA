@@ -7,8 +7,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 /**
- * UraSettings — Mensagens configuráveis do fluxo da URA.
- * Chaves fixas: boas_vindas | informativa | encerramento
+ * UraSettings — Mensagens/configurações do fluxo de uma URA específica.
+ * Chaves usadas: boas_vindas | informativa | encerramento | vad_aggressiveness
  */
 @Entity
 @Table(name = "ura_settings")
@@ -20,6 +20,12 @@ import java.time.LocalDateTime;
 public class UraSettings {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "ura_id", nullable = false)
+    private Integer uraId;
+
     @Column(length = 50)
     private String key;
 

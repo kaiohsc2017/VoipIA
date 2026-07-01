@@ -8,21 +8,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * UraSettingsController — Endpoints REST para mensagens configuráveis da URA.
+ * UraSettingsController — Endpoints REST para mensagens/configurações de uma URA.
  *
- * GET  /api/v1/ura/settings          → lista todas as mensagens (frontend + ai-agent)
- * PUT  /api/v1/ura/settings/{key}    → atualiza o valor de uma mensagem
+ * GET  /api/v1/uras/{uraId}/settings          → lista as mensagens da URA (frontend + ai-agent)
+ * PUT  /api/v1/uras/{uraId}/settings/{key}    → atualiza o valor de uma mensagem
  */
 @RestController
-@RequestMapping("/api/v1/ura/settings")
+@RequestMapping("/api/v1/uras/{uraId}/settings")
 @RequiredArgsConstructor
 public class UraSettingsController {
 
     private final UraSettingsRepository repository;
 
     @GetMapping
-        public ResponseEntity<List<UraSettings>> getAll() {
-        return ResponseEntity.ok(repository.findAll());
+        public ResponseEntity<List<UraSettings>> getAll(@PathVariable Integer uraId) {
+        return ResponseEntity.ok(repository.findByUraId(uraId));
     }
 
     /**
@@ -31,10 +31,11 @@ public class UraSettingsController {
      */
     @PutMapping("/{key}")
         public ResponseEntity<UraSettings> update(
+            @PathVariable Integer uraId,
             @PathVariable String key,
             @RequestBody Map<String, String> body) {
 
-        return repository.findById(key)
+        return repository.findByUraIdAndKey(uraId, key)
                 .map(setting -> {
                     String newValue = body.getOrDefault("value", "").trim();
 

@@ -129,11 +129,13 @@ class JiraCallFlow:
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
         caller_number: str = "desconhecido",
+        ura_id: int = 1,
     ):
         self.call_uuid          = call_uuid
         self.reader             = reader
         self.writer             = writer
         self.caller_number      = caller_number
+        self.ura_id             = ura_id
         self.ai                 = AIService()
         self.collected_answers: dict[str, str] = {}
         self._transcriptions: list[str]        = []
@@ -570,7 +572,7 @@ class JiraCallFlow:
 
     async def _fetch_settings(self) -> dict[str, str]:
         try:
-            items: list[dict] = await bc.get("/api/v1/ura/settings")
+            items: list[dict] = await bc.get(f"/api/v1/uras/{self.ura_id}/settings")
             return {item["key"]: item["value"] for item in items}
         except Exception as e:
             logger.error("[%s] Erro ao buscar settings URA: %s", self.call_uuid, e)
@@ -578,7 +580,7 @@ class JiraCallFlow:
 
     async def _fetch_questions(self) -> list[dict]:
         try:
-            result = await bc.get("/api/v1/ura/questions")
+            result = await bc.get(f"/api/v1/uras/{self.ura_id}/questions")
             if not isinstance(result, list):
                 logger.error(
                     "[%s] Backend retornou formato inesperado para perguntas: %s",
@@ -620,6 +622,7 @@ class JiraCallFlow:
 
             payload = {
                 "callUuid":         self.call_uuid,
+                "uraId":            self.ura_id,
                 "fields":           self.collected_answers,
                 "audioFilePath":    audio_path or f"/var/spool/asterisk/monitor/{self.call_uuid}.wav",
                 "transcription":    full_transcription,

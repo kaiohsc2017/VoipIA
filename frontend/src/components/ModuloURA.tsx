@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { subscribe } from '../api/websocket';
 import api from '../api/client';
-import type { CallRecord, UraQuestion, PageResponse } from '../api/types';
+import type { CallRecord, UraQuestion, PageResponse, Ura } from '../api/types';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
+import UraManagementTab from './UraManagementTab';
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString('pt-BR', {
@@ -215,7 +216,7 @@ function AudioPlayer({ callId }: { callId: number }) {
 
 // ─── Aba Fluxo URA ───────────────────────────────────────────────────────────
 
-function FluxoURATab() {
+function FluxoURATab({ uraId }: { uraId: number }) {
   const [settings, setSettings]       = useState<UraSetting[]>([]);
   const [questions, setQuestions]     = useState<UraQuestion[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -230,8 +231,8 @@ function FluxoURATab() {
   const load = async () => {
     setLoadingData(true);
     const [s, q] = await Promise.all([
-      api.get<UraSetting[]>('/ura/settings'),
-      api.get<UraQuestion[]>('/ura/questions/all'),
+      api.get<UraSetting[]>(`/uras/${uraId}/settings`),
+      api.get<UraQuestion[]>(`/uras/${uraId}/questions/all`),
     ]);
     setSettings(s.data);
     setLocalValues(Object.fromEntries(s.data.map(x => [x.key, x.value])));
@@ -239,12 +240,12 @@ function FluxoURATab() {
     setLoadingData(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [uraId]);
 
   const saveSetting = async (key: string) => {
     setSaving(key);
     try {
-      await api.put(`/ura/settings/${key}`, { value: localValues[key] ?? '' });
+      await api.put(`/uras/${uraId}/settings/${key}`, { value: localValues[key] ?? '' });
       setSaved(key);
       setTimeout(() => setSaved(null), 2000);
       await load();
@@ -256,7 +257,7 @@ function FluxoURATab() {
   };
 
   const toggleActive = async (q: UraQuestion) => {
-    await api.patch(`/ura/questions/${q.id}/active?active=${!q.isActive}`);
+    await api.patch(`/uras/${uraId}/questions/${q.id}/active?active=${!q.isActive}`);
     load();
   };
 
@@ -269,14 +270,14 @@ function FluxoURATab() {
     if (!editQ.questionText?.trim())  { alert('Informe o texto da pergunta.'); return; }
     if (!editQ.jiraFieldKey?.trim())  { alert('Informe o campo do Jira.');     return; }
     if (!editQ.questionOrder)         { alert('Informe a ordem.');             return; }
-    if (editQ.id) { await api.put(`/ura/questions/${editQ.id}`, editQ); }
-    else          { await api.post('/ura/questions', editQ); }
+    if (editQ.id) { await api.put(`/uras/${uraId}/questions/${editQ.id}`, editQ); }
+    else          { await api.post(`/uras/${uraId}/questions`, editQ); }
     setShowModal(false);
     load();
   };
 
   const deleteQuestion = async (id: number) => {
-    if (confirm('Remover esta pergunta?')) { await api.delete(`/ura/questions/${id}`); load(); }
+    if (confirm('Remover esta pergunta?')) { await api.delete(`/uras/${uraId}/questions/${id}`); load(); }
   };
 
   // Helpers para renderizar cada bloco de mensagem
@@ -592,7 +593,9 @@ function FluxoURATab() {
 // ─── Módulo URA principal ────────────────────────────────────────────────────
 
 export default function ModuloURA() {
-  const [tab, setTab] = useState<'calls' | 'fluxo' | 'dashboard'>('calls');
+  const [tab, setTab] = useState<'calls' | 'fluxo' | 'dashboard' | 'uras'>('calls');
+  const [uras, setUras] = useState<Ura[]>([]);
+  const [selectedUraId, setSelectedUraId] = useState<number>(1);
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -617,7 +620,7 @@ export default function ModuloURA() {
 
   const loadCalls = (p = 0) => {
     setLoading(true);
-    const params = new URLSearchParams({ page: String(p), size: '20' });
+    const params = new URLSearchParams({ page: String(p), size: '20', uraId: String(selectedUraId) });
     if (search) params.set('callerNumber', search);
     if (dateFrom) params.set('dateFrom', dateFrom);
     if (dateTo) params.set('dateTo', dateTo);
@@ -637,8 +640,13 @@ export default function ModuloURA() {
   };
 
   useEffect(() => {
+    api.get<Ura[]>('/uras').then(r => setUras(r.data));
+  }, []);
+
+  useEffect(() => {
     if (tab === 'calls') loadCalls(0);
-  }, [tab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, selectedUraId]);
 
   const handleSearchSubmit = (e: React.FormEvent) => { e.preventDefault(); loadCalls(0); };
 
@@ -687,16 +695,33 @@ export default function ModuloURA() {
         <KpiBar />
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-2" style={{ marginBottom: 20 }}>
-          <button className={`btn ${tab === 'calls'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('calls')}>
-            📋 Chamadas
-          </button>
-          <button className={`btn ${tab === 'fluxo'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('fluxo')}>
-            🔀 Fluxo URA
-          </button>
-          <button className={`btn ${tab === 'dashboard' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('dashboard')}>
-            📊 Dashboard
-          </button>
+        <div className="flex gap-1 mb-2" style={{ marginBottom: 20, justifyContent: 'space-between', display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          <div className="flex gap-1" style={{ display: 'flex', gap: 6 }}>
+            <button className={`btn ${tab === 'calls'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('calls')}>
+              📋 Chamadas
+            </button>
+            <button className={`btn ${tab === 'fluxo'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('fluxo')}>
+              🔀 Fluxo URA
+            </button>
+            <button className={`btn ${tab === 'dashboard' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('dashboard')}>
+              📊 Dashboard
+            </button>
+            <button className={`btn ${tab === 'uras'      ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('uras')}>
+              🎛️ URAs
+            </button>
+          </div>
+          {(tab === 'calls' || tab === 'fluxo') && (
+            <select
+              className="form-select"
+              style={{ maxWidth: 260 }}
+              value={selectedUraId}
+              onChange={e => setSelectedUraId(Number(e.target.value))}
+            >
+              {uras.map(u => (
+                <option key={u.id} value={u.id}>{u.name} (ramal {u.extension})</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* ---- CALLS TAB ---- */}
@@ -756,6 +781,24 @@ export default function ModuloURA() {
                   <span style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>Gravação não disponível</span>
                 )}
               </div>
+
+              {/* Respostas por pergunta */}
+              {detailCall.answers && detailCall.answers.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Respostas por pergunta</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {detailCall.answers.map(a => (
+                      <div key={a.questionId} style={{
+                        background: 'var(--bg-input)', border: '1px solid var(--border-glass)',
+                        borderRadius: 8, padding: '8px 12px',
+                      }}>
+                        <div style={{ fontSize: '.7rem', color: 'var(--text-muted)', marginBottom: 3 }}>{a.questionText}</div>
+                        <div style={{ fontSize: '.85rem', fontWeight: 500 }}>{a.value || '—'}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Transcrição completa */}
               <div>
@@ -966,10 +1009,13 @@ export default function ModuloURA() {
         )}
 
         {/* ---- FLUXO URA TAB ---- */}
-        {tab === 'fluxo' && <FluxoURATab />}
+        {tab === 'fluxo' && <FluxoURATab uraId={selectedUraId} />}
 
         {/* ---- DASHBOARD TAB ---- */}
         {tab === 'dashboard' && <DashboardTab />}
+
+        {/* ---- URAs TAB ---- */}
+        {tab === 'uras' && <UraManagementTab onSelect={id => { setSelectedUraId(id); setTab('fluxo'); }} />}
 
       </div>
     </>

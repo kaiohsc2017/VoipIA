@@ -75,6 +75,8 @@ RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
         --enable codec_alaw \
         --enable pbx_config \
         --enable res_musiconhold \
+        --enable func_curl \
+        --enable res_curl \
         menuselect.makeopts && \
     make -j$(nproc) && \
     make install

@@ -17,16 +17,16 @@ public class UraQuestionService {
 
     private final UraQuestionRepository repository;
 
-    /** Retorna todas as perguntas ativas, ordenadas pela sequência. */
+    /** Retorna todas as perguntas ativas de uma URA, ordenadas pela sequência. */
     @Transactional(readOnly = true)
-    public List<UraQuestion> findActiveQuestions() {
-        return repository.findByIsActiveTrueOrderByQuestionOrderAsc();
+    public List<UraQuestion> findActiveQuestions(Integer uraId) {
+        return repository.findByUraIdAndIsActiveTrueOrderByQuestionOrderAsc(uraId);
     }
 
-    /** Retorna todas as perguntas (admin). */
+    /** Retorna todas as perguntas de uma URA (admin). */
     @Transactional(readOnly = true)
-    public List<UraQuestion> findAll() {
-        return repository.findAll();
+    public List<UraQuestion> findAll(Integer uraId) {
+        return repository.findByUraIdOrderByQuestionOrderAsc(uraId);
     }
 
     /** Cria ou atualiza uma pergunta. */

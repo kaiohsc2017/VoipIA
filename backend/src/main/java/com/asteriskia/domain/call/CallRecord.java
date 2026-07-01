@@ -6,6 +6,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -23,6 +24,9 @@ public class CallRecord {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "ura_id", nullable = false)
+    private Integer uraId;
 
     @Column(name = "call_uuid", nullable = false, unique = true)
     private UUID callUuid;
@@ -69,4 +73,12 @@ public class CallRecord {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    /** Respostas por pergunta, montadas em memória para o relatório — não persistido diretamente aqui. */
+    @Transient
+    @Builder.Default
+    private List<AnswerView> answers = List.of();
+
+    /** Uma resposta pronta para exibição no relatório: pergunta + valor. */
+    public record AnswerView(Integer questionId, String questionText, String value) {}
 }

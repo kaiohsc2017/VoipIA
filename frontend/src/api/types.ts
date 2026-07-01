@@ -14,9 +14,27 @@ export interface LoginResponse {
   expiresInHours: number;
 }
 
+// ---- URAs (Módulo 1) ----
+export interface Ura {
+  id: number;
+  name: string;
+  extension: string;
+  active: boolean;
+  jiraIntegrationEnabled: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UraAnswerView {
+  questionId: number;
+  questionText: string;
+  value: string;
+}
+
 // ---- Call Records (Módulo 1) ----
 export interface CallRecord {
   id: number;
+  uraId: number;
   callUuid: string;
   callDate: string;
   callDurationSecs: number;
@@ -29,6 +47,7 @@ export interface CallRecord {
   callType?: string;
   reportedRamal?: string;
   priority?: string;
+  answers?: UraAnswerView[];
   createdAt: string;
 }
 
@@ -43,6 +62,7 @@ export interface PageResponse<T> {
 // ---- URA Questions (Módulo 1) ----
 export interface UraQuestion {
   id: number;
+  uraId: number;
   questionOrder: number;
   questionText: string;
   jiraFieldKey: string;

@@ -24,6 +24,9 @@ public class UraQuestion {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @Column(name = "ura_id", nullable = false)
+    private Integer uraId;
+
     @Column(name = "question_order", nullable = false)
     private Integer questionOrder;
 

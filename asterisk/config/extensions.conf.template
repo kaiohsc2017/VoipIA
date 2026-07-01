@@ -62,6 +62,26 @@ exten => 1001,n,Set(MY_UUID=${UUID()})
 exten => 1001,n,AudioSocket(${MY_UUID},ai-agent:9092)
 exten => 1001,n,Hangup()
 
+; URAs customizadas — faixa reservada 2000-2999 (nenhuma URA nova exige
+; editar este dialplan; basta cadastrá-la na tela de administração com um
+; ramal dentro dessa faixa). Como o AudioSocket só transmite um UUID
+; binário, o CURL abaixo avisa o backend a qual URA (ramal) este UUID
+; pertence, ANTES de conectar ao ai-agent — mesma ideia do lookup que já
+; existe hoje para o fluxo de alerta Zabbix, só que disparado pelo dialplan.
+exten => _2XXX,1,NoOp(=== URA customizada: ${EXTEN} ===)
+exten => _2XXX,n,Answer()
+exten => _2XXX,n,Wait(1)
+exten => _2XXX,n,Set(MY_UUID=${UUID()})
+exten => _2XXX,n,MixMonitor(/var/spool/asterisk/monitor/${MY_UUID}.wav,b)
+exten => _2XXX,n,Set(CALLER_NUM=${CALLERID(num)})
+exten => _2XXX,n,Set(CURLOPT(httptimeout)=2)
+exten => _2XXX,n,Set(CURLOPT(httpheader)=X-Internal-Key: ${INTERNAL_API_KEY})
+; Timeout curto e resultado ignorado de propósito — se o backend não responder
+; a tempo, o ai-agent simplesmente não encontra a correlação e cai na URA padrão.
+exten => _2XXX,n,Set(IGNORED=${CURL(http://backend:8080/api/v1/internal/ura-routing,uuid=${MY_UUID}&extension=${EXTEN})})
+exten => _2XXX,n,AudioSocket(${MY_UUID},ai-agent:9092)
+exten => _2XXX,n,Hangup()
+
 ; Discagem entre ramais (10XX)
 exten => _10XX,1,NoOp(=== Chamada entre ramais ===)
 exten => _10XX,n,Dial(PJSIP/${EXTEN},30)
@@ -98,6 +118,22 @@ exten => 1001,n,Set(FLOW_TYPE=ZABBIX_ALERT)
 exten => 1001,n,Set(MY_UUID=${UUID()})
 exten => 1001,n,AudioSocket(${MY_UUID},ai-agent:9092)
 exten => 1001,n,Hangup()
+
+; URAs customizadas — faixa reservada 2000-2999 (ver comentário em ramais-internos)
+exten => _2XXX,1,NoOp(=== WebRTC → URA customizada: ${EXTEN} ===)
+; Progress + Wait(2) dá tempo para ICE/DTLS completar antes do Answer
+exten => _2XXX,n,Progress()
+exten => _2XXX,n,Wait(2)
+exten => _2XXX,n,Answer()
+exten => _2XXX,n,Set(MY_UUID=${UUID()})
+exten => _2XXX,n,MixMonitor(/var/spool/asterisk/monitor/${MY_UUID}.wav,b)
+exten => _2XXX,n,Set(CALLER_NUM=${CALLERID(num)})
+exten => _2XXX,n,Set(CURLOPT(httptimeout)=2)
+exten => _2XXX,n,Set(CURLOPT(httpheader)=X-Internal-Key: ${INTERNAL_API_KEY})
+exten => _2XXX,n,Set(IGNORED=${CURL(http://backend:8080/api/v1/internal/ura-routing,uuid=${MY_UUID}&extension=${EXTEN})})
+exten => _2XXX,n,Wait(2)
+exten => _2XXX,n,AudioSocket(${MY_UUID},ai-agent:9092)
+exten => _2XXX,n,Hangup()
 
 ; Discagem entre softphones WebRTC (90XX → 90XX)
 exten => _90XX,1,NoOp(=== Chamada WebRTC entre ramais ===)

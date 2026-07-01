@@ -56,6 +56,7 @@ public class CallRecordController {
             @Valid @RequestBody RegisterCallRequest request) {
         CallRecord record = service.registerCall(
                 request.callUuid(),
+                request.uraId(),
                 request.fields(),
                 request.audioFilePath(),
                 request.transcription(),
@@ -71,6 +72,7 @@ public class CallRecordController {
     public ResponseEntity<Page<CallRecord>> listCalls(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Integer uraId,
             @RequestParam(required = false) String callerNumber,
             @RequestParam(required = false) String clientName,
             @RequestParam(required = false) String ramal,
@@ -82,14 +84,14 @@ public class CallRecordController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "callDate"));
 
-        boolean hasAdvancedFilter = clientName != null || ramal != null || callType != null
+        boolean hasAdvancedFilter = uraId != null || clientName != null || ramal != null || callType != null
                 || jiraIssueKey != null || transcriptionText != null || priority != null
                 || dateFrom != null || dateTo != null;
 
         Page<CallRecord> result;
         if (hasAdvancedFilter) {
             CallRecordFilter filter = new CallRecordFilter(
-                    callerNumber, clientName, ramal, callType, jiraIssueKey, transcriptionText, priority,
+                    uraId, callerNumber, clientName, ramal, callType, jiraIssueKey, transcriptionText, priority,
                     dateFrom != null ? LocalDateTime.of(dateFrom, LocalTime.MIN) : null,
                     dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null
             );
@@ -181,6 +183,7 @@ public class CallRecordController {
     /** Request do agente Python para registrar a chamada. */
     public record RegisterCallRequest(
             @NotBlank String callUuid,
+            Integer uraId,            // qual URA conduziu a chamada — null = URA legada (id=1)
             Map<String, String> fields,
             String audioFilePath,     // caminho do .wav gravado pelo agente Python
             String transcription,     // transcrição completa consolidada
