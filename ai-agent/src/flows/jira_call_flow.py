@@ -12,8 +12,10 @@ pela tela Fluxo URA sem necessidade de redeploy.
 
 import asyncio
 import logging
+import struct
 import time
 import wave
+import webrtcvad
 from src.protocol import read_frame, write_audio_paced
 from src.services.ai_service import AIService
 from src.services.audio_cache import audio_cache as _audio_cache
@@ -34,10 +36,13 @@ _BYTES_SAMPLE = 2
 # event loop e latência de rede interna Docker.
 _POST_SPEAK_BUFFER_SECS = 0.8
 
-# Threshold RMS abaixo do qual o frame é considerado silêncio.
-# Ruído de linha telefônica típico (codec G.711, 8kHz): RMS 300-700.
-# Threshold=700 garante que hiss/ruído de fundo não impeça a detecção de silêncio.
+# Threshold RMS — usado só como fallback do VAD para frames de tamanho não-padrão.
 _SILENCE_THRESHOLD = 700
+
+# Agressividade do WebRTC VAD (0-3). Nível 3 favorece rejeitar ruído/som
+# ambiente ao redor, focando na voz de quem fala diretamente ao microfone —
+# troca-off aceitável de eventualmente cortar sílabas bem baixinhas.
+_VAD_AGGRESSIVENESS = 3
 
 # Segundos de silêncio contínuo para encerrar a captura (perguntas estruturadas)
 _SILENCE_TIMEOUT_SECS = 2.0
@@ -49,34 +54,56 @@ _TURNO_LIVRE_SILENCE_SECS = 3.0
 _MAX_CAPTURE_TURNO_LIVRE = 6.0   # turno livre: até 6s de relógio
 _MAX_CAPTURE_PERGUNTA    = 12.0  # perguntas: até 12s de relógio
 
+# Instância única do VAD — sem estado por chamada, seguro reaproveitar entre chamadas concorrentes.
+_vad = webrtcvad.Vad(_VAD_AGGRESSIVENESS)
 
-def _trim_silence(pcm: bytes, threshold: int = 300, frame_size: int = 320) -> bytes:
+
+def _is_speech_frame(payload: bytes) -> bool:
     """
-    Remove frames de silêncio do início e fim do PCM.
+    Classifica um frame de 20ms como voz humana (True) ou ruído/silêncio (False).
+
+    Usa o WebRTC VAD em vez de um threshold de energia (RMS) fixo — o VAD
+    analisa características espectrais da fala e é muito mais robusto a
+    ruído ambiente, focando na voz de quem fala diretamente ao microfone em
+    vez de ser enganado por som ao redor.
+    """
+    if len(payload) != 320:  # fora do frame padrão 20ms/8kHz — fallback por energia
+        samples = struct.unpack(f"<{len(payload)//2}h", payload)
+        rms = (sum(x * x for x in samples) / len(samples)) ** 0.5
+        return rms >= _SILENCE_THRESHOLD
+    return _vad.is_speech(payload, _SAMPLE_RATE)
+
+
+def _resolve_vad_aggressiveness(raw: str | None) -> int:
+    """Converte o valor configurado na tela de Fluxo URA (0-3) para o modo do VAD, com fallback seguro."""
+    try:
+        level = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return _VAD_AGGRESSIVENESS
+    return level if level in (0, 1, 2, 3) else _VAD_AGGRESSIVENESS
+
+
+def _trim_silence(pcm: bytes, frame_size: int = 320) -> bytes:
+    """
+    Remove frames de silêncio/ruído do início e fim do PCM.
     Reduz o tamanho do áudio enviado ao STT — menos dados = resposta mais rápida.
     """
-    import struct
     frames = [pcm[i:i+frame_size] for i in range(0, len(pcm), frame_size) if len(pcm[i:i+frame_size]) == frame_size]
     if not frames:
         return pcm
-
-    def is_silent(frame: bytes) -> bool:
-        samples = struct.unpack(f"<{len(frame)//2}h", frame)
-        rms = (sum(x*x for x in samples) / len(samples)) ** 0.5
-        return rms < threshold
 
     # Encontra primeiro frame com voz — mantém 5 frames antes (100ms) para
     # não cortar consoantes iniciais (ex: "k" de "kaio", "c" de "cinco")
     start = 0
     for i, f in enumerate(frames):
-        if not is_silent(f):
+        if _is_speech_frame(f):
             start = max(0, i - 5)
             break
 
     # Encontra último frame com voz
     end = len(frames)
     for i in range(len(frames) - 1, -1, -1):
-        if not is_silent(frames[i]):
+        if _is_speech_frame(frames[i]):
             end = min(len(frames), i + 3)  # mantém 3 frames depois
             break
 
@@ -110,7 +137,7 @@ class JiraCallFlow:
         self.ai                 = AIService()
         self.collected_answers: dict[str, str] = {}
         self._transcriptions: list[str]        = []
-        self._recorded_audio: list[bytes]      = []   # frames capturados para gravação WAV
+        self._recorded_audio: list[bytes]      = []   # PCM da chamada em ordem cronológica (URA + cliente) para gravação WAV
         self._call_start_time: float           = 0.0  # início do fluxo para cálculo de duração
 
     async def execute(self) -> None:
@@ -126,6 +153,9 @@ class JiraCallFlow:
         boas_vindas  = settings.get("boas_vindas")  or _FALLBACK_BOAS_VINDAS
         informativa  = settings.get("informativa")  or ""
         encerramento = settings.get("encerramento") or _FALLBACK_ENCERRAMENTO
+
+        # Sensibilidade do VAD é configurável na tela de Fluxo URA (0-3)
+        _vad.set_mode(_resolve_vad_aggressiveness(settings.get("vad_aggressiveness")))
 
         # 2. Boas-vindas — reproduz do cache (sem latência TTS)
         ok = await self._play_cached(boas_vindas)
@@ -204,7 +234,7 @@ class JiraCallFlow:
             logger.debug("[%s] TTS: %r", self.call_uuid, text[:80])
 
             t_start = time.monotonic()
-            ok, duration = await self.ai.synthesize_speech_streaming(text, self.writer)
+            ok, duration = await self.ai.synthesize_speech_streaming(text, self.writer, record=self._recorded_audio)
             elapsed = time.monotonic() - t_start
 
             if not ok:
@@ -259,7 +289,7 @@ class JiraCallFlow:
                 self.call_uuid, duration, len(pcm),
             )
             t_start = time.monotonic()
-            ok = await write_audio_paced(self.writer, pcm)
+            ok = await write_audio_paced(self.writer, pcm, record=self._recorded_audio)
             elapsed = time.monotonic() - t_start
 
             if not ok:
@@ -497,7 +527,6 @@ class JiraCallFlow:
         Usa time.monotonic() para garantir encerramento em max_duration segundos
         independente de overhead do asyncio ou jitter de frames WebRTC/RTP.
         """
-        import struct as _struct
         import time
 
         audio_chunks: list[bytes] = []
@@ -528,10 +557,7 @@ class JiraCallFlow:
             audio_chunks.append(payload)
             self._recorded_audio.append(payload)  # acumula para gravação WAV
 
-            samples = _struct.unpack(f"<{len(payload)//2}h", payload)
-            rms = (sum(x * x for x in samples) / len(samples)) ** 0.5
-
-            if rms < _SILENCE_THRESHOLD:
+            if not _is_speech_frame(payload):
                 silence_count += 1
                 if silence_count >= silence_limit:
                     elapsed = time.monotonic() - t_start
@@ -565,7 +591,10 @@ class JiraCallFlow:
             return []
 
     def _write_wav(self, path: str) -> None:
-        """Escreve os frames capturados em disco como arquivo WAV 8kHz/16bit/mono."""
+        """
+        Escreve em disco a chamada completa (perguntas da URA + respostas do
+        cliente, na ordem em que ocorreram) como WAV 8kHz/16bit/mono.
+        """
         if not self._recorded_audio:
             logger.warning("[%s] Sem áudio gravado — arquivo WAV não será criado", self.call_uuid)
             return

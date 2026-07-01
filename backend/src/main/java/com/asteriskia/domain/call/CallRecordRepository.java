@@ -3,6 +3,7 @@ package com.asteriskia.domain.call;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -14,7 +15,7 @@ import java.util.UUID;
  * CallRecordRepository — Acesso a dados dos registros de chamada.
  */
 @Repository
-public interface CallRecordRepository extends JpaRepository<CallRecord, Long> {
+public interface CallRecordRepository extends JpaRepository<CallRecord, Long>, JpaSpecificationExecutor<CallRecord> {
 
     Optional<CallRecord> findByCallUuid(UUID callUuid);
 

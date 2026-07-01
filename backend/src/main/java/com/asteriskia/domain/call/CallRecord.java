@@ -53,8 +53,14 @@ public class CallRecord {
     @Column(name = "audio_file_path", length = 500)
     private String audioFilePath;
 
-    @Column(name = "call_type", length = 50)
+    @Column(name = "call_type", length = 255)
     private String callType;
+
+    @Column(name = "reported_ramal", length = 255)
+    private String reportedRamal;
+
+    @Column(name = "priority", length = 255)
+    private String priority;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

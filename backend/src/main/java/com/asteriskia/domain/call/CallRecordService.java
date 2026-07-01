@@ -57,7 +57,7 @@ public class CallRecordService {
                 : fields.getOrDefault("customfield_telefone", "desconhecido");
 
         // Nome do cliente (pode vir do STT das perguntas)
-        String clientName = fields.getOrDefault("customfield_nome_cliente", null);
+        String clientName = truncate(fields.getOrDefault("customfield_nome_cliente", null), 200);
 
         // Transcrição — prioriza o campo explícito consolidado
         String fullTranscription = transcription != null && !transcription.isBlank()
@@ -73,12 +73,23 @@ public class CallRecordService {
         }
 
         // Extrai tipo de atendimento das respostas da URA
-        String callType = fields.entrySet().stream()
+        String callType = truncate(fields.entrySet().stream()
                 .filter(e -> e.getKey().toLowerCase().contains("tipo")
                         || e.getKey().toLowerCase().contains("issuetype")
                         || e.getKey().toLowerCase().contains("type"))
                 .map(java.util.Map.Entry::getValue)
-                .findFirst().orElse(null);
+                .findFirst().orElse(null), 255);
+
+        // Extrai impacto/prioridade das respostas da URA (chave configurável na tela de Fluxo URA)
+        String priority = truncate(fields.entrySet().stream()
+                .filter(e -> e.getKey().toLowerCase().contains("priority")
+                        || e.getKey().toLowerCase().contains("prioridade")
+                        || e.getKey().toLowerCase().contains("impacto"))
+                .map(java.util.Map.Entry::getValue)
+                .findFirst().orElse(null), 255);
+
+        // Ramal/telefone que o cliente informou por voz na URA (distinto do callerNumber real)
+        String reportedRamal = truncate(fields.getOrDefault("customfield_telefone", null), 255);
 
         CallRecord record = CallRecord.builder()
                 .callUuid(uuid)
@@ -88,6 +99,8 @@ public class CallRecordService {
                 .transcription(fullTranscription)
                 .audioFilePath(audioFilePath)
                 .callType(callType)
+                .reportedRamal(reportedRamal)
+                .priority(priority)
                 .callDurationSecs(callDurationSecs != null ? callDurationSecs : 0)
                 .build();
 
@@ -133,5 +146,21 @@ public class CallRecordService {
     @Transactional(readOnly = true)
     public Page<CallRecord> findByCallerNumber(String number, Pageable pageable) {
         return repository.findByCallerNumberContainingOrderByCallDateDesc(number, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CallRecord> findByFilters(CallRecordFilter filter, Pageable pageable) {
+        return repository.findAll(CallRecordSpecifications.withFilters(filter), pageable);
+    }
+
+    /**
+     * Trunca texto extraído das respostas da URA para caber na coluna do banco.
+     * O STT pode retornar frases longas de fallback (ex: "Não foi detectada
+     * nenhuma prioridade no áudio.") em vez do valor curto esperado — sem isso,
+     * o INSERT falha e a chamada inteira deixa de ser registrada.
+     */
+    private static String truncate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) return value;
+        return value.substring(0, maxLength);
     }
 }

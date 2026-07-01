@@ -166,7 +166,7 @@ class GeminiProvider(BaseAIProvider):
 
     # ── TTS ──────────────────────────────────────────────────────────────────
 
-    async def synthesize_speech_streaming(self, text: str, writer) -> tuple[bool, float]:
+    async def synthesize_speech_streaming(self, text: str, writer, record: list[bytes] | None = None) -> tuple[bool, float]:
         """
         TTS streaming real — envia chunks ao Asterisk conforme chegam do Gemini.
 
@@ -236,7 +236,7 @@ class GeminiProvider(BaseAIProvider):
                     except (asyncio.TimeoutError, asyncio.CancelledError):
                         pass
                     first_chunk = False
-                if not await write_audio_paced(writer, pcm_8k):
+                if not await write_audio_paced(writer, pcm_8k, record=record):
                     ok = False
                     break
                 total_bytes += len(pcm_8k)

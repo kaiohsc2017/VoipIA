@@ -161,6 +161,37 @@ function KpiBar() {
 
 // ─── Player de áudio inline ───────────────────────────────────────────────────
 
+/**
+ * Busca o áudio via api.get (anexa o JWT) e reproduz como blob — uma tag
+ * <audio src="/api/..."> direta não funciona porque o endpoint exige
+ * autenticação e o navegador não anexa o header Authorization nesse caso.
+ */
+function AuthedAudio({ callId, style, autoPlay, onError }: {
+  callId: number;
+  style?: React.CSSProperties;
+  autoPlay?: boolean;
+  onError?: () => void;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    api.get(`/calls/${callId}/audio`, { responseType: 'blob' })
+      .then(res => {
+        objectUrl = URL.createObjectURL(res.data);
+        setSrc(objectUrl);
+      })
+      .catch(() => { setFailed(true); onError?.(); });
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callId]);
+
+  if (failed) return <span style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>Erro ao carregar áudio</span>;
+  if (!src) return <span className="spinner" style={{ width: 16, height: 16 }} />;
+  return <audio controls autoPlay={autoPlay} src={src} style={style} />;
+}
+
 function AudioPlayer({ callId }: { callId: number }) {
   const [show, setShow] = useState(false);
   if (!show) {
@@ -173,10 +204,9 @@ function AudioPlayer({ callId }: { callId: number }) {
     );
   }
   return (
-    <audio
-      controls
+    <AuthedAudio
+      callId={callId}
       autoPlay
-      src={`/api/v1/calls/${callId}/audio`}
       style={{ height: 28, minWidth: 180, maxWidth: 240 }}
       onError={() => setShow(false)}
     />
@@ -468,6 +498,51 @@ function FluxoURATab() {
         })()}
       </div>
 
+      {/* ── Configurações avançadas ── */}
+      {settingsByKey['vad_aggressiveness'] && (
+        <div className="table-wrapper" style={{ padding: 0, overflow: 'visible', marginTop: 20 }}>
+          <div style={{ padding: '18px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: '50%', background: 'var(--color-background-secondary)',
+                  border: '0.5px solid var(--color-border-tertiary)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0,
+                }}>🎙️</div>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: 13 }}>Sensibilidade a ruído de fundo (VAD)</div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                    Controla quando a URA entende que o cliente terminou de falar (2s de silêncio). Níveis mais
+                    altos ignoram melhor som ambiente/ao redor, mas podem cortar respostas bem baixinhas.
+                  </div>
+                </div>
+              </div>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => saveSetting('vad_aggressiveness')}
+                disabled={saving === 'vad_aggressiveness' || localValues['vad_aggressiveness'] === settingsByKey['vad_aggressiveness'].value}
+                style={{ minWidth: 80, fontSize: 12 }}
+              >
+                {saving === 'vad_aggressiveness'
+                  ? <><span className="spinner" style={{ width: 10, height: 10, margin: '0 4px 0 0' }} />Salvando…</>
+                  : saved === 'vad_aggressiveness' ? '✓ Salvo' : 'Salvar'}
+              </button>
+            </div>
+            <select
+              className="form-select"
+              value={localValues['vad_aggressiveness'] ?? '3'}
+              onChange={e => setLocalValues(v => ({ ...v, vad_aggressiveness: e.target.value }))}
+              style={{ maxWidth: 420 }}
+            >
+              <option value="0">0 — Menos sensível (aceita mais ruído como se fosse silêncio)</option>
+              <option value="1">1 — Baixa (ainda tolera bastante ruído de fundo)</option>
+              <option value="2">2 — Média (equilíbrio entre ignorar ruído e não cortar respostas baixinhas)</option>
+              <option value="3">3 — Alta (recomendado — foca na voz, ignora som ao redor)</option>
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Modal edição de pergunta */}
       {showModal && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}>
@@ -526,10 +601,32 @@ export default function ModuloURA() {
   const [exporting, setExporting] = useState(false);
   const [detailCall, setDetailCall] = useState<CallRecord | null>(null);
 
+  // Filtros avançados (colapsáveis)
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [clientNameFilter, setClientNameFilter] = useState('');
+  const [ramalFilter, setRamalFilter] = useState('');
+  const [callTypeFilter, setCallTypeFilter] = useState('');
+  const [jiraKeyFilter, setJiraKeyFilter] = useState('');
+  const [transcriptionFilter, setTranscriptionFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('');
+
+  const hasActiveFilters = !!(dateFrom || dateTo || clientNameFilter || ramalFilter
+    || callTypeFilter || jiraKeyFilter || transcriptionFilter || priorityFilter);
+
   const loadCalls = (p = 0) => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(p), size: '20' });
     if (search) params.set('callerNumber', search);
+    if (dateFrom) params.set('dateFrom', dateFrom);
+    if (dateTo) params.set('dateTo', dateTo);
+    if (clientNameFilter) params.set('clientName', clientNameFilter);
+    if (ramalFilter) params.set('ramal', ramalFilter);
+    if (callTypeFilter) params.set('callType', callTypeFilter);
+    if (jiraKeyFilter) params.set('jiraIssueKey', jiraKeyFilter);
+    if (transcriptionFilter) params.set('transcriptionText', transcriptionFilter);
+    if (priorityFilter) params.set('priority', priorityFilter);
     api.get<PageResponse<CallRecord>>(`/calls?${params}`)
       .then(r => {
         setCalls(r.data.content ?? []);
@@ -544,6 +641,21 @@ export default function ModuloURA() {
   }, [tab]);
 
   const handleSearchSubmit = (e: React.FormEvent) => { e.preventDefault(); loadCalls(0); };
+
+  const clearFilters = () => {
+    setDateFrom(''); setDateTo(''); setClientNameFilter(''); setRamalFilter('');
+    setCallTypeFilter(''); setJiraKeyFilter(''); setTranscriptionFilter(''); setPriorityFilter('');
+    // Recarrega já sem os filtros — precisa esperar o próximo tick para os estados aplicarem
+    setTimeout(() => loadCalls(0), 0);
+  };
+
+  const priorityBadge = (value?: string) => {
+    if (!value) return <span className="text-muted">—</span>;
+    const v = value.toLowerCase();
+    const cls = v.includes('alta') ? 'badge-danger' : v.includes('méd') || v.includes('med') ? 'badge-warning'
+      : v.includes('baix') ? 'badge-success' : 'badge-gray';
+    return <span className={`badge ${cls}`}>{value}</span>;
+  };
 
   const exportUra = async () => {
     setExporting(true);
@@ -619,6 +731,14 @@ export default function ModuloURA() {
                   <div style={{ fontSize: '.9rem' }}>{detailCall.callType || '—'}</div>
                 </div>
                 <div>
+                  <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 2 }}>Ramal informado</div>
+                  <div className="mono" style={{ fontSize: '.9rem' }}>{detailCall.reportedRamal || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 2 }}>Impacto</div>
+                  <div style={{ fontSize: '.9rem' }}>{priorityBadge(detailCall.priority)}</div>
+                </div>
+                <div>
                   <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 2 }}>Chamado Jira</div>
                   <div style={{ fontSize: '.9rem' }}>{detailCall.jiraIssueKey
                     ? <span className="chip">{detailCall.jiraIssueKey}</span>
@@ -631,12 +751,7 @@ export default function ModuloURA() {
               <div>
                 <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Gravação da chamada</div>
                 {detailCall.audioFilePath ? (
-                  <audio
-                    controls
-                    src={`/api/v1/calls/${detailCall.id}/audio`}
-                    style={{ width: '100%', height: 36 }}
-                    onError={e => { (e.target as HTMLAudioElement).style.display = 'none'; }}
-                  />
+                  <AuthedAudio callId={detailCall.id} style={{ width: '100%', height: 36 }} />
                 ) : (
                   <span style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>Gravação não disponível</span>
                 )}
@@ -679,6 +794,13 @@ export default function ModuloURA() {
                     value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
                 <button type="submit" className="btn btn-ghost btn-sm">Buscar</button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${hasActiveFilters ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() => setFiltersOpen(o => !o)}
+                >
+                  🔧 Filtros{hasActiveFilters ? ' •' : ''}
+                </button>
               </form>
               <div className="toolbar-right">
                 <button
@@ -694,6 +816,56 @@ export default function ModuloURA() {
               </div>
             </div>
 
+            {filtersOpen && (
+              <div className="form-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+                <div>
+                  <label className="form-label">Data de</label>
+                  <input type="date" className="form-input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label">Data até</label>
+                  <input type="date" className="form-input" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label">Login / Cliente</label>
+                  <input className="form-input" placeholder="ex: kaio.correa" value={clientNameFilter} onChange={e => setClientNameFilter(e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label">Ramal informado</label>
+                  <input className="form-input" placeholder="ex: 5004" value={ramalFilter} onChange={e => setRamalFilter(e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label">Tipo</label>
+                  <select className="form-select" value={callTypeFilter} onChange={e => setCallTypeFilter(e.target.value)}>
+                    <option value="">Todos</option>
+                    <option value="Incidente">Incidente</option>
+                    <option value="Requisição">Requisição</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Chamado Jira</label>
+                  <input className="form-input" placeholder="ex: SUPP-123" value={jiraKeyFilter} onChange={e => setJiraKeyFilter(e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label">Impacto</label>
+                  <select className="form-select" value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)}>
+                    <option value="">Todos</option>
+                    <option value="Baixa">Baixa</option>
+                    <option value="Média">Média</option>
+                    <option value="Alta">Alta</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Texto na transcrição</label>
+                  <input className="form-input" placeholder="ex: computador reiniciando" value={transcriptionFilter} onChange={e => setTranscriptionFilter(e.target.value)} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+                  <button className="btn btn-primary btn-sm" onClick={() => loadCalls(0)}>Aplicar filtros</button>
+                  <button className="btn btn-ghost btn-sm" onClick={clearFilters} disabled={!hasActiveFilters}>Limpar</button>
+                </div>
+              </div>
+            )}
+
             {loading ? (
               <div className="loading-state"><div className="spinner" />Carregando chamadas…</div>
             ) : (
@@ -706,6 +878,7 @@ export default function ModuloURA() {
                       <th>Número</th>
                       <th>Cliente</th>
                       <th>Tipo</th>
+                      <th>Impacto</th>
                       <th>Chamado Jira</th>
                       <th>Status</th>
                       <th>Duração</th>
@@ -715,7 +888,7 @@ export default function ModuloURA() {
                   </thead>
                   <tbody>
                     {calls.length === 0 ? (
-                      <tr><td colSpan={10} className="table-empty">Nenhuma chamada registrada</td></tr>
+                      <tr><td colSpan={11} className="table-empty">Nenhuma chamada registrada</td></tr>
                     ) : calls.map(c => (
                       <tr key={c.id}
                         onClick={() => setDetailCall(c)}
@@ -731,6 +904,7 @@ export default function ModuloURA() {
                             ? <span className="badge" style={{ background: c.callType.toLowerCase().includes('incidente') ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)', color: c.callType.toLowerCase().includes('incidente') ? '#dc2626' : '#2563eb' }}>{c.callType}</span>
                             : <span className="text-muted">—</span>}
                         </td>
+                        <td>{priorityBadge(c.priority)}</td>
                         <td>
                           {c.jiraIssueKey
                             ? <span className="chip">{c.jiraIssueKey}</span>

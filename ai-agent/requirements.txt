@@ -4,5 +4,7 @@ google-genai>=1.0.0
 httpx>=0.27.0
 # Processamento de áudio
 numpy>=1.26.0
+# VAD (Voice Activity Detection) — distingue voz humana de ruído/som ambiente
+webrtcvad-wheels>=2.0.11
 # Variáveis de ambiente
 python-dotenv>=1.0.0

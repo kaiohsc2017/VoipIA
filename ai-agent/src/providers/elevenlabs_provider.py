@@ -66,7 +66,7 @@ class ElevenLabsProvider(BaseAIProvider):
         raise ProviderError("elevenlabs", self._model_id,
             NotImplementedError("ElevenLabs não suporta LLM"))
 
-    async def synthesize_speech_streaming(self, text: str, writer) -> bool:
+    async def synthesize_speech_streaming(self, text: str, writer, record: list[bytes] | None = None) -> bool:
         try:
             client = _get_el(self._api_key)
 
@@ -84,7 +84,7 @@ class ElevenLabsProvider(BaseAIProvider):
 
             chunks = await asyncio.to_thread(lambda: list(_iter_chunks()))
             for chunk in chunks:
-                sent = await write_audio(writer, chunk)
+                sent = await write_audio(writer, chunk, record=record)
                 if not sent:
                     return False
             return True

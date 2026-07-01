@@ -118,7 +118,7 @@ async def keep_alive_silence(writer: asyncio.StreamWriter, stop_event: asyncio.E
         await asyncio.sleep(INTERVAL)
 
 
-async def write_audio_paced(writer: asyncio.StreamWriter, pcm_data: bytes) -> bool:
+async def write_audio_paced(writer: asyncio.StreamWriter, pcm_data: bytes, record: list[bytes] | None = None) -> bool:
     """
     Envia áudio PCM com pacing real-time: 20ms de sleep por frame de 320 bytes.
 
@@ -126,12 +126,19 @@ async def write_audio_paced(writer: asyncio.StreamWriter, pcm_data: bytes) -> bo
     o envio com o ritmo de reprodução — a função retorna aproximadamente quando
     o último frame está sendo reproduzido no Asterisk. Isso permite calcular o
     tempo de espera pós-fala com precisão, sem margem de segurança excessiva.
+
+    Se `record` for informado, acumula o PCM enviado (áudio da URA) na ordem
+    cronológica em que foi tocado — usado para incluir as perguntas da URA
+    na gravação final da chamada, junto com a voz do cliente.
     """
     FRAME_SIZE = 320
     DRAIN_EVERY = 5
 
     if writer.is_closing():
         return False
+
+    if record is not None:
+        record.append(pcm_data)
 
     frame_count = 0
     for i in range(0, len(pcm_data), FRAME_SIZE):
@@ -156,7 +163,7 @@ async def write_audio_paced(writer: asyncio.StreamWriter, pcm_data: bytes) -> bo
         return False
 
 
-async def write_audio(writer: asyncio.StreamWriter, pcm_data: bytes) -> bool:
+async def write_audio(writer: asyncio.StreamWriter, pcm_data: bytes, record: list[bytes] | None = None) -> bool:
     """
     Envia um frame de áudio PCM de volta para o Asterisk via Audiosocket.
 
@@ -166,6 +173,8 @@ async def write_audio(writer: asyncio.StreamWriter, pcm_data: bytes) -> bool:
     Args:
         writer: asyncio.StreamWriter conectado ao Asterisk
         pcm_data: Bytes de áudio PCM a enviar
+        record: se informado, acumula o PCM enviado (áudio da URA) para a
+            gravação final da chamada — ver write_audio_paced()
 
     Returns:
         True se enviado com sucesso, False se a conexão foi encerrada pelo Asterisk.
@@ -174,6 +183,9 @@ async def write_audio(writer: asyncio.StreamWriter, pcm_data: bytes) -> bool:
 
     if writer.is_closing():
         return False
+
+    if record is not None:
+        record.append(pcm_data)
 
     # Envia em frames de 320 bytes com drain a cada DRAIN_EVERY frames.
     # drain() a cada frame é muito lento; acumular tudo satura o buffer.

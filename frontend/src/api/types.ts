@@ -27,6 +27,8 @@ export interface CallRecord {
   jiraIssueStatus?: string;
   audioFilePath?: string;
   callType?: string;
+  reportedRamal?: string;
+  priority?: string;
   createdAt: string;
 }
 

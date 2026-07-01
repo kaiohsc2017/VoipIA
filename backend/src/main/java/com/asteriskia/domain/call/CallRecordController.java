@@ -9,6 +9,8 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -16,6 +18,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Map;
 
 /**
@@ -66,11 +71,34 @@ public class CallRecordController {
     public ResponseEntity<Page<CallRecord>> listCalls(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String callerNumber) {
-        PageRequest pageable = PageRequest.of(page, size);
-        Page<CallRecord> result = callerNumber != null
-                ? service.findByCallerNumber(callerNumber, pageable)
-                : service.findAll(pageable);
+            @RequestParam(required = false) String callerNumber,
+            @RequestParam(required = false) String clientName,
+            @RequestParam(required = false) String ramal,
+            @RequestParam(required = false) String callType,
+            @RequestParam(required = false) String jiraIssueKey,
+            @RequestParam(required = false) String transcriptionText,
+            @RequestParam(required = false) String priority,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "callDate"));
+
+        boolean hasAdvancedFilter = clientName != null || ramal != null || callType != null
+                || jiraIssueKey != null || transcriptionText != null || priority != null
+                || dateFrom != null || dateTo != null;
+
+        Page<CallRecord> result;
+        if (hasAdvancedFilter) {
+            CallRecordFilter filter = new CallRecordFilter(
+                    callerNumber, clientName, ramal, callType, jiraIssueKey, transcriptionText, priority,
+                    dateFrom != null ? LocalDateTime.of(dateFrom, LocalTime.MIN) : null,
+                    dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null
+            );
+            result = service.findByFilters(filter, pageable);
+        } else if (callerNumber != null) {
+            result = service.findByCallerNumber(callerNumber, pageable);
+        } else {
+            result = service.findAll(pageable);
+        }
         return ResponseEntity.ok(result);
     }
 
