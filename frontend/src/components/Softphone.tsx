@@ -62,6 +62,7 @@ export default function Softphone() {
   const callStateRef   = useRef<CallState>('idle');
   const dialTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const wsGraceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // TURN server — UDP, TCP e TLS para máxima compatibilidade com firewalls corporativos
   const turnBase = import.meta.env.VITE_TURN_URL ?? '';
@@ -112,18 +113,36 @@ export default function Softphone() {
     ua.on('registered',   () => { setRegState('registered');    log('Ramal registrado ✓'); });
     ua.on('unregistered', () => { setRegState('unregistered');  log('Ramal desregistrado'); });
     ua.on('registrationFailed', () => { setRegState('failed');  log('Falha no registro'); });
-    ua.on('connected',    () => log('WebSocket conectado'));
+    ua.on('connected', () => {
+      log('WebSocket conectado');
+      // WS voltou a tempo — cancela o encerramento da chamada por queda de sinalização
+      if (wsGraceTimerRef.current) {
+        clearTimeout(wsGraceTimerRef.current);
+        wsGraceTimerRef.current = null;
+        log('WebSocket reconectado — chamada mantida ✓');
+      }
+    });
     ua.on('disconnected', () => {
       log('WebSocket desconectado — reconectando…');
       const cs = callStateRef.current;
-      if (cs === 'calling' || cs === 'active' || cs === 'incoming') {
-        if (dialTimerRef.current) { clearTimeout(dialTimerRef.current); dialTimerRef.current = null; }
-        try { sessionRef.current?.terminate(); } catch { /* já encerrada */ }
-        callStateRef.current = 'ended';
-        setCallState('ended');
-        setMuted(false);
-        log('Chamada interrompida — WebSocket desconectado');
-        setTimeout(() => { callStateRef.current = 'idle'; setCallState('idle'); }, 2000);
+      // O RTP trafega por UDP/ICE, independente do WebSocket de sinalização — uma
+      // queda passageira do WS (comum em redes móveis) não derruba o áudio. Em vez
+      // de encerrar na hora, aguarda o JsSIP reconectar (connection_recovery_*)
+      // e só encerra se a sinalização não voltar dentro da janela de tolerância.
+      if ((cs === 'calling' || cs === 'active' || cs === 'incoming') && !wsGraceTimerRef.current) {
+        wsGraceTimerRef.current = setTimeout(() => {
+          wsGraceTimerRef.current = null;
+          const stillOngoing = callStateRef.current;
+          if (stillOngoing === 'calling' || stillOngoing === 'active' || stillOngoing === 'incoming') {
+            if (dialTimerRef.current) { clearTimeout(dialTimerRef.current); dialTimerRef.current = null; }
+            try { sessionRef.current?.terminate(); } catch { /* já encerrada */ }
+            callStateRef.current = 'ended';
+            setCallState('ended');
+            setMuted(false);
+            log('Chamada interrompida — WebSocket não reconectou a tempo');
+            setTimeout(() => { callStateRef.current = 'idle'; setCallState('idle'); }, 2000);
+          }
+        }, 10_000);
       }
     });
 
@@ -204,6 +223,7 @@ export default function Softphone() {
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      if (wsGraceTimerRef.current) { clearTimeout(wsGraceTimerRef.current); wsGraceTimerRef.current = null; }
       ua.stop();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -258,6 +278,7 @@ export default function Softphone() {
 
   function endSession(msg: string) {
     if (dialTimerRef.current) { clearTimeout(dialTimerRef.current); dialTimerRef.current = null; }
+    if (wsGraceTimerRef.current) { clearTimeout(wsGraceTimerRef.current); wsGraceTimerRef.current = null; }
     if (timerRef.current) clearInterval(timerRef.current);
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     localStreamRef.current = null;
@@ -320,7 +341,14 @@ export default function Softphone() {
     }, 30_000);
 
     session.on('progress', () => log('[4] Chamando…'));
-    session.on('confirmed', () => { updateCallState('active'); startTimer(); log('Chamada conectada ✓'); });
+    session.on('confirmed', () => {
+      // Chamada atendida — cancela o timeout de "sem resposta", senão ele
+      // encerra a ligação sozinho aos 30s mesmo com a chamada já ativa
+      if (dialTimerRef.current) { clearTimeout(dialTimerRef.current); dialTimerRef.current = null; }
+      updateCallState('active');
+      startTimer();
+      log('Chamada conectada ✓');
+    });
     session.on('ended',  () => endSession('Chamada encerrada'));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     session.on('failed', (e: any) => {
