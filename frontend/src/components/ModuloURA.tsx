@@ -761,15 +761,37 @@ export default function ModuloURA() {
               <div>
                 <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Transcrição completa</div>
                 {detailCall.transcription ? (
-                  <pre style={{
+                  <div style={{
                     background: 'var(--bg-input)', border: '1px solid var(--border-glass)',
-                    borderRadius: 8, padding: '12px 14px', fontSize: '.82rem',
-                    lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                    maxHeight: 240, overflowY: 'auto', fontFamily: 'inherit',
-                    color: 'var(--text-primary)', margin: 0,
+                    borderRadius: 8, padding: '12px 14px',
+                    maxHeight: 280, overflowY: 'auto',
+                    display: 'flex', flexDirection: 'column', gap: 12,
                   }}>
-                    {detailCall.transcription}
-                  </pre>
+                    {detailCall.transcription.split('\n').filter(l => l.trim()).map((line, i) => {
+                      // Formato salvo pelo ai-agent: [pergunta da URA]: resposta do cliente
+                      const match = line.match(/^\[(.+?)\]:\s*(.*)$/);
+                      if (!match) {
+                        return (
+                          <div key={i} style={{ fontSize: '.82rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                            {line}
+                          </div>
+                        );
+                      }
+                      const [, pergunta, resposta] = match;
+                      return (
+                        <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                            <span className="badge badge-info" style={{ fontSize: '.62rem', flexShrink: 0, marginTop: 1 }}>URA</span>
+                            <span style={{ fontSize: '.8rem', color: 'var(--text-muted)', fontStyle: 'italic', wordBreak: 'break-word' }}>{pergunta}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, paddingLeft: 6 }}>
+                            <span className="badge badge-success" style={{ fontSize: '.62rem', flexShrink: 0, marginTop: 1 }}>Cliente</span>
+                            <span style={{ fontSize: '.85rem', color: 'var(--text-primary)', fontWeight: 500, wordBreak: 'break-word' }}>{resposta || '—'}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <span style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>Transcrição não disponível</span>
                 )}
