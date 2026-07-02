@@ -379,18 +379,12 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 
 ## Pendências conhecidas (prioridade)
 
-### 🔴 Crítica
-**Áudio WebRTC nunca funcionou em produção**
-
-A cadeia completa nunca foi validada:
-`softphone 9001 → ramal 1000 → AudioSocket → ai-agent:9092 → STT/LLM/TTS → RTP de volta`
-
-Para diagnosticar, sempre verificar primeiro:
-1. `SIP_PUBLIC_IP` injetado corretamente no `pjsip.conf`
-2. `external_media_address` e `external_signaling_address` não vazios
-3. Portas RTP abertas no firewall (`10000-10100/udp`)
-4. ai-agent healthy e escutando na porta 9092
-5. Logs do ai-agent durante uma chamada de teste
+> **Áudio WebRTC validado e funcionando em produção** (confirmado pelo usuário em 2026-07-02) —
+> a cadeia completa `softphone 9001 → ramal 1000 → AudioSocket → ai-agent:9092 → STT/LLM/TTS →
+> RTP de volta` deixou de ser uma pendência crítica. Se voltar a apresentar problema, os pontos
+> de verificação de sempre continuam válidos: `SIP_PUBLIC_IP` injetado no `pjsip.conf`,
+> `external_media_address`/`external_signaling_address` não vazios, portas RTP `10000-10100/udp`
+> abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
 
 ### 🟡 Importantes
 - `SuporteController` cria issues reais no Jira via function calling da IA (tool `abrir_protocolo_suporte`)
