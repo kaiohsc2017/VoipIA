@@ -191,6 +191,10 @@ else
     JWT_SECRET=$(gen_secret)
     AMI_PASS=$(gen_secret)
     INTERNAL_KEY=$(gen_secret)
+    RAMAL_1001_PASS=$(gen_pass)
+    RAMAL_1002_PASS=$(gen_pass)
+    RAMAL_9001_PASS=$(gen_pass)
+    RAMAL_9002_PASS=$(gen_pass)
 
     cat > "$ENV_FILE" << EOF
 # =============================================================================
@@ -230,6 +234,12 @@ SIP_DOMAIN=app.voiphash.com.br
 SIP_TRUNK_HOST=186.233.141.64
 SIP_TRUNK_FROM_DOMAIN=voiphash.com.br
 
+# Ramais internos (senhas de registro SIP, injetadas no pjsip.conf via envsubst)
+RAMAL_1001_PASSWORD=${RAMAL_1001_PASS}
+RAMAL_1002_PASSWORD=${RAMAL_1002_PASS}
+RAMAL_9001_PASSWORD=${RAMAL_9001_PASS}
+RAMAL_9002_PASSWORD=${RAMAL_9002_PASS}
+
 # ── AudioSocket ───────────────────────────────────────────────────────────────
 AUDIOSOCKET_HOST=ai-agent
 AUDIOSOCKET_PORT=9092
@@ -241,7 +251,7 @@ AUDIO_STORAGE_PATH=/var/spool/asterisk/monitor
 VITE_API_URL=https://app.voiphash.com.br/api/v1
 VITE_ASTERISK_WS=wss://app.voiphash.com.br/asterisk-ws
 VITE_SIP_URI=sip:9001@app.voiphash.com.br
-VITE_SIP_PASSWORD=@NIC@2026@_
+VITE_SIP_PASSWORD=${RAMAL_9001_PASS}
 VITE_STUN_URL=stun:stun.l.google.com:19302
 
 # ── CORS ──────────────────────────────────────────────────────────────────────

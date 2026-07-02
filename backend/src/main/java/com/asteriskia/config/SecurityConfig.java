@@ -90,6 +90,13 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.users")
                         .requestMatchers(HttpMethod.GET, "/api/v1/asterisk-config/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.settings")
+                        // Configuração de provedores de IA (AISettingsPanel, dentro da aba
+                        // Configurações) — reusa "telecom.settings" (mesma página, sem menu
+                        // próprio). Achado de segurança: não tinha requestMatcher nenhum e
+                        // caía no anyRequest().authenticated() genérico, liberando qualquer
+                        // autenticado a sobrescrever API keys de IA e redirecionar STT/LLM/TTS.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/ai/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.settings")
                         // Auditoria — só leitura (AuditController não tem endpoint de escrita).
                         // Achado de segurança: catalogado como "telecom.audit" desde a V22 e
                         // exposto como checkbox em AccessGroups.tsx, mas nunca tinha sido
@@ -111,6 +118,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/users/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.users")
                         .requestMatchers("/api/v1/asterisk-config/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.settings")
+                        .requestMatchers("/api/v1/ai/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.settings")
 
                         // Todos os demais endpoints exigem apenas autenticação (JWT ou InternalKey)

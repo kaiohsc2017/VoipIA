@@ -47,9 +47,10 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      # Exposto apenas para acesso local (ex: DBeaver, psql no host).
-      # Remova esta linha se não precisar de acesso externo ao banco.
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Vinculado a 127.0.0.1 — acesso só a partir do próprio host (ex: DBeaver via
+      # túnel SSH, psql local). Achado de segurança: antes publicava em 0.0.0.0,
+      # exposto à internet e só protegido por regra incidental do fail2ban/lockdown.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     networks:
       asteriskia-net:
           ipv4_address: 172.16.7.11

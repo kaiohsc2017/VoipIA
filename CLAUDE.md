@@ -407,6 +407,21 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > `external_media_address`/`external_signaling_address` não vazios, portas RTP `10000-10100/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
 
+### 🟠 Auditoria full-stack pós-RBAC (2026-07-02) — 3 CRITICAL corrigidos, 11 HIGH + 10 MEDIUM + 4 LOW pendentes
+4 agentes `security-reviewer`/`react-reviewer` em paralelo (Java fora do RBAC, Python ai-agent+agents-platform,
+os dois frontends, infraestrutura) acharam 33 problemas; achados de infra confirmados ao vivo em produção
+(`ss`, `iptables -t nat`, `pg_hba.conf`). Ver memória `asteriskia-rbac-granular-feature` e o relatório completo
+em https://claude.ai/code/artifact/b04225b4-fef1-4c3c-95f1-9951de5389c9.
+- ✅ **Corrigidos**: `AiProviderController` sem controle de acesso (`SecurityConfig.java` — matchers
+  `/api/v1/ai/**` reusando `telecom.settings`); `install.sh` não gerava senha dos ramais SIP
+  (`RAMAL_*_PASSWORD` hardcoded/vazio) — agora gera via `gen_pass` e injeta em `VITE_SIP_PASSWORD`;
+  Postgres publicado em `0.0.0.0:5433` — `docker-compose.yml` agora vincula a `127.0.0.1`.
+- ⏳ **11 HIGH ainda pendentes** (destaques): RCE via SSH com `PERM_WRITE_agents.agents`, SSRF em
+  `notifier.py` e `SettingsTestController`, upload/delete de knowledge base sem autorização, senha
+  SIP em texto plano em `GET /users`, mount RW dos scripts do container `security`, credencial TURN
+  visível via `ps`/`docker inspect`.
+- ⏳ **10 MEDIUM + 4 LOW** — ver artifact para a lista completa.
+
 ### 🟡 Importantes
 - `SuporteController` cria issues reais no Jira via function calling da IA (tool `abrir_protocolo_suporte`)
 - Swagger/OpenAPI foi removido do projeto (dependência springdoc retirada do pom.xml)
