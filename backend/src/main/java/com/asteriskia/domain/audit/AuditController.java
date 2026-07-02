@@ -34,7 +34,7 @@ public class AuditController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime dateTo) {
 
         return ResponseEntity.ok(
-                repo.findWithFilters(username, action, dateFrom, dateTo,
+                repo.findAll(AuditLogSpecifications.withFilters(username, action, dateFrom, dateTo),
                         PageRequest.of(page, Math.min(size, 200))));
     }
 
