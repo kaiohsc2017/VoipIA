@@ -109,27 +109,64 @@ function logout() {
 }
 
 /**
- * Extrai a claim "role" do JWT sem validar assinatura — é só um hint de UI
+ * Decodifica o payload de um JWT sem validar assinatura — é só um hint de UI
  * (esconder nav/rotas admin), a autorização real continua sendo aplicada
- * pelo backend em toda requisição. Tokens antigos sem a claim ou payload
- * inválido caem em 'USER' (o menos privilegiado), igual ao JwtService.java.
+ * pelo backend em toda requisição.
+ */
+function decodeTokenPayload(token: string): Record<string, unknown> {
+  const payload = token.split('.')[1];
+  const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+  const json = decodeURIComponent(
+    atob(base64)
+      .split('')
+      .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
+      .join(''),
+  );
+  return JSON.parse(json);
+}
+
+/**
+ * Extrai a claim "role" do JWT — legado (RBAC binário). Tokens antigos sem a
+ * claim ou payload inválido caem em 'USER' (o menos privilegiado), igual ao
+ * JwtService.java.
  */
 export function getRoleFromToken(token: string | null): 'ADMIN' | 'USER' {
   if (!token) return 'USER';
   try {
-    const payload = token.split('.')[1];
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const json = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
-        .join(''),
-    );
-    const claims = JSON.parse(json);
-    return claims.role === 'ADMIN' ? 'ADMIN' : 'USER';
+    return decodeTokenPayload(token).role === 'ADMIN' ? 'ADMIN' : 'USER';
   } catch {
     return 'USER';
   }
+}
+
+/**
+ * Extrai a claim "perm" (grupos de acesso granulares — V22): mapa
+ * {resource_key: "r"|"w"|"rw"}. Tokens emitidos antes do RBAC granular não
+ * têm essa claim — retorna mapa vazio, e quem chama deve tratar ADMIN (role
+ * legada) como acesso total via canRead/canWrite abaixo.
+ */
+export function getPermissionsFromToken(token: string | null): Record<string, string> {
+  if (!token) return {};
+  try {
+    const perm = decodeTokenPayload(token).perm;
+    return perm && typeof perm === 'object' ? (perm as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * ADMIN (role legada) sempre pode — isso é o que mantém uma sessão já aberta
+ * antes do deploy do RBAC granular (token só com "role", sem "perm") ainda
+ * enxergando a navegação certa até relogar, espelhando o fallback dual-emit
+ * do SecurityConfig.java (hasAnyAuthority ROLE_ADMIN OU PERM_*).
+ */
+export function canRead(role: 'ADMIN' | 'USER', perms: Record<string, string>, resource: string): boolean {
+  return role === 'ADMIN' || (perms[resource]?.includes('r') ?? false);
+}
+
+export function canWrite(role: 'ADMIN' | 'USER', perms: Record<string, string>, resource: string): boolean {
+  return role === 'ADMIN' || (perms[resource]?.includes('w') ?? false);
 }
 
 export default api;

@@ -121,18 +121,40 @@ function clearAuth(){ localStorage.removeItem(TOKEN_KEY); localStorage.removeIte
 // Extrai a claim "role" do JWT (mesmo token/segredo do backend Telecom) sem validar
 // assinatura — só um hint de UI pra esconder nav/botoes admin; a autorizacao real
 // continua sendo aplicada pelo agents-backend (auth.py require_admin) em cada request.
+function _decodeTokenPayload(tok){
+  var b64 = tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+  while (b64.length % 4) b64 += '=';
+  var json = decodeURIComponent(atob(b64).split('').map(function(c){
+    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+  }).join(''));
+  return JSON.parse(json);
+}
 function getRole(){
   var tok = getToken();
   if (!tok) return 'USER';
   try {
-    var b64 = tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
-    while (b64.length % 4) b64 += '=';
-    var json = decodeURIComponent(atob(b64).split('').map(function(c){
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    var claims = JSON.parse(json);
-    return claims.role === 'ADMIN' ? 'ADMIN' : 'USER';
+    return _decodeTokenPayload(tok).role === 'ADMIN' ? 'ADMIN' : 'USER';
   } catch (e) { return 'USER'; }
+}
+// Claim "perm" (grupos de acesso granulares - V22): {resource_key: "r"|"w"|"rw"}.
+// Tokens emitidos antes do RBAC granular nao tem essa claim - mapa vazio, e quem
+// chama trata ADMIN (role legada) como acesso total via canRead/canWrite abaixo.
+function getPermissions(){
+  var tok = getToken();
+  if (!tok) return {};
+  try {
+    var perm = _decodeTokenPayload(tok).perm;
+    return (perm && typeof perm === 'object') ? perm : {};
+  } catch (e) { return {}; }
+}
+// ADMIN (role legada) sempre pode - mantem uma sessao ja aberta antes do deploy
+// do RBAC granular (token so com "role") enxergando a nav certa ate relogar,
+// espelhando o fallback dual-emit do SecurityConfig.java/auth.py.
+function canRead(role, perms, resource){
+  return role === 'ADMIN' || (perms[resource] || '').indexOf('r') !== -1;
+}
+function canWrite(role, perms, resource){
+  return role === 'ADMIN' || (perms[resource] || '').indexOf('w') !== -1;
 }
 
 
@@ -1217,21 +1239,20 @@ function Reports() {
 }
 
 // ── APP ───────────────────────────────────────────────────────────────────────
-// adminOnly reflete o que auth.py (require_admin) exige nos routers correspondentes
-// (system.py /secrets, llm_config.py /config e /test) — sincronizar manualmente.
+// resource espelha o catálogo do RBAC granular (ResourceCatalog.java /
+// access_group_permissions, prefixo "agents.") — sincronizar manualmente.
+// Itens "external" (docs) não passam por permissão, são só um link estático.
 var NAV = [
-  {id:'dashboard', label:'Dashboard',          icon:'dashboard'},
-  {id:'agents',    label:'Agentes',            icon:'agents'},
-  {id:'servers',   label:'Servidores',         icon:'servers'},
-  {id:'knowledge', label:'Base de Conhecimento',icon:'knowledge'},
-  {id:'logs',      label:'Logs',               icon:'logs'},
-  {id:'reports',   label:'Alertas',            icon:'reports'},
-  {id:'secrets',   label:'Secrets',             icon:'key', adminOnly:true},
+  {id:'dashboard', label:'Dashboard',          icon:'dashboard',  resource:'agents.dashboard'},
+  {id:'agents',    label:'Agentes',            icon:'agents',     resource:'agents.agents'},
+  {id:'servers',   label:'Servidores',         icon:'servers',    resource:'agents.servers'},
+  {id:'knowledge', label:'Base de Conhecimento',icon:'knowledge', resource:'agents.knowledge'},
+  {id:'logs',      label:'Logs',               icon:'logs',       resource:'agents.logs'},
+  {id:'reports',   label:'Alertas',            icon:'reports',    resource:'agents.reports'},
+  {id:'secrets',   label:'Secrets',             icon:'key',       resource:'agents.secrets'},
   {id:'docs',      label:'Documentação',        icon:'book', external: true},
-  {id:'llm',       label:'Config. IA',          icon:'settings', adminOnly:true}
+  {id:'llm',       label:'Config. IA',          icon:'settings',  resource:'agents.llm'}
 ];
-var NAV_ADMIN_ONLY = {};
-NAV.forEach(function(p){ if(p.adminOnly) NAV_ADMIN_ONLY[p.id] = true; });
 
 function App(props) {
   var pgState  = useState('dashboard');
@@ -1261,24 +1282,28 @@ function App(props) {
     return function(){try{if(ws)ws.close();}catch(e){}};
   },[]);
 
-  var isAdmin = props.role === 'ADMIN';
+  var role = props.role, perms = props.perms || {};
+  var canWriteAgents  = canWrite(role, perms, 'agents.agents');
+  var canWriteServers = canWrite(role, perms, 'agents.servers');
 
   // Renderiza apenas a página ativa — evita mount simultâneo de todos os componentes
   var pageMap = {
     dashboard: function(){ return h(Dashboard); },
-    agents:    function(){ return h(Agents, {servers: servers, isAdmin: isAdmin}); },
-    servers:   function(){ return h(Servers, {isAdmin: isAdmin}); },
+    agents:    function(){ return h(Agents, {servers: servers, isAdmin: canWriteAgents}); },
+    servers:   function(){ return h(Servers, {isAdmin: canWriteServers}); },
     knowledge: function(){ return h(Knowledge); },
     logs:      function(){ return h(LogsPage); },
     reports:   function(){ return h(Reports); },
     secrets:   function(){ return h(SecretsPage); },
     llm:       function(){ return h(LLMSettings); }
   };
-  // Página admin-only acessada sem ser admin (estado preso de antes do login
+  // Página sem permissão de leitura acessada (estado preso de antes do login
   // trocar de usuário, por exemplo): volta pro dashboard em vez de renderizar.
-  var activePage = (pageMap[page] && (!NAV_ADMIN_ONLY[page] || isAdmin)) ? pageMap[page]() : pageMap.dashboard();
+  var navById = {}; NAV.forEach(function(p){ navById[p.id] = p; });
+  var canOpenPage = function(id){ var p = navById[id]; return !p || !p.resource || canRead(role, perms, p.resource); };
+  var activePage = (pageMap[page] && canOpenPage(page)) ? pageMap[page]() : pageMap.dashboard();
 
-  var navItems = NAV.filter(function(p){ return !p.adminOnly || isAdmin; }).map(function(p) {
+  var navItems = NAV.filter(function(p){ return !p.resource || canRead(role, perms, p.resource); }).map(function(p) {
     if (p.external) {
       return h('div', {key:p.id, className:'nitem', style:{cursor:'pointer'},
         onClick:function(){ window.open('/agents/docs.html','_blank'); }},
@@ -1599,10 +1624,11 @@ function Root() {
   var authS=useState(getToken()); var token=authS[0]; var setToken=authS[1];
   var userS=useState(getUser());  var user=userS[0];  var setUser=userS[1];
   var roleS=useState(getRole());  var role=roleS[0];  var setRole=roleS[1];
-  function onLogin(tok,usr){setToken(tok);setUser(usr);setRole(getRole());}
-  function onLogout(){clearAuth();setToken(null);setUser('');setRole('USER');}
+  var permS=useState(getPermissions()); var perms=permS[0]; var setPerms=permS[1];
+  function onLogin(tok,usr){setToken(tok);setUser(usr);setRole(getRole());setPerms(getPermissions());}
+  function onLogout(){clearAuth();setToken(null);setUser('');setRole('USER');setPerms({});}
   if(!token){return h(Login,{onLogin:onLogin});}
-  return h(App,{onLogout:onLogout,user:user,role:role});
+  return h(App,{onLogout:onLogout,user:user,role:role,perms:perms});
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(h(Root));</script>

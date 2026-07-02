@@ -4,7 +4,7 @@ import Login from './components/Login';
 import Sidebar, { type Page } from './components/Sidebar';
 import ModuloLogs from './components/ModuloLogs';
 import ModuloSeguranca from './components/ModuloSeguranca';
-import { revokeSession, getRoleFromToken } from './api/client';
+import { revokeSession, getRoleFromToken, getPermissionsFromToken, canRead } from './api/client';
 
 // ─── Lazy imports — cada módulo vira um chunk separado ───────────────────────
 // O React cria um chunk JS separado para cada componente lazy.
@@ -82,23 +82,38 @@ function PageLoader() {
 
 // ─── App ───────────────────────────────────────────────────────────────────────
 
-// Páginas que o backend (SecurityConfig) exige ROLE_ADMIN: /users/**, /settings/**,
-// /logs/**, /security/**. Mantido em sincronia manual com SecurityConfig.java.
-const ADMIN_ONLY_PAGES: Page[] = ['users', 'settings', 'logs', 'security'];
+// Mapeia cada página interna pro resource_key do RBAC granular (ResourceCatalog.java
+// / access_group_permissions) — mantido em sincronia manual com o backend.
+const PAGE_RESOURCE: Partial<Record<Page, string>> = {
+  dashboard:  'telecom.dashboard',
+  modulo1:    'telecom.modulo1',
+  modulo2:    'telecom.modulo2',
+  modulo3:    'telecom.modulo3',
+  masterdata: 'telecom.masterdata',
+  users:      'telecom.users',
+  settings:   'telecom.settings',
+  logs:       'telecom.logs',
+  security:   'telecom.security',
+  audit:      'telecom.audit',
+};
 
 export default function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('asteriskia_token'));
   const [username, setUsername] = useState<string>(() => localStorage.getItem('asteriskia_user') ?? '');
   const [role, setRole] = useState<'ADMIN' | 'USER'>(() => getRoleFromToken(localStorage.getItem('asteriskia_token')));
+  const [perms, setPerms] = useState<Record<string, string>>(() => getPermissionsFromToken(localStorage.getItem('asteriskia_token')));
   const pageFromHash = (): Page => {
     const hash = window.location.hash.replace('#', '').trim() as Page;
     const valid: Page[] = ['dashboard','modulo1','modulo2','modulo3','masterdata','users','settings','audit','logs','security'];
     if (!valid.includes(hash)) return 'dashboard';
-    // Acesso direto via hash (digitado/favoritado) a página admin-only sem ser admin:
-    // volta pro dashboard. O botão de nav já fica escondido (ver Sidebar.tsx), isso
-    // cobre quem navega direto pela URL.
-    const currentRole = getRoleFromToken(localStorage.getItem('asteriskia_token'));
-    if (ADMIN_ONLY_PAGES.includes(hash) && currentRole !== 'ADMIN') return 'dashboard';
+    // Acesso direto via hash (digitado/favoritado) a uma página sem permissão de
+    // leitura: volta pro dashboard. O botão de nav já fica escondido (ver
+    // Sidebar.tsx), isso cobre quem navega direto pela URL.
+    const currentToken = localStorage.getItem('asteriskia_token');
+    const currentRole = getRoleFromToken(currentToken);
+    const currentPerms = getPermissionsFromToken(currentToken);
+    const resource = PAGE_RESOURCE[hash];
+    if (resource && !canRead(currentRole, currentPerms, resource)) return 'dashboard';
     return hash;
   };
   const [page, setPage] = useState<Page>(pageFromHash);
@@ -122,6 +137,7 @@ export default function App() {
     setToken(t);
     setUsername(user);
     setRole(getRoleFromToken(t));
+    setPerms(getPermissionsFromToken(t));
     setPage(pageFromHash());
   };
 
@@ -132,6 +148,7 @@ export default function App() {
     setToken(null);
     setUsername('');
     setRole('USER');
+    setPerms({});
   };
 
   // ---- Não autenticado: tela de login ----
@@ -152,6 +169,7 @@ export default function App() {
           onNavigate={(p) => { setPage(p); window.location.hash = p; }}
           username={username}
           role={role}
+          perms={perms}
           onLogout={handleSignOut}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(c => !c)}

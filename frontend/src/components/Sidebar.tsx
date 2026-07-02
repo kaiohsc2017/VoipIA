@@ -1,3 +1,5 @@
+import { canRead } from '../api/client';
+
 type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings' | 'audit' | 'logs' | 'security' | 'agents';
 
 interface SidebarProps {
@@ -5,30 +7,31 @@ interface SidebarProps {
   onNavigate: (page: Page) => void;
   username: string;
   role: 'ADMIN' | 'USER';
+  perms: Record<string, string>;
   onLogout: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
 }
 
-// adminOnly reflete exatamente o que SecurityConfig.java exige com hasRole("ADMIN")
-// (/users/**, /settings/**, /logs/**, /security/**) — manter em sincronia manual.
-const NAV_ITEMS: { page: Page; icon: string; label: string; section: string; external?: string; adminOnly?: boolean }[] = [
-  { page: 'dashboard',  icon: '📊', label: 'Dashboard',          section: 'GERAL'     },
-  { page: 'modulo1',    icon: '🎫', label: 'URA',                section: 'MÓDULOS'   },
-  { page: 'modulo2',    icon: '📞', label: 'Conectividade',      section: 'MÓDULOS'   },
-  { page: 'modulo3',    icon: '🚨', label: 'Monitoramento',      section: 'MÓDULOS'   },
-  { page: 'agents',     icon: '🤖', label: 'Agentes',            section: 'MÓDULOS',  external: '/agents/' },
-  { page: 'masterdata', icon: '👤', label: 'Clientes',           section: 'CADASTROS' },
-  { page: 'users',      icon: '👥', label: 'Usuários e Ramais',  section: 'CADASTROS', adminOnly: true },
-  { page: 'settings',   icon: '🔧', label: 'Configurações',      section: 'SISTEMA',   adminOnly: true },
-  { page: 'logs',       icon: '🖥️', label: 'Logs',               section: 'SISTEMA',   adminOnly: true },
-  { page: 'security',   icon: '🛡️', label: 'Segurança',          section: 'SISTEMA',   adminOnly: true },
-  { page: 'audit',      icon: '🔐', label: 'Auditoria',          section: 'SISTEMA'   },
+// resource espelha o catálogo de recursos do RBAC granular (ResourceCatalog.java
+// / access_group_permissions) — manter em sincronia manual com o backend.
+const NAV_ITEMS: { page: Page; icon: string; label: string; section: string; external?: string; resource: string }[] = [
+  { page: 'dashboard',  icon: '📊', label: 'Dashboard',          section: 'GERAL',     resource: 'telecom.dashboard'    },
+  { page: 'modulo1',    icon: '🎫', label: 'URA',                section: 'MÓDULOS',   resource: 'telecom.modulo1'      },
+  { page: 'modulo2',    icon: '📞', label: 'Conectividade',      section: 'MÓDULOS',   resource: 'telecom.modulo2'      },
+  { page: 'modulo3',    icon: '🚨', label: 'Monitoramento',      section: 'MÓDULOS',   resource: 'telecom.modulo3'      },
+  { page: 'agents',     icon: '🤖', label: 'Agentes',            section: 'MÓDULOS',   resource: 'telecom.agents_link', external: '/agents/' },
+  { page: 'masterdata', icon: '👤', label: 'Clientes',           section: 'CADASTROS', resource: 'telecom.masterdata'   },
+  { page: 'users',      icon: '👥', label: 'Usuários e Ramais',  section: 'CADASTROS', resource: 'telecom.users'        },
+  { page: 'settings',   icon: '🔧', label: 'Configurações',      section: 'SISTEMA',   resource: 'telecom.settings'     },
+  { page: 'logs',       icon: '🖥️', label: 'Logs',               section: 'SISTEMA',   resource: 'telecom.logs'         },
+  { page: 'security',   icon: '🛡️', label: 'Segurança',          section: 'SISTEMA',   resource: 'telecom.security'     },
+  { page: 'audit',      icon: '🔐', label: 'Auditoria',          section: 'SISTEMA',   resource: 'telecom.audit'        },
 ];
 
-export default function Sidebar({ currentPage, onNavigate, username, role, onLogout, collapsed, onToggleCollapse }: SidebarProps) {
+export default function Sidebar({ currentPage, onNavigate, username, role, perms, onLogout, collapsed, onToggleCollapse }: SidebarProps) {
   let lastSection = '';
-  const visibleItems = NAV_ITEMS.filter(item => !item.adminOnly || role === 'ADMIN');
+  const visibleItems = NAV_ITEMS.filter(item => canRead(role, perms, item.resource));
 
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
