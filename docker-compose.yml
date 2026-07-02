@@ -309,11 +309,18 @@ services:
     volumes:
       - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
       - /var/lib/docker/volumes/asteriskia_caddy_data/_data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/app.voiphash.com.br:/etc/coturn/tls:ro
-    entrypoint: ["/bin/sh", "-c"]
-    command: >-
-      cp /etc/coturn/turnserver.conf /tmp/turnserver.conf &&
-      echo "user=asteriskia:$$TURN_CREDENTIAL" >> /tmp/turnserver.conf &&
-      exec turnserver -c /tmp/turnserver.conf
+    # Achado (deploy): `command:` como string era tokenizado pelo Docker Compose
+    # (shlex, sem entender && / redirecionamento) e truncava no primeiro "&&" —
+    # só "cp ..." executava, o resto virava argv solto ($0/$1/... nunca lidos
+    # pelo `sh -c`). Script inteiro precisa ser UM item de lista em `entrypoint`
+    # pra ser tratado como string única, sem tokenização.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        cp /etc/coturn/turnserver.conf /tmp/turnserver.conf &&
+        echo "user=asteriskia:$$TURN_CREDENTIAL" >> /tmp/turnserver.conf &&
+        exec turnserver -c /tmp/turnserver.conf
 
   # ---------------------------------------------------------------------------
   # Security — Fail2ban + nftables (lockdown SIP)
