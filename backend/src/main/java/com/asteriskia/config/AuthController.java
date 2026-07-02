@@ -63,7 +63,8 @@ public class AuthController {
 
         // 2. Fallback: credenciais de ambiente (compatibilidade retroativa)
         if (adminUsername.equals(request.username()) && adminPassword.equals(request.password())) {
-            String token = jwtService.generateToken(request.username(), 9001);
+            // Fallback via env é sempre a conta mestre — tratado como ADMIN.
+            String token = jwtService.generateToken(request.username(), 9001, "ADMIN");
             String refreshToken = refreshTokenService.generateRefreshToken(request.username());
             auditService.logAs(httpRequest, request.username(), "LOGIN",
                     "Login via variáveis de ambiente (fallback)", true);
@@ -94,7 +95,7 @@ public class AuthController {
         }
 
         // Login normal (sem 2FA)
-        String token = jwtService.generateToken(user.getUsername(), user.getExtension());
+        String token = jwtService.generateToken(user.getUsername(), user.getExtension(), user.getRole());
         String refreshToken = refreshTokenService.generateRefreshToken(user.getUsername());
         auditService.logAs(request, user.getUsername(), "LOGIN",
                 "Login bem-sucedido (ramal " + user.getExtension() + ")", true);
@@ -120,16 +121,18 @@ public class AuthController {
         
         Integer extension = 9001;
         String displayName = "Administrador";
-        
+        String role = adminUsername.equals(username) ? "ADMIN" : "USER";
+
         Optional<AppUser> userOpt = userRepo.findByUsernameAndIsActiveTrue(username);
         if (userOpt.isPresent()) {
             extension = userOpt.get().getExtension();
             displayName = userOpt.get().getDisplayName();
+            role = userOpt.get().getRole();
         }
 
         // Rotação: revoga o antigo e gera um novo
         refreshTokenService.revokeRefreshToken(reqRefreshToken);
-        String newJwt = jwtService.generateToken(username, extension);
+        String newJwt = jwtService.generateToken(username, extension, role);
         String newRefreshToken = refreshTokenService.generateRefreshToken(username);
 
         log.info("Token renovado via refresh para '{}'", username);
