@@ -24,8 +24,11 @@ let pendingSubs: Array<() => void> = [];
 export function connectWebSocket(onConnected?: () => void): Client {
   if (client?.active) return client;
 
+  const token = localStorage.getItem('asteriskia_token');
   client = new Client({
     webSocketFactory: () => new SockJS(`${WS_URL}/ws`),
+    // Autentica no frame CONNECT — o backend rejeita sem JWT válido.
+    connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
     reconnectDelay: 5000,
     onConnect: () => {
       console.log('[WS] Conectado ao broker STOMP');
