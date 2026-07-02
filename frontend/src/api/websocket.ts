@@ -35,14 +35,12 @@ export function connectWebSocket(onConnected?: () => void): Client {
     connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
     reconnectDelay: 5000,
     onConnect: () => {
-      console.log('[WS] Conectado ao broker STOMP');
       onConnected?.();
       // Executa subscriptions que chegaram antes da conexão estar pronta
       const toRun = [...pendingSubs];
       pendingSubs = [];
       toRun.forEach(fn => fn());
     },
-    onDisconnect: () => console.log('[WS] Desconectado'),
     onStompError: (frame) => console.error('[WS] Erro STOMP:', frame),
   });
 
