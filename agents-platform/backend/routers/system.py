@@ -2,16 +2,21 @@
 from fastapi import APIRouter, HTTPException, Depends
 from uuid import UUID
 from database import DB
-from auth import require_admin
+from auth import require_admin, require_permission
 import asyncio, logging
 
 logger = logging.getLogger("asteriskia.system")
 
 router = APIRouter()
 
-# Retenção (config operacional) e secrets por agente (credenciais) — restrito a ADMIN.
+# Retenção: config operacional sem menu próprio no catálogo de recursos —
+# continua restrita a ADMIN puro (não há um resource_key pra checar).
 # /health continua público (ver _PUBLIC em main.py, usado por uptime monitors).
 _ADMIN = [Depends(require_admin)]
+
+# Secrets por agente (credenciais) — tela "Secrets" no catálogo.
+_SECRETS_READ  = [Depends(require_permission("agents.secrets", "read"))]
+_SECRETS_WRITE = [Depends(require_permission("agents.secrets", "write"))]
 
 # ── Health Check ──────────────────────────────────────────────────────────────
 
@@ -80,7 +85,7 @@ async def run_retention_now():
 
 # ── Secrets por agente ────────────────────────────────────────────────────────
 
-@router.get("/agents/{agent_id}/secrets", dependencies=_ADMIN)
+@router.get("/agents/{agent_id}/secrets", dependencies=_SECRETS_READ)
 async def list_secrets(agent_id: UUID):
     async with DB() as db:
         rows = await db.fetch(
@@ -88,7 +93,7 @@ async def list_secrets(agent_id: UUID):
             agent_id)
         return [dict(r) for r in rows]  # value nunca retornado na listagem
 
-@router.post("/agents/{agent_id}/secrets", dependencies=_ADMIN)
+@router.post("/agents/{agent_id}/secrets", dependencies=_SECRETS_WRITE)
 async def upsert_secret(agent_id: UUID, body: dict):
     key   = str(body.get("key", "")).strip()
     value = str(body.get("value", "")).strip()
@@ -102,7 +107,7 @@ async def upsert_secret(agent_id: UUID, body: dict):
         """, agent_id, key, value)
     return {"ok": True, "key": key}
 
-@router.delete("/agents/{agent_id}/secrets/{key}", dependencies=_ADMIN)
+@router.delete("/agents/{agent_id}/secrets/{key}", dependencies=_SECRETS_WRITE)
 async def delete_secret(agent_id: UUID, key: str):
     async with DB() as db:
         await db.execute(

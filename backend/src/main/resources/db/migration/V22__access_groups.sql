@@ -69,7 +69,7 @@ INSERT INTO access_group_permissions (group_id, resource_key, can_read, can_writ
     (2, 'agents.agents',         TRUE,  FALSE), -- criar/editar/excluir/executar exige ADMIN
     (2, 'agents.servers',        TRUE,  FALSE), -- escrita/teste exige ADMIN
     (2, 'agents.knowledge',      TRUE,  TRUE),
-    (2, 'agents.logs',           TRUE,  FALSE), -- página só de leitura
+    (2, 'agents.logs',           FALSE, FALSE), -- executions.py GET /logs exige ADMIN (evita leak de DSN/senha em erro)
     (2, 'agents.reports',        TRUE,  FALSE), -- alertas são só leitura
     (2, 'agents.secrets',        FALSE, FALSE), -- system.py exige ADMIN em tudo
     (2, 'agents.llm',            FALSE, FALSE); -- GET /config já exige ADMIN
