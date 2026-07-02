@@ -2,13 +2,11 @@ package com.asteriskia.domain.audit;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 /**
- * AuditService — Gravação assíncrona de eventos de auditoria (Fase 13).
+ * AuditService — Ponto de entrada da auditoria de eventos do sistema (Fase 13).
  *
  * Uso:
  *   auditService.log(request, "LOGIN", "Usuário kaio autenticado", true);
@@ -16,52 +14,37 @@ import org.springframework.stereotype.Service;
  *
  * O username é lido automaticamente do SecurityContext quando disponível.
  * Para o login, passe o username explicitamente via logAs().
+ *
+ * IP/User-Agent são extraídos do HttpServletRequest aqui, síncrono, na
+ * própria thread da requisição — nunca passar o HttpServletRequest para a
+ * escrita assíncrona (AuditWriter): por essa altura a resposta já pode ter
+ * sido enviada e o Tomcat reciclado o objeto da requisição.
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuditService {
 
-    private final AuditLogRepository repo;
+    private final AuditWriter writer;
+    private static final int MAX_DETAILS_LENGTH = 2000;
 
     /** Loga ação do usuário autenticado no contexto de segurança atual. */
-    @Async
     public void log(HttpServletRequest request, String action, String details, boolean success) {
-        String username = resolveUsername();
-        persist(username, resolveIp(request), resolveUserAgent(request), action, details, success);
+        writer.write(resolveUsername(), resolveIp(request), resolveUserAgent(request),
+                action, truncate(details, MAX_DETAILS_LENGTH), success);
     }
 
     /** Loga ação com username explícito (para login/logout antes de ter contexto). */
-    @Async
     public void logAs(HttpServletRequest request, String username, String action, String details, boolean success) {
-        persist(username, resolveIp(request), resolveUserAgent(request), action, details, success);
+        writer.write(username, resolveIp(request), resolveUserAgent(request),
+                action, truncate(details, MAX_DETAILS_LENGTH), success);
     }
 
     /** Loga sem request (para jobs agendados ou serviços internos). */
-    @Async
     public void logSystem(String username, String action, String details, boolean success) {
-        persist(username, "system", null, action, details, success);
+        writer.write(username, "system", null, action, truncate(details, MAX_DETAILS_LENGTH), success);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
-
-    private void persist(String username, String ip, String userAgent,
-                         String action, String details, boolean success) {
-        try {
-            AuditLog entry = AuditLog.builder()
-                    .username(username)
-                    .ipAddress(ip)
-                    .userAgent(userAgent)
-                    .action(action)
-                    .details(truncate(details, 2000))
-                    .success(success)
-                    .build();
-            repo.save(entry);
-        } catch (Exception e) {
-            // Auditoria nunca deve derrubar a requisição principal
-            log.error("Erro ao gravar audit log [action={}]: {}", action, e.getMessage());
-        }
-    }
 
     private String resolveUsername() {
         try {
@@ -75,20 +58,28 @@ public class AuditService {
 
     private String resolveIp(HttpServletRequest request) {
         if (request == null) return null;
-        // Suporta proxies reversos (Caddy, Nginx)
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+        try {
+            // Suporta proxies reversos (Caddy, Nginx)
+            String forwarded = request.getHeader("X-Forwarded-For");
+            if (forwarded != null && !forwarded.isBlank()) {
+                return forwarded.split(",")[0].trim();
+            }
+            String realIp = request.getHeader("X-Real-IP");
+            if (realIp != null && !realIp.isBlank()) return realIp.trim();
+            return request.getRemoteAddr();
+        } catch (Exception ignored) {
+            return null;
         }
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) return realIp.trim();
-        return request.getRemoteAddr();
     }
 
     private String resolveUserAgent(HttpServletRequest request) {
         if (request == null) return null;
-        String ua = request.getHeader("User-Agent");
-        return ua != null ? truncate(ua, 512) : null;
+        try {
+            String ua = request.getHeader("User-Agent");
+            return ua != null ? truncate(ua, 512) : null;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private String truncate(String s, int max) {
