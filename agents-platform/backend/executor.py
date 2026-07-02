@@ -660,6 +660,11 @@ class DatabaseExecutor:
                     failed += 1
                     report["checks"].append({"name": name, "ok": False, "reason": "DSN/query ausente"})
                     continue
+                # Achado de segurança: o caminho de sucesso já sanitiza a DSN antes
+                # de logar (só host, nunca usuário/senha) — o except genérico abaixo
+                # não tinha a mesma cautela, e str(e) do asyncpg pode ecoar a DSN
+                # inteira (ex: erro de parsing de connection string).
+                safe_dsn = dsn.split("@")[-1].split("/")[0] if "@" in dsn else dsn[:30]
                 try:
                     import asyncpg as _pg
                     conn = await asyncio.wait_for(_pg.connect(dsn), timeout=self.timeout)
@@ -672,8 +677,7 @@ class DatabaseExecutor:
                     fix = check.get("fix_hint", "") if not ok else ""
                     msg = f"{'✓' if ok else '✗'} {name}: {reason}"
                     if fix: msg += f" → {fix}"
-                    await self._emit(db, "success" if ok else "error", msg,
-                                     dsn.split("@")[-1].split("/")[0] if "@" in dsn else dsn[:30])
+                    await self._emit(db, "success" if ok else "error", msg, safe_dsn)
                     if ok: passed += 1
                     else:
                         failed += 1
@@ -690,8 +694,14 @@ class DatabaseExecutor:
                     await self._emit(db, "error", f"✗ {name}: timeout ({self.timeout}s)")
                     failed += 1; report["checks"].append({"name": name, "ok": False, "reason": "timeout"})
                 except Exception as e:
-                    await self._emit(db, "error", f"✗ {name}: {e}")
-                    failed += 1; report["checks"].append({"name": name, "ok": False, "reason": str(e)})
+                    # Achado da revisão: o replace() por substring exata não pega o caso em
+                    # que o asyncpg decodifica (urllib.parse.unquote) usuário/senha da DSN
+                    # antes de ecoar no erro — a forma decodificada não bate com a DSN
+                    # original char a char. Regex incondicional em qualquer "user:pass@"
+                    # cobre a DSN original E variações decodificadas/reserializadas.
+                    err_msg = re.sub(r'://[^:@/\s]+:[^@/\s]+@', '://***:***@', str(e))
+                    await self._emit(db, "error", f"✗ {name}: {err_msg}")
+                    failed += 1; report["checks"].append({"name": name, "ok": False, "reason": err_msg})
         return {"total": total, "passed": passed, "failed": failed, "report": report}
 
 

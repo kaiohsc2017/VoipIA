@@ -100,34 +100,31 @@ class GeminiProvider(BaseAIProvider):
         system_instruction: str,
         history: list[dict],
     ) -> str:
+        # Achado de segurança/correção (bug garantido de TypeError se exercitado):
+        # _execute_tool exige (tool_name, args, loop) — faltava o loop, capturado
+        # aqui antes de despachar pra thread (asyncio.get_running_loop() dentro da
+        # thread de _llm_sync levantaria RuntimeError por não haver loop rodando).
+        loop = asyncio.get_running_loop()
         try:
             return await asyncio.to_thread(
-                self._llm_sync, system_instruction, history
+                self._llm_sync, system_instruction, history, loop
             )
         except Exception as e:
             raise ProviderError("gemini", self._model_id, e) from e
 
-    def _llm_sync(self, system_instruction: str, history: list[dict]) -> str:
+    def _llm_sync(self, system_instruction: str, history: list[dict],
+                  loop: asyncio.AbstractEventLoop) -> str:
         from google.genai import types as t
-        from src.services.gemini_service import _execute_tool
+        from src.services.gemini_service import _execute_tool, _TOOLS
 
+        # Reusa a mesma declaração de tool de gemini_service.py — schema próprio
+        # aqui (nome "create_jira_issue", args summary/description/priority)
+        # divergia do que _execute_tool realmente espera ("abrir_protocolo_suporte",
+        # args descricao/prioridade), quebrando com TypeError/KeyError se o Gemini
+        # chegasse a chamar a função.
         config = t.GenerateContentConfig(
             system_instruction=system_instruction,
-            tools=[t.Tool(function_declarations=[
-                t.FunctionDeclaration(
-                    name="create_jira_issue",
-                    description="Cria chamado no Jira com os dados coletados",
-                    parameters=t.Schema(
-                        type="OBJECT",
-                        properties={
-                            "summary":     t.Schema(type="STRING"),
-                            "description": t.Schema(type="STRING"),
-                            "priority":    t.Schema(type="STRING"),
-                        },
-                        required=["summary"],
-                    ),
-                )
-            ])],
+            tools=[_TOOLS],
         )
 
         contents = [
@@ -149,7 +146,7 @@ class GeminiProvider(BaseAIProvider):
             if not (hasattr(part, "function_call") and part.function_call):
                 break
             fc = part.function_call
-            result = _execute_tool(fc.name, dict(fc.args))
+            result = _execute_tool(fc.name, dict(fc.args), loop)
             contents += [
                 resp.candidates[0].content,
                 t.Content(role="user", parts=[t.Part(

@@ -58,20 +58,30 @@ export default function MasterData() {
       }
       setShowModal(false);
       load();
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? 'Erro ao salvar.');
     } finally {
       setSaving(false);
     }
   };
 
   const toggleActive = async (item: GenericEntity) => {
-    await api.put(`/${currentTab.endpoint}/${item.id}`, { ...item, isActive: !item.isActive });
-    load();
+    try {
+      await api.put(`/${currentTab.endpoint}/${item.id}`, { ...item, isActive: !item.isActive });
+      load();
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? 'Erro ao alterar status.');
+    }
   };
 
   const remove = async (item: GenericEntity) => {
     if (!confirm(`Remover "${item.name}"? Esta ação não pode ser desfeita.`)) return;
-    await api.delete(`/${currentTab.endpoint}/${item.id}`);
-    load();
+    try {
+      await api.delete(`/${currentTab.endpoint}/${item.id}`);
+      load();
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? 'Erro ao remover.');
+    }
   };
 
   const activeCount = items.filter(i => i.isActive).length;

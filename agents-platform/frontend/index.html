@@ -458,7 +458,7 @@ function SecretsPage() {
       h('div',{className:'card',style:{marginBottom:16}},
         h('div',{className:'ch'},h('span',{className:'cht'},'Selecionar agente')),
         h('div',{className:'fg'},
-          h('select',{value:selAgent,onChange:function(e){selectAgent(e.target.value);}},agentOpts)
+          h('select',{'aria-label':'Selecione o agente',value:selAgent,onChange:function(e){selectAgent(e.target.value);}},agentOpts)
         )
       ),
 
@@ -468,12 +468,12 @@ function SecretsPage() {
         h('div',{className:'fr',style:{gap:10,alignItems:'flex-end'}},
           h('div',{className:'fg',style:{flex:1}},
             h('label',null,'Chave'),
-            h('input',{value:form.key,placeholder:'DB_PASSWORD',
+            h('input',{'aria-label':'Chave','value':form.key,placeholder:'DB_PASSWORD',
               onChange:function(e){setForm(function(f){return Object.assign({},f,{key:e.target.value});});}})
           ),
           h('div',{className:'fg',style:{flex:2}},
             h('label',null,'Valor'),
-            h('input',{type:'password',value:form.value,placeholder:'valor secreto',
+            h('input',{'aria-label':'Valor',type:'password',value:form.value,placeholder:'valor secreto',
               onChange:function(e){setForm(function(f){return Object.assign({},f,{value:e.target.value});});}})
           ),
           h('button',{className:'btn btn-p',style:{flexShrink:0,marginBottom:1},onClick:save},
@@ -567,6 +567,7 @@ function LogModal(props) {
         h('div', {className: 'fg'},
           h('label', null, 'Execucao'),
           h('select', {
+            'aria-label': 'Execucao',
             value: st.selExec,
             onChange: function(e){ selectExec(e.target.value); },
             disabled: st.execs.length === 0 || st.loading
@@ -580,6 +581,7 @@ function LogModal(props) {
           h('a', {
             href: API + '/api/reports/execution/' + st.selExec + '/html',
             target: '_blank',
+            rel: 'noopener noreferrer',
             className: 'btn btn-g btn-sm'
           }, h(Ico,{n:'download',s:13}), ' Exportar HTML')
         ),
@@ -692,11 +694,11 @@ function AgentForm(props) {
         h('div', {className:'fr'},
           h('div', {className:'fg'},
             h('label',null,'Nome'),
-            h('input',{value:form.name, onChange:function(e){setF('name',e.target.value)}, placeholder:'Ex: Monitor Nginx Prod'})
+            h('input',{'aria-label':'Nome',value:form.name, onChange:function(e){setF('name',e.target.value)}, placeholder:'Ex: Monitor Nginx Prod'})
           ),
           h('div', {className:'fg'},
             h('label',null,'Tipo'),
-            h('select',{value:form.type, onChange:function(e){setF('type',e.target.value)}},
+            h('select',{'aria-label':'Tipo',value:form.type, onChange:function(e){setF('type',e.target.value)}},
               h('option',{value:'ssh_test'},'Teste SSH'),
               h('option',{value:'web_monitor'},'Monitor Web'),
               h('option',{value:'log_monitor'},'Monitor de Logs'),
@@ -707,7 +709,7 @@ function AgentForm(props) {
 
         h('div', {className:'fg'},
           h('label',null,'Skill / Contexto'),
-          h('textarea',{value:form.skill, rows:3, onChange:function(e){setF('skill',e.target.value)},
+          h('textarea',{'aria-label':'Skill / Contexto',value:form.skill, rows:3, onChange:function(e){setF('skill',e.target.value)},
             placeholder:'Ex: Especialista em Asterisk 21. Verificar SIP, AudioSocket e canais. Em falha, reiniciar servico afetado.'}),
           h('div',{className:'hint'},'Contexto do especialista. Sera usado como guia e consultado pela IA em casos nao cobertos.')
         ),
@@ -726,16 +728,16 @@ function AgentForm(props) {
           h('div', {style:{background:'var(--bg)',borderRadius:6,padding:12,marginBottom:10}},
             h('div', {className:'fr'},
               h('div', {className:'fg', style:{marginBottom:8}},
-                h('label',null,'Nome'), h('input',{value:chk.name,placeholder:'nginx rodando',onChange:function(e){setChk(function(c){return Object.assign({},c,{name:e.target.value})})}})),
+                h('label',null,'Nome'), h('input',{'aria-label':'Nome da verificacao',value:chk.name,placeholder:'nginx rodando',onChange:function(e){setChk(function(c){return Object.assign({},c,{name:e.target.value})})}})),
               h('div', {className:'fg', style:{marginBottom:8}},
-                h('label',null,'Comando'), h('input',{value:chk.cmd,placeholder:'systemctl is-active nginx',onChange:function(e){setChk(function(c){return Object.assign({},c,{cmd:e.target.value})})}})
+                h('label',null,'Comando'), h('input',{'aria-label':'Comando',value:chk.cmd,placeholder:'systemctl is-active nginx',onChange:function(e){setChk(function(c){return Object.assign({},c,{cmd:e.target.value})})}})
               )
             ),
             h('div', {className:'fr'},
               h('div', {className:'fg', style:{marginBottom:8}},
-                h('label',null,'Saida esperada'), h('input',{value:chk.expect,placeholder:'active',onChange:function(e){setChk(function(c){return Object.assign({},c,{expect:e.target.value})})}})),
+                h('label',null,'Saida esperada'), h('input',{'aria-label':'Saida esperada',value:chk.expect,placeholder:'active',onChange:function(e){setChk(function(c){return Object.assign({},c,{expect:e.target.value})})}})),
               h('div', {className:'fg', style:{marginBottom:8}},
-                h('label',null,'Dica de correcao'), h('input',{value:chk.fix_hint,placeholder:'sudo systemctl restart nginx',onChange:function(e){setChk(function(c){return Object.assign({},c,{fix_hint:e.target.value})})}})
+                h('label',null,'Dica de correcao'), h('input',{'aria-label':'Dica de correcao',value:chk.fix_hint,placeholder:'sudo systemctl restart nginx',onChange:function(e){setChk(function(c){return Object.assign({},c,{fix_hint:e.target.value})})}})
               )
             ),
             h('button', {className:'btn btn-p btn-sm', onClick:addChk}, h(Ico,{n:'plus',s:12}), ' Adicionar')
@@ -748,7 +750,7 @@ function AgentForm(props) {
           h('div', {className:'fg'},
             h('label',null,'URLs a monitorar'),
             h('div',{style:{display:'flex',gap:8,marginBottom:8}},
-              h('input',{value:urlVal,placeholder:'https://app.voiphash.com.br',
+              h('input',{'aria-label':'Nova URL a monitorar',value:urlVal,placeholder:'https://app.voiphash.com.br',
                 onChange:function(e){setUrl(e.target.value)},
                 onKeyDown:function(e){if(e.key==='Enter')addUrl()}}),
               h('button',{className:'btn btn-p btn-sm',onClick:addUrl},h(Ico,{n:'plus',s:12}))
@@ -786,7 +788,7 @@ function AgentForm(props) {
           ),
           h('div', {className:'fg'},
             h('label',null, form.schedule.type === 'cron' ? 'Expressao cron' : 'Intervalo'),
-            h('input',{value:form.schedule.value||'',
+            h('input',{'aria-label': form.schedule.type === 'cron' ? 'Expressao cron' : 'Intervalo', value:form.schedule.value||'',
               placeholder: form.schedule.type==='cron'?'0 * * * *':'5m / 1h / 30s',
               onChange:function(e){setSch('value',e.target.value)}})
           )
@@ -802,7 +804,7 @@ function AgentForm(props) {
         ),
         form.notify_telegram && h('div',{className:'fg',style:{marginBottom:10}},
           h('label',null,'Chat ID'),
-          h('input',{value:form.telegram_chat||'',onChange:function(e){setF('telegram_chat',e.target.value)},placeholder:'-100123456789'})
+          h('input',{'aria-label':'Chat ID do Telegram',value:form.telegram_chat||'',onChange:function(e){setF('telegram_chat',e.target.value)},placeholder:'-100123456789'})
         ),
 
         h('label', {style:{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:13,marginBottom:6}},
@@ -812,7 +814,7 @@ function AgentForm(props) {
         ),
         form.notify_email && h('div',{className:'fg',style:{marginBottom:10}},
           h('label',null,'Destinatario'),
-          h('input',{value:form.notify_email_to||'',onChange:function(e){setF('notify_email_to',e.target.value)},placeholder:'ops@empresa.com'})
+          h('input',{'aria-label':'E-mail destinatario',value:form.notify_email_to||'',onChange:function(e){setF('notify_email_to',e.target.value)},placeholder:'ops@empresa.com'})
         ),
 
         h('label', {style:{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:13,marginBottom:6}},
@@ -822,7 +824,7 @@ function AgentForm(props) {
         ),
         form.notify_webhook && h('div',{className:'fg',style:{marginBottom:10}},
           h('label',null,'URL do webhook'),
-          h('input',{value:form.notify_webhook_url||'',onChange:function(e){setF('notify_webhook_url',e.target.value)},placeholder:'https://hooks.slack.com/services/...'})
+          h('input',{'aria-label':'URL do webhook',value:form.notify_webhook_url||'',onChange:function(e){setF('notify_webhook_url',e.target.value)},placeholder:'https://hooks.slack.com/services/...'})
         )
       ),
 
@@ -1045,22 +1047,22 @@ function Servers(props) {
         h('div',{className:'mh'},h('span',{className:'mt'},editing?'Editar Servidor':'Novo Servidor'),h('button',{className:'xbtn',onClick:function(){setShowForm(false)}},h(Ico,{n:'x',s:18}))),
         h('div',{className:'mb'},
           h('div',{className:'fr'},
-            h('div',{className:'fg'},h('label',null,'Nome'),h('input',{value:fd.name,onChange:function(e){setF('name',e.target.value)},placeholder:'Prod-01'})),
-            h('div',{className:'fg'},h('label',null,'Host'),h('input',{value:fd.host,onChange:function(e){setF('host',e.target.value)},placeholder:'192.168.1.100'}))
+            h('div',{className:'fg'},h('label',null,'Nome'),h('input',{'aria-label':'Nome',value:fd.name,onChange:function(e){setF('name',e.target.value)},placeholder:'Prod-01'})),
+            h('div',{className:'fg'},h('label',null,'Host'),h('input',{'aria-label':'Host',value:fd.host,onChange:function(e){setF('host',e.target.value)},placeholder:'192.168.1.100'}))
           ),
           h('div',{className:'fr'},
-            h('div',{className:'fg'},h('label',null,'Porta'),h('input',{type:'number',value:fd.port,onChange:function(e){setF('port',+e.target.value)}})),
-            h('div',{className:'fg'},h('label',null,'Usuario'),h('input',{value:fd.username,onChange:function(e){setF('username',e.target.value)},placeholder:'root'}))
+            h('div',{className:'fg'},h('label',null,'Porta'),h('input',{'aria-label':'Porta',type:'number',value:fd.port,onChange:function(e){setF('port',+e.target.value)}})),
+            h('div',{className:'fg'},h('label',null,'Usuario'),h('input',{'aria-label':'Usuario',value:fd.username,onChange:function(e){setF('username',e.target.value)},placeholder:'root'}))
           ),
           h('div',{className:'fg'},h('label',null,'Autenticacao'),
-            h('select',{value:fd.auth_type,onChange:function(e){setF('auth_type',e.target.value)}},
+            h('select',{'aria-label':'Autenticacao',value:fd.auth_type,onChange:function(e){setF('auth_type',e.target.value)}},
               h('option',{value:'password'},'Senha'),h('option',{value:'key'},'Chave SSH')
             )
           ),
           fd.auth_type==='password'
-            ? h('div',{className:'fg'},h('label',null,'Senha'),h('input',{type:'password',value:fd.password||'',onChange:function(e){setF('password',e.target.value)}}))
-            : h('div',{className:'fg'},h('label',null,'Chave privada (PEM)'),h('textarea',{value:fd.ssh_key||'',onChange:function(e){setF('ssh_key',e.target.value)},placeholder:'-----BEGIN OPENSSH PRIVATE KEY-----'})),
-          h('div',{className:'fg'},h('label',null,'Tags (virgula)'),h('input',{value:(fd.tags||[]).join(','),onChange:function(e){setF('tags',e.target.value.split(',').map(function(t){return t.trim();}).filter(Boolean));}}))
+            ? h('div',{className:'fg'},h('label',null,'Senha'),h('input',{'aria-label':'Senha',type:'password',value:fd.password||'',onChange:function(e){setF('password',e.target.value)}}))
+            : h('div',{className:'fg'},h('label',null,'Chave privada (PEM)'),h('textarea',{'aria-label':'Chave privada (PEM)',value:fd.ssh_key||'',onChange:function(e){setF('ssh_key',e.target.value)},placeholder:'-----BEGIN OPENSSH PRIVATE KEY-----'})),
+          h('div',{className:'fg'},h('label',null,'Tags (virgula)'),h('input',{'aria-label':'Tags separadas por virgula',value:(fd.tags||[]).join(','),onChange:function(e){setF('tags',e.target.value.split(',').map(function(t){return t.trim();}).filter(Boolean));}}))
         ),
         h('div',{className:'mf'},h('button',{className:'btn btn-g',onClick:function(){setShowForm(false)}},'Cancelar'),h('button',{className:'btn btn-p',onClick:save},editing?'Salvar':'Adicionar'))
       )
@@ -1130,7 +1132,7 @@ function Knowledge() {
     h('div',{className:'topbar'},
       h('span',{className:'tbtitle'},'Base de Conhecimento'),
       h('button',{className:'btn btn-p',onClick:function(){fileRef.current.click()}},h(Ico,{n:'upload',s:14}),'Adicionar PDF'),
-      h('input',{type:'file',accept:'.pdf',ref:fileRef,style:{display:'none'},onChange:upload})
+      h('input',{'aria-label':'Selecionar arquivo PDF',type:'file',accept:'.pdf',ref:fileRef,style:{display:'none'},onChange:upload})
     ),
     h('div',{className:'content'},
       msg&&h('div',{className:'alertbar'},msg),
@@ -1185,14 +1187,14 @@ function LogsPage() {
       h('div',{style:{display:'flex',gap:12,marginBottom:16,flexWrap:'wrap'}},
         h('div',{style:{flex:1,minWidth:200},className:'fg'},
           h('label',null,'Agente'),
-          h('select',{value:selAgent,onChange:function(e){setSelAgent(e.target.value);setExecs([]);setLogs([]);}},
+          h('select',{'aria-label':'Agente',value:selAgent,onChange:function(e){setSelAgent(e.target.value);setExecs([]);setLogs([]);}},
             h('option',{value:''},'Selecione um agente...'),
             agents.map(function(a){return h('option',{key:a.id,value:a.id},a.name);})
           )
         ),
         h('div',{style:{flex:1,minWidth:200},className:'fg'},
           h('label',null,'Execucao'),
-          h('select',{value:selExec,onChange:function(e){setSelExec(e.target.value);},disabled:!selAgent},
+          h('select',{'aria-label':'Execucao',value:selExec,onChange:function(e){setSelExec(e.target.value);},disabled:!selAgent},
             h('option',{value:''},'Selecione uma execucao...'),
             execs.map(function(e){
               return h('option',{key:e.id,value:e.id},
@@ -1202,7 +1204,7 @@ function LogsPage() {
           )
         ),
         selExec&&h('div',{style:{display:'flex',alignItems:'flex-end',paddingBottom:14}},
-          h('a',{href:API+'/api/reports/execution/'+selExec+'/html',target:'_blank',
+          h('a',{href:API+'/api/reports/execution/'+selExec+'/html',target:'_blank',rel:'noopener noreferrer',
             style:{display:'inline-flex',alignItems:'center',gap:5,padding:'8px 14px',
                    background:'var(--primary)',color:'#fff',borderRadius:6,fontSize:13,
                    fontWeight:500,textDecoration:'none'}},
@@ -1461,7 +1463,7 @@ function LLMSettings() {
           h('div',{className:'fr'},
             h('div',{className:'fg'},
               h('label',null,'Habilitar IA'),
-              h('select',{value:form.AGENTS_LLM_ENABLED||'false',onChange:function(e){setF('AGENTS_LLM_ENABLED',e.target.value);}},
+              h('select',{'aria-label':'Habilitar IA',value:form.AGENTS_LLM_ENABLED||'false',onChange:function(e){setF('AGENTS_LLM_ENABLED',e.target.value);}},
                 h('option',{value:'false'},'Nao — desabilitada (padrao)'),
                 h('option',{value:'true'},'Sim — habilitada')
               ),
@@ -1469,7 +1471,7 @@ function LLMSettings() {
             ),
             h('div',{className:'fg'},
               h('label',null,'Provedor ativo'),
-              h('select',{value:form.AGENTS_LLM_PROVIDER||'google',onChange:function(e){setF('AGENTS_LLM_PROVIDER',e.target.value);}},
+              h('select',{'aria-label':'Provedor ativo',value:form.AGENTS_LLM_PROVIDER||'google',onChange:function(e){setF('AGENTS_LLM_PROVIDER',e.target.value);}},
                 h('option',{value:'google'},'Google Gemini'),
                 h('option',{value:'anthropic'},'Anthropic Claude'),
                 h('option',{value:'openai'},'OpenAI GPT'),
@@ -1481,10 +1483,11 @@ function LLMSettings() {
           h('div',{className:'fg'},
             h('label',null,'Modelo ativo'),
             h('div',{style:{display:'flex',gap:8}},
-              h('input',{value:form.AGENTS_LLM_MODEL||'',
+              h('input',{'aria-label':'Modelo ativo',value:form.AGENTS_LLM_MODEL||'',
                 onChange:function(e){setF('AGENTS_LLM_MODEL',e.target.value);},
                 placeholder:'gemini-2.5-flash'}),
               currentProvider&&h('select',{
+                'aria-label':'Modelos populares',
                 style:{width:220,flexShrink:0},
                 value:'',
                 onChange:function(e){if(e.target.value)setF('AGENTS_LLM_MODEL',e.target.value);}},
@@ -1503,13 +1506,13 @@ function LLMSettings() {
           h('div',{className:'fr'},
             h('div',{className:'fg'},
               h('label',null,'Google Gemini'),
-              h('input',{type:'password',value:form.AGENTS_LLM_GOOGLE_KEY||'',
+              h('input',{'aria-label':'Google Gemini API Key',type:'password',value:form.AGENTS_LLM_GOOGLE_KEY||'',
                 onChange:function(e){setF('AGENTS_LLM_GOOGLE_KEY',e.target.value);},
                 placeholder:'AIza...'})
             ),
             h('div',{className:'fg'},
               h('label',null,'Anthropic Claude'),
-              h('input',{type:'password',value:form.AGENTS_LLM_ANTHROPIC_KEY||'',
+              h('input',{'aria-label':'Anthropic Claude API Key',type:'password',value:form.AGENTS_LLM_ANTHROPIC_KEY||'',
                 onChange:function(e){setF('AGENTS_LLM_ANTHROPIC_KEY',e.target.value);},
                 placeholder:'sk-ant-...'})
             )
@@ -1517,13 +1520,13 @@ function LLMSettings() {
           h('div',{className:'fr'},
             h('div',{className:'fg'},
               h('label',null,'OpenAI GPT'),
-              h('input',{type:'password',value:form.AGENTS_LLM_OPENAI_KEY||'',
+              h('input',{'aria-label':'OpenAI GPT API Key',type:'password',value:form.AGENTS_LLM_OPENAI_KEY||'',
                 onChange:function(e){setF('AGENTS_LLM_OPENAI_KEY',e.target.value);},
                 placeholder:'sk-...'})
             ),
             h('div',{className:'fg'},
               h('label',null,'MiniMax Key'),
-              h('input',{type:'password',value:form.AGENTS_LLM_MINIMAX_KEY||'',
+              h('input',{'aria-label':'MiniMax API Key',type:'password',value:form.AGENTS_LLM_MINIMAX_KEY||'',
                 onChange:function(e){setF('AGENTS_LLM_MINIMAX_KEY',e.target.value);},
                 placeholder:'...'})
             )
@@ -1531,7 +1534,7 @@ function LLMSettings() {
           h('div',{className:'fr'},
             h('div',{className:'fg'},
               h('label',null,'MiniMax Group ID'),
-              h('input',{value:form.AGENTS_LLM_MINIMAX_GROUP_ID||'',
+              h('input',{'aria-label':'MiniMax Group ID',value:form.AGENTS_LLM_MINIMAX_GROUP_ID||'',
                 onChange:function(e){setF('AGENTS_LLM_MINIMAX_GROUP_ID',e.target.value);},
                 placeholder:'...'})
             ),
@@ -1547,13 +1550,13 @@ function LLMSettings() {
           h('div',{className:'fr'},
             h('div',{className:'fg'},
               h('label',null,'URL base'),
-              h('input',{value:form.AGENTS_LLM_COMPAT_URL||'',
+              h('input',{'aria-label':'URL base da API compativel OpenAI',value:form.AGENTS_LLM_COMPAT_URL||'',
                 onChange:function(e){setF('AGENTS_LLM_COMPAT_URL',e.target.value);},
                 placeholder:'http://localhost:11434/v1'})
             ),
             h('div',{className:'fg'},
               h('label',null,'API Key (opcional)'),
-              h('input',{type:'password',value:form.AGENTS_LLM_COMPAT_KEY||'',
+              h('input',{'aria-label':'API Key da API compativel OpenAI (opcional)',type:'password',value:form.AGENTS_LLM_COMPAT_KEY||'',
                 onChange:function(e){setF('AGENTS_LLM_COMPAT_KEY',e.target.value);},
                 placeholder:'ollama ou sk-...'})
             )
@@ -1627,6 +1630,7 @@ function Login(props) {
         h('div', {className: 'login-field'},
           h('label', null, 'Usuario'),
           h('input', {
+            'aria-label': 'Usuario',
             type: 'text', value: user, autoFocus: true,
             placeholder: 'admin',
             onChange: function(e){ setUser(e.target.value); setErr(''); }
@@ -1635,6 +1639,7 @@ function Login(props) {
         h('div', {className: 'login-field'},
           h('label', null, 'Senha'),
           h('input', {
+            'aria-label': 'Senha',
             type: 'password', value: pass,
             placeholder: '••••••••',
             onChange: function(e){ setPass(e.target.value); setErr(''); }

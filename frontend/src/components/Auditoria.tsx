@@ -132,6 +132,7 @@ export default function Auditoria() {
             <input
               type="text"
               className="form-input"
+              aria-label="Filtrar por usuário"
               placeholder="Filtrar por usuário…"
               style={{ width: 180 }}
               value={filterUsername}

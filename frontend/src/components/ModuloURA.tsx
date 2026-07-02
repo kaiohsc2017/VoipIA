@@ -432,7 +432,7 @@ export default function ModuloURA() {
               <form className="toolbar-left" onSubmit={handleSearchSubmit}>
                 <div className="search-wrapper">
                   <span className="search-icon">🔍</span>
-                  <input className="search-input" placeholder="Filtrar por número..."
+                  <input className="search-input" aria-label="Filtrar por número" placeholder="Filtrar por número..."
                     value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
                 <button type="submit" className="btn btn-ghost btn-sm">Buscar</button>

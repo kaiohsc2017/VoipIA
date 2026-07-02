@@ -477,7 +477,7 @@ export default function ModuloSeguranca() {
         <div className="stat-card" style={{ padding:0, overflow:'hidden' }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px',
             borderBottom:'0.5px solid var(--border-glass)', background:'var(--bg-input)', flexWrap:'wrap' }}>
-            <input placeholder="Buscar IP, jail ou motivo…" value={search}
+            <input aria-label="Buscar IP, jail ou motivo" placeholder="Buscar IP, jail ou motivo…" value={search}
               onChange={e => setSearch(e.target.value)}
               style={{ fontSize:'0.8rem', padding:'4px 10px', borderRadius:6,
                 border:'0.5px solid var(--border-glass)', background:'var(--bg-card)',

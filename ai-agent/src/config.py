@@ -12,6 +12,7 @@ Abordagem 3 — reload dinâmico sem restart:
 """
 
 import os
+import time
 from dotenv import load_dotenv, dotenv_values
 from pathlib import Path
 
@@ -48,18 +49,34 @@ MSG_TYPE_HANGUP: int = 0x00
 MSG_TYPE_ERROR: int  = 0xFF
 
 
-# --- Leitura dinamica — rele o arquivo .env a cada chamada ---
+# --- Leitura dinamica — cacheia o .env com TTL curto ---
+
+# Achado de segurança/performance (low): get_config() relia e fazia parse do
+# .env inteiro a cada frase falada numa ligação (chamado no hot-path de voz,
+# sem asyncio.to_thread) — pode piorar jitter de áudio em chamadas
+# concorrentes. TTL de 60s (mesmo valor do ConfigService.java do backend e do
+# CACHE_TTL de provider_registry.py) equilibra "reflete quase imediatamente"
+# com "não bate disco a cada frase".
+_DOTENV_CACHE_TTL = 60
+_dotenv_cache: dict[str, str] = {}
+_dotenv_cache_ts: float = 0.0
+
 
 def get_config(key: str, default: str = "") -> str:
     """
-    Le uma variavel diretamente do arquivo .env em disco.
-    Alteracoes na tela de Settings refletem imediatamente - sem restart.
+    Le uma variavel do .env, cacheada em memoria por _DOTENV_CACHE_TTL segundos.
+    Alteracoes na tela de Settings refletem em ate 60s - sem restart.
     Fallback: variavel de ambiente do processo -> default.
     """
-    if _ENV_PATH.exists():
-        val = dotenv_values(_ENV_PATH).get(key, "")
-        if val:
-            return val
+    global _dotenv_cache, _dotenv_cache_ts
+    now = time.monotonic()
+    if now - _dotenv_cache_ts > _DOTENV_CACHE_TTL:
+        if _ENV_PATH.exists():
+            _dotenv_cache = dotenv_values(_ENV_PATH)
+        _dotenv_cache_ts = now
+    val = _dotenv_cache.get(key, "")
+    if val:
+        return val
     return os.getenv(key, default)
 
 

@@ -53,7 +53,7 @@ public class AsteriskConfigController {
     @Value("${app.asterisk.ami.user:asteriskia}")
     private String amiUser;
 
-    @Value("${app.asterisk.ami.password:asteriskia_ami_pass}")
+    @Value("${app.asterisk.ami.password}")
     private String amiPassword;
 
     private static final int AMI_TIMEOUT_MS = 8_000;

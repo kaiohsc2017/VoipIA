@@ -241,7 +241,7 @@ AsteriskIA/
 │   └── config/
 │       ├── pjsip.conf.template # Template com ${SIP_PUBLIC_IP} substituído no boot
 │       ├── extensions.conf     # Dialplan: contextos recepcao-tronco, ramais-internos
-│       ├── rtp.conf            # Porta RTP: 10000-10100
+│       ├── rtp.conf            # Porta RTP: 15000-15500
 │       └── http.conf           # HTTP/WS na porta 8088 (WebRTC)
 ├── ai-agent/
 │   ├── Dockerfile
@@ -404,10 +404,10 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > a cadeia completa `softphone 9001 → ramal 1000 → AudioSocket → ai-agent:9092 → STT/LLM/TTS →
 > RTP de volta` deixou de ser uma pendência crítica. Se voltar a apresentar problema, os pontos
 > de verificação de sempre continuam válidos: `SIP_PUBLIC_IP` injetado no `pjsip.conf`,
-> `external_media_address`/`external_signaling_address` não vazios, portas RTP `10000-10100/udp`
+> `external_media_address`/`external_signaling_address` não vazios, portas RTP `15000-15500/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
 
-### 🟠 Auditoria full-stack pós-RBAC (2026-07-02) — 3 CRITICAL + 11 HIGH corrigidos, 10 MEDIUM + 4 LOW pendentes
+### 🟠 Auditoria full-stack pós-RBAC (2026-07-02) — 33/33 achados corrigidos, deploy pendente
 4 agentes `security-reviewer`/`react-reviewer` em paralelo (Java fora do RBAC, Python ai-agent+agents-platform,
 os dois frontends, infraestrutura) acharam 33 problemas; achados de infra confirmados ao vivo em produção
 (`ss`, `iptables -t nat`, `pg_hba.conf`). Ver memória `asteriskia-rbac-granular-feature` e o relatório completo
@@ -432,7 +432,32 @@ em https://claude.ai/code/artifact/b04225b4-fef1-4c3c-95f1-9951de5389c9.
   (`SettingsService.java`); injeção de seção INI em `asterisk.conf` via `banaction`/valores de jail
   (`SecurityController.java`); áudio de alertas sem header de autenticação (`ModuloAlertas.tsx`,
   extraído junto com `ModuloURA.tsx` pro componente compartilhado `AuthedAudio.tsx`).
-- ⏳ **10 MEDIUM + 4 LOW** — ver artifact para a lista completa.
+- ✅ **10 MEDIUM + 4 LOW corrigidos** (código pronto, **ainda NÃO deployado**): SSRF em teste de
+  integração Jira/Zabbix (já coberto pelo fix de SSRF acima); injeção de fórmula CSV na exportação
+  de chamadas (`ReportController.esc()` — prefixa `=+-@` com apóstrofo); `writeSettings` sem
+  validação de chave/valor (`SettingsService.java` — regex de identificador + strip de `\r\n`);
+  `docker-helper` não validava `services` em `/compose/up` (allowlist `_ALLOWED_COMPOSE_SERVICES`);
+  DSN com credencial podia vazar em mensagem de exceção (`executor.py` — regex de redação
+  incondicional); ações de mutação sem tratamento de erro em `ModuloConectividade.tsx`,
+  `ModuloAlertas.tsx`, `MasterData.tsx`, `Users.tsx` (try/catch + alert, padrão já usado no resto do
+  frontend); 401 handler do agents-platform que nunca recarregava (corrigido junto do fix de HIGH
+  do `_apiFetch`); senha AMI hardcoded como fallback removida (`StatsController`/
+  `AsteriskConfigController`); faixa de porta RTP divergente entre `Dockerfile`/config
+  real/`CLAUDE.md` (corrigida pra `15000-15500/udp`, que já era o valor real usado); bug garantido
+  de `TypeError` em `ai-agent/src/providers/gemini.py` se a ferramenta de function-calling fosse
+  ativada (schema e assinatura de `_execute_tool` divergiam do real, unificado reusando
+  `gemini_service.py`); ReDoS em `SecurityController.testRegex` (timeout de 2s via thread
+  interrompível); leitura síncrona de disco no hot-path de voz (`ai-agent/src/config.py` — cache do
+  `.env` com TTL de 60s); acessibilidade — `aria-label` em ~40 inputs sem label associado
+  (`agents-platform/frontend/index.html` + 5 componentes TSX) e `rel="noopener noreferrer"` em 2
+  links `target="_blank"`; `SecurityController.java` refatorado de 881 para 541 linhas, extraindo
+  `FailToBanClient`/`AsteriskAclService`/`JailConfigRepository`/`SecurityFileUtils` (comportamento
+  100% preservado, validado por `security-reviewer` linha a linha contra o diff original).
+- Todo o lote (HIGH + MEDIUM + LOW) passou por `security-reviewer` + `code-reviewer` em paralelo,
+  duas rodadas (uma por lote), antes de commitar — achados reais das próprias revisões (bypass de
+  regex sem `Pattern.DOTALL`, SSRF por redirect HTTP não revalidado, sufixo de segredo faltando,
+  falha silenciosa de promise, redação de DSN por substring exata) foram corrigidos antes do commit
+  final. Ver memória `asteriskia-rbac-granular-feature` para o histórico completo.
 
 ### 🟡 Importantes
 - `SuporteController` cria issues reais no Jira via function calling da IA (tool `abrir_protocolo_suporte`)

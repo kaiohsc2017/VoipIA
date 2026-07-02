@@ -215,8 +215,17 @@ public class ReportController {
     }
 
     /** Escapa campo CSV (entre aspas se contiver vírgula, aspas ou quebra de linha). */
+    /**
+     * Achado de segurança (CSV/fórmula injection): campos como transcrição de
+     * chamada são influenciáveis por quem liga — um valor começando com
+     * =/+/-/@ vira fórmula executada ao abrir no Excel/LibreOffice. Prefixa
+     * com apóstrofo antes de aplicar o escaping de CSV padrão.
+     */
     private String esc(String value) {
         if (value == null) return "";
+        if (!value.isEmpty() && "=+-@".indexOf(value.charAt(0)) >= 0) {
+            value = "'" + value;
+        }
         if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
             return "\"" + value.replace("\"", "\"\"") + "\"";
         }

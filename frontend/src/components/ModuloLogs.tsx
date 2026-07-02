@@ -297,6 +297,7 @@ export default function ModuloLogs() {
           {/* Toolbar */}
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', borderBottom:'0.5px solid var(--border-glass)', background:'var(--bg-input)', flexWrap:'wrap' }}>
             <input
+              aria-label="Filtrar mensagem"
               placeholder="Filtrar mensagem…"
               value={dockerSearch} onChange={e => setDockerSearch(e.target.value)}
               style={{ fontSize:'0.8rem', padding:'4px 10px', borderRadius:6, border:'0.5px solid var(--border-glass)', background:'var(--bg-card)', color:'var(--text-primary)', width:180 }}
@@ -441,6 +442,7 @@ export default function ModuloLogs() {
             {/* Toolbar */}
             <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', borderBottom:'0.5px solid var(--border-glass)', background:'var(--bg-input)', flexWrap:'wrap' }}>
               <input
+                aria-label="Filtrar evento"
                 placeholder="Filtrar evento…"
                 value={astSearch} onChange={e => setAstSearch(e.target.value)}
                 style={{ fontSize:'0.8rem', padding:'4px 10px', borderRadius:6, border:'0.5px solid var(--border-glass)', background:'var(--bg-card)', color:'var(--text-primary)', width:180 }}

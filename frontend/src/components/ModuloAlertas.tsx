@@ -192,14 +192,24 @@ export default function ModuloAlertas() {
     if (!/^\+?[0-9]{10,15}$/.test(editContact.phoneNumber)) { alert('Telefone inválido. Ex: +5511999999999'); return; }
     if (!editContact.priorityOrder) { alert('Informe a ordem de prioridade.'); return; }
     
-    if (editContact.id) { await api.put(`/alert-contacts/${editContact.id}`, editContact); }
-    else { await api.post('/alert-contacts', editContact); }
-    setShowModal(false);
-    loadContacts();
+    try {
+      if (editContact.id) { await api.put(`/alert-contacts/${editContact.id}`, editContact); }
+      else { await api.post('/alert-contacts', editContact); }
+      setShowModal(false);
+      loadContacts();
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? 'Erro ao salvar o contato.');
+    }
   };
 
   const deleteContact = async (id: number) => {
-    if (confirm('Remover este contato de plantão?')) { await api.delete(`/alert-contacts/${id}`); loadContacts(); }
+    if (!confirm('Remover este contato de plantão?')) return;
+    try {
+      await api.delete(`/alert-contacts/${id}`);
+      loadContacts();
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? 'Erro ao remover o contato.');
+    }
   };
 
   return (

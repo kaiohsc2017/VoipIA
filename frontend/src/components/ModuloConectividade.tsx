@@ -468,20 +468,34 @@ export default function ModuloConectividade() {
     if (!form.startTime) { alert('Informe o horário inicial.'); return; }
     if (!form.intervalMinutes || form.intervalMinutes < 1) { alert('Intervalo deve ser de ao menos 1 minuto.'); return; }
     if (!form.quantity || form.quantity < 1) { alert('Quantidade deve ser de ao menos 1.'); return; }
-    if (editId) { await api.put(`/number-tests/${editId}`, form); }
-    else { await api.post('/number-tests', form); }
-    setShowModal(false);
-    loadTests();
+    try {
+      if (editId) { await api.put(`/number-tests/${editId}`, form); }
+      else { await api.post('/number-tests', form); }
+      setShowModal(false);
+      loadTests();
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? 'Erro ao salvar o teste.');
+    }
   };
 
 
   const toggleActive = async (t: NumberTest) => {
-    await api.patch(`/number-tests/${t.id}/active?active=${!t.isActive}`);
-    loadTests();
+    try {
+      await api.patch(`/number-tests/${t.id}/active?active=${!t.isActive}`);
+      loadTests();
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? 'Erro ao alterar status do teste.');
+    }
   };
 
   const deleteTest = async (id: number) => {
-    if (confirm('Remover este teste?')) { await api.delete(`/number-tests/${id}`); loadTests(); }
+    if (!confirm('Remover este teste?')) return;
+    try {
+      await api.delete(`/number-tests/${id}`);
+      loadTests();
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? 'Erro ao remover o teste.');
+    }
   };
 
   const handlePeriodFilter = (p: 'today' | 'week' | 'month') => {

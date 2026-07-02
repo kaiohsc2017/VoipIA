@@ -18,10 +18,19 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.*;
 import java.util.stream.*;
 
+/**
+ * SecurityController — endpoints REST de segurança (fail2ban, ACL, lockdown de
+ * rede, teste de regex de log). A comunicação com fail2ban vive em
+ * {@link FailToBanClient}, a leitura/escrita de asterisk.conf/filter.d em
+ * {@link JailConfigRepository}, e a gestão de ACL/lockdown de rede em
+ * {@link AsteriskAclService} — extraídos deste controller (achado de auditoria:
+ * arquivo > 800 linhas) sem mudança de comportamento nem de rota.
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/security")
@@ -30,6 +39,9 @@ public class SecurityController {
 
     private final AuditService auditService;
     private final RestTemplate restTemplate;
+    private final FailToBanClient f2b;
+    private final JailConfigRepository jailConfigRepo;
+    private final AsteriskAclService aclService;
 
     // Docker Helper — único container com acesso ao docker.sock (F-CRIT-10).
     // Este controller não roda mais 'docker exec' via ProcessBuilder.
@@ -39,18 +51,8 @@ public class SecurityController {
     @Value("${app.internal-api-key}")
     private String internalApiKey;
 
-    // Caminhos montados via volume no backend
-    @Value("${app.security.jail-config-dir:/opt/asteriskia/security/config/jail.d}")
-    private String jailConfigDir;
-
-    @Value("${app.security.filter-config-dir:/opt/asteriskia/security/config/filter.d}")
-    private String filterConfigDir;
-
     @Value("${app.security.security-dir:/opt/asteriskia/security}")
     private String securityDir;
-
-    @Value("${app.asterisk.config-dir:/etc/asterisk}")
-    private String asteriskConfigDir;
 
     private static final List<String> MANAGED_JAILS =
         List.of("asterisk-auth", "asterisk-scan", "asterisk-flood");
@@ -70,7 +72,7 @@ public class SecurityController {
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> status() {
         Map<String, Object> result = new LinkedHashMap<>();
-        boolean f2bRunning = isF2bRunning();
+        boolean f2bRunning = f2b.isRunning();
         result.put("fail2banRunning", f2bRunning);
 
         int totalBanned = 0, activeJails = 0;
@@ -93,18 +95,18 @@ public class SecurityController {
 
     @GetMapping("/jails")
     public ResponseEntity<List<Map<String,Object>>> jails() {
-        boolean f2b = isF2bRunning();
+        boolean f2bRunning = f2b.isRunning();
         return ResponseEntity.ok(MANAGED_JAILS.stream()
-            .map(j -> getJailInfo(j, f2b)).collect(Collectors.toList()));
+            .map(j -> getJailInfo(j, f2bRunning)).collect(Collectors.toList()));
     }
 
     @GetMapping("/jails/{jail}")
     public ResponseEntity<Map<String, Object>> jailDetail(@PathVariable String jail) {
         if (!MANAGED_JAILS.contains(jail))
             return ResponseEntity.badRequest().body(Map.of("message", "Jail desconhecido: " + jail));
-        Map<String,Object> info = getJailInfo(jail, isF2bRunning());
-        info.put("filterRegex", readFilterRegex(jail));
-        info.put("jailConfig",  readJailConfig(jail));
+        Map<String,Object> info = getJailInfo(jail, f2b.isRunning());
+        info.put("filterRegex", jailConfigRepo.readFilterRegex(jail));
+        info.put("jailConfig",  jailConfigRepo.readJailConfig(jail));
         return ResponseEntity.ok(info);
     }
 
@@ -121,17 +123,17 @@ public class SecurityController {
                 "banaction inválido. Permitidos: " + ALLOWED_BANACTIONS));
         try {
             if (body.containsKey("maxretry"))
-                updateJailParam(jail, "maxretry", String.valueOf(body.get("maxretry")));
+                jailConfigRepo.updateJailParam(jail, "maxretry", String.valueOf(body.get("maxretry")));
             if (body.containsKey("findtime"))
-                updateJailParam(jail, "findtime",  String.valueOf(body.get("findtime")));
+                jailConfigRepo.updateJailParam(jail, "findtime",  String.valueOf(body.get("findtime")));
             if (body.containsKey("bantime"))
-                updateJailParam(jail, "bantime",   String.valueOf(body.get("bantime")));
+                jailConfigRepo.updateJailParam(jail, "bantime",   String.valueOf(body.get("bantime")));
             if (body.containsKey("banaction"))
-                updateJailParam(jail, "banaction", String.valueOf(body.get("banaction")));
+                jailConfigRepo.updateJailParam(jail, "banaction", String.valueOf(body.get("banaction")));
             if (body.containsKey("filterRegex"))
-                writeFilterRegex(jail, String.valueOf(body.get("filterRegex")));
+                jailConfigRepo.writeFilterRegex(jail, String.valueOf(body.get("filterRegex")));
 
-            String reload = f2bExec("reload", jail);
+            String reload = f2b.exec("reload", jail);
             auditService.log(request, "SECURITY_JAIL_UPDATE",
                 "Jail " + jail + " atualizado. Reload: " + reload, true);
             return ResponseEntity.ok(Map.of("message", "Jail atualizado.", "reload", reload));
@@ -160,7 +162,7 @@ public class SecurityController {
     public ResponseEntity<List<Map<String,String>>> banned() {
         List<Map<String,String>> all = new ArrayList<>();
         for (String jail : MANAGED_JAILS) {
-            for (String ip : parseBannedIps(f2bExec("status", jail))) {
+            for (String ip : f2b.parseBannedIps(f2b.exec("status", jail))) {
                 all.add(mapOf("ip", ip, "jail", jail, "origin", "fail2ban"));
             }
         }
@@ -179,8 +181,8 @@ public class SecurityController {
         if (!isValidIp(ip))
             return ResponseEntity.badRequest().body(Map.of("message", "IP inválido: " + ip));
         try {
-            String f2bResult = f2bExec("set", jail, "banip", ip);
-            addToAsteriskAcl(ip);
+            String f2bResult = f2b.exec("set", jail, "banip", ip);
+            aclService.addToAsteriskAcl(ip);
             saveManualBan(ip, note, jail);
             auditService.log(request, "SECURITY_BAN", "IP banido: " + ip + " | " + note, true);
             return ResponseEntity.ok(Map.of(
@@ -199,9 +201,9 @@ public class SecurityController {
         try {
             List<String> jailsToUnban = jail.isBlank() ? MANAGED_JAILS : List.of(jail);
             List<String> results = jailsToUnban.stream()
-                .map(j -> j + ": " + f2bExec("set", j, "unbanip", ip))
+                .map(j -> j + ": " + f2b.exec("set", j, "unbanip", ip))
                 .collect(Collectors.toList());
-            removeFromAsteriskAcl(ip);
+            aclService.removeFromAsteriskAcl(ip);
             removeManualBan(ip);
             auditService.log(request, "SECURITY_UNBAN", "IP desbloqueado: " + ip, true);
             return ResponseEntity.ok(Map.of("message", "IP " + ip + " desbloqueado.", "results", results));
@@ -230,9 +232,9 @@ public class SecurityController {
                 list.add(ip);
                 writeWhitelist(list);
                 updateIgnoreIp(list);
-                f2bExec("reload");
+                f2b.exec("reload");
             }
-            reapplyLockdownIfActive(list);
+            aclService.reapplyLockdownIfActive(list);
             auditService.log(request, "SECURITY_WHITELIST_ADD", ip, true);
             return ResponseEntity.ok(Map.of("message", ip + " adicionado à lista branca."));
         } catch (Exception e) {
@@ -249,8 +251,8 @@ public class SecurityController {
             list.remove(ip);
             writeWhitelist(list);
             updateIgnoreIp(list);
-            f2bExec("reload");
-            reapplyLockdownIfActive(list);
+            f2b.exec("reload");
+            aclService.reapplyLockdownIfActive(list);
             auditService.log(request, "SECURITY_WHITELIST_REMOVE", ip, true);
             return ResponseEntity.ok(Map.of("message", ip + " removido."));
         } catch (Exception e) {
@@ -263,7 +265,7 @@ public class SecurityController {
 
     @GetMapping("/lockdown")
     public ResponseEntity<Map<String, Object>> lockdownStatus() {
-        boolean active = isLockdownActive();
+        boolean active = aclService.isLockdownActive();
         return ResponseEntity.ok(Map.of(
             "active",      active,
             "description", active
@@ -276,9 +278,9 @@ public class SecurityController {
     public ResponseEntity<Map<String, Object>> enableLockdown(HttpServletRequest request) {
         try {
             List<String> whitelist = readWhitelist();
-            applyLockdownIptables(whitelist);
-            applyLockdownAcl(whitelist);
-            writeLockdownFlag(true);
+            aclService.applyLockdownIptables(whitelist);
+            aclService.applyLockdownAcl(whitelist);
+            aclService.writeLockdownFlag(true);
             auditService.log(request, "SECURITY_LOCKDOWN_ENABLE",
                 "Modo lockdown ativado. Whitelist: " + whitelist.size() + " IPs", true);
             return ResponseEntity.ok(Map.of(
@@ -295,9 +297,9 @@ public class SecurityController {
     @PostMapping("/lockdown/disable")
     public ResponseEntity<Map<String, Object>> disableLockdown(HttpServletRequest request) {
         try {
-            removeLockdownIptables();
-            restorePermissiveAcl();
-            writeLockdownFlag(false);
+            aclService.removeLockdownIptables();
+            aclService.restorePermissiveAcl();
+            aclService.writeLockdownFlag(false);
             auditService.log(request, "SECURITY_LOCKDOWN_DISABLE",
                 "Modo lockdown desativado. Voltando ao modo fail2ban.", true);
             return ResponseEntity.ok(Map.of(
@@ -310,148 +312,6 @@ public class SecurityController {
         }
     }
 
-    /**
-     * Quando a whitelist muda, re-aplica as regras se o lockdown estiver ativo.
-     * Chamado internamente após addWhitelist / removeWhitelist.
-     */
-    private void reapplyLockdownIfActive(List<String> whitelist) {
-        if (!isLockdownActive()) return;
-        try {
-            applyLockdownIptables(whitelist);
-            applyLockdownAcl(whitelist);
-            log.info("Lockdown re-aplicado com {} IPs na whitelist", whitelist.size());
-        } catch (Exception e) {
-            log.error("reapplyLockdownIfActive: {}", e.getMessage(), e);
-        }
-    }
-
-    private boolean isLockdownActive() {
-        try {
-            return Files.exists(Path.of(securityDir, "lockdown.flag"));
-        } catch (Exception e) { return false; }
-    }
-
-    private void writeLockdownFlag(boolean active) throws IOException {
-        Path flag = Path.of(securityDir, "lockdown.flag");
-        Files.createDirectories(flag.getParent());
-        if (active) Files.writeString(flag, "active", StandardCharsets.UTF_8);
-        else        Files.deleteIfExists(flag);
-    }
-
-    // Diretório compartilhado com o container security (que tem NET_ADMIN + iptables)
-    private static final String SECURITY_CMD_DIR = "/var/run/asteriskia-security";
-
-    /**
-     * Aplica lockdown via nft na chain DOCKER-USER.
-     * O Docker neste host usa nftables — a chain DOCKER-USER nftables
-     * é processada para todo tráfego destinado a containers.
-     */
-    private void applyLockdownIptables(List<String> whitelist) throws IOException, InterruptedException {
-        StringBuilder script = new StringBuilder("#!/bin/bash\n");
-        script.append("# Limpa regras anteriores da DOCKER-USER (exceto AMI que pode já existir)\n");
-        script.append("nft flush chain ip filter DOCKER-USER 2>/dev/null || true\n");
-        script.append("# Whitelist — ACCEPT para IPs autorizados\n");
-        for (String ip : whitelist) {
-            script.append("nft add rule ip filter DOCKER-USER ip saddr ").append(ip).append(" accept\n");
-        }
-        script.append("# DROP portas SIP/WebRTC/AMI para todos os outros\n");
-        script.append("nft add rule ip filter DOCKER-USER udp dport 5060 drop\n");
-        script.append("nft add rule ip filter DOCKER-USER tcp dport 5060 drop\n");
-        script.append("nft add rule ip filter DOCKER-USER tcp dport 8088 drop\n");
-        script.append("nft add rule ip filter DOCKER-USER tcp dport 5038 drop\n");
-        script.append("echo '[lockdown] nft DOCKER-USER aplicado'\n");
-        script.append("nft list chain ip filter DOCKER-USER\n");
-        writeSecurityCmd("lockdown-enable", script.toString());
-        writePersistentLockdown(script.toString());
-        log.info("Lockdown nft DOCKER-USER enviado: {} IPs", whitelist.size());
-    }
-
-    private void removeLockdownIptables() {
-        try {
-            String script = "#!/bin/bash\n" +
-                "nft flush chain ip filter DOCKER-USER 2>/dev/null || true\n" +
-                "echo '[lockdown] DOCKER-USER limpa'\n";
-            writeSecurityCmd("lockdown-disable", script);
-            removePersistentLockdown();
-            log.info("Lockdown disable DOCKER-USER enviado");
-        } catch (Exception e) {
-            log.warn("removeLockdownIptables: {}", e.getMessage());
-        }
-    }
-
-    private void writePersistentLockdown(String script) {
-        try {
-            Path p = Path.of(SECURITY_CMD_DIR, "lockdown-persistent.sh");
-            Files.createDirectories(p.getParent());
-            Files.writeString(p, script, StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        } catch (Exception e) { log.warn("writePersistentLockdown: {}", e.getMessage()); }
-    }
-
-    private void removePersistentLockdown() {
-        try { Files.deleteIfExists(Path.of(SECURITY_CMD_DIR, "lockdown-persistent.sh")); }
-        catch (Exception e) { log.warn("removePersistentLockdown: {}", e.getMessage()); }
-    }
-
-    /**
-     * Escreve um script .cmd no volume compartilhado.
-     * O security container tem um watcher que executa e remove esses scripts.
-     */
-    private void writeSecurityCmd(String name, String script) throws IOException {
-        Path dir = Path.of(SECURITY_CMD_DIR);
-        Files.createDirectories(dir);
-        Path cmdFile = dir.resolve(name + "-" + System.currentTimeMillis() + ".cmd");
-        Files.writeString(cmdFile, script, StandardCharsets.UTF_8,
-            StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        // Aguarda o security container executar (máx 5s)
-        long start = System.currentTimeMillis();
-        while (Files.exists(cmdFile) && System.currentTimeMillis() - start < 5000) {
-            try { Thread.sleep(200); } catch (InterruptedException ignored) {}
-        }
-        if (Files.exists(cmdFile)) {
-            log.warn("Security cmd não foi executado em 5s: {}", cmdFile);
-        }
-    }
-
-    /**
-     * Aplica ACL no Asterisk com política whitelist-only:
-     * permit=IP1, permit=IP2, ..., deny=0.0.0.0/0
-     */
-    private void applyLockdownAcl(List<String> whitelist) throws IOException {
-        Path aclPath = Path.of(asteriskConfigDir, "acl.conf");
-        StringBuilder sb = new StringBuilder();
-        sb.append("; AsteriskIA — ACL gerada automaticamente pelo modo lockdown\n");
-        sb.append("; MODO LOCKDOWN ATIVO — apenas whitelist pode conectar\n");
-        sb.append("[whitelist-only]\n");
-        sb.append("type=acl\n");
-        for (String ip : whitelist) {
-            sb.append("permit=").append(ip).append("\n");
-        }
-        sb.append("deny=0.0.0.0/0\n");
-        sb.append("deny=::/0\n");
-        writeAtomic(aclPath, sb.toString());
-        reloadAsteriskAcl();
-    }
-
-    private void restorePermissiveAcl() throws IOException {
-        Path aclPath = Path.of(asteriskConfigDir, "acl.conf");
-        writeAtomic(aclPath,
-            "; AsteriskIA — ACL — modo normal (fail2ban ativo)\n" +
-            "[blacklist]\ntype=acl\n");
-        reloadAsteriskAcl();
-    }
-
-    private void reloadAsteriskAcl() {
-        try {
-            List<String> cmd = List.of(
-                "asterisk", "-rx", "acl reload"
-            );
-            new ProcessBuilder(cmd).start().waitFor(5, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            log.warn("reloadAsteriskAcl: {}", e.getMessage());
-        }
-    }
-
     // ── Threats ───────────────────────────────────────────────────────────────
 
     @GetMapping("/threats")
@@ -459,10 +319,10 @@ public class SecurityController {
         List<Map<String,Object>> result = new ArrayList<>();
         for (String jail : MANAGED_JAILS) {
             try {
-                String out = f2bExec("get", jail, "monitored");
+                String out = f2b.exec("get", jail, "monitored");
                 if (out == null || out.isBlank() || out.contains("No")) continue;
                 for (String line : out.split("\n")) {
-                    Map<String,Object> e = parseMonitoredLine(line.trim(), jail);
+                    Map<String,Object> e = f2b.parseMonitoredLine(line.trim(), jail);
                     if (e != null) result.add(e);
                 }
             } catch (Exception e) {
@@ -476,75 +336,83 @@ public class SecurityController {
     public ResponseEntity<Map<String, Object>> testRegex(
             @RequestBody Map<String, String> body) {
         String regex = body.get("regex");
-        int lines = parseInt(body.getOrDefault("lines", "200"));
+        int lines = SecurityFileUtils.parseInt(body.getOrDefault("lines", "200"));
         if (regex == null || regex.isBlank())
             return ResponseEntity.badRequest().body(Map.of("message", "Regex obrigatória."));
         try {
             List<String> log = tailAsteriskLog(lines);
             Pattern p = Pattern.compile(regex);
-            List<String> matches = log.stream()
-                .filter(l -> p.matcher(l).find()).limit(20).collect(Collectors.toList());
+            List<String> matches = runRegexWithTimeout(p, log);
             return ResponseEntity.ok(Map.of(
                 "matches", matches, "count", matches.size(), "tested", log.size()));
         } catch (PatternSyntaxException e) {
             return ResponseEntity.badRequest().body(Map.of("message", "Regex inválida: " + e.getMessage()));
+        } catch (java.util.concurrent.TimeoutException e) {
+            return ResponseEntity.badRequest().body(Map.of("message",
+                "Regex demorou demais pra rodar (possível catastrophic backtracking) — simplifique o padrão."));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("message", e.getMessage()));
         }
     }
 
-    // =========================================================================
-    // Privado — fail2ban via docker exec
-    // =========================================================================
-
     /**
-     * Executa fail2ban-client diretamente no backend usando o socket compartilhado.
-     * O volume fail2ban_socket monta /var/run/fail2ban em ambos os containers
-     * (security e backend), então o cliente pode falar com o daemon sem docker exec.
+     * Achado de segurança (ReDoS, low): regex vinda do cliente rodava sem timeout —
+     * uma regex com catastrophic backtracking travava a thread indefinidamente
+     * (endpoint é admin-only, então o impacto é auto-DoS, mas ainda vale limitar).
+     * Roda numa thread dedicada e interrompível; envolve cada linha numa
+     * CharSequence que verifica a interrupção a cada charAt(), já que o motor de
+     * regex do Java não respeita Thread.interrupt() sozinho.
      */
-    private String f2bExec(String... args) {
+    private List<String> runRegexWithTimeout(Pattern p, List<String> log)
+            throws java.util.concurrent.TimeoutException {
+        var executor = Executors.newSingleThreadExecutor();
         try {
-            List<String> cmd = new ArrayList<>(List.of(
-                "fail2ban-client", "-s", "/var/run/fail2ban/fail2ban.sock"));
-            cmd.addAll(Arrays.asList(args));
-            ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String out;
-            try (BufferedReader r = new BufferedReader(
-                    new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
-                out = r.lines().collect(Collectors.joining("\n"));
-            }
-            p.waitFor(15, TimeUnit.SECONDS);
-            log.debug("f2b [{}]: {}", String.join(" ", args), out.trim());
-            return out.trim();
-        } catch (Exception e) {
-            log.warn("f2bExec {}: {}", String.join(" ", args), e.getMessage());
-            return "error: " + e.getMessage();
+            var future = executor.submit(() -> log.stream()
+                .filter(l -> p.matcher(new InterruptibleCharSequence(l)).find())
+                .limit(20).collect(Collectors.toList()));
+            return future.get(2, TimeUnit.SECONDS);
+        } catch (java.util.concurrent.ExecutionException e) {
+            throw new RuntimeException(e.getCause());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } finally {
+            executor.shutdownNow();
         }
     }
 
-    private boolean isF2bRunning() {
-        try {
-            String out = f2bExec("ping");
-            return out != null && out.contains("pong");
-        } catch (Exception e) { return false; }
+    private static final class InterruptibleCharSequence implements CharSequence {
+        private final CharSequence inner;
+        InterruptibleCharSequence(CharSequence inner) { this.inner = inner; }
+        @Override public char charAt(int index) {
+            if (Thread.currentThread().isInterrupted()) throw new RuntimeException("Regex interrompida por timeout");
+            return inner.charAt(index);
+        }
+        @Override public int length() { return inner.length(); }
+        @Override public CharSequence subSequence(int start, int end) {
+            return new InterruptibleCharSequence(inner.subSequence(start, end));
+        }
+        @Override public String toString() { return inner.toString(); }
     }
+
+    // =========================================================================
+    // Privado — orquestração de jail (usa FailToBanClient + JailConfigRepository)
+    // =========================================================================
 
     private Map<String,Object> getJailInfo(String jail, boolean f2bRunning) {
         Map<String,Object> m = new LinkedHashMap<>();
         m.put("name", jail);
-        Map<String,String> cfg = parseJailConfig(jail);
+        Map<String,String> cfg = jailConfigRepo.parseJailConfig(jail);
         m.put("enabled",   "true".equals(cfg.getOrDefault("enabled", "false")));
-        m.put("maxretry",  parseInt(cfg.getOrDefault("maxretry", "5")));
-        m.put("findtime",  parseInt(cfg.getOrDefault("findtime", "30")));
-        m.put("bantime",   parseInt(cfg.getOrDefault("bantime",  "86400")));
+        m.put("maxretry",  SecurityFileUtils.parseInt(cfg.getOrDefault("maxretry", "5")));
+        m.put("findtime",  SecurityFileUtils.parseInt(cfg.getOrDefault("findtime", "30")));
+        m.put("bantime",   SecurityFileUtils.parseInt(cfg.getOrDefault("bantime",  "86400")));
         m.put("banaction", cfg.getOrDefault("banaction", "iptables-multiport"));
         m.put("port",      cfg.getOrDefault("port", "5060,5061,8088"));
         if (f2bRunning) {
-            String status = f2bExec("status", jail);
-            m.put("currentlyBanned", parseBannedCount(status));
-            m.put("totalFailed",     parseTotalFailed(status));
+            String status = f2b.exec("status", jail);
+            m.put("currentlyBanned", f2b.parseBannedCount(status));
+            m.put("totalFailed",     f2b.parseTotalFailed(status));
         } else {
             m.put("currentlyBanned", 0);
             m.put("totalFailed",     0);
@@ -557,8 +425,8 @@ public class SecurityController {
         if (!MANAGED_JAILS.contains(jail))
             return ResponseEntity.badRequest().body(Map.of("message", "Jail desconhecido."));
         try {
-            updateJailParam(jail, "enabled", enable ? "true" : "false");
-            String reload = f2bExec("reload", jail);
+            jailConfigRepo.updateJailParam(jail, "enabled", enable ? "true" : "false");
+            String reload = f2b.exec("reload", jail);
             auditService.log(req, "SECURITY_JAIL_TOGGLE",
                 jail + " " + (enable ? "habilitado" : "desabilitado"), true);
             return ResponseEntity.ok(Map.of(
@@ -568,133 +436,6 @@ public class SecurityController {
             return ResponseEntity.internalServerError()
                 .body(Map.of("message", "Erro: " + e.getMessage()));
         }
-    }
-
-    // =========================================================================
-    // Privado — leitura/escrita de configuração
-    // =========================================================================
-
-    private Map<String,String> parseJailConfig(String jail) {
-        Map<String,String> cfg = new LinkedHashMap<>();
-        try {
-            String content = Files.readString(
-                Path.of(jailConfigDir, "asterisk.conf"), StandardCharsets.UTF_8);
-            Matcher m = Pattern.compile(
-                "\\[" + Pattern.quote(jail) + "\\]([^\\[]*)", Pattern.DOTALL).matcher(content);
-            if (m.find()) {
-                for (String line : m.group(1).split("\n")) {
-                    line = line.trim();
-                    if (line.isBlank() || line.startsWith(";") || line.startsWith("#")) continue;
-                    int eq = line.indexOf('=');
-                    if (eq > 0) cfg.put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
-                }
-            }
-        } catch (Exception e) { log.warn("parseJailConfig {}: {}", jail, e.getMessage()); }
-        return cfg;
-    }
-
-    private void updateJailParam(String jail, String key, String value) throws IOException {
-        // Achado de segurança: sem esta checagem, um valor com \r/\n/[/] injeta
-        // seções INI arbitrárias em asterisk.conf, recarregado em seguida no
-        // container security (NET_ADMIN + network_mode: host). Checagem por
-        // contains() em vez de regex ".*[\\r\\n\\[\\]].*" — sem Pattern.DOTALL o "."
-        // não cruza quebra de linha, então qualquer valor com 2+ newlines (o
-        // mínimo necessário pra injetar uma seção de verdade) passava incólume.
-        if (value.contains("\r") || value.contains("\n") || value.contains("[") || value.contains("]"))
-            throw new IOException("Valor inválido para " + key + ": não pode conter quebra de linha ou colchetes");
-
-        Path path = Path.of(jailConfigDir, "asterisk.conf");
-        String content = Files.readString(path, StandardCharsets.UTF_8);
-
-        // Localiza a seção do jail
-        Pattern secPat = Pattern.compile(
-            "(\\[" + Pattern.quote(jail) + "\\][^\\[]*)(?=\\[|\\z)", Pattern.DOTALL);
-        Matcher secMatcher = secPat.matcher(content);
-        if (!secMatcher.find())
-            throw new IOException("Seção [" + jail + "] não encontrada em asterisk.conf");
-
-        String section = secMatcher.group(1);
-        String updatedSection;
-
-        // Atualiza a linha existente ou adiciona nova
-        Pattern keyPat = Pattern.compile("(?m)^([ \\t]*" + Pattern.quote(key) + "[ \\t]*=[ \\t]*).*$");
-        Matcher keyMatcher = keyPat.matcher(section);
-        if (keyMatcher.find()) {
-            updatedSection = keyMatcher.replaceFirst(key + "  = " + Matcher.quoteReplacement(value));
-        } else {
-            updatedSection = section.stripTrailing() + "\n" + key + "  = " + value + "\n";
-        }
-
-        String updated = secMatcher.replaceFirst(Matcher.quoteReplacement(updatedSection));
-        writeAtomic(path, updated);
-        log.info("Jail [{}] {} = {}", jail, key, value);
-    }
-
-    private String readJailConfig(String jail) {
-        try {
-            String content = Files.readString(
-                Path.of(jailConfigDir, "asterisk.conf"), StandardCharsets.UTF_8);
-            Matcher m = Pattern.compile(
-                "\\[" + Pattern.quote(jail) + "\\][^\\[]*", Pattern.DOTALL).matcher(content);
-            return m.find() ? m.group().strip() : "";
-        } catch (Exception e) { return ""; }
-    }
-
-    private String readFilterRegex(String jail) {
-        try {
-            Path path = Path.of(filterConfigDir, jail + ".conf");
-            if (!Files.exists(path)) return "";
-            String content = Files.readString(path, StandardCharsets.UTF_8);
-            StringBuilder sb = new StringBuilder();
-            boolean inRegex = false;
-            for (String line : content.split("\n")) {
-                String t = line.trim();
-                if (t.startsWith("failregex")) { sb.append(t).append("\n"); inRegex = true; }
-                else if (inRegex && (t.startsWith("^") || t.startsWith(" "))) sb.append(t.trim()).append("\n");
-                else if (inRegex && !t.isBlank()) inRegex = false;
-            }
-            return sb.toString().strip();
-        } catch (Exception e) { return ""; }
-    }
-
-    private void writeFilterRegex(String jail, String regex) throws IOException {
-        Path path = Path.of(filterConfigDir, jail + ".conf");
-        if (!Files.exists(path)) return;
-        String content = Files.readString(path, StandardCharsets.UTF_8);
-        String newBlock = "failregex = " +
-            regex.strip().replace("\n", "\n            ") + "\n\n";
-        String updated = Pattern.compile("(?m)^failregex\\s*=.*?(?=^[a-z]|\\z)", Pattern.DOTALL)
-            .matcher(content).replaceFirst(Matcher.quoteReplacement(newBlock));
-        writeAtomic(path, updated);
-    }
-
-    private void writeAtomic(Path path, String content) throws IOException {
-        Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
-        Files.writeString(tmp, content, StandardCharsets.UTF_8,
-            StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-    }
-
-    // =========================================================================
-    // Privado — ACL Asterisk
-    // =========================================================================
-
-    private void addToAsteriskAcl(String ip) throws IOException {
-        Path p = Path.of(asteriskConfigDir, "acl.conf");
-        String content = Files.exists(p)
-            ? Files.readString(p, StandardCharsets.UTF_8) : "[blacklist]\ntype=acl\n";
-        if (!content.contains(ip)) {
-            writeAtomic(p, content.stripTrailing() + "\ndeny=" + ip + "\n");
-        }
-    }
-
-    private void removeFromAsteriskAcl(String ip) throws IOException {
-        Path p = Path.of(asteriskConfigDir, "acl.conf");
-        if (!Files.exists(p)) return;
-        String updated = Files.readAllLines(p, StandardCharsets.UTF_8).stream()
-            .filter(l -> !l.contains("deny=" + ip))
-            .collect(Collectors.joining("\n")) + "\n";
-        writeAtomic(p, updated);
     }
 
     // =========================================================================
@@ -761,52 +502,18 @@ public class SecurityController {
     private void writeWhitelist(List<String> ips) throws IOException {
         Path p = Path.of(whitelistFile());
         Files.createDirectories(p.getParent());
-        writeAtomic(p, "# AsteriskIA — Lista branca\n" + String.join("\n", ips) + "\n");
+        SecurityFileUtils.writeAtomic(p, "# AsteriskIA — Lista branca\n" + String.join("\n", ips) + "\n");
     }
 
     private void updateIgnoreIp(List<String> whitelist) throws IOException {
         String ignoreIp = String.join(" ", whitelist);
         for (String jail : MANAGED_JAILS)
-            updateJailParam(jail, "ignoreip", ignoreIp);
+            jailConfigRepo.updateJailParam(jail, "ignoreip", ignoreIp);
     }
 
     // =========================================================================
-    // Privado — helpers de parse
+    // Privado — helpers diversos
     // =========================================================================
-
-    private List<String> parseBannedIps(String f2bStatus) {
-        List<String> ips = new ArrayList<>();
-        if (f2bStatus == null || f2bStatus.isBlank()) return ips;
-        Matcher m = Pattern.compile("Banned IP list:\\s*(.*)").matcher(f2bStatus);
-        if (m.find()) {
-            String raw = m.group(1).trim();
-            if (!raw.isEmpty()) Arrays.stream(raw.split("\\s+")).forEach(ips::add);
-        }
-        return ips;
-    }
-
-    private int parseBannedCount(String status) {
-        if (status == null) return 0;
-        Matcher m = Pattern.compile("Currently banned:\\s*(\\d+)").matcher(status);
-        return m.find() ? parseInt(m.group(1)) : 0;
-    }
-
-    private int parseTotalFailed(String status) {
-        if (status == null) return 0;
-        Matcher m = Pattern.compile("Total failed:\\s*(\\d+)").matcher(status);
-        return m.find() ? parseInt(m.group(1)) : 0;
-    }
-
-    private Map<String,Object> parseMonitoredLine(String line, String jail) {
-        Matcher m = Pattern.compile("(\\S+).*failures\\s*=\\s*(\\d+)",
-            Pattern.CASE_INSENSITIVE).matcher(line);
-        if (!m.find()) return null;
-        Map<String,Object> e = new LinkedHashMap<>();
-        e.put("ip",       m.group(1));
-        e.put("failures", parseInt(m.group(2)));
-        e.put("jail",     jail);
-        return e;
-    }
 
     /** Chama o docker-helper (GET /asterisk/log) — antigo docker exec asteriskia-asterisk tail. */
     @SuppressWarnings("unchecked")
@@ -824,10 +531,6 @@ public class SecurityController {
         if (ip == null || ip.isBlank()) return false;
         return ip.matches("^(\\d{1,3}\\.){3}\\d{1,3}(/\\d{1,2})?$")
             || ip.matches("^[0-9a-fA-F:]+(/\\d{1,3})?$");
-    }
-
-    private int parseInt(String s) {
-        try { return Integer.parseInt(s.trim()); } catch (Exception e) { return 0; }
     }
 
     private Map<String,String> mapOf(String... kv) {

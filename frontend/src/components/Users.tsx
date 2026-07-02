@@ -128,8 +128,12 @@ export default function Users() {
   // ---- Desativar ----
   const handleDeactivate = async (u: AppUser) => {
     if (!confirm(`Desativar o usuário "${u.username}"? O ramal ${u.extension} será preservado.`)) return;
-    await api.delete(`/users/${u.id}`);
-    load();
+    try {
+      await api.delete(`/users/${u.id}`);
+      load();
+    } catch (err: any) {
+      alert(err?.response?.data?.message ?? 'Erro ao desativar usuário.');
+    }
   };
 
   // ── 2FA (TOTP) ─────────────────────────────────────────────────────────────

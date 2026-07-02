@@ -33,6 +33,17 @@ _ALLOWED_SERVICES = {
     "asteriskia-caddy", "asteriskia-security",
 }
 
+# Allowlist das chaves de serviço do docker-compose.yml (nomes usados em
+# `docker compose up <service>`, diferentes dos nomes de container acima).
+# Achado de segurança: /compose/up repassava `services` do body direto pro
+# subprocess sem checar contra nenhuma allowlist — único container com acesso
+# ao docker.sock, então deveria validar por conta própria mesmo que o backend
+# Java já valide antes.
+_ALLOWED_COMPOSE_SERVICES = {
+    "postgres", "asterisk", "ai-agent", "docker-helper", "backend",
+    "frontend", "coturn", "security", "agents-backend", "caddy",
+}
+
 
 async def check_internal_key(x_internal_key: str = Header(default="")):
     if x_internal_key != _INTERNAL_KEY:
@@ -79,6 +90,9 @@ async def health():
 async def compose_up(body: dict):
     """Equivalente ao antigo SettingsService.runApply() via ProcessBuilder."""
     services = [s for s in body.get("services", []) if isinstance(s, str) and s.strip()]
+    invalid = [s for s in services if s not in _ALLOWED_COMPOSE_SERVICES]
+    if invalid:
+        raise HTTPException(400, f"Serviço(s) desconhecido(s): {', '.join(invalid)}")
     cmd = ["docker", "compose", "--env-file", _ENV_FILE]
     if services:
         cmd += ["up", "-d", "--no-deps", *services]

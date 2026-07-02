@@ -61,6 +61,9 @@ public class SettingsController {
                     updates.size() + " chave(s) alterada(s): " + String.join(", ", updates.keySet()), true);
             return ResponseEntity.ok(new SuccessResponse(
                     "Configurações salvas. Clique em 'Aplicar' para reiniciar os serviços afetados."));
+        } catch (IllegalArgumentException e) {
+            auditService.log(request, "SETTINGS_CHANGE", "Falha ao salvar: " + e.getMessage(), false);
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
         } catch (IOException e) {
             log.error("Erro ao salvar configurações: {}", e.getMessage(), e);
             auditService.log(request, "SETTINGS_CHANGE", "Falha ao salvar: " + e.getMessage(), false);

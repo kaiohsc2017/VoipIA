@@ -17,6 +17,7 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -211,8 +212,21 @@ public class SettingsService {
      * @param changedBy  Usuário que fez a alteração (do JWT)
      * @param ipAddress  IP de origem da requisição
      */
+    /** Formato aceito de chave de variável de ambiente (identificador maiúsculo). */
+    private static final Pattern ENV_KEY_PATTERN = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
+
     public void writeSettings(Map<String, String> updates, String changedBy, String ipAddress)
             throws IOException {
+        // Achado de segurança: nenhuma validação de chave/valor antes de gravar o
+        // .env real de produção — uma chave fora do formato de identificador ou um
+        // valor com \r/\n corrompe o arquivo (linha extra interpretada como outra
+        // variável). Valida tudo ANTES de tocar no disco (backup incluído).
+        for (String key : updates.keySet()) {
+            if (!ENV_KEY_PATTERN.matcher(key).matches()) {
+                throw new IllegalArgumentException("Chave de configuração inválida: " + key);
+            }
+        }
+
         Path path = Path.of(settingsFilePath);
 
         // Lê o estado atual para preservar valores mascarados que não foram alterados
@@ -227,7 +241,7 @@ public class SettingsService {
             if (MASK_SENTINEL.equals(v)) {
                 resolved.put(k, current.getOrDefault(k, ""));
             } else {
-                resolved.put(k, v);
+                resolved.put(k, v == null ? "" : v.replace("\r", "").replace("\n", ""));
             }
         });
 
