@@ -3,7 +3,7 @@ import asyncio
 import io
 import uuid
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query
 from database import DB
 
 router = APIRouter()
@@ -22,7 +22,7 @@ def _extract_pdf_text(data: bytes) -> str:
         return data.decode("utf-8", errors="ignore")
 
 @router.get("/")
-async def list_docs(limit: int = 100, offset: int = 0):
+async def list_docs(limit: int = Query(default=100, le=500), offset: int = 0):
     async with DB() as db:
         rows  = await db.fetch(
             "SELECT id,filename,title,tags,created_at FROM knowledge_docs ORDER BY created_at DESC LIMIT $1 OFFSET $2",

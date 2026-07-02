@@ -49,6 +49,9 @@ class AgentScheduler:
         self._running = False
         for t in self._tasks.values():
             t.cancel()
+        # Aguarda o término real das tasks canceladas — garante que conexões
+        # SSH/DB abertas dentro de run_agent fechem limpo antes do shutdown.
+        await asyncio.gather(*self._tasks.values(), return_exceptions=True)
 
     async def _loader(self):
         await asyncio.sleep(3)

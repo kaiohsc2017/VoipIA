@@ -23,10 +23,12 @@ import logging
 import asyncio
 import struct
 from typing import Any
+import httpx
 import numpy as np
 import google.genai as genai
 import google.genai.types as genai_types
 from src.config import get_gemini_api_key, get_gemini_model_stt, get_gemini_model_llm, get_gemini_model_tts
+from src.services import backend_client
 
 logger = logging.getLogger("asteriskia.gemini")
 
@@ -65,29 +67,31 @@ _TOOLS = genai_types.Tool(
 )
 
 
-def _execute_tool(tool_name: str, args: dict[str, Any]) -> str:
+def _execute_tool(tool_name: str, args: dict[str, Any], loop: asyncio.AbstractEventLoop) -> str:
     """
     Executa a função solicitada pelo Gemini e retorna o resultado como string JSON.
     Esta é a camada de integração entre o LLM e o mundo real.
+
+    Roda em thread separada (via asyncio.to_thread em _llm_with_tools_sync), então
+    reusa o backend_client — que é assíncrono — agendando a chamada de volta no
+    event loop original com run_coroutine_threadsafe (o mesmo loop que já
+    possui o httpx.AsyncClient compartilhado do backend_client).
     """
     if tool_name == "abrir_protocolo_suporte":
         descricao = args.get("descricao", "Sem descrição")
         prioridade = args.get("prioridade", "MEDIA")
-        
+        payload = {"descricao": descricao, "prioridade": prioridade}
+
         try:
-            import httpx
-            from src.config import BACKEND_URL, INTERNAL_API_KEY
-            headers = {"X-Internal-Key": INTERNAL_API_KEY, "Content-Type": "application/json"}
-            payload = {"descricao": descricao, "prioridade": prioridade}
-            
-            resp = httpx.post(f"{BACKEND_URL}/api/v1/suporte/abrir", headers=headers, json=payload, timeout=10.0)
-            if resp.status_code == 200:
-                result = resp.json()
-                logger.info("Protocolo de suporte aberto (backend): %s", result.get("protocolo"))
-                return json.dumps(result, ensure_ascii=False)
-            else:
-                logger.error("Erro do backend ao abrir protocolo: %s", resp.text)
-                return json.dumps({"erro": "Erro do sistema ao abrir o protocolo.", "sucesso": False}, ensure_ascii=False)
+            future = asyncio.run_coroutine_threadsafe(
+                backend_client.post("/api/v1/suporte/abrir", json=payload), loop
+            )
+            result = future.result(timeout=10.0)
+            logger.info("Protocolo de suporte aberto (backend): %s", result.get("protocolo"))
+            return json.dumps(result, ensure_ascii=False)
+        except httpx.HTTPStatusError as e:
+            logger.error("Erro do backend ao abrir protocolo: %s", e.response.text)
+            return json.dumps({"erro": "Erro do sistema ao abrir o protocolo.", "sucesso": False}, ensure_ascii=False)
         except Exception as e:
             logger.error("Falha na chamada REST abrir_protocolo_suporte: %s", e)
             return json.dumps({"erro": "Sistema indisponível no momento.", "sucesso": False}, ensure_ascii=False)
@@ -200,8 +204,9 @@ class GeminiService:
             Resposta final do Gemini (texto puro, já com os dados da função)
         """
         try:
+            loop = asyncio.get_running_loop()
             return await asyncio.to_thread(
-                self._llm_with_tools_sync, system_instruction, history
+                self._llm_with_tools_sync, system_instruction, history, loop
             )
         except Exception as e:
             logger.error("Erro no LLM+Tools: %s", e)
@@ -342,6 +347,7 @@ class GeminiService:
         self,
         system_instruction: str,
         history: list[dict[str, str]],
+        loop: asyncio.AbstractEventLoop,
     ) -> str:
         """
         LLM com Function Calling — ciclo completo em modo síncrono.
@@ -394,7 +400,7 @@ class GeminiService:
             function_results = []
             for fc in tool_calls:
                 logger.info("Gemini solicitou função: %s(%s)", fc.name, fc.args)
-                result_str = _execute_tool(fc.name, dict(fc.args))
+                result_str = _execute_tool(fc.name, dict(fc.args), loop)
                 logger.info("Resultado da função %s: %s", fc.name, result_str)
 
                 function_results.append(

@@ -1,12 +1,18 @@
 """routers/executions.py"""
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Query
 from uuid import UUID
 from database import DB
+from auth import require_admin
 
 router = APIRouter()
 
+# execution_logs.message pode conter DSN/senha vazada em mensagens de exceção
+# de asyncpg/asyncssh — esse endpoint não passa pelo _mask_secrets de agents.py.
+_ADMIN = [Depends(require_admin)]
+
 @router.get("/")
-async def list_executions(agent_id: str = None, limit: int = 50, offset: int = 0):
+async def list_executions(agent_id: str = None,
+                           limit: int = Query(default=50, le=500), offset: int = 0):
     async with DB() as db:
         if agent_id:
             rows = await db.fetch("""
@@ -85,7 +91,7 @@ async def dashboard_period(period: str = "day"):
         return [dict(r) for r in rows]
 
 @router.get("/alerts")
-async def list_alerts(limit: int = 100):
+async def list_alerts(limit: int = Query(default=100, le=500)):
     """Histórico de alertas para a página Alertas/Relatórios."""
     async with DB() as db:
         rows = await db.fetch("""
@@ -103,8 +109,9 @@ async def get_execution(execution_id: UUID):
         row = await db.fetchrow("SELECT * FROM executions WHERE id=$1", execution_id)
         return dict(row) if row else {}
 
-@router.get("/{execution_id}/logs")
-async def get_logs(execution_id: UUID, level: str = None, limit: int = 500):
+@router.get("/{execution_id}/logs", dependencies=_ADMIN)
+async def get_logs(execution_id: UUID, level: str = None,
+                    limit: int = Query(default=500, le=1000)):
     async with DB() as db:
         if level:
             rows = await db.fetch("""

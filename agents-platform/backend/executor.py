@@ -257,10 +257,16 @@ class SSHTestExecutor:
                             if not ok and self.stop_on_fail:
                                 break
 
-                except Exception as e:
+                except (asyncssh.Error, OSError, ConnectionError) as e:
                     failed += 1
                     total  += 1
                     await self._emit(db, "error", f"Falha SSH: {e}", srv["name"])
+                    srv_report["error"] = str(e)
+                except (KeyError, TypeError, ValueError) as e:
+                    failed += 1
+                    total  += 1
+                    await self._emit(db, "error",
+                        f"Erro ao avaliar check (configuração inválida): {e}", srv["name"])
                     srv_report["error"] = str(e)
 
                 report["servers"].append(srv_report)
@@ -577,10 +583,16 @@ class LogMonitorExecutor:
                                 "sample": raw_out[:500]
                             })
 
-                except Exception as e:
+                except (asyncssh.Error, OSError, ConnectionError) as e:
                     failed += 1
                     total  += 1
                     await self._emit(db, "error", f"Falha SSH: {e}", srv["name"])
+                    srv_report["error"] = str(e)
+                except (KeyError, TypeError, ValueError) as e:
+                    failed += 1
+                    total  += 1
+                    await self._emit(db, "error",
+                        f"Erro ao avaliar check (configuração inválida): {e}", srv["name"])
                     srv_report["error"] = str(e)
 
                 report["servers"].append(srv_report)
@@ -694,6 +706,18 @@ EXECUTORS = {
 
 # Lock global — previne execuções paralelas do mesmo agente
 _running_agents: set[str] = set()
+
+# Referências das tasks de background (encadeamento de agentes, retenção) —
+# evita que o GC colete a task antes de terminar e exceções sumam em silêncio.
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_background_task(coro) -> asyncio.Task:
+    """Cria uma task de background mantendo referência forte até ela terminar."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
 
 
 async def _send_all_alerts(agent: dict, level: str, message: str,
@@ -917,7 +941,7 @@ async def run_agent(agent: dict, broadcast, _chain_depth: int = 0) -> dict:
                         "SELECT * FROM agents WHERE id=$1", UUID(str(trigger_id)))
                 if trow:
                     logger.info("[chain] %s → %s", agent["name"], trow["name"])
-                    asyncio.create_task(run_agent(dict(trow), broadcast, _chain_depth + 1))
+                    _spawn_background_task(run_agent(dict(trow), broadcast, _chain_depth + 1))
             except Exception as e:
                 logger.error("[chain] Erro: %s", e)
 
@@ -928,7 +952,7 @@ async def run_agent(agent: dict, broadcast, _chain_depth: int = 0) -> dict:
 
         # ── Retenção (probabilística — 1% das execuções) ─────────────────────
         if hash(str(execution_id)) % 100 == 0:
-            asyncio.create_task(_apply_retention())
+            _spawn_background_task(_apply_retention())
 
         return {"execution_id": str(execution_id), "status": status,
                 "summary": summary, "report": result["report"]}

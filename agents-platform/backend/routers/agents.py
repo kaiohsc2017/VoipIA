@@ -1,5 +1,5 @@
 """routers/agents.py"""
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, Query
 from uuid import UUID
 from models import AgentCreate, AgentOut
 from database import DB
@@ -72,7 +72,7 @@ def _sanitize_agent(agent: dict) -> dict:
     return out
 
 @router.get("/")
-async def list_agents(limit: int = 100, offset: int = 0):
+async def list_agents(limit: int = Query(default=100, le=500), offset: int = 0):
     async with DB() as db:
         rows  = await db.fetch(
             "SELECT * FROM agents ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset)

@@ -1,5 +1,5 @@
 """routers/servers.py"""
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from uuid import UUID
 from models import ServerCreate
 from database import DB
@@ -14,7 +14,7 @@ router = APIRouter()
 _ADMIN = [Depends(require_admin)]
 
 @router.get("/")
-async def list_servers(limit: int = 100, offset: int = 0):
+async def list_servers(limit: int = Query(default=100, le=500), offset: int = 0):
     async with DB() as db:
         rows  = await db.fetch(
             "SELECT id,name,host,port,username,auth_type,tags,active,created_at FROM servers ORDER BY name LIMIT $1 OFFSET $2",

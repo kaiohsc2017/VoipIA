@@ -24,7 +24,8 @@ async def send_telegram(chat_id: str, message: str) -> bool:
                 "parse_mode": "HTML",
             }, timeout=aiohttp.ClientTimeout(total=10)) as r:
                 return r.status == 200
-    except Exception:
+    except Exception as e:
+        logger.error("[notifier] telegram error: %s", e)
         return False
 
 
