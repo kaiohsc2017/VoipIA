@@ -9,7 +9,9 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -44,6 +46,23 @@ public class AuthController {
     @Value("${app.auth.admin-password:changeme}")
     private String adminPassword;
 
+    private static final String REFRESH_COOKIE = "asteriskia_refresh_token";
+
+    /**
+     * Cookie httpOnly com o refresh token — nunca acessível via JavaScript
+     * (mitiga exfiltração via XSS pontual, diferente do access token de vida
+     * curta). Escopado a /api/v1/auth para não ser enviado em toda requisição.
+     */
+    private ResponseCookie refreshCookie(String value, long maxAgeSeconds) {
+        return ResponseCookie.from(REFRESH_COOKIE, value)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/api/v1/auth")
+                .maxAge(maxAgeSeconds)
+                .build();
+    }
+
     @PostMapping("/login")
         public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request,
                                    HttpServletRequest httpRequest) {
@@ -69,7 +88,9 @@ public class AuthController {
             auditService.logAs(httpRequest, request.username(), "LOGIN",
                     "Login via variáveis de ambiente (fallback)", true);
             log.info("Login ENV: '{}' → ramal 9001 (fallback)", request.username());
-            return ResponseEntity.ok(new LoginResponse(token, refreshToken, "Bearer", 8, 9001, "Administrador"));
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshToken, 30L * 24 * 3600).toString())
+                    .body(new LoginResponse(token, "Bearer", 8, 9001, "Administrador"));
         }
 
         // 3. Credenciais inválidas
@@ -100,13 +121,14 @@ public class AuthController {
         auditService.logAs(request, user.getUsername(), "LOGIN",
                 "Login bem-sucedido (ramal " + user.getExtension() + ")", true);
         log.info("Login DB: '{}' → ramal {}", user.getUsername(), user.getExtension());
-        return ResponseEntity.ok(new LoginResponse(
-                token, refreshToken, "Bearer", 8, user.getExtension(), user.getDisplayName()));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshToken, 30L * 24 * 3600).toString())
+                .body(new LoginResponse(token, "Bearer", 8, user.getExtension(), user.getDisplayName()));
     }
 
     @PostMapping("/refresh")
-        public ResponseEntity<?> refresh(@RequestBody Map<String, String> body) {
-        String reqRefreshToken = body.get("refreshToken");
+        public ResponseEntity<?> refresh(
+                @CookieValue(name = REFRESH_COOKIE, required = false) String reqRefreshToken) {
         if (reqRefreshToken == null || reqRefreshToken.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse("Refresh token não fornecido"));
         }
@@ -118,7 +140,7 @@ public class AuthController {
 
         RefreshToken refreshToken = optToken.get();
         String username = refreshToken.getUsername();
-        
+
         Integer extension = 9001;
         String displayName = "Administrador";
         String role = adminUsername.equals(username) ? "ADMIN" : "USER";
@@ -136,18 +158,22 @@ public class AuthController {
         String newRefreshToken = refreshTokenService.generateRefreshToken(username);
 
         log.info("Token renovado via refresh para '{}'", username);
-        return ResponseEntity.ok(new LoginResponse(
-                newJwt, newRefreshToken, "Bearer", 8, extension, displayName));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshCookie(newRefreshToken, 30L * 24 * 3600).toString())
+                .body(new LoginResponse(newJwt, "Bearer", 8, extension, displayName));
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(@RequestBody Map<String, String> body) {
-        String reqRefreshToken = body.get("refreshToken");
+    public ResponseEntity<?> logout(
+            @CookieValue(name = REFRESH_COOKIE, required = false) String reqRefreshToken) {
         if (reqRefreshToken != null && !reqRefreshToken.isBlank()) {
             refreshTokenService.revokeRefreshToken(reqRefreshToken);
             log.info("Logout: refresh token revogado");
         }
-        return ResponseEntity.ok().build();
+        // Expira o cookie imediatamente (maxAge=0) para o navegador descartá-lo.
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshCookie("", 0).toString())
+                .build();
     }
 
     // ── DTOs ──────────────────────────────────────────────────────────────────
@@ -159,7 +185,6 @@ public class AuthController {
 
     public record LoginResponse(
             String token,
-            String refreshToken,
             String type,
             int expiresInHours,
             Integer extension,

@@ -7,7 +7,9 @@ import com.asteriskia.domain.user.AppUserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -155,22 +157,29 @@ public class TotpController {
                     .body(Map.of("error", "Código de verificação inválido."));
         }
 
-        // Código válido → emite JWT final
-        String jwt = jwtService.generateToken(user.getUsername(), user.getExtension());
+        // Código válido → emite JWT final (com a role real do usuário — antes
+        // sempre virava "USER" independente do cargo, trancando admins com 2FA)
+        String jwt = jwtService.generateToken(user.getUsername(), user.getExtension(), user.getRole());
         String newRefreshToken = refreshTokenService.generateRefreshToken(user.getUsername());
-        
+
         auditService.logAs(request, username, "LOGIN",
                 "Login concluído com 2FA", true);
         log.info("Login 2FA concluído para '{}'", username);
 
-        return ResponseEntity.ok(Map.of(
-                "token",        jwt,
-                "refreshToken", newRefreshToken,
-                "type",         "Bearer",
-                "expiresInHours", 8,
-                "extension",    user.getExtension(),
-                "displayName",  user.getDisplayName()
-        ));
+        // Refresh token via cookie httpOnly — nunca no corpo JSON (mesmo padrão do AuthController).
+        ResponseCookie cookie = ResponseCookie.from("asteriskia_refresh_token", newRefreshToken)
+                .httpOnly(true).secure(true).sameSite("Strict")
+                .path("/api/v1/auth").maxAge(30L * 24 * 3600).build();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(Map.of(
+                        "token",        jwt,
+                        "type",         "Bearer",
+                        "expiresInHours", 8,
+                        "extension",    user.getExtension(),
+                        "displayName",  user.getDisplayName()
+                ));
     }
 
     // ── Status do 2FA do usuário logado ──────────────────────────────────────

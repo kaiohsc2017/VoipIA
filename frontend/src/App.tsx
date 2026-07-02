@@ -4,6 +4,7 @@ import Login from './components/Login';
 import Sidebar, { type Page } from './components/Sidebar';
 import ModuloLogs from './components/ModuloLogs';
 import ModuloSeguranca from './components/ModuloSeguranca';
+import { revokeSession } from './api/client';
 
 // ─── Lazy imports — cada módulo vira um chunk separado ───────────────────────
 // O React cria um chunk JS separado para cada componente lazy.
@@ -115,6 +116,7 @@ export default function App() {
   const handleSignOut = () => {
     localStorage.removeItem('asteriskia_token');
     localStorage.removeItem('asteriskia_user');
+    revokeSession(); // revoga o refresh token no backend + limpa o cookie httpOnly
     setToken(null);
     setUsername('');
   };
