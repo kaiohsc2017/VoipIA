@@ -5,8 +5,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +29,15 @@ import java.util.stream.*;
 public class SecurityController {
 
     private final AuditService auditService;
+    private final RestTemplate restTemplate;
+
+    // Docker Helper — único container com acesso ao docker.sock (F-CRIT-10).
+    // Este controller não roda mais 'docker exec' via ProcessBuilder.
+    @Value("${app.docker-helper.url}")
+    private String dockerHelperUrl;
+
+    @Value("${app.internal-api-key}")
+    private String internalApiKey;
 
     // Caminhos montados via volume no backend
     @Value("${app.security.jail-config-dir:/opt/asteriskia/security/config/jail.d}")
@@ -772,19 +786,16 @@ public class SecurityController {
         return e;
     }
 
-    private List<String> tailAsteriskLog(int lines) throws IOException, InterruptedException {
-        ProcessBuilder pb = new ProcessBuilder(
-            "docker", "exec", "asteriskia-asterisk",
-            "tail", "-n", String.valueOf(lines), "/var/log/asterisk/full");
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        List<String> out = new ArrayList<>();
-        try (BufferedReader r = new BufferedReader(
-                new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
-            String l; while ((l = r.readLine()) != null) out.add(l);
-        }
-        p.waitFor(10, TimeUnit.SECONDS);
-        return out;
+    /** Chama o docker-helper (GET /asterisk/log) — antigo docker exec asteriskia-asterisk tail. */
+    @SuppressWarnings("unchecked")
+    private List<String> tailAsteriskLog(int lines) {
+        String url = UriComponentsBuilder.fromHttpUrl(dockerHelperUrl + "/asterisk/log")
+                .queryParam("lines", lines).toUriString();
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Internal-Key", internalApiKey);
+        ResponseEntity<Map> resp = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+        Map<String, Object> body = resp.getBody();
+        return body != null ? (List<String>) body.getOrDefault("lines", List.of()) : List.of();
     }
 
     private boolean isValidIp(String ip) {

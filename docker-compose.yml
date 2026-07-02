@@ -160,6 +160,35 @@ services:
       start_period: 30s
 
   # ---------------------------------------------------------------------------
+  # Docker Helper — único container do stack com acesso ao docker.sock (F-CRIT-10)
+  # Antes, o backend montava o socket direto para rodar 'docker compose up',
+  # 'docker logs' e 'docker exec' via ProcessBuilder — qualquer RCE no backend
+  # virava root no host. Agora só este serviço toca o socket, sem porta
+  # publicada no host (só alcançável pela rede interna) e atrás de
+  # X-Internal-Key. Nenhum exec genérico: só as operações que já existiam.
+  # ---------------------------------------------------------------------------
+  docker-helper:
+    build:
+      context: ./docker-helper
+      dockerfile: Dockerfile
+    container_name: asteriskia-docker-helper
+    restart: unless-stopped
+    environment:
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/AsteriskIA:/opt/AsteriskIA:ro
+    networks:
+      asteriskia-net:
+          ipv4_address: 172.16.7.17
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health', timeout=4)"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
   # Backend — Spring Boot 3.3 (Tomcat 11, JRE 21)
   # Porta 8080 não exposta ao host: acesso exclusivo via Caddy (porta 443).
   # ---------------------------------------------------------------------------
@@ -171,6 +200,8 @@ services:
     restart: unless-stopped
     depends_on:
       postgres:
+        condition: service_healthy
+      docker-helper:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB}
@@ -199,11 +230,10 @@ services:
       ZABBIX_PASSWORD:            ${ZABBIX_PASSWORD}
       ZABBIX_MIN_SEVERITY:        ${ZABBIX_MIN_SEVERITY:-4}
       ZABBIX_POLL_INTERVAL_MINUTES: ${ZABBIX_POLL_INTERVAL_MINUTES:-5}
-      # SettingsService: reescreve .env e reinicia containers via docker socket
+      # SettingsService: reescreve .env localmente; reinicia containers via
+      # docker-helper (HTTP interno — backend não toca mais no docker.sock)
       SETTINGS_FILE_PATH:         /opt/asteriskia/env/.env
-      SETTINGS_COMPOSE_DIR:       /opt/AsteriskIA
-    cap_add:
-      - NET_ADMIN   # Necessário para iptables (modo lockdown SIP)
+      DOCKER_HELPER_URL:          http://docker-helper:8090
     volumes:
       - asterisk_recordings:/var/spool/asterisk/monitor
       - /opt/AsteriskIA/env:/opt/asteriskia/env
@@ -212,9 +242,6 @@ services:
       - security_cmds:/var/run/asteriskia-security
       - /opt/AsteriskIA/security/config:/opt/asteriskia/security/config
       - /opt/AsteriskIA/security:/opt/asteriskia/security
-      # Docker socket: permite ao SettingsService executar 'docker compose up -d'
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /opt/AsteriskIA:/opt/AsteriskIA:ro
     networks:
       asteriskia-net:
           ipv4_address: 172.16.7.14

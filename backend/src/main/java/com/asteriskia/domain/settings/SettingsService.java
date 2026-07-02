@@ -5,10 +5,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -33,14 +35,18 @@ import java.util.stream.Collectors;
 public class SettingsService {
 
     private final SettingsHistoryRepository historyRepository;
+    private final WebClient.Builder webClientBuilder;
 
     /** Caminho do .env dentro do container (mapeado via volume). */
     @Value("${app.settings.file-path:/opt/asteriskia/env/.env}")
     private String settingsFilePath;
 
-    /** Diretório raiz do projeto Docker Compose no host (mapeado via volume). */
-    @Value("${app.settings.compose-dir:/opt/AsteriskIA}")
-    private String composeDir;
+    /** URL do docker-helper — único container com acesso ao docker.sock (F-CRIT-10). */
+    @Value("${app.docker-helper.url}")
+    private String dockerHelperUrl;
+
+    @Value("${app.internal-api-key}")
+    private String internalApiKey;
 
     /** Token sentinela enviado pelo frontend quando o campo não foi alterado. */
     private static final String MASK_SENTINEL = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
@@ -357,50 +363,42 @@ public class SettingsService {
     // Apply interno (chamado pela Thread virtual)
     // -------------------------------------------------------------------------
 
-    private void runApply(ApplyJob job, List<String> services) throws IOException, InterruptedException {
-        log.info("Executando docker compose up -d em {} (jobId={})", composeDir, job.getId());
+    private void runApply(ApplyJob job, List<String> services) {
+        log.info("Solicitando docker compose up -d ao docker-helper (jobId={})", job.getId());
 
         // Backup do .env antes de aplicar
         Path envPath = Path.of(settingsFilePath);
         backupEnv(envPath);
 
-        job.appendLog("\ud83d\udcc1 Diret\u00f3rio: " + composeDir + "\n");
-
-        // Monta o comando: se houver serviços específicos, reinicia só eles
-        List<String> cmd = new java.util.ArrayList<>(List.of(
-                "docker", "compose", "--env-file", settingsFilePath
-        ));
         if (services != null && !services.isEmpty()) {
-            cmd.add("up"); cmd.add("-d"); cmd.add("--no-deps");
-            cmd.addAll(services);
-            job.appendLog("▶ Reiniciando apenas: " + String.join(", ", services) + "\n\n");
+            job.appendLog("Reiniciando apenas: " + String.join(", ", services) + "\n\n");
         } else {
-            cmd.add("up"); cmd.add("-d"); cmd.add("--remove-orphans");
-            job.appendLog("▶ Reiniciando todos os serviços\n\n");
-        }
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.directory(new File(composeDir));
-        pb.redirectErrorStream(true);
-
-        Process proc = pb.start();
-
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(proc.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                job.appendLog(line + "\n");
-                log.info("[docker-compose] {}", line);
-            }
+            job.appendLog("Reiniciando todos os serviços\n\n");
         }
 
-        int exitCode = proc.waitFor();
+        Map<String, Object> response = webClientBuilder.build()
+                .post()
+                .uri(dockerHelperUrl + "/compose/up")
+                .header("X-Internal-Key", internalApiKey)
+                .bodyValue(Map.of("services", services != null ? services : List.of()))
+                .retrieve()
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofMinutes(3))
+                .block();
+
+        String output = response != null ? String.valueOf(response.get("output")) : "";
+        int exitCode  = response != null ? ((Number) response.get("exitCode")).intValue() : -1;
+
+        job.appendLog(output);
+        log.info("[docker-compose via docker-helper] {}", output);
+
         if (exitCode != 0) {
             log.error("docker compose up retornou exit code {}", exitCode);
-            job.appendLog("\n\u26a0\ufe0f  Exit code: " + exitCode);
+            job.appendLog("\nExit code: " + exitCode);
             throw new RuntimeException("docker compose up retornou exit code " + exitCode);
         }
         log.info("docker compose up concluido com sucesso (jobId={})", job.getId());
-        job.appendLog("\n\u2705 Servicos reiniciados com sucesso!");
+        job.appendLog("\nServicos reiniciados com sucesso!");
     }
 
     // -------------------------------------------------------------------------

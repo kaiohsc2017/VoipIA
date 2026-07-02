@@ -21,21 +21,14 @@ RUN mvn clean package -DskipTests -q
 # =============================================================
 FROM tomcat:11.0-jre21
 
-# Instala Docker CLI (necessário para o SettingsService executar 'docker compose up')
-# A imagem tomcat:11.0-jre21 é baseada em Ubuntu — usar repositório Ubuntu do Docker
+# curl: usado pelo healthcheck do docker-compose.yml.
+# fail2ban: fornece o binário fail2ban-client, usado via socket compartilhado
+# (fail2ban_socket) pelo SecurityController — não precisa do docker.sock.
+# NOTA (F-CRIT-10): este container NÃO tem mais Docker CLI nem docker.sock —
+# 'docker compose up'/'docker logs'/'docker exec' agora passam pelo serviço
+# interno docker-helper (ver docker-compose.yml e DOCKER_HELPER_URL).
 RUN apt-get update -qq && \
-    apt-get install -y --no-install-recommends \
-        curl \
-        ca-certificates && \
-    install -m 0755 -d /etc/apt/keyrings && \
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc && \
-    chmod a+r /etc/apt/keyrings/docker.asc && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
-    https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
-    > /etc/apt/sources.list.d/docker.list && \
-    apt-get update -qq && \
-    apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
-        fail2ban && \
+    apt-get install -y --no-install-recommends curl ca-certificates fail2ban && \
     rm -rf /var/lib/apt/lists/*
 
 # Remove aplicações de exemplo do Tomcat

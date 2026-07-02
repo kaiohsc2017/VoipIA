@@ -5,19 +5,29 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.*;
 import java.net.Socket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Stream;
 
 @Slf4j
 @RestController
@@ -26,9 +36,16 @@ import java.util.concurrent.*;
 public class LogsController {
 
     private final AuditService auditService;
+    private final RestTemplate restTemplate;
+    private final HttpClient httpClient = HttpClient.newHttpClient();
 
-    @Value("${app.settings.compose-dir:/opt/AsteriskIA}")
-    private String composeDir;
+    // Docker Helper — único container com acesso ao docker.sock (F-CRIT-10).
+    // Este controller não roda mais 'docker logs'/'docker exec' via ProcessBuilder.
+    @Value("${app.docker-helper.url}")
+    private String dockerHelperUrl;
+
+    @Value("${app.internal-api-key}")
+    private String internalApiKey;
 
     @Value("${app.asterisk.ami.host:asterisk}")
     private String amiHost;
@@ -45,10 +62,11 @@ public class LogsController {
     private static final int AMI_TIMEOUT = 8_000;
     private static final int SSE_TIMEOUT = (int) TimeUnit.MINUTES.toMillis(30);
 
+    // Containers reais do stack atual (deve casar com _ALLOWED_SERVICES do docker-helper).
     private static final List<String> ALL_SERVICES = List.of(
         "asteriskia-backend", "asteriskia-asterisk", "asteriskia-ai-agent",
-        "asteriskia-scheduler", "asteriskia-frontend", "asteriskia-postgres",
-        "asteriskia-prometheus", "asteriskia-grafana"
+        "asteriskia-frontend", "asteriskia-postgres", "asteriskia-agents-api",
+        "asteriskia-caddy"
     );
 
     // ── Docker snapshot ───────────────────────────────────────────────────────
@@ -109,22 +127,19 @@ public class LogsController {
         SseEmitter emitter  = new SseEmitter((long) SSE_TIMEOUT);
 
         Thread.ofVirtual().name("log-stream-docker").start(() -> {
-            List<Process> procs = new ArrayList<>();
+            List<Stream<String>> streams = Collections.synchronizedList(new ArrayList<>());
             BlockingQueue<String> queue = new LinkedBlockingQueue<>(2000);
             try {
                 for (String svc : svcs) {
-                    ProcessBuilder pb = new ProcessBuilder(
-                        "docker","logs","--follow","--tail","50","--timestamps", svc);
-                    pb.redirectErrorStream(true);
-                    Process p = pb.start(); procs.add(p);
                     final String fsvc = svc;
-                    final InputStream is = p.getInputStream();
                     Thread.ofVirtual().start(() -> {
-                        try (BufferedReader r = new BufferedReader(
-                                new InputStreamReader(is, StandardCharsets.UTF_8))) {
-                            String line;
-                            while ((line = r.readLine()) != null)
-                                queue.offer(fsvc + "|||" + line, 1, TimeUnit.SECONDS);
+                        try {
+                            Stream<String> lines = streamFromHelper("/logs/" + fsvc + "/stream?tail=50");
+                            streams.add(lines);
+                            lines.forEach(line -> {
+                                try { queue.offer(fsvc + "|||" + line, 1, TimeUnit.SECONDS); }
+                                catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                            });
                         } catch (Exception ignored) {}
                     });
                 }
@@ -139,7 +154,7 @@ public class LogsController {
             } catch (Exception e) {
                 emitter.completeWithError(e);
             } finally {
-                procs.forEach(Process::destroyForcibly);
+                streams.forEach(Stream::close);
             }
         });
 
@@ -241,22 +256,17 @@ public class LogsController {
         public SseEmitter asteriskStream(@RequestParam(defaultValue = "") String levels) {
         SseEmitter emitter = new SseEmitter((long) SSE_TIMEOUT);
         Thread.ofVirtual().name("log-stream-asterisk").start(() -> {
+            Stream<String> lines = null;
             try {
-                ProcessBuilder pb = new ProcessBuilder(
-                    "docker","exec","asteriskia-asterisk",
-                    "tail","-F","-n","50","/var/log/asterisk/full");
-                pb.redirectErrorStream(true);
-                Process proc = pb.start();
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(proc.getInputStream(), StandardCharsets.UTF_8))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        Map<String,String> e = parseAsteriskLine(line);
-                        if (!matchesAsteriskLevel(e.get("category"), levels)) continue;
-                        emitter.send(SseEmitter.event().data(toJson(e)));
-                    }
-                } finally { proc.destroyForcibly(); }
+                lines = streamFromHelper("/asterisk/log/stream?lines=50");
+                Iterator<String> it = lines.iterator();
+                while (it.hasNext()) {
+                    Map<String,String> e = parseAsteriskLine(it.next());
+                    if (!matchesAsteriskLevel(e.get("category"), levels)) continue;
+                    emitter.send(SseEmitter.event().data(toJson(e)));
+                }
             } catch (Exception e) { emitter.complete(); }
+            finally { if (lines != null) lines.close(); }
         });
         emitter.onTimeout(emitter::complete);
         return emitter;
@@ -287,33 +297,48 @@ public class LogsController {
     // Helpers
     // =========================================================================
 
-    private List<String> runDockerLogs(String svc, int lines, String since, String until)
-            throws IOException, InterruptedException {
-        List<String> cmd = new ArrayList<>(List.of("docker","logs","--timestamps","--tail",String.valueOf(lines)));
-        if (since != null) { cmd.add("--since"); cmd.add(since); }
-        if (until != null) { cmd.add("--until"); cmd.add(until); }
-        cmd.add(svc);
-        ProcessBuilder pb = new ProcessBuilder(cmd); pb.redirectErrorStream(true);
-        Process p = pb.start();
-        List<String> out = new ArrayList<>();
-        try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
-            String l; while ((l = r.readLine()) != null) out.add(l);
+    /**
+     * Chama o docker-helper (GET /logs/{svc}) — antigo ProcessBuilder("docker","logs",...).
+     * Falha de UM serviço (ex: nome inválido) não derruba a consulta dos demais.
+     */
+    @SuppressWarnings("unchecked")
+    private List<String> runDockerLogs(String svc, int lines, String since, String until) {
+        try {
+            UriComponentsBuilder b = UriComponentsBuilder.fromHttpUrl(dockerHelperUrl + "/logs/" + svc)
+                    .queryParam("tail", lines);
+            if (since != null) b.queryParam("since", since);
+            if (until != null) b.queryParam("until", until);
+            Map<String, Object> body = callHelper(b.toUriString());
+            return body != null ? (List<String>) body.getOrDefault("lines", List.of()) : List.of();
+        } catch (Exception e) {
+            log.warn("runDockerLogs({}): {}", svc, e.getMessage());
+            return List.of();
         }
-        p.waitFor(10, TimeUnit.SECONDS);
-        return out;
     }
 
-    private List<String> tailAsteriskLog(int lines) throws IOException, InterruptedException {
-        ProcessBuilder pb = new ProcessBuilder(
-            "docker","exec","asteriskia-asterisk","tail","-n",String.valueOf(lines),"/var/log/asterisk/full");
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        List<String> out = new ArrayList<>();
-        try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
-            String l; while ((l = r.readLine()) != null) out.add(l);
-        }
-        p.waitFor(10, TimeUnit.SECONDS);
-        return out;
+    /** Chama o docker-helper (GET /asterisk/log) — antigo docker exec asteriskia-asterisk tail. */
+    @SuppressWarnings("unchecked")
+    private List<String> tailAsteriskLog(int lines) {
+        String url = UriComponentsBuilder.fromHttpUrl(dockerHelperUrl + "/asterisk/log")
+                .queryParam("lines", lines).toUriString();
+        Map<String, Object> body = callHelper(url);
+        return body != null ? (List<String>) body.getOrDefault("lines", List.of()) : List.of();
+    }
+
+    private Map<String, Object> callHelper(String url) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Internal-Key", internalApiKey);
+        ResponseEntity<Map> resp = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+        return resp.getBody();
+    }
+
+    /** Consome um endpoint de streaming (text/plain, linha por linha) do docker-helper. */
+    private Stream<String> streamFromHelper(String path) throws IOException, InterruptedException {
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(dockerHelperUrl + path))
+                .header("X-Internal-Key", internalApiKey)
+                .GET().build();
+        return httpClient.send(req, HttpResponse.BodyHandlers.ofLines()).body();
     }
 
     private List<String> resolveServices(String param) {

@@ -53,6 +53,7 @@ Rede Docker: `asteriskia-net` — bridge `172.16.7.0/24`
 | `172.16.7.14` | `asteriskia-backend` | build `./backend` | Spring Boot 3.3 — API REST + WebSocket STOMP |
 | `172.16.7.15` | `asteriskia-frontend` | build `./frontend` | React 18 + Nginx — serve Telecom e Agentes |
 | `172.16.7.16` | `asteriskia-agents-api` | build `./agents-platform/backend` | FastAPI — plataforma de agentes autônomos |
+| `172.16.7.17` | `asteriskia-docker-helper` | build `./docker-helper` | Único container com acesso ao `docker.sock` (F-CRIT-10) — API interna estreita para `docker compose up`/`docker logs`/`docker exec` (asterisk), sem porta publicada no host, atrás de `X-Internal-Key` |
 | host | `asteriskia-security` | build `./security` | Fail2ban + nftables — `network_mode: host` |
 
 **IPs reservados:** `.1–.9` (gateway/infra) e `.250–.254` (infra)
@@ -243,6 +244,10 @@ AsteriskIA/
 │   └── config/
 │       ├── jail.d/              # asterisk.conf — 3 jails (auth, scanner, flood)
 │       └── filter.d/            # Filtros regex para os jails
+├── docker-helper/
+│   ├── Dockerfile                # Único ponto do stack com Docker CLI + docker.sock
+│   ├── requirements.txt
+│   └── main.py                   # API interna: /compose/up, /logs/{svc}[/stream], /asterisk/log[/stream]
 ├── docs/
 │   └── deploy-ubuntu.html       # Guia de instalação Ubuntu 22/24
 ├── tools/
