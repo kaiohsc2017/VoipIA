@@ -10,11 +10,24 @@
 # =============================================================================
 
 {
-    # API de administração — acessível apenas internamente (rede Docker)
-    admin "0.0.0.0:2019"
+    # API de administração — socket Unix em vez de TCP: um bind TCP em
+    # 0.0.0.0:2019 fica alcançável por QUALQUER container da bridge
+    # asteriskia-net (a publicação "127.0.0.1:2019:2019" só restringe o
+    # acesso vindo do host, não de outros containers). Socket Unix não é
+    # alcançável via rede — só por quem tem o arquivo montado (host e o
+    # próprio container do Caddy).
+    admin unix//run/caddy-admin/admin.sock
 }
 
 app.voiphash.com.br {
+
+    # ── Headers de segurança — aplicados a todas as respostas deste site ──────
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
 
     # ── Agentes — API (FastAPI) ───────────────────────────────────────────────
     # Prefixo /agents é removido antes de encaminhar ao backend de agentes.

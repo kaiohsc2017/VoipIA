@@ -93,7 +93,7 @@ if [ "$UPDATE_MODE" = "--update" ]; then
     docker compose up -d
     log_info "[4/4] Recarregando Caddyfile..."
     sleep 5
-    curl -sf -X POST "http://localhost:2019/load" \
+    curl -sf --unix-socket "$INSTALL_DIR/caddy-admin/admin.sock" "http://localhost/load" \
         -H "Content-Type: text/caddyfile" \
         --data-binary @Caddyfile 2>/dev/null \
         && log_ok "Caddyfile recarregado" \

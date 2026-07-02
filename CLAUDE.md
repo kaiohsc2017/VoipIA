@@ -294,8 +294,8 @@ docker exec asteriskia-asterisk asterisk -rx "dialplan reload"
 # Status dos endpoints SIP
 docker exec asteriskia-asterisk asterisk -rx "pjsip show endpoints"
 
-# Recarregar Caddyfile sem downtime
-curl -X POST http://localhost:2019/load \
+# Recarregar Caddyfile sem downtime (admin API via socket Unix — não é mais TCP:2019)
+curl --unix-socket /opt/AsteriskIA/caddy-admin/admin.sock http://localhost/load \
   -H "Content-Type: text/caddyfile" \
   --data-binary @/opt/AsteriskIA/Caddyfile
 

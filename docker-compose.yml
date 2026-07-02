@@ -101,8 +101,11 @@ services:
     ports:
       - "5060:5060/udp"              # SIP UDP (tronco + softphones)
       - "5060:5060/tcp"              # SIP TCP
-      - "5038:5038/tcp"              # AMI — Asterisk Manager Interface
-      - "8088:8088/tcp"              # HTTP/WS para WebRTC (acessado via Caddy)
+      # AMI (5038) e HTTP/WS (8088) NÃO são publicados no host: o backend
+      # acessa a AMI via rede Docker interna (AST_AMI_HOST=asterisk) e o
+      # WebRTC já passa pelo Caddy (rota /asterisk-ws → asterisk:8088).
+      # Publicá-los no host expunha a interface de gerência e o WS diretamente
+      # à internet sem necessidade.
       - "15000-15500:15000-15500/udp" # RTP — fluxo de mídia
     networks:
       asteriskia-net:
@@ -378,12 +381,13 @@ services:
       - "80:80"      # HTTP → redireciona automaticamente para HTTPS
       - "443:443"    # HTTPS (TLS gerenciado pelo Caddy / Let's Encrypt)
       - "443:443/udp" # HTTP/3 (QUIC)
-      - "127.0.0.1:2019:2019"  # Admin API — apenas loopback do host
+      # Admin API NÃO é mais publicada como porta TCP — ver Caddyfile (socket Unix).
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro  # Configuração do proxy
       - ./docs:/srv/docs:ro                  # Documentação estática (/docs/*)
       - caddy_data:/data                     # Certificados TLS (persistente)
       - caddy_config:/config                 # Cache interno do Caddy
+      - ./caddy-admin:/run/caddy-admin       # Socket Unix da admin API (acesso do host para reload)
     networks:
       asteriskia-net:
           ipv4_address: 172.16.7.10
