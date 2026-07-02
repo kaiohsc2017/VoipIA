@@ -92,9 +92,9 @@ docker compose up -d --build frontend
 
 - **Instância:** PostgreSQL 16 em `asteriskia-postgres:5432`
 - **Banco unificado:** `asteriskia` (Telecom + Agentes na mesma instância)
-- **Migrations Telecom:** Flyway — classpath `backend/src/main/resources/db/migration/` — V1 a V14 aplicadas
+- **Migrations Telecom:** Flyway — classpath `backend/src/main/resources/db/migration/` — V1 a V21 aplicadas
 - **Migrations Agentes:** `agents-platform/backend/migrate.py` — `CREATE TABLE IF NOT EXISTS` (idempotente)
-- **Próxima migration Flyway:** V15
+- **Próxima migration Flyway:** V22 — confirme sempre com `ls backend/src/main/resources/db/migration/ | sort -V | tail -1`
 
 ```bash
 # Acesso direto (porta exposta apenas localmente)
@@ -157,16 +157,56 @@ Ligação entra → Asterisk dialplan → AudioSocket(UUID, ai-agent:9092)
 
 | Módulo | Ramal | Contexto Asterisk | Função |
 |--------|-------|-------------------|--------|
-| 1 — URA Jira | `1000` (interno) / `s` (tronco) | `ramais-internos` / `recepcao-tronco` | Coleta dados via voz e abre issue no Jira Cloud |
+| 1 — URA (multi-URA) | `1000` (URA legada/fallback) + `2000`-`2999` (URAs cadastradas) | `ramais-internos` / `recepcao-tronco` | Coleta dados via voz; abre issue no Jira se a URA tiver a integração ativada |
 | 2 — Teste conectividade | Agendado via `ConnectivityScheduler.java` | — | Discagem automática para verificar números |
 | 3 — Alertas Zabbix | `1001` | `ramais-internos` | Liga para responsável ao detectar alerta crítico |
 
+**Módulo 1 — múltiplas URAs configuráveis** (generalizado a partir da URA fixa original):
+- Cada URA cadastrada tem ramal próprio na faixa **2000-2999** — dialplan usa extensão genérica
+  `_2XXX`, nenhuma edição de `extensions.conf` é necessária ao criar uma URA nova pela UI.
+- URA `id=1` (ramal `1000`, "Service Desk") é a **legada/fallback** — usada sempre que a resolução
+  de URA falha (dialplan não registrou a tempo, CURL falhou), nunca derruba a chamada por isso.
+- Correlação `callUuid → uraId` feita pelo **dialplan** via `CURL` para
+  `POST /api/v1/internal/ura-routing` — TTL de 5 min em memória (`UraRoutingService`), sem
+  persistência em banco.
+- Toggle "integração Jira ativada" por URA — se desligado, a chamada é registrada normalmente mas
+  nenhum chamado é aberto no Jira.
+- Gestão pela UI: aba "URAs" (`UraManagementTab.tsx`) lista as URAs; "Configurar" abre as
+  perguntas/mensagens daquela URA (`FluxoURATab.tsx`, aninhado). O filtro por URA na aba
+  "Chamadas" é opcional ("Todas as URAs" por padrão).
+
 **Ramais SIP registrados:**
-- `9001` — softphone WebRTC (frontend React, senha: `webrtc9001pass`)
-- `9002` — softphone físico/Zoiper (senha: `sip9002pass2025`)
-- `1001`, `1002` — ramais internos de teste
+- `9001` — softphone WebRTC (frontend React, senha em `RAMAL_9001_PASSWORD`/`VITE_SIP_PASSWORD`)
+- `9002` — softphone físico/Zoiper (senha em `RAMAL_9002_PASSWORD`)
+- `1001`, `1002` — ramais internos de teste (senhas em `RAMAL_1001_PASSWORD`/`RAMAL_1002_PASSWORD`)
+
+Senhas SIP saíram do `pjsip.conf.template` (versionado) e são injetadas via `envsubst` no boot
+(`asterisk/docker-entrypoint.sh`) — nunca hardcodar um valor real de senha nesta documentação.
+Consulte o valor atual com: `grep '^RAMAL_9001_PASSWORD=' /opt/AsteriskIA/env/.env`
 
 **Tronco SIP:** peer IP-based com `186.233.141.64` — sem usuário/senha, fechado por IP
+
+---
+
+## Autenticação e RBAC
+
+- **JWT (HS256)** emitido pelo backend Java (`AuthController`) — compartilhado com o FastAPI de
+  Agentes via o mesmo `BACKEND_JWT_SECRET` (mesma lógica de padding da chave nos dois lados).
+- **Claim `role`** (`ADMIN`|`USER`, default `USER` para tokens antigos sem a claim) presente em
+  todo token emitido desde o RBAC.
+- **Refresh token**: cookie `asteriskia_refresh_token` (`HttpOnly; Secure; SameSite=Strict`,
+  `Path=/api/v1/auth`) — nunca em `localStorage` (F-CRIT-13). `client.ts` usa
+  `withCredentials: true`; `revokeSession()` faz logout sem disparar o evento
+  `asteriskia:logout` de novo (evita loop com `App.tsx`).
+- **Backend Java** (`SecurityConfig`): `/security/**`, `/settings/**`, `/logs/**`, `/users/**`,
+  `/asterisk-config/**` exigem `ROLE_ADMIN`. Escrita em `/uras/**` exige ADMIN ou `INTERNAL`
+  (via `X-Internal-Key`); leitura fica aberta a qualquer autenticado.
+- **FastAPI de Agentes** (`agents-platform/backend/auth.py`): **não tem login próprio** — reusa a
+  mesma claim `role` do token do Telecom. Dependency `require_admin` aplicada via
+  `dependencies=[Depends(require_admin)]` nos endpoints de escrita de `agents`/`servers`
+  (executam SSH em servidores cadastrados), `llm_config` e `system` (retenção, secrets por agente).
+- **Pendência de UX conhecida**: nem o `Sidebar.tsx` do Telecom nem o frontend de Agentes escondem
+  itens de navegação por role — um usuário `USER` vê menus de admin mas recebe 403 ao usá-los.
 
 ---
 
@@ -317,6 +357,22 @@ docker network inspect asteriskia_asteriskia-net \
 
 # Acessar banco diretamente
 docker exec -it asteriskia-postgres psql -U asteriskia -d asteriskia
+
+# Verificar o docker-helper (único container com docker.sock — F-CRIT-10)
+docker inspect --format='{{.State.Health.Status}}' asteriskia-docker-helper
+curl -sf --unix-socket /opt/AsteriskIA/caddy-admin/admin.sock http://localhost/config/ >/dev/null && echo ok
+
+# Forjar um JWT de teste (ADMIN ou USER) para testar RBAC sem criar usuário real —
+# mesmo BACKEND_JWT_SECRET do .env, mesma lógica de padding do JwtService.java
+python3 -c "
+import time
+raw = open('env/.env').read()
+secret = next(l.split('=',1)[1].strip() for l in raw.splitlines() if l.startswith('BACKEND_JWT_SECRET='))
+key = secret.encode(); key = key.ljust(max(32, len(key)), b'\x00')
+from jose import jwt
+now = int(time.time())
+print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300}, key, algorithm='HS256'))
+"
 ```
 
 ---
@@ -339,6 +395,21 @@ Para diagnosticar, sempre verificar primeiro:
 ### 🟡 Importantes
 - `SuporteController` cria issues reais no Jira via function calling da IA (tool `abrir_protocolo_suporte`)
 - Swagger/OpenAPI foi removido do projeto (dependência springdoc retirada do pom.xml)
+- `Sidebar.tsx` (Telecom) e o frontend de Agentes não escondem nav por role — ver seção
+  "Autenticação e RBAC"
+
+### 🟢 Débito de segurança aceito (revisão completa concluída — ver memória `asteriskia-security-remediation`)
+- Hardening de infra Docker: containers rodando como root (falta `USER` não-root nos Dockerfiles),
+  sem resource limits (memory/cpu), `coturn` com `user: root`, `security/entrypoint.sh` monta a
+  fila `security_cmds` com `chmod 777` — mexer nisso exige rebuild+teste cuidadoso de múltiplos
+  containers, área sensível dado o histórico de fragilidade do WebRTC
+- CSP (Content-Security-Policy) deliberadamente ausente no Caddyfile — headers HSTS/X-Content-Type-Options/
+  X-Frame-Options/Referrer-Policy já aplicados, mas CSP precisa de teste manual completo do softphone
+  (registro SIP + áudio bidirecional) antes de ativar, mesmo em modo Report-Only primeiro
+- Token JWT trafega via query string em conexões WebSocket (`agents-platform/backend/main.py`)
+  e EventSource/SSE (`frontend/src/components/ModuloLogs.tsx`) — limitação de API do browser
+  (não dá pra mandar header customizado nessas duas APIs); mitigação correta é um token de
+  streaming dedicado e de vida curta, ainda não implementado
 
 ---
 
