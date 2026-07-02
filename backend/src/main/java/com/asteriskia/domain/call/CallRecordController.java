@@ -18,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -134,32 +135,23 @@ public class CallRecordController {
             return ResponseEntity.notFound().build();
         }
 
-        // Tenta localizar o arquivo em múltiplos caminhos:
-        // 1. Caminho absoluto como recebido do ai-agent
-        // 2. AUDIO_STORAGE_PATH + nome do arquivo
-        // 3. /var/spool/asterisk/monitor + nome do arquivo (volume compartilhado)
+        // SEGURANÇA (path traversal): nunca abrir o caminho arbitrário vindo do
+        // registro. Usa APENAS o nome-base do arquivo, resolvido dentro de
+        // diretórios confiáveis, e valida o caminho canônico contra escape (../).
+        String fileName = new File(record.getAudioFilePath()).getName();
+
+        String[] baseDirs = { audioStoragePath, "/var/spool/asterisk/monitor" };
         File audioFile = null;
-        String storedPath = record.getAudioFilePath();
-        String fileName   = new File(storedPath).getName();
-
-        File[] candidates = {
-            new File(storedPath),
-            new File(audioStoragePath, fileName),
-            new File("/var/spool/asterisk/monitor", fileName),
-        };
-
-        for (File candidate : candidates) {
-            if (candidate.exists() && candidate.canRead()) {
+        for (String baseDir : baseDirs) {
+            File candidate = resolveWithinBase(baseDir, fileName);
+            if (candidate != null && candidate.exists() && candidate.canRead()) {
                 audioFile = candidate;
                 break;
             }
         }
 
         if (audioFile == null) {
-            log.warn("Arquivo de áudio não encontrado. Tentativas: {}, {}, {}",
-                candidates[0].getAbsolutePath(),
-                candidates[1].getAbsolutePath(),
-                candidates[2].getAbsolutePath());
+            log.warn("Arquivo de áudio não encontrado para chamada id={} (arquivo: {})", id, fileName);
             return ResponseEntity.notFound().build();
         }
 
@@ -174,6 +166,25 @@ public class CallRecordController {
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .contentType(mediaType)
                 .body(resource);
+    }
+
+    /**
+     * Resolve {@code fileName} dentro de {@code baseDir} e garante, via caminho
+     * canônico, que o resultado não escapa do diretório base (defesa contra
+     * path traversal com "../"). Retorna null se escapar ou em erro de I/O.
+     */
+    private File resolveWithinBase(String baseDir, String fileName) {
+        try {
+            File base = new File(baseDir).getCanonicalFile();
+            File target = new File(base, fileName).getCanonicalFile();
+            String basePath = base.getPath() + File.separator;
+            if (target.getPath().equals(base.getPath()) || target.getPath().startsWith(basePath)) {
+                return target;
+            }
+        } catch (IOException e) {
+            log.warn("Erro ao resolver caminho de áudio em {}: {}", baseDir, e.getMessage());
+        }
+        return null;
     }
 
     // ---------------------------------------------------------------------------

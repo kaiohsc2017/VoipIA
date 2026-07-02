@@ -743,15 +743,22 @@ async def _apply_retention():
             logs_days  = int(cfg["logs_days"])
             exec_days  = int(cfg["executions_days"])
             alert_days = int(cfg["alerts_days"])
-            dl = await db.fetchval(
-                "DELETE FROM execution_logs WHERE ts < NOW() - ($1 * INTERVAL '1 day') RETURNING COUNT(*)",
-                logs_days)
-            de = await db.fetchval(
-                "DELETE FROM executions WHERE started_at < NOW() - ($1 * INTERVAL '1 day') AND status != 'running' RETURNING COUNT(*)",
-                exec_days)
-            da = await db.fetchval(
-                "DELETE FROM alerts WHERE sent_at < NOW() - ($1 * INTERVAL '1 day') RETURNING COUNT(*)",
-                alert_days)
+            # asyncpg .execute() devolve o status ("DELETE N"); COUNT(*) em
+            # RETURNING é SQL inválido, então parseamos o contador do status.
+            def _deleted(status: str) -> int:
+                try:
+                    return int(status.rsplit(" ", 1)[-1])
+                except (ValueError, AttributeError):
+                    return 0
+            dl = _deleted(await db.execute(
+                "DELETE FROM execution_logs WHERE ts < NOW() - ($1 * INTERVAL '1 day')",
+                logs_days))
+            de = _deleted(await db.execute(
+                "DELETE FROM executions WHERE started_at < NOW() - ($1 * INTERVAL '1 day') AND status != 'running'",
+                exec_days))
+            da = _deleted(await db.execute(
+                "DELETE FROM alerts WHERE sent_at < NOW() - ($1 * INTERVAL '1 day')",
+                alert_days))
             if any([dl, de, da]):
                 logger.info("[retention] %s execuções, %s logs, %s alertas removidos", de, dl, da)
     except Exception as e:
