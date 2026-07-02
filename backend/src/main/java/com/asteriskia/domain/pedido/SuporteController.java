@@ -1,6 +1,9 @@
 package com.asteriskia.domain.pedido;
 
 import com.asteriskia.integration.jira.JiraIntegrationService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -25,9 +28,9 @@ public class SuporteController {
     private final JiraIntegrationService jiraService;
 
     @PostMapping("/abrir")
-    public ResponseEntity<Map<String, Object>> abrirProtocolo(@RequestBody Map<String, Object> request) {
-        String descricao  = (String) request.getOrDefault("descricao", "Sem descrição");
-        String prioridade = (String) request.getOrDefault("prioridade", "MEDIA");
+    public ResponseEntity<Map<String, Object>> abrirProtocolo(@Valid @RequestBody AbrirProtocoloRequest request) {
+        String descricao  = request.descricao();
+        String prioridade = request.prioridade() != null ? request.prioridade() : "MEDIA";
 
         Map<String, Object> response = new HashMap<>();
 
@@ -67,4 +70,16 @@ public class SuporteController {
             default                -> "Média";
         };
     }
+
+    /**
+     * Corpo esperado pelo endpoint de abertura de protocolo.
+     * A descrição vira o corpo de uma issue real no Jira — limitada em tamanho
+     * para não gerar chamados absurdamente grandes.
+     */
+    public record AbrirProtocoloRequest(
+            @NotBlank(message = "Descrição é obrigatória")
+            @Size(max = 5000, message = "Descrição não pode exceder 5000 caracteres")
+            String descricao,
+            String prioridade
+    ) {}
 }

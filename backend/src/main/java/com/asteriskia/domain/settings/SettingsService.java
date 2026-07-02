@@ -11,6 +11,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -80,6 +81,7 @@ public class SettingsService {
     /** Estado de um job de apply em andamento ou concluído. */
     public static class ApplyJob {
         private final String id;
+        private final Instant createdAt = Instant.now();
         private volatile JobStatus status = JobStatus.RUNNING;
         private final StringBuilder log   = new StringBuilder();
 
@@ -88,12 +90,16 @@ public class SettingsService {
         synchronized void appendLog(String line) { log.append(line); }
         void setStatus(JobStatus s)              { this.status = s; }
 
-        public String    getId()     { return id; }
-        public JobStatus getStatus() { return status; }
+        public String    getId()        { return id; }
+        public JobStatus getStatus()    { return status; }
+        public Instant   getCreatedAt() { return createdAt; }
         public synchronized String getLog() { return log.toString(); }
     }
 
-    /** Mapa de jobs ativos/concluídos (TTL não implementado — suficiente para sessão). */
+    /** Máximo de tempo que um job de apply concluído fica retido em memória. */
+    private static final Duration JOB_RETENTION = Duration.ofHours(1);
+
+    /** Mapa de jobs ativos/concluídos — limpo oportunisticamente a cada novo apply (ver startApplyAsync). */
     private final ConcurrentHashMap<String, ApplyJob> jobs = new ConcurrentHashMap<>();
 
     /**
@@ -105,6 +111,8 @@ public class SettingsService {
 
     /** Reinicia apenas os serviços listados (lista vazia = todos). */
     public String startApplyAsync(List<String> services) {
+        purgeOldJobs();
+
         String jobId = UUID.randomUUID().toString();
         ApplyJob job = new ApplyJob(jobId);
         jobs.put(jobId, job);
@@ -129,6 +137,16 @@ public class SettingsService {
      */
     public Optional<ApplyJob> getApplyStatus(String jobId) {
         return Optional.ofNullable(jobs.get(jobId));
+    }
+
+    /**
+     * Remove do mapa jobs criados há mais de JOB_RETENTION. Cada job guarda um
+     * StringBuilder com o log completo do docker compose up — sem essa limpeza,
+     * o mapa cresceria indefinidamente ao longo da vida do processo.
+     */
+    private void purgeOldJobs() {
+        Instant threshold = Instant.now().minus(JOB_RETENTION);
+        jobs.values().removeIf(job -> job.getCreatedAt().isBefore(threshold));
     }
 
     // -------------------------------------------------------------------------

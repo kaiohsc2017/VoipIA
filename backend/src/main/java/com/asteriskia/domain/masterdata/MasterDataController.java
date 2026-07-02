@@ -232,7 +232,7 @@ public class MasterDataController {
         Map<String, Segment>      segMap = segRepo.findAll().stream()
                 .collect(Collectors.toMap(s -> norm(s.getName()), Function.identity(), (a, b) -> a));
 
-        List<NumberTest>          saved  = new ArrayList<>();
+        List<NumberTest>          toSave = new ArrayList<>();
         List<Map<String, Object>> errors = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(
@@ -275,11 +275,11 @@ public class MasterDataController {
                                   && !"nao".equals(norm(actStr.trim()))
                                   && !"0".equals(actStr.trim());
 
-                    saved.add(numberTestRepo.save(NumberTest.builder()
+                    toSave.add(NumberTest.builder()
                             .phoneNumber(phone).businessUnit(bu).client(cli)
                             .operation(op).segment(seg).startTime(LocalTime.parse(t))
                             .intervalMinutes(interval).quantity(quantity).isActive(active)
-                            .build()));
+                            .build());
 
                 } catch (Exception e) {
                     errors.add(Map.of("linha", lineNumber, "conteudo", line, "erro", e.getMessage()));
@@ -289,6 +289,10 @@ public class MasterDataController {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "Erro ao processar arquivo: " + e.getMessage()));
         }
+
+        // Persiste tudo de uma vez (em vez de um save por linha do CSV) — endpoint
+        // é justamente para importação em lote.
+        List<NumberTest> saved = numberTestRepo.saveAll(toSave);
 
         auditService.log(req, "NUMBER_TEST_IMPORT",
                 "Importação: " + saved.size() + " importados, " + errors.size() + " erros", true);

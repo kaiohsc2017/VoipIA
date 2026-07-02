@@ -16,14 +16,17 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * RateLimitFilter — Proteção contra brute-force no endpoint de login (Fase 13).
+ * RateLimitFilter — Proteção contra brute-force nos endpoints de login e
+ * verificação de código TOTP (Fase 13).
  *
- * Regra: máximo de 10 tentativas por IP em janela deslizante de 60 segundos.
- * Após o limite, o IP é bloqueado por 5 minutos (retorna 429).
+ * Regra: máximo de 10 tentativas por IP em janela deslizante de 60 segundos,
+ * contadas por endpoint (login e totp/verify têm buckets independentes).
+ * Após o limite, o IP é bloqueado por 5 minutos (retorna 429) naquele endpoint.
  * Controle 100% in-memory (ConcurrentHashMap) sem dependência externa.
  */
 @Slf4j
@@ -39,7 +42,15 @@ public class RateLimitFilter implements Filter {
     private static final long WINDOW_MS    = 60_000L;     // 1 minuto
     private static final long BLOCK_MS     = 5 * 60_000L; // 5 minutos
 
-    // IP → contagem + timestamp da primeira tentativa nesta janela
+    /** Endpoints protegidos por rate limit — login e a segunda etapa do 2FA (código TOTP). */
+    private static final Set<String> LIMITED_PATHS = Set.of(
+            "/api/v1/auth/login",
+            "/api/v1/auth/totp/verify"
+    );
+
+    // Chave (IP + path) → contagem + timestamp da primeira tentativa nesta janela.
+    // Buckets separados por endpoint evitam que tentativas de login consumam o
+    // limite do TOTP (e vice-versa).
     private record Bucket(AtomicInteger count, long windowStart) {}
 
     private final Map<String, Bucket>  buckets  = new ConcurrentHashMap<>();
@@ -52,31 +63,32 @@ public class RateLimitFilter implements Filter {
         HttpServletRequest  request  = (HttpServletRequest) req;
         HttpServletResponse response = (HttpServletResponse) res;
 
-        // Aplica apenas ao endpoint de login
-        if (!"/api/v1/auth/login".equals(request.getServletPath())) {
+        String path = request.getServletPath();
+        if (!LIMITED_PATHS.contains(path)) {
             chain.doFilter(req, res);
             return;
         }
 
-        String ip = resolveIp(request);
-        long now  = Instant.now().toEpochMilli();
+        String ip  = resolveIp(request);
+        String key = ip + "|" + path;
+        long now   = Instant.now().toEpochMilli();
 
         // Verifica bloqueio ativo
-        Long blockedUntil = blocked.get(ip);
+        Long blockedUntil = blocked.get(key);
         if (blockedUntil != null) {
             if (now < blockedUntil) {
                 long remainSec = (blockedUntil - now) / 1000;
-                log.warn("Rate limit ativo: IP {} bloqueado por mais {}s", ip, remainSec);
+                log.warn("Rate limit ativo: IP {} bloqueado por mais {}s em {}", ip, remainSec, path);
                 sendTooMany(response, remainSec);
                 return;
             } else {
-                blocked.remove(ip);
-                buckets.remove(ip);
+                blocked.remove(key);
+                buckets.remove(key);
             }
         }
 
         // Controla tentativas na janela corrente
-        Bucket bucket = buckets.compute(ip, (k, b) -> {
+        Bucket bucket = buckets.compute(key, (k, b) -> {
             if (b == null || now - b.windowStart() > WINDOW_MS) {
                 return new Bucket(new AtomicInteger(1), now);
             }
@@ -85,11 +97,11 @@ public class RateLimitFilter implements Filter {
         });
 
         if (bucket.count().get() > MAX_ATTEMPTS) {
-            blocked.put(ip, now + BLOCK_MS);
-            buckets.remove(ip);
-            log.warn("Rate limit disparado: IP {} bloqueado por 5 minutos", ip);
+            blocked.put(key, now + BLOCK_MS);
+            buckets.remove(key);
+            log.warn("Rate limit disparado: IP {} bloqueado por 5 minutos em {}", ip, path);
             auditService.logAs(request, ip, "RATE_LIMIT_BLOCKED",
-                    "IP " + ip + " bloqueado após " + MAX_ATTEMPTS + " tentativas", false);
+                    "IP " + ip + " bloqueado após " + MAX_ATTEMPTS + " tentativas em " + path, false);
             sendTooMany(response, BLOCK_MS / 1000);
             return;
         }

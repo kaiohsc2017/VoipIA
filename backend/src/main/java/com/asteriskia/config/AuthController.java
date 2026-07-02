@@ -77,7 +77,10 @@ public class AuthController {
                 }
             }
         } catch (Exception e) {
-            log.debug("Fallback para credenciais de ambiente: {}", e.getMessage());
+            // WARN (não DEBUG): em produção o nível padrão é INFO — sem isso, uma
+            // falha no AppUserRepository (ex: banco fora do ar) cairia no fallback
+            // silenciosamente, sem nenhum rastro visível no log.
+            log.warn("Fallback para credenciais de ambiente: {}", e.getMessage());
         }
 
         // 2. Fallback: credenciais de ambiente (compatibilidade retroativa)

@@ -216,19 +216,32 @@ public class CallRecordService {
      * pergunta configurada da URA. Campos que não batem com nenhuma pergunta
      * (ex: customfield_telefone injetado como fallback do callerNumber) são
      * ignorados aqui — só vão para o Jira via o mapa `fields`.
+     *
+     * Carrega todas as perguntas da URA numa única consulta (em vez de uma
+     * consulta + um save por campo) e persiste tudo de uma vez com saveAll.
      */
     private void saveAnswers(Long callRecordId, Integer uraId, Map<String, String> fields) {
-        fields.forEach((jiraFieldKey, value) -> {
-            UraQuestion question = uraQuestionRepository.findByUraIdAndJiraFieldKey(uraId, jiraFieldKey).orElse(null);
-            if (question == null) {
-                return;
-            }
-            uraAnswerRepository.save(UraAnswer.builder()
-                    .callRecordId(callRecordId)
-                    .uraQuestionId(question.getId())
-                    .value(value)
-                    .build());
-        });
+        Map<String, UraQuestion> questionsByFieldKey = uraQuestionRepository
+                .findByUraIdOrderByQuestionOrderAsc(uraId).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        UraQuestion::getJiraFieldKey, q -> q, (a, b) -> a));
+
+        java.util.List<UraAnswer> answers = fields.entrySet().stream()
+                .map(entry -> {
+                    UraQuestion question = questionsByFieldKey.get(entry.getKey());
+                    if (question == null) return null;
+                    return UraAnswer.builder()
+                            .callRecordId(callRecordId)
+                            .uraQuestionId(question.getId())
+                            .value(entry.getValue())
+                            .build();
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+
+        if (!answers.isEmpty()) {
+            uraAnswerRepository.saveAll(answers);
+        }
     }
 
     /**

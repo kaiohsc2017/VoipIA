@@ -11,10 +11,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.util.HashSet;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -36,7 +37,11 @@ public class ZabbixPollingService {
     private final WebClient.Builder webClientBuilder;
     private final AlertService      alertService;
 
-    private final Set<String> processedTriggers = new HashSet<>();
+    // Trigger ID → instante em que foi processado. Usa expiração por tempo em vez de
+    // um Set permanente: um trigger que resolve e volta a disparar meses depois precisa
+    // gerar uma nova ligação, e sem TTL essa estrutura também cresceria sem limite.
+    private final Map<String, Instant> processedTriggers = new ConcurrentHashMap<>();
+    private static final Duration PROCESSED_TRIGGER_TTL = Duration.ofHours(24);
     private String authToken;
     private String lastApiUrl; // detecta mudança de URL para forçar re-autenticação
 
@@ -63,6 +68,8 @@ public class ZabbixPollingService {
         try {
             if (authToken == null) authToken = authenticate(apiUrl, user, password);
             if (authToken == null) { log.error("Zabbix: falha na autenticação — polling abortado"); return; }
+
+            purgeExpiredProcessedTriggers();
 
             int minSeverity = config.getInt("ZABBIX_MIN_SEVERITY", 4);
             List<Map<String, Object>> triggers = fetchActiveTriggers(apiUrl, minSeverity);
@@ -110,7 +117,7 @@ public class ZabbixPollingService {
     @SuppressWarnings("unchecked")
     private void processTrigger(Map<String, Object> trigger) {
         String triggerId = (String) trigger.get("triggerid");
-        if (processedTriggers.contains(triggerId)) return;
+        if (processedTriggers.containsKey(triggerId)) return;
 
         String description = (String) trigger.getOrDefault("description", "Incidente desconhecido");
         int    priority    = Integer.parseInt(trigger.getOrDefault("priority", "4").toString());
@@ -122,7 +129,13 @@ public class ZabbixPollingService {
 
         log.info("Zabbix: incidente — trigger={} host={} severity={}", triggerId, hostName, severity);
         alertService.triggerAlert(triggerId, description, severity, hostName);
-        processedTriggers.add(triggerId);
+        processedTriggers.put(triggerId, Instant.now());
+    }
+
+    /** Remove do controle de deduplicação triggers processados há mais de PROCESSED_TRIGGER_TTL. */
+    private void purgeExpiredProcessedTriggers() {
+        Instant threshold = Instant.now().minus(PROCESSED_TRIGGER_TTL);
+        processedTriggers.values().removeIf(processedAt -> processedAt.isBefore(threshold));
     }
 
     private Map<?, ?> post(String apiUrl, Map<String, Object> body) {
@@ -132,6 +145,7 @@ public class ZabbixPollingService {
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(15))
                 .onErrorReturn(Map.of())
                 .block();
     }

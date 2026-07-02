@@ -60,10 +60,16 @@ public class AmiOriginateService {
             String host,
             String incidentSummary) {
 
+        // Sanitiza tudo que vem de fora antes de colocar em campos do protocolo AMI —
+        // um CRLF nesses valores quebraria o bloco e poderia injetar ações extras.
+        String safePhoneNumber = sanitizeAmiField(phoneNumber);
+        String safeSeverity    = sanitizeAmiField(severity);
+        String safeHost        = sanitizeAmiField(host);
+
         Map<String, String> action = new LinkedHashMap<>();
         action.put("Action", "Originate");
         action.put("ActionID", UUID.randomUUID().toString());
-        action.put("Channel", "PJSIP/" + phoneNumber + "@tronco-sip");
+        action.put("Channel", "PJSIP/" + safePhoneNumber + "@tronco-sip");
         action.put("Context", "asteriskia-alert");
         action.put("Exten", "s");
         action.put("Priority", "1");
@@ -72,9 +78,9 @@ public class AmiOriginateService {
         action.put("Async", "true");
         // Prefixo "alert-" no UUID permite que o agente Python identifique
         // o flow como ZABBIX_ALERT via _detect_flow_type()
-        action.put("Variable", "CALL_UUID=alert-" + callUuid
-                + ",ZABBIX_SEVERITY=" + severity
-                + ",ZABBIX_HOST=" + host
+        action.put("Variable", "CALL_UUID=alert-" + sanitizeAmiField(callUuid)
+                + ",ZABBIX_SEVERITY=" + safeSeverity
+                + ",ZABBIX_HOST=" + safeHost
                 + ",FLOW_TYPE=ZABBIX_ALERT");
 
         return sendAction(action);
@@ -89,10 +95,12 @@ public class AmiOriginateService {
      * @return true se a ação foi enviada com sucesso ao AMI
      */
     public boolean originateTestCall(String phoneNumber, Long testResultId) {
+        String safePhoneNumber = sanitizeAmiField(phoneNumber);
+
         Map<String, String> action = new LinkedHashMap<>();
         action.put("Action", "Originate");
         action.put("ActionID", UUID.randomUUID().toString());
-        action.put("Channel", "PJSIP/" + phoneNumber + "@tronco-sip");
+        action.put("Channel", "PJSIP/" + safePhoneNumber + "@tronco-sip");
         action.put("Context", "asteriskia-test");
         action.put("Exten", "s");
         action.put("Priority", "1");
@@ -152,6 +160,16 @@ public class AmiOriginateService {
             log.error("AMI: Erro de I/O: {}", e.getMessage());
         }
         return false;
+    }
+
+    /**
+     * Remove \r e \n de um valor antes de usá-lo em um campo AMI.
+     * O protocolo AMI é texto delimitado por linhas — um valor vindo de fora
+     * (telefone, severidade, host, resumo do incidente) com CRLF poderia
+     * quebrar o bloco da ação e injetar comandos extras na sessão autenticada.
+     */
+    private String sanitizeAmiField(String value) {
+        return value == null ? "" : value.replace("\r", "").replace("\n", "");
     }
 
     /** Envia um bloco AMI (pares chave:valor + linha em branco final). */
