@@ -138,7 +138,9 @@ class LocalProvider(BaseAIProvider):
 
     # ── TTS — não suportado ───────────────────────────────────────────────────
 
-    async def synthesize_speech_streaming(self, text: str, writer) -> bool:
+    async def synthesize_speech_streaming(
+        self, text: str, writer, record: list[bytes] | None = None
+    ) -> tuple[bool, float]:
         raise ProviderError("local", self._model_id,
             NotImplementedError(
                 "TTS local não disponível — configure ElevenLabs ou Gemini como fallback TTS"

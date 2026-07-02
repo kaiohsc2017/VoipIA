@@ -128,7 +128,9 @@ class OpenAIProvider(BaseAIProvider):
 
     # ── TTS ──────────────────────────────────────────────────────────────────
 
-    async def synthesize_speech_streaming(self, text: str, writer, record: list[bytes] | None = None) -> bool:
+    async def synthesize_speech_streaming(
+        self, text: str, writer, record: list[bytes] | None = None
+    ) -> tuple[bool, float]:
         try:
             client = _get_openai(self._api_key)
 
@@ -144,11 +146,13 @@ class OpenAIProvider(BaseAIProvider):
                             yield _resample(chunk, OPENAI_RATE, SAMPLE_RATE)
 
             chunks = await asyncio.to_thread(lambda: list(_iter_chunks()))
+            total_bytes = 0
             for chunk in chunks:
                 sent = await write_audio(writer, chunk, record=record)
                 if not sent:
-                    return False
-            return True
+                    return False, total_bytes / (SAMPLE_RATE * 2)
+                total_bytes += len(chunk)
+            return True, total_bytes / (SAMPLE_RATE * 2)
         except Exception as e:
             raise ProviderError("openai", self._model_id, e) from e
 

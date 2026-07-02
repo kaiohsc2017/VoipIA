@@ -58,7 +58,9 @@ class PerplexityProvider(BaseAIProvider):
         raise ProviderError("perplexity", self._model_id,
             NotImplementedError("Perplexity não suporta STT"))
 
-    async def synthesize_speech_streaming(self, text: str, writer) -> bool:
+    async def synthesize_speech_streaming(
+        self, text: str, writer, record: list[bytes] | None = None
+    ) -> tuple[bool, float]:
         raise ProviderError("perplexity", self._model_id,
             NotImplementedError("Perplexity não suporta TTS"))
 

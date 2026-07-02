@@ -59,10 +59,12 @@ class BaseAIProvider(ABC):
         """
 
     @abstractmethod
-    async def synthesize_speech_streaming(self, text: str, writer) -> bool:
+    async def synthesize_speech_streaming(
+        self, text: str, writer, record: list[bytes] | None = None
+    ) -> tuple[bool, float]:
         """
         TTS streaming — envia chunks de áudio ao AudioSocket conforme chegam.
-        Retorna True se completou, False se a conexão foi encerrada.
+        Retorna (sucesso, duração_em_segundos). `record` acumula o PCM enviado, se informado.
         """
 
     async def synthesize_speech(self, text: str) -> bytes:

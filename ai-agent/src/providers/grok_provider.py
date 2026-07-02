@@ -58,7 +58,9 @@ class GrokProvider(BaseAIProvider):
         raise ProviderError("grok", self._model_id,
             NotImplementedError("Grok não suporta STT — escolha outro provedor para esta capability"))
 
-    async def synthesize_speech_streaming(self, text: str, writer) -> bool:
+    async def synthesize_speech_streaming(
+        self, text: str, writer, record: list[bytes] | None = None
+    ) -> tuple[bool, float]:
         raise ProviderError("grok", self._model_id,
             NotImplementedError("Grok não suporta TTS — escolha outro provedor para esta capability"))
 

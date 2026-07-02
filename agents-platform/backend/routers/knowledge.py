@@ -1,9 +1,25 @@
 """routers/knowledge.py — base de conhecimento (PDFs)"""
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from database import DB
+import asyncio
+import io
 import uuid
 
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from database import DB
+
 router = APIRouter()
+
+# Limite de tamanho do PDF — evita consumo excessivo de memória/CPU na extração
+_MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
+
+
+def _extract_pdf_text(data: bytes) -> str:
+    """Extração de texto do PDF — roda em thread pois é CPU-bound e bloqueia o event loop."""
+    try:
+        import pypdf
+        reader = pypdf.PdfReader(io.BytesIO(data))
+        return "\n".join(p.extract_text() or "" for p in reader.pages)
+    except Exception:
+        return data.decode("utf-8", errors="ignore")
 
 @router.get("/")
 async def list_docs(limit: int = 100, offset: int = 0):
@@ -19,13 +35,9 @@ async def upload_doc(file: UploadFile = File(...), tags: str = ""):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(400, "Apenas PDFs aceitos")
     data = await file.read()
-    # Extração de texto do PDF
-    try:
-        import pypdf, io
-        reader = pypdf.PdfReader(io.BytesIO(data))
-        text   = "\n".join(p.extract_text() or "" for p in reader.pages)
-    except Exception:
-        text = data.decode("utf-8", errors="ignore")
+    if len(data) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"Arquivo excede o limite de {_MAX_UPLOAD_BYTES // (1024*1024)} MB")
+    text = await asyncio.to_thread(_extract_pdf_text, data)
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     async with DB() as db:
         row = await db.fetchrow("""

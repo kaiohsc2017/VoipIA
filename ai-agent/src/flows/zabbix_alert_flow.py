@@ -7,11 +7,20 @@ sintetiza em voz via TTS e reproduz para o destinatário.
 
 import asyncio
 import logging
-from src.protocol import read_frame, write_audio
+import time
+from src.protocol import read_frame, write_audio_paced
 from src.services.ai_service import AIService
 from src.services import backend_client as bc
 
 logger = logging.getLogger("asteriskia.flow.zabbix")
+
+# Taxa de amostragem do AudioSocket (8kHz, 16bit, mono) — mesmo formato do Módulo 1
+_SAMPLE_RATE  = 8000
+_BYTES_SAMPLE = 2
+
+# Buffer pós-fala: write_audio_paced já pacinga em tempo real (20ms/frame),
+# então elapsed ≈ duration — o buffer só cobre jitter do event loop/rede.
+_POST_SPEAK_BUFFER_SECS = 0.8
 
 
 class ZabbixAlertFlow:
@@ -69,10 +78,16 @@ class ZabbixAlertFlow:
         # 3. TTS: sintetiza e envia o alerta por voz
         try:
             audio_pcm = await self.gemini.synthesize_speech(voice_message)
-            await write_audio(self.writer, audio_pcm)
-            # Aguarda reprodução completa
-            words = len(voice_message.split())
-            await asyncio.sleep(max(5.0, words / 2.5))
+            duration = len(audio_pcm) / (_SAMPLE_RATE * _BYTES_SAMPLE)
+            t_start = time.monotonic()
+            ok = await write_audio_paced(self.writer, audio_pcm)
+            elapsed = time.monotonic() - t_start
+            if not ok:
+                logger.warning("[%s] Conexão encerrada durante reprodução do alerta", self.call_uuid)
+            else:
+                # Aguarda somente o áudio residual (se elapsed < duration) + buffer
+                remaining = max(0.0, duration - elapsed) + _POST_SPEAK_BUFFER_SECS
+                await asyncio.sleep(remaining)
         except Exception as e:
             logger.error("[%s] Erro ao reproduzir alerta: %s", self.call_uuid, e)
 

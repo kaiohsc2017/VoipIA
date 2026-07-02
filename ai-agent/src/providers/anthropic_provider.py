@@ -49,7 +49,9 @@ class AnthropicProvider(BaseAIProvider):
         raise ProviderError("anthropic", self._model_id,
             NotImplementedError("Anthropic não suporta STT"))
 
-    async def synthesize_speech_streaming(self, text: str, writer) -> bool:
+    async def synthesize_speech_streaming(
+        self, text: str, writer, record: list[bytes] | None = None
+    ) -> tuple[bool, float]:
         raise ProviderError("anthropic", self._model_id,
             NotImplementedError("Anthropic não suporta TTS"))
 
