@@ -407,7 +407,7 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > `external_media_address`/`external_signaling_address` não vazios, portas RTP `15000-15500/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
 
-### 🟠 Auditoria full-stack pós-RBAC (2026-07-02) — 33/33 achados corrigidos, deploy pendente
+### ✅ Auditoria full-stack pós-RBAC (2026-07-02) — 33/33 achados corrigidos, deployado e testado
 4 agentes `security-reviewer`/`react-reviewer` em paralelo (Java fora do RBAC, Python ai-agent+agents-platform,
 os dois frontends, infraestrutura) acharam 33 problemas; achados de infra confirmados ao vivo em produção
 (`ss`, `iptables -t nat`, `pg_hba.conf`). Ver memória `asteriskia-rbac-granular-feature` e o relatório completo
@@ -416,7 +416,7 @@ em https://claude.ai/code/artifact/b04225b4-fef1-4c3c-95f1-9951de5389c9.
   `/api/v1/ai/**` reusando `telecom.settings`); `install.sh` não gerava senha dos ramais SIP
   (`RAMAL_*_PASSWORD` hardcoded/vazio) — agora gera via `gen_pass` e injeta em `VITE_SIP_PASSWORD`;
   Postgres publicado em `0.0.0.0:5433` — `docker-compose.yml` agora vincula a `127.0.0.1`.
-- ✅ **11 HIGH corrigidos** (código pronto, **ainda NÃO deployado**): RCE via SSH com
+- ✅ **11 HIGH corrigidos** (deployado em produção, commits deb77ee+0f3d94e+f045af4): RCE via SSH com
   `PERM_WRITE_agents.agents` (bloqueado pra não-ADMIN em `agents.py`); SSRF em `notifier.py` e
   `SettingsTestController` (host privado/loopback bloqueado + redirect 3xx desabilitado no
   `RestTemplate`/`aiohttp` — resíduo aceito: DNS rebinding/TOCTOU não coberto, mitigar exigiria pin
@@ -432,7 +432,7 @@ em https://claude.ai/code/artifact/b04225b4-fef1-4c3c-95f1-9951de5389c9.
   (`SettingsService.java`); injeção de seção INI em `asterisk.conf` via `banaction`/valores de jail
   (`SecurityController.java`); áudio de alertas sem header de autenticação (`ModuloAlertas.tsx`,
   extraído junto com `ModuloURA.tsx` pro componente compartilhado `AuthedAudio.tsx`).
-- ✅ **10 MEDIUM + 4 LOW corrigidos** (código pronto, **ainda NÃO deployado**): SSRF em teste de
+- ✅ **10 MEDIUM + 4 LOW corrigidos** (deployado em produção): SSRF em teste de
   integração Jira/Zabbix (já coberto pelo fix de SSRF acima); injeção de fórmula CSV na exportação
   de chamadas (`ReportController.esc()` — prefixa `=+-@` com apóstrofo); `writeSettings` sem
   validação de chave/valor (`SettingsService.java` — regex de identificador + strip de `\r\n`);
