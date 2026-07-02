@@ -87,7 +87,7 @@ match = ${SIP_TRUNK_HOST}
 type = auth
 auth_type = userpass
 username = 1001
-password = ramal1001pass
+password = ${RAMAL_1001_PASSWORD}
 
 [1001]
 type = aor
@@ -109,7 +109,7 @@ callerid = "Teste Geral" <1001>
 type = auth
 auth_type = userpass
 username = 1002
-password = ramal1002pass
+password = ${RAMAL_1002_PASSWORD}
 
 [1002]
 type = aor
@@ -131,7 +131,7 @@ callerid = "Teste Conectividade" <1002>
 type = auth
 auth_type = userpass
 username = 9001
-password = @NIC@2026@_
+password = ${RAMAL_9001_PASSWORD}
 ; realm deve bater com o domínio SIP usado pelo browser
 realm = ${SIP_DOMAIN}
 
@@ -176,7 +176,7 @@ rewrite_contact = yes
 type = auth
 auth_type = userpass
 username = 9002
-password = sip9002pass2025
+password = ${RAMAL_9002_PASSWORD}
 realm = ${SIP_DOMAIN}
 
 [9002]

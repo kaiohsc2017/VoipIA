@@ -10,13 +10,67 @@ logger = logging.getLogger("asteriskia.agents")
 
 router = APIRouter()
 
+# Chaves cujo valor é sensível e nunca deve ser devolvido ao cliente em texto puro.
+_SECRET_KEYS = {
+    "dsn", "password", "passwd", "pwd", "secret", "token",
+    "api_key", "apikey", "key", "ssh_key", "credential",
+    "conn_str", "connection_string",
+}
+
+
+def _mask_secret_value(value):
+    """Mascara um valor sensível. Para DSNs (user:pass@host) mascara só a senha."""
+    if not isinstance(value, str) or not value:
+        return value
+    # postgresql://user:senha@host/db  →  postgresql://user:••••@host/db
+    if "://" in value and "@" in value:
+        scheme, _, rest = value.partition("://")
+        creds, at, hostpart = rest.partition("@")
+        if ":" in creds:
+            user, _, _pw = creds.partition(":")
+            return f"{scheme}://{user}:••••••••@{hostpart}"
+        return value
+    return "••••••••"
+
+
+def _mask_secrets(obj):
+    """Percorre recursivamente dicts/lists mascarando valores de chaves sensíveis."""
+    if isinstance(obj, dict):
+        return {
+            k: (_mask_secret_value(v) if k.lower() in _SECRET_KEYS else _mask_secrets(v))
+            for k, v in obj.items()
+        }
+    if isinstance(obj, list):
+        return [_mask_secrets(item) for item in obj]
+    return obj
+
+
+def _sanitize_agent(agent: dict) -> dict:
+    """Mascara credenciais embutidas em `rules` antes de devolver o agente ao cliente.
+
+    Preserva o tipo original de `rules` (str JSON ou dict) para não quebrar o frontend.
+    """
+    rules = agent.get("rules")
+    if rules is None:
+        return agent
+    was_str = isinstance(rules, str)
+    if was_str:
+        try:
+            rules = json.loads(rules)
+        except (ValueError, TypeError):
+            return agent
+    masked = _mask_secrets(rules)
+    out = dict(agent)
+    out["rules"] = json.dumps(masked) if was_str else masked
+    return out
+
 @router.get("/")
 async def list_agents(limit: int = 100, offset: int = 0):
     async with DB() as db:
         rows  = await db.fetch(
             "SELECT * FROM agents ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset)
         total = await db.fetchval("SELECT COUNT(*) FROM agents")
-        return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
+        return {"items": [_sanitize_agent(dict(r)) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 @router.post("/", response_model=dict)
 async def create_agent(body: AgentCreate):
@@ -35,14 +89,14 @@ async def create_agent(body: AgentCreate):
              body.notify_email, body.notify_email_to,
              body.notify_webhook, body.notify_webhook_url,
              uuid.UUID(body.on_failure_trigger_agent_id) if body.on_failure_trigger_agent_id else None)
-        return dict(row)
+        return _sanitize_agent(dict(row))
 
 @router.get("/{agent_id}")
 async def get_agent(agent_id: UUID):
     async with DB() as db:
         row = await db.fetchrow("SELECT * FROM agents WHERE id=$1", agent_id)
         if not row: raise HTTPException(404, "Agente não encontrado")
-        return dict(row)
+        return _sanitize_agent(dict(row))
 
 @router.put("/{agent_id}")
 async def update_agent(agent_id: UUID, body: AgentCreate, request: Request):
@@ -68,10 +122,10 @@ async def update_agent(agent_id: UUID, body: AgentCreate, request: Request):
         agent = dict(row)
     try:
         scheduler = request.app.state.scheduler
-        scheduler.reload_agent(agent)
+        scheduler.reload_agent(agent)   # usa as credenciais reais, antes de mascarar
     except Exception as e:
         logger.warning("[agents] reload_agent error: %s", e)
-    return agent
+    return _sanitize_agent(agent)
 
 @router.delete("/{agent_id}")
 async def delete_agent(agent_id: UUID):

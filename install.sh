@@ -438,23 +438,38 @@ for cmd in d.get('bash_commands', []):
     print(cmd)
 " 2>/dev/null)
 
-    if [ -n "$BASH_CMDS" ]; then
-        log_info "Aplicando correções sugeridas pela IA..."
+    # SEGURANÇA: o script roda como root. NUNCA executar automaticamente
+    # comandos/patch vindos de um LLM (podem ser destrutivos por alucinação
+    # ou por conteúdo malicioso presente no log de build). Apenas exibimos as
+    # sugestões e exigimos confirmação interativa explícita antes de aplicar.
+    if [ -n "$BASH_CMDS" ] || [ -n "$DOCKERFILE_PATCH" ]; then
+        echo -e "\n  ${YELLOW}⚠  A IA sugeriu os seguintes comandos (NÃO aplicados automaticamente):${NC}"
+        [ -n "$BASH_CMDS" ]        && echo -e "${GRAY}$BASH_CMDS${NC}"
+        [ -n "$DOCKERFILE_PATCH" ] && echo -e "${GRAY}$DOCKERFILE_PATCH${NC}"
+        # Em modo não-interativo (sem TTY), nunca executa.
+        if [ ! -t 0 ]; then
+            log_warn "Execução não-interativa: sugestões da IA ignoradas por segurança."
+            return 1
+        fi
+        printf "  Revise acima. Aplicar estes comandos como root? [digite 'sim' para confirmar]: "
+        local CONFIRM=""
+        read -r CONFIRM
+        if [ "$CONFIRM" != "sim" ]; then
+            log_warn "Correções da IA descartadas pelo operador."
+            return 1
+        fi
         while IFS= read -r cmd; do
             [ -z "$cmd" ] && continue
-            echo -e "  ${GRAY}▶ $cmd${NC}"
-            # Substitui variáveis conhecidas
             cmd="${cmd//\$INSTALL_DIR/$INSTALL_DIR}"
             cmd="${cmd//\$SERVICE/$SERVICE}"
-            eval "$cmd" 2>/dev/null || true
+            echo -e "  ${GRAY}▶ $cmd${NC}"
+            eval "$cmd" || true
         done <<< "$BASH_CMDS"
-    fi
-
-    # Aplica patch no Dockerfile se houver
-    if [ -n "$DOCKERFILE_PATCH" ]; then
-        DOCKERFILE_PATCH="${DOCKERFILE_PATCH//\$INSTALL_DIR/$INSTALL_DIR}"
-        DOCKERFILE_PATCH="${DOCKERFILE_PATCH//\$SERVICE/$SERVICE}"
-        eval "$DOCKERFILE_PATCH" 2>/dev/null || true
+        if [ -n "$DOCKERFILE_PATCH" ]; then
+            DOCKERFILE_PATCH="${DOCKERFILE_PATCH//\$INSTALL_DIR/$INSTALL_DIR}"
+            DOCKERFILE_PATCH="${DOCKERFILE_PATCH//\$SERVICE/$SERVICE}"
+            eval "$DOCKERFILE_PATCH" || true
+        fi
     fi
 
     return 0

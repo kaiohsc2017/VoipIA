@@ -226,7 +226,7 @@ export default function FluxoURATab({ uraId }: { uraId: number }) {
           <tbody>
             {questions.length === 0 ? (
               <tr><td colSpan={6} className="table-empty">Nenhuma pergunta cadastrada</td></tr>
-            ) : questions
+            ) : [...questions]
               .sort((a, b) => a.questionOrder - b.questionOrder)
               .map(q => (
                 <tr key={q.id}>
