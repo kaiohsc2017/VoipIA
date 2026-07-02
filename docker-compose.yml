@@ -87,6 +87,13 @@ services:
       # Usado pelo dialplan (CURL) para autenticar no backend ao registrar
       # a qual URA uma chamada pertence — mesma chave usada pelo ai-agent.
       INTERNAL_API_KEY:       ${INTERNAL_API_KEY}
+      # Senhas SIP dos ramais — injetadas no pjsip.conf no boot (envsubst).
+      # NUNCA hardcodar no .template versionado. RAMAL_9001 deve casar com
+      # VITE_SIP_PASSWORD (softphone WebRTC do frontend).
+      RAMAL_1001_PASSWORD:    ${RAMAL_1001_PASSWORD}
+      RAMAL_1002_PASSWORD:    ${RAMAL_1002_PASSWORD}
+      RAMAL_9001_PASSWORD:    ${RAMAL_9001_PASSWORD}
+      RAMAL_9002_PASSWORD:    ${RAMAL_9002_PASSWORD}
     volumes:
       - ./asterisk/config:/etc/asterisk
       - asterisk_recordings:/var/spool/asterisk/monitor
