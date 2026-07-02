@@ -36,7 +36,6 @@ public class InternalKeyFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         String key = request.getHeader(HEADER);
-        log.info("InternalKeyFilter: key received = [{}], configured internalApiKey = [{}]", key, internalApiKey);
 
         if (key != null && key.equals(internalApiKey)
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -48,9 +47,10 @@ public class InternalKeyFilter extends OncePerRequestFilter {
                             List.of(new SimpleGrantedAuthority("ROLE_INTERNAL"))
                     );
             SecurityContextHolder.getContext().setAuthentication(auth);
-            log.info("Requisição autenticada com sucesso via InternalKey (ROLE_INTERNAL) para URI: {}", request.getRequestURI());
+            // Nunca logar o valor da chave — apenas o resultado da autenticação.
+            log.debug("Requisição autenticada via InternalKey (ROLE_INTERNAL) para URI: {}", request.getRequestURI());
         } else if (key != null) {
-            log.warn("Falha de autenticação InternalKey. Recebido: [{}], Esperado: [{}]", key, internalApiKey);
+            log.warn("Falha de autenticação InternalKey para URI: {}", request.getRequestURI());
         }
 
         filterChain.doFilter(request, response);

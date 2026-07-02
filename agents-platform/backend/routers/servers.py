@@ -17,12 +17,15 @@ async def list_servers(limit: int = 100, offset: int = 0):
         total = await db.fetchval("SELECT COUNT(*) FROM servers")
         return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
+# Colunas seguras para retornar ao cliente — nunca expõe password/ssh_key.
+_SAFE_COLS = "id,name,host,port,username,auth_type,tags,active,created_at"
+
 @router.post("/")
 async def create_server(body: ServerCreate):
     async with DB() as db:
-        row = await db.fetchrow("""
+        row = await db.fetchrow(f"""
             INSERT INTO servers (name,host,port,username,auth_type,password,ssh_key,tags)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING {_SAFE_COLS}
         """, body.name, body.host, body.port, body.username,
              body.auth_type, body.password, body.ssh_key, body.tags)
         return dict(row)
@@ -30,10 +33,10 @@ async def create_server(body: ServerCreate):
 @router.put("/{server_id}")
 async def update_server(server_id: UUID, body: ServerCreate):
     async with DB() as db:
-        row = await db.fetchrow("""
+        row = await db.fetchrow(f"""
             UPDATE servers SET name=$1,host=$2,port=$3,username=$4,
                 auth_type=$5,password=$6,ssh_key=$7,tags=$8
-            WHERE id=$9 RETURNING *
+            WHERE id=$9 RETURNING {_SAFE_COLS}
         """, body.name, body.host, body.port, body.username,
              body.auth_type, body.password, body.ssh_key, body.tags, server_id)
         if not row: raise HTTPException(404)
