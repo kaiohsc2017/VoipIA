@@ -10,6 +10,7 @@ import FluxoURATab from './FluxoURATab';
 export default function UraManagementTab() {
   const [uras, setUras] = useState<Ura[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editUra, setEditUra] = useState<Partial<Ura>>({});
   const [error, setError] = useState<string | null>(null);
@@ -17,9 +18,16 @@ export default function UraManagementTab() {
 
   const load = async () => {
     setLoading(true);
-    const r = await api.get<Ura[]>('/uras');
-    setUras(r.data);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const r = await api.get<Ura[]>('/uras');
+      setUras(r.data);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      setLoadError(err.response?.data?.message ?? 'Erro ao carregar as URAs. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -62,6 +70,15 @@ export default function UraManagementTab() {
 
   if (loading) {
     return <div className="loading-state"><div className="spinner" />Carregando URAs…</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+        <p style={{ marginBottom: 12 }}>{loadError}</p>
+        <button className="btn btn-primary btn-sm" onClick={load}>Tentar novamente</button>
+      </div>
+    );
   }
 
   if (configuringUra) {

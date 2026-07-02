@@ -18,6 +18,7 @@ export default function FluxoURATab({ uraId }: { uraId: number }) {
   const [settings, setSettings]       = useState<UraSetting[]>([]);
   const [questions, setQuestions]     = useState<UraQuestion[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [loadError, setLoadError]     = useState<string | null>(null);
   const [saving, setSaving]           = useState<string | null>(null);
   const [saved, setSaved]             = useState<string | null>(null);
   const [localValues, setLocalValues] = useState<Record<string, string>>({});
@@ -28,14 +29,21 @@ export default function FluxoURATab({ uraId }: { uraId: number }) {
 
   const load = async () => {
     setLoadingData(true);
-    const [s, q] = await Promise.all([
-      api.get<UraSetting[]>(`/uras/${uraId}/settings`),
-      api.get<UraQuestion[]>(`/uras/${uraId}/questions/all`),
-    ]);
-    setSettings(s.data);
-    setLocalValues(Object.fromEntries(s.data.map(x => [x.key, x.value])));
-    setQuestions(q.data);
-    setLoadingData(false);
+    setLoadError(null);
+    try {
+      const [s, q] = await Promise.all([
+        api.get<UraSetting[]>(`/uras/${uraId}/settings`),
+        api.get<UraQuestion[]>(`/uras/${uraId}/questions/all`),
+      ]);
+      setSettings(s.data);
+      setLocalValues(Object.fromEntries(s.data.map(x => [x.key, x.value])));
+      setQuestions(q.data);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      setLoadError(err.response?.data?.message ?? 'Erro ao carregar o fluxo da URA. Tente novamente.');
+    } finally {
+      setLoadingData(false);
+    }
   };
 
   useEffect(() => { load(); }, [uraId]);
@@ -89,6 +97,15 @@ export default function FluxoURATab({ uraId }: { uraId: number }) {
 
   if (loadingData) {
     return <div className="loading-state"><div className="spinner" />Carregando fluxo da URA…</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+        <p style={{ marginBottom: 12 }}>{loadError}</p>
+        <button className="btn btn-primary btn-sm" onClick={load}>Tentar novamente</button>
+      </div>
+    );
   }
 
   const FLOW_ORDER = ['boas_vindas', 'informativa', 'encerramento'];
