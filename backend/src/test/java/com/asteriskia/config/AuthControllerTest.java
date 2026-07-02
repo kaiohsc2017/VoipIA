@@ -6,15 +6,19 @@ import com.asteriskia.domain.user.AppUser;
 import com.asteriskia.domain.user.AppUserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
+import java.util.Map;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -113,5 +117,45 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new AuthController.LoginRequest("errado", "wrong"))))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ─── Refresh — regressão de segurança ─────────────────────────────────────
+    // Achado do security-reviewer: um usuário desativado/removido que ainda
+    // segure um refresh token válido (até 7 dias) não pode ganhar a claim
+    // "perm" completa do grupo Administradores — role e perms precisam ficar
+    // sincronizados no mesmo branch "default" (USER / sem permissão nenhuma).
+
+    @Test
+    void refresh_usuarioDesativadoOuRemovido_naoDeveGanharPermissoesDeAdmin() throws Exception {
+        String username = "usuario_desativado";
+
+        RefreshToken storedToken = RefreshToken.builder()
+                .id(1L)
+                .username(username)
+                .tokenHash("hash-irrelevante")
+                .revoked(false)
+                .build();
+
+        when(refreshTokenService.validateRefreshToken("refresh-valido"))
+                .thenReturn(Optional.of(storedToken));
+        // findByUsernameAndIsActiveTrue vazio: simula usuário desativado (soft
+        // delete) ou excluído — cai no branch "default" de refresh().
+        when(userRepo.findByUsernameAndIsActiveTrue(username)).thenReturn(Optional.empty());
+        when(refreshTokenService.generateRefreshToken(username)).thenReturn("novo-refresh-token");
+        when(jwtService.generateToken(eq(username), eq(9001), eq("USER"), any()))
+                .thenReturn("novo-jwt-mock");
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/refresh")
+                        .cookie(new jakarta.servlet.http.Cookie("asteriskia_refresh_token", "refresh-valido")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("novo-jwt-mock"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> permsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(jwtService).generateToken(eq(username), eq(9001), eq("USER"), permsCaptor.capture());
+
+        // O bug corrigido: perms vinha pré-inicializado com o grupo Administradores
+        // (leitura+escrita em todos os 19 recursos) mesmo quando role="USER".
+        assertThat(permsCaptor.getValue()).isEmpty();
     }
 }

@@ -150,8 +150,15 @@ public class AuthController {
 
         Integer extension = 9001;
         String displayName = "Administrador";
-        String role = adminUsername.equals(username) ? "ADMIN" : "USER";
-        var perms = accessGroupService.permissionsFor(accessGroupService.administradores());
+        boolean isEnvFallbackAdmin = adminUsername.equals(username);
+        String role = isEnvFallbackAdmin ? "ADMIN" : "USER";
+        // CRÍTICO: perms deve espelhar exatamente a mesma condição de role acima. Um usuário
+        // desativado (isActive=false) ou removido cai neste branch default via refresh token
+        // ainda válido (até 7 dias) — dar perms de Administradores aqui seria escalação de
+        // privilégio total, ignorando a desativação da conta.
+        var perms = isEnvFallbackAdmin
+                ? accessGroupService.permissionsFor(accessGroupService.administradores())
+                : java.util.Map.<String, String>of();
 
         Optional<AppUser> userOpt = userRepo.findByUsernameAndIsActiveTrue(username);
         if (userOpt.isPresent()) {

@@ -90,6 +90,14 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.users")
                         .requestMatchers(HttpMethod.GET, "/api/v1/asterisk-config/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.settings")
+                        // Auditoria — só leitura (AuditController não tem endpoint de escrita).
+                        // Achado de segurança: catalogado como "telecom.audit" desde a V22 e
+                        // exposto como checkbox em AccessGroups.tsx, mas nunca tinha sido
+                        // aplicado aqui — caía no anyRequest().authenticated() genérico do fim,
+                        // liberando o histórico de auditoria (IPs, mudanças de config, eventos
+                        // de login) pra qualquer autenticado, mesmo com o checkbox desmarcado.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/audit/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.audit")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da
