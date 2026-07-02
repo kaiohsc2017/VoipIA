@@ -16,7 +16,11 @@ const WS_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api/v1')
   .replace(/\/$/, '');
 
 let client: Client | null = null;
-const subscriptions = new Map<string, { unsubscribe: () => void }>();
+// Chave por id único da chamada (não pelo tópico) — dois assinantes distintos
+// do mesmo tópico (ex: KpiBar e DashboardTab ambos em /topic/calls) não podem
+// se sobrescrever no Map, senão o unsubscribe de um cancela o do outro.
+const subscriptions = new Map<number, { unsubscribe: () => void }>();
+let nextSubId = 0;
 
 // Fila de subscriptions que chegaram antes da conexão estar pronta
 let pendingSubs: Array<() => void> = [];
@@ -52,6 +56,8 @@ export function subscribe<T>(
 ): () => void {
   if (!client) connectWebSocket();
 
+  const subId = nextSubId++;
+
   const doSubscribe = () => {
     try {
       const sub = client!.subscribe(topic, (msg) => {
@@ -62,7 +68,7 @@ export function subscribe<T>(
           console.warn('[WS] Payload inválido no tópico', topic, msg.body);
         }
       });
-      subscriptions.set(topic, sub);
+      subscriptions.set(subId, sub);
     } catch (err) {
       console.warn('[WS] Erro ao subscribir tópico', topic, err);
     }
@@ -77,8 +83,8 @@ export function subscribe<T>(
   }
 
   return () => {
-    subscriptions.get(topic)?.unsubscribe();
-    subscriptions.delete(topic);
+    subscriptions.get(subId)?.unsubscribe();
+    subscriptions.delete(subId);
     pendingSubs = pendingSubs.filter(fn => fn !== doSubscribe);
   };
 }

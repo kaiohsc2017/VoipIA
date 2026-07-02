@@ -29,9 +29,20 @@ const getUserExtension = (): string => {
   } catch { return '9001'; }
 };
 
-/** Senha do ramal baseada no número (padrão: webrtcXXXXpass) */
-const getExtPassword = (ext: string) =>
-  import.meta.env.VITE_SIP_PASSWORD ?? `webrtc${ext}pass`;
+/**
+ * Senha do ramal WebRTC — vem de VITE_SIP_PASSWORD (build-time).
+ * Sem fallback previsível: uma fórmula tipo "webrtc{ramal}pass" fica visível
+ * no bundle JS público e, combinada com a faixa de ramais documentada,
+ * permite calcular credenciais válidas para qualquer ramal.
+ */
+const getExtPassword = (ext: string) => {
+  const pw = import.meta.env.VITE_SIP_PASSWORD;
+  if (!pw) {
+    console.error(`[Softphone] VITE_SIP_PASSWORD não configurado — ramal ${ext} não vai registrar.`);
+    return '';
+  }
+  return pw;
+};
 
 type CallState = 'idle' | 'calling' | 'incoming' | 'active' | 'ended';
 type RegState  = 'unregistered' | 'registering' | 'registered' | 'failed';
@@ -93,7 +104,7 @@ export default function Softphone() {
   };
 
   useEffect(() => {
-    JsSIP.debug.enable('JsSIP:*');
+    if (import.meta.env.DEV) JsSIP.debug.enable('JsSIP:*');
     const socket = new JsSIP.WebSocketInterface(wsUrl);
     const ua = new JsSIP.UA({
       sockets: [socket],
@@ -223,7 +234,15 @@ export default function Softphone() {
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      // Libera todos os timers e o microfone se o componente desmontar com
+      // uma chamada em andamento — antes só o wsGraceTimerRef era limpo,
+      // deixando o intervalo de duração rodando para sempre e o microfone
+      // ligado sem UI.
       if (wsGraceTimerRef.current) { clearTimeout(wsGraceTimerRef.current); wsGraceTimerRef.current = null; }
+      if (dialTimerRef.current)    { clearTimeout(dialTimerRef.current);    dialTimerRef.current = null; }
+      if (timerRef.current)        { clearInterval(timerRef.current);      timerRef.current = null; }
+      localStreamRef.current?.getTracks().forEach(t => t.stop());
+      localStreamRef.current = null;
       ua.stop();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

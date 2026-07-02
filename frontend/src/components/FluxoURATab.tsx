@@ -63,8 +63,13 @@ export default function FluxoURATab({ uraId }: { uraId: number }) {
   };
 
   const toggleActive = async (q: UraQuestion) => {
-    await api.patch(`/uras/${uraId}/questions/${q.id}/active?active=${!q.isActive}`);
-    load();
+    try {
+      await api.patch(`/uras/${uraId}/questions/${q.id}/active?active=${!q.isActive}`);
+      load();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      alert(err.response?.data?.message ?? 'Erro ao atualizar a pergunta. Tente novamente.');
+    }
   };
 
   const openEditModal = (q?: UraQuestion) => {
@@ -76,14 +81,26 @@ export default function FluxoURATab({ uraId }: { uraId: number }) {
     if (!editQ.questionText?.trim())  { alert('Informe o texto da pergunta.'); return; }
     if (!editQ.jiraFieldKey?.trim())  { alert('Informe o campo do Jira.');     return; }
     if (!editQ.questionOrder)         { alert('Informe a ordem.');             return; }
-    if (editQ.id) { await api.put(`/uras/${uraId}/questions/${editQ.id}`, editQ); }
-    else          { await api.post(`/uras/${uraId}/questions`, editQ); }
-    setShowModal(false);
-    load();
+    try {
+      if (editQ.id) { await api.put(`/uras/${uraId}/questions/${editQ.id}`, editQ); }
+      else          { await api.post(`/uras/${uraId}/questions`, editQ); }
+      setShowModal(false);
+      load();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      alert(err.response?.data?.message ?? 'Erro ao salvar a pergunta. Tente novamente.');
+    }
   };
 
   const deleteQuestion = async (id: number) => {
-    if (confirm('Remover esta pergunta?')) { await api.delete(`/uras/${uraId}/questions/${id}`); load(); }
+    if (!confirm('Remover esta pergunta?')) return;
+    try {
+      await api.delete(`/uras/${uraId}/questions/${id}`);
+      load();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      alert(err.response?.data?.message ?? 'Erro ao remover a pergunta. Tente novamente.');
+    }
   };
 
   // Helpers para renderizar cada bloco de mensagem

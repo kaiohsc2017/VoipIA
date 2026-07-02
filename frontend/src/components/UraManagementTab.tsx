@@ -64,8 +64,13 @@ export default function UraManagementTab() {
   const remove = async (u: Ura) => {
     if (u.id === 1) { alert('A URA padrão (Service Desk) não pode ser removida.'); return; }
     if (!confirm(`Remover a URA "${u.name}"?`)) return;
-    await api.delete(`/uras/${u.id}`);
-    load();
+    try {
+      await api.delete(`/uras/${u.id}`);
+      load();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      alert(err.response?.data?.message ?? 'Erro ao remover a URA. Tente novamente.');
+    }
   };
 
   if (loading) {
