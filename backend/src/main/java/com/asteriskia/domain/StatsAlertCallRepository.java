@@ -16,6 +16,6 @@ public interface StatsAlertCallRepository extends JpaRepository<AlertCall, Long>
     @Query("SELECT COUNT(a) FROM AlertCall a WHERE a.callStatus = :status AND a.callDate BETWEEN :from AND :to")
     long countByStatusAndPeriod(@Param("status") String status, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
-    @Query("SELECT COUNT(a) FROM AlertCall a WHERE a.telegramSentAt IS NOT NULL AND a.callDate BETWEEN :from AND :to")
+    @Query(value = "SELECT COUNT(*) FROM alert_calls a WHERE a.telegram_sent_at IS NOT NULL AND a.call_date BETWEEN :from AND :to", nativeQuery = true)
     long countTelegramSentByPeriod(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 }

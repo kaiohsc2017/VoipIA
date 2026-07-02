@@ -17,10 +17,12 @@ public interface StatsCallRepository extends JpaRepository<CallRecord, Long> {
     @Query("SELECT COUNT(c) FROM CallRecord c WHERE c.callDate BETWEEN :from AND :to")
     long countByPeriod(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
-    @Query("SELECT COUNT(c) FROM CallRecord c WHERE c.jiraIssueKey IS NOT NULL AND c.callDate BETWEEN :from AND :to")
+    // nativeQuery=true evita o erro "could not determine data type of parameter $N"
+    // que o Hibernate 6 gera com IS NOT NULL em JPQL sobre colunas TEXT nullable no PostgreSQL
+    @Query(value = "SELECT COUNT(*) FROM call_records c WHERE c.jira_issue_key IS NOT NULL AND c.call_date BETWEEN :from AND :to", nativeQuery = true)
     long countWithJiraByPeriod(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
-    @Query("SELECT COUNT(c) FROM CallRecord c WHERE c.transcription IS NOT NULL AND c.callDate BETWEEN :from AND :to")
+    @Query(value = "SELECT COUNT(*) FROM call_records c WHERE c.transcription IS NOT NULL AND c.call_date BETWEEN :from AND :to", nativeQuery = true)
     long countWithTranscriptionByPeriod(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
     @Query("SELECT COALESCE(AVG(c.callDurationSecs), 0) FROM CallRecord c WHERE c.callDate BETWEEN :from AND :to")
