@@ -1,5 +1,7 @@
 package com.asteriskia.domain.user;
 
+import com.asteriskia.domain.accessgroup.AccessGroup;
+import com.asteriskia.domain.accessgroup.AccessGroupRepository;
 import com.asteriskia.domain.audit.AuditService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -29,12 +31,24 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserController {
 
-    private final AppUserRepository userRepo;
-    private final AuditService      auditService;
+    private final AppUserRepository      userRepo;
+    private final AccessGroupRepository  accessGroupRepo;
+    private final AuditService           auditService;
     private static final BCryptPasswordEncoder ENCODER = new BCryptPasswordEncoder(10);
 
     // Ramal inicial — o primeiro usuário recebe 9001
     private static final int EXTENSION_START = 9001;
+
+    // Grupos de sistema seedados na V22 — usados enquanto o role legado
+    // (ADMIN|USER) ainda pilota a UI de usuários (até a Fase 5 do RBAC granular).
+    private static final int GROUP_ADMINISTRADORES = 1;
+    private static final int GROUP_USUARIOS        = 2;
+
+    private AccessGroup resolveGroupForRole(String role) {
+        int groupId = "ADMIN".equals(role) ? GROUP_ADMINISTRADORES : GROUP_USUARIOS;
+        return accessGroupRepo.findById(groupId)
+                .orElseThrow(() -> new IllegalStateException("Grupo de acesso seed ausente: id=" + groupId));
+    }
 
     // -----------------------------------------------------------------------
     // CRUD
@@ -62,6 +76,7 @@ public class UserController {
         }
 
         int extension = userRepo.findNextExtension(EXTENSION_START);
+        String role = req.role() != null ? req.role() : "USER";
 
         AppUser user = AppUser.builder()
                 .username(req.username())
@@ -69,7 +84,8 @@ public class UserController {
                 .displayName(req.displayName())
                 .extension(extension)
                 .isActive(true)
-                .role(req.role() != null ? req.role() : "USER")
+                .role(role)
+                .accessGroup(resolveGroupForRole(role))
                 .build();
 
         AppUser saved = userRepo.save(user);
@@ -102,6 +118,7 @@ public class UserController {
                     if (req.role() != null) {
                         changes.append("role=").append(req.role()).append(" ");
                         user.setRole(req.role());
+                        user.setAccessGroup(resolveGroupForRole(req.role()));
                     }
                     AppUser updated = userRepo.save(user);
                     auditService.log(httpRequest, "USER_UPDATE",

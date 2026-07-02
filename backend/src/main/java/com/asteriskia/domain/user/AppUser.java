@@ -38,10 +38,18 @@ public class AppUser {
     @Builder.Default
     private Boolean isActive = true;
 
-    /** ADMIN | USER */
+    /**
+     * ADMIN | USER — legado, mantido para compat durante a transição pro
+     * RBAC granular (dual-emit no JWT). Ver {@link com.asteriskia.domain.accessgroup.AccessGroup}.
+     */
     @Column(nullable = false, length = 32)
     @Builder.Default
     private String role = "USER";
+
+    /** Grupo de acesso (RBAC granular) — substitui role a partir da V22. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "access_group_id", nullable = false)
+    private com.asteriskia.domain.accessgroup.AccessGroup accessGroup;
 
     /** Segredo TOTP em Base32 (null se 2FA não configurado). */
     @Column(name = "totp_secret", length = 64)
