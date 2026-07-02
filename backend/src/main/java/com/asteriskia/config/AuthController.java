@@ -1,5 +1,6 @@
 package com.asteriskia.config;
 
+import com.asteriskia.domain.accessgroup.AccessGroupService;
 import com.asteriskia.domain.audit.AuditService;
 import com.asteriskia.domain.user.AppUser;
 import com.asteriskia.domain.user.AppUserRepository;
@@ -37,6 +38,7 @@ public class AuthController {
     private final AppUserRepository   userRepo;
     private final AuditService        auditService;
     private final RefreshTokenService refreshTokenService;
+    private final AccessGroupService  accessGroupService;
 
     private static final BCryptPasswordEncoder ENCODER = new BCryptPasswordEncoder();
 
@@ -86,7 +88,8 @@ public class AuthController {
         // 2. Fallback: credenciais de ambiente (compatibilidade retroativa)
         if (adminUsername.equals(request.username()) && adminPassword.equals(request.password())) {
             // Fallback via env é sempre a conta mestre — tratado como ADMIN.
-            String token = jwtService.generateToken(request.username(), 9001, "ADMIN");
+            var envPerms = accessGroupService.permissionsFor(accessGroupService.administradores());
+            String token = jwtService.generateToken(request.username(), 9001, "ADMIN", envPerms);
             String refreshToken = refreshTokenService.generateRefreshToken(request.username());
             auditService.logAs(httpRequest, request.username(), "LOGIN",
                     "Login via variáveis de ambiente (fallback)", true);
@@ -119,7 +122,8 @@ public class AuthController {
         }
 
         // Login normal (sem 2FA)
-        String token = jwtService.generateToken(user.getUsername(), user.getExtension(), user.getRole());
+        var perms = accessGroupService.permissionsFor(user.getAccessGroup());
+        String token = jwtService.generateToken(user.getUsername(), user.getExtension(), user.getRole(), perms);
         String refreshToken = refreshTokenService.generateRefreshToken(user.getUsername());
         auditService.logAs(request, user.getUsername(), "LOGIN",
                 "Login bem-sucedido (ramal " + user.getExtension() + ")", true);
@@ -147,17 +151,19 @@ public class AuthController {
         Integer extension = 9001;
         String displayName = "Administrador";
         String role = adminUsername.equals(username) ? "ADMIN" : "USER";
+        var perms = accessGroupService.permissionsFor(accessGroupService.administradores());
 
         Optional<AppUser> userOpt = userRepo.findByUsernameAndIsActiveTrue(username);
         if (userOpt.isPresent()) {
             extension = userOpt.get().getExtension();
             displayName = userOpt.get().getDisplayName();
             role = userOpt.get().getRole();
+            perms = accessGroupService.permissionsFor(userOpt.get().getAccessGroup());
         }
 
         // Rotação: revoga o antigo e gera um novo
         refreshTokenService.revokeRefreshToken(reqRefreshToken);
-        String newJwt = jwtService.generateToken(username, extension, role);
+        String newJwt = jwtService.generateToken(username, extension, role, perms);
         String newRefreshToken = refreshTokenService.generateRefreshToken(username);
 
         log.info("Token renovado via refresh para '{}'", username);

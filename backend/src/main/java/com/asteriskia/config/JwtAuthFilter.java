@@ -15,7 +15,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * JwtAuthFilter — Extrai e valida o Bearer token em cada requisição.
@@ -50,13 +52,24 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
                 String username = jwtService.extractUsername(token);
                 String role = jwtService.extractRole(token);
+                Map<String, String> perms = jwtService.extractPermissions(token);
+
+                List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+                authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+                // Tokens antigos (sem claim "perm") só carregam ROLE_ — o cutover em
+                // SecurityConfig aceita ROLE_ADMIN OU a PERM_ correspondente, então
+                // sessões existentes continuam válidas até expirar/renovar (máx. 8h).
+                perms.forEach((resource, flags) -> {
+                    if (flags != null && flags.contains("r")) {
+                        authorities.add(new SimpleGrantedAuthority("PERM_READ_" + resource));
+                    }
+                    if (flags != null && flags.contains("w")) {
+                        authorities.add(new SimpleGrantedAuthority("PERM_WRITE_" + resource));
+                    }
+                });
 
                 UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(
-                                username,
-                                null,
-                                List.of(new SimpleGrantedAuthority("ROLE_" + role))
-                        );
+                        new UsernamePasswordAuthenticationToken(username, null, authorities);
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }

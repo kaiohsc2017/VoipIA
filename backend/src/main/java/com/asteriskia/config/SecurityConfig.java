@@ -25,12 +25,16 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * a conexão do Dashboard em tempo real falha. A autenticação de mensagens
  * STOMP (JWT no frame CONNECT) é feita em WebSocketConfig.
  *
- * RBAC: JwtAuthFilter concede ROLE_ADMIN ou ROLE_USER (claim "role" do JWT).
- * InternalKeyFilter concede ROLE_INTERNAL para serviços internos (AI Agent).
- * Endpoints administrativos (fail2ban, .env, logs de container/AMI, gestão de
- * usuários, edição de config do Asterisk) exigem ROLE_ADMIN. Escrita em URAs
- * (POST/PUT/PATCH/DELETE) exige ADMIN ou INTERNAL — leitura fica liberada
- * para qualquer usuário autenticado (usada no filtro do dashboard de chamadas).
+ * RBAC: JwtAuthFilter concede ROLE_ADMIN/ROLE_USER (claim "role", legado) e
+ * PERM_READ_&lt;resource&gt;/PERM_WRITE_&lt;resource&gt; (claim "perm", grupos de
+ * acesso granulares — V22). InternalKeyFilter concede ROLE_INTERNAL para
+ * serviços internos (AI Agent).
+ *
+ * Cada bloco abaixo aceita ROLE_ADMIN OU a permissão granular equivalente —
+ * isso é o que permite tokens antigos (só "role", sem "perm") continuarem
+ * válidos até expirar/renovar (máx. 8h) durante a transição, e também o que
+ * permite um grupo de acesso customizado (ver AccessGroupController) liberar
+ * leitura sem escrita, ou vice-versa, por menu.
  *
  * Serviços internos (AI Agent, Scheduler) autenticam via X-Internal-Key header.
  * Frontend e usuários autenticam via Bearer JWT.
@@ -67,17 +71,39 @@ public class SecurityConfig {
                         // de chamadas usa a lista de URAs) — precisa vir ANTES da regra de
                         // escrita abaixo, pois a primeira regra que casar decide.
                         .requestMatchers(HttpMethod.GET, "/api/v1/uras/**").authenticated()
-                        // Escrita de URAs: apenas ADMIN (frontend) ou serviços internos.
-                        .requestMatchers("/api/v1/uras/**").hasAnyRole("ADMIN", "INTERNAL")
+                        // Escrita de URAs: ADMIN, serviços internos, ou PERM_WRITE granular.
+                        .requestMatchers("/api/v1/uras/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "ROLE_INTERNAL", "PERM_WRITE_telecom.modulo1")
 
-                        // Administração pura — apenas ADMIN.
-                        .requestMatchers(
-                                "/api/v1/security/**",        // controle do fail2ban
-                                "/api/v1/settings/**",         // reescreve o .env de produção
-                                "/api/v1/logs/**",              // docker logs + AMI
-                                "/api/v1/users/**",             // gestão de usuários
-                                "/api/v1/asterisk-config/**"    // edita pjsip/extensions + reload AMI
-                        ).hasRole("ADMIN")
+                        // Gestão de grupos de acesso — ADMIN puro (evita o ovo-e-galinha de
+                        // um grupo customizado precisar de si mesmo pra existir).
+                        .requestMatchers("/api/v1/access-groups/**").hasRole("ADMIN")
+
+                        // Leitura de recursos administrativos — ADMIN ou PERM_READ granular.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/security/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.security")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/settings/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.settings")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/logs/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.logs")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/users/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.users")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/asterisk-config/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.settings")
+
+                        // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
+                        // asterisk-config usa o resource "telecom.settings" (é sub-área da
+                        // mesma aba Configurações na UI, sem menu próprio no catálogo).
+                        .requestMatchers("/api/v1/security/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.security")
+                        .requestMatchers("/api/v1/settings/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.settings")
+                        .requestMatchers("/api/v1/logs/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.logs")
+                        .requestMatchers("/api/v1/users/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.users")
+                        .requestMatchers("/api/v1/asterisk-config/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.settings")
 
                         // Todos os demais endpoints exigem apenas autenticação (JWT ou InternalKey)
                         .anyRequest().authenticated()

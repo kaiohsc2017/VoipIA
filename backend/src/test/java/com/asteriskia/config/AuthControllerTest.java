@@ -1,11 +1,13 @@
 package com.asteriskia.config;
 
+import com.asteriskia.domain.accessgroup.AccessGroupService;
 import com.asteriskia.domain.audit.AuditService;
 import com.asteriskia.domain.user.AppUser;
 import com.asteriskia.domain.user.AppUserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
@@ -22,6 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * AuthControllerTest — Testa os fluxos de login: normal, 2FA e credenciais inválidas.
  */
 @WebMvcTest(AuthController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class AuthControllerTest {
 
     @Autowired
@@ -39,6 +42,12 @@ class AuthControllerTest {
     @MockBean
     private AuditService auditService;
 
+    @MockBean
+    private RefreshTokenService refreshTokenService;
+
+    @MockBean
+    private AccessGroupService accessGroupService;
+
     // ─── Login normal (sem 2FA) ───────────────────────────────────────────────
 
     @Test
@@ -54,7 +63,9 @@ class AuthControllerTest {
                 .build();
 
         when(userRepo.findByUsernameAndIsActiveTrue("kaio")).thenReturn(Optional.of(user));
-        when(jwtService.generateToken(eq("kaio"), eq(9001))).thenReturn("jwt-token-mock");
+        when(accessGroupService.permissionsFor(any())).thenReturn(java.util.Map.of());
+        when(jwtService.generateToken(eq("kaio"), eq(9001), any(), any())).thenReturn("jwt-token-mock");
+        when(refreshTokenService.generateRefreshToken("kaio")).thenReturn("refresh-token-mock");
         doNothing().when(auditService).logAs(any(), any(), any(), any(), anyBoolean());
 
         mockMvc.perform(post("/api/v1/auth/login")

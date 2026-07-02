@@ -2,6 +2,7 @@ package com.asteriskia.domain.audit;
 
 import com.asteriskia.config.JwtService;
 import com.asteriskia.config.RefreshTokenService;
+import com.asteriskia.domain.accessgroup.AccessGroupService;
 import com.asteriskia.domain.user.AppUser;
 import com.asteriskia.domain.user.AppUserRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,6 +40,7 @@ public class TotpController {
     private final AppUserRepository   userRepo;
     private final JwtService          jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final AccessGroupService  accessGroupService;
 
     // ── Setup: gera segredo + QR Code (usuário autenticado) ──────────────────
 
@@ -159,7 +161,8 @@ public class TotpController {
 
         // Código válido → emite JWT final (com a role real do usuário — antes
         // sempre virava "USER" independente do cargo, trancando admins com 2FA)
-        String jwt = jwtService.generateToken(user.getUsername(), user.getExtension(), user.getRole());
+        var perms = accessGroupService.permissionsFor(user.getAccessGroup());
+        String jwt = jwtService.generateToken(user.getUsername(), user.getExtension(), user.getRole(), perms);
         String newRefreshToken = refreshTokenService.generateRefreshToken(user.getUsername());
 
         auditService.logAs(request, username, "LOGIN",

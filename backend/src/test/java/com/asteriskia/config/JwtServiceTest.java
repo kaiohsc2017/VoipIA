@@ -4,6 +4,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.*;
 
 /**
@@ -63,5 +65,28 @@ class JwtServiceTest {
     void isTotpPending_tokenNormal_deveRetornarFalse() {
         String token = jwtService.generateToken("kaio");
         assertThat(jwtService.isTotpPending(token)).isFalse();
+    }
+
+    @Test
+    void generateToken_comPerms_deveConterClaimPermRoundtrip() {
+        Map<String, String> perms = Map.of("telecom.settings", "r", "telecom.users", "rw");
+        String token = jwtService.generateToken("kaio", 9001, "USER", perms);
+
+        assertThat(jwtService.extractPermissions(token))
+                .containsEntry("telecom.settings", "r")
+                .containsEntry("telecom.users", "rw");
+        assertThat(jwtService.extractRole(token)).isEqualTo("USER");
+    }
+
+    @Test
+    void extractPermissions_tokenSemClaimPerm_deveRetornarMapaVazio() {
+        String token = jwtService.generateToken("kaio", 9001, "ADMIN");
+        assertThat(jwtService.extractPermissions(token)).isEmpty();
+    }
+
+    @Test
+    void generateToken_comPermsVazio_naoDeveIncluirClaimPerm() {
+        String token = jwtService.generateToken("kaio", 9001, "USER", Map.of());
+        assertThat(jwtService.extractPermissions(token)).isEmpty();
     }
 }
