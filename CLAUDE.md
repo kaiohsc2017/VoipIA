@@ -92,9 +92,10 @@ docker compose up -d --build frontend
 
 - **Instância:** PostgreSQL 16 em `asteriskia-postgres:5432`
 - **Banco unificado:** `asteriskia` (Telecom + Agentes na mesma instância)
-- **Migrations Telecom:** Flyway — classpath `backend/src/main/resources/db/migration/` — V1 a V21 aplicadas
+- **Migrations Telecom:** Flyway — classpath `backend/src/main/resources/db/migration/` — V1 a V21
+  aplicadas em produção; **V22 (grupos de acesso) commitada, aguardando deploy do backend**
 - **Migrations Agentes:** `agents-platform/backend/migrate.py` — `CREATE TABLE IF NOT EXISTS` (idempotente)
-- **Próxima migration Flyway:** V22 — confirme sempre com `ls backend/src/main/resources/db/migration/ | sort -V | tail -1`
+- **Próxima migration Flyway:** V23 — confirme sempre com `ls backend/src/main/resources/db/migration/ | sort -V | tail -1`
 
 ```bash
 # Acesso direto (porta exposta apenas localmente)
@@ -188,31 +189,45 @@ Consulte o valor atual com: `grep '^RAMAL_9001_PASSWORD=' /opt/AsteriskIA/env/.e
 
 ---
 
-## Autenticação e RBAC
+## Autenticação e RBAC granular (grupos de acesso — V22)
 
 - **JWT (HS256)** emitido pelo backend Java (`AuthController`) — compartilhado com o FastAPI de
   Agentes via o mesmo `BACKEND_JWT_SECRET` (mesma lógica de padding da chave nos dois lados).
-- **Claim `role`** (`ADMIN`|`USER`, default `USER` para tokens antigos sem a claim) presente em
-  todo token emitido desde o RBAC.
 - **Refresh token**: cookie `asteriskia_refresh_token` (`HttpOnly; Secure; SameSite=Strict`,
   `Path=/api/v1/auth`) — nunca em `localStorage` (F-CRIT-13). `client.ts` usa
   `withCredentials: true`; `revokeSession()` faz logout sem disparar o evento
   `asteriskia:logout` de novo (evita loop com `App.tsx`).
-- **Backend Java** (`SecurityConfig`): `/security/**`, `/settings/**`, `/logs/**`, `/users/**`,
-  `/asterisk-config/**` exigem `ROLE_ADMIN`. Escrita em `/uras/**` exige ADMIN ou `INTERNAL`
-  (via `X-Internal-Key`); leitura fica aberta a qualquer autenticado.
-- **FastAPI de Agentes** (`agents-platform/backend/auth.py`): **não tem login próprio** — reusa a
-  mesma claim `role` do token do Telecom. Dependency `require_admin` aplicada via
-  `dependencies=[Depends(require_admin)]` nos endpoints de escrita de `agents`/`servers`
-  (executam SSH em servidores cadastrados), `llm_config` e `system` (retenção, secrets por agente).
-- **UX de RBAC no frontend**: `client.ts` (`getRoleFromToken`) e o equivalente `getRole()` no
-  `agents-platform/frontend/index.html` decodificam a claim `role` do JWT (sem validar assinatura —
-  é só hint de UI, a autorização real é sempre do backend) para esconder nav/botões admin-only.
-  `Sidebar.tsx` filtra `users`/`settings`/`logs`/`security` por `adminOnly`; `App.tsx` também
-  bloqueia acesso direto via hash a essas páginas para quem não é ADMIN. No frontend de Agentes,
-  `secrets`/`llm` somem do nav pra não-admin, e os botões de criar/editar/excluir/executar/testar
-  em `Agents`/`Servers` só aparecem com `isAdmin` — mantidos manualmente em sincronia com
-  `SecurityConfig.java` e `auth.py`, revisar os dois lados se a matriz de permissões mudar.
+- **Grupos de acesso** (`access_groups` + `access_group_permissions`, migration V22) substituem o
+  binário `role` ADMIN|USER por grupos nomeados com permissão de leitura/escrita por menu
+  (`resource_key`, ex: `telecom.settings`, `agents.secrets`). Catálogo de recursos fixo em código
+  (`ResourceCatalog.java`, espelhado em `Sidebar.tsx` e no `NAV` do `agents-platform/frontend`) —
+  os menus são fixos, só a matriz de permissões é dinâmica. Gestão pela UI: página "Grupos de
+  Acesso" (`AccessGroups.tsx`, admin-only).
+- **Claim `role`** (`ADMIN`|`USER`) continua sendo emitida em paralelo (**dual-emit**) por
+  compatibilidade — tokens antigos (antes do deploy do RBAC granular) só têm `role`, sem a claim
+  `perm`, e continuam válidos até expirar/renovar (máx. 8h). **Claim `perm`**
+  (`{resource_key: "r"|"w"|"rw"}`) é resolvida do grupo do usuário (`AccessGroupService`) no
+  login/refresh/2FA e carrega a matriz de permissões.
+- **Backend Java** (`SecurityConfig`): cada rota aceita `hasAnyAuthority("ROLE_ADMIN",
+  "PERM_READ_<resource>")` (GET) / `"PERM_WRITE_<resource>"` (demais métodos) — `JwtAuthFilter`
+  expande a claim `perm` em authorities `PERM_READ_*`/`PERM_WRITE_*`. `/access-groups/**`
+  (gestão dos próprios grupos) e a retenção de dados do agents-platform continuam em `ROLE_ADMIN`
+  puro — não têm `resource_key` (evita o grupo customizado precisar de si mesmo pra existir, ou
+  não têm menu correspondente). Escrita em `/uras/**` aceita ADMIN, `INTERNAL`, ou
+  `PERM_WRITE_telecom.modulo1`.
+- **FastAPI de Agentes** (`agents-platform/backend/auth.py`): **não tem login próprio** — reusa o
+  mesmo JWT/claims do Telecom. `require_permission(resource_key, action)` substituiu
+  `require_admin` nos endpoints de escrita de `agents`/`servers`/`llm_config`/secrets de `system`;
+  `require_admin` puro sobrevive só pra retenção (sem menu) e logs de execução em `executions.py`
+  (risco de leak de DSN/senha em mensagem de erro, não uma decisão de visibilidade de menu).
+- **Frontend**: `client.ts` (`getPermissionsFromToken`/`canRead`/`canWrite`) e o equivalente
+  `getPermissions()`/`canRead()`/`canWrite()` no `agents-platform/frontend/index.html` decodificam
+  a claim `perm` do JWT (sem validar assinatura — é só hint de UI) para esconder nav/botões por
+  recurso. ADMIN (`role` legada) sempre enxerga tudo, mesmo com token antigo sem `perm`.
+  `Sidebar.tsx`/`App.tsx` e o `NAV` de Agentes usam esse par em vez do binário `adminOnly`.
+- **Pendência conhecida**: `Users.tsx` ainda atribui `role` ADMIN|USER na criação/edição (o
+  `UserController` resolve pro grupo "Administradores"/"Usuários" internamente) — atribuir um
+  grupo customizado a um usuário pela UI ainda não existe, é a próxima iteração natural.
 
 ---
 
