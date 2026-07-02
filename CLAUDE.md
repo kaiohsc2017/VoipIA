@@ -205,8 +205,14 @@ Consulte o valor atual com: `grep '^RAMAL_9001_PASSWORD=' /opt/AsteriskIA/env/.e
   mesma claim `role` do token do Telecom. Dependency `require_admin` aplicada via
   `dependencies=[Depends(require_admin)]` nos endpoints de escrita de `agents`/`servers`
   (executam SSH em servidores cadastrados), `llm_config` e `system` (retenção, secrets por agente).
-- **Pendência de UX conhecida**: nem o `Sidebar.tsx` do Telecom nem o frontend de Agentes escondem
-  itens de navegação por role — um usuário `USER` vê menus de admin mas recebe 403 ao usá-los.
+- **UX de RBAC no frontend**: `client.ts` (`getRoleFromToken`) e o equivalente `getRole()` no
+  `agents-platform/frontend/index.html` decodificam a claim `role` do JWT (sem validar assinatura —
+  é só hint de UI, a autorização real é sempre do backend) para esconder nav/botões admin-only.
+  `Sidebar.tsx` filtra `users`/`settings`/`logs`/`security` por `adminOnly`; `App.tsx` também
+  bloqueia acesso direto via hash a essas páginas para quem não é ADMIN. No frontend de Agentes,
+  `secrets`/`llm` somem do nav pra não-admin, e os botões de criar/editar/excluir/executar/testar
+  em `Agents`/`Servers` só aparecem com `isAdmin` — mantidos manualmente em sincronia com
+  `SecurityConfig.java` e `auth.py`, revisar os dois lados se a matriz de permissões mudar.
 
 ---
 
@@ -389,8 +395,6 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 ### 🟡 Importantes
 - `SuporteController` cria issues reais no Jira via function calling da IA (tool `abrir_protocolo_suporte`)
 - Swagger/OpenAPI foi removido do projeto (dependência springdoc retirada do pom.xml)
-- `Sidebar.tsx` (Telecom) e o frontend de Agentes não escondem nav por role — ver seção
-  "Autenticação e RBAC"
 
 ### 🟢 Débito de segurança aceito (revisão completa concluída — ver memória `asteriskia-security-remediation`)
 - Hardening de infra Docker: containers rodando como root (falta `USER` não-root nos Dockerfiles),

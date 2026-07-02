@@ -4,7 +4,7 @@ import Login from './components/Login';
 import Sidebar, { type Page } from './components/Sidebar';
 import ModuloLogs from './components/ModuloLogs';
 import ModuloSeguranca from './components/ModuloSeguranca';
-import { revokeSession } from './api/client';
+import { revokeSession, getRoleFromToken } from './api/client';
 
 // ─── Lazy imports — cada módulo vira um chunk separado ───────────────────────
 // O React cria um chunk JS separado para cada componente lazy.
@@ -82,13 +82,24 @@ function PageLoader() {
 
 // ─── App ───────────────────────────────────────────────────────────────────────
 
+// Páginas que o backend (SecurityConfig) exige ROLE_ADMIN: /users/**, /settings/**,
+// /logs/**, /security/**. Mantido em sincronia manual com SecurityConfig.java.
+const ADMIN_ONLY_PAGES: Page[] = ['users', 'settings', 'logs', 'security'];
+
 export default function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('asteriskia_token'));
   const [username, setUsername] = useState<string>(() => localStorage.getItem('asteriskia_user') ?? '');
+  const [role, setRole] = useState<'ADMIN' | 'USER'>(() => getRoleFromToken(localStorage.getItem('asteriskia_token')));
   const pageFromHash = (): Page => {
     const hash = window.location.hash.replace('#', '').trim() as Page;
     const valid: Page[] = ['dashboard','modulo1','modulo2','modulo3','masterdata','users','settings','audit','logs','security'];
-    return valid.includes(hash) ? hash : 'dashboard';
+    if (!valid.includes(hash)) return 'dashboard';
+    // Acesso direto via hash (digitado/favoritado) a página admin-only sem ser admin:
+    // volta pro dashboard. O botão de nav já fica escondido (ver Sidebar.tsx), isso
+    // cobre quem navega direto pela URL.
+    const currentRole = getRoleFromToken(localStorage.getItem('asteriskia_token'));
+    if (ADMIN_ONLY_PAGES.includes(hash) && currentRole !== 'ADMIN') return 'dashboard';
+    return hash;
   };
   const [page, setPage] = useState<Page>(pageFromHash);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -110,6 +121,7 @@ export default function App() {
   const handleLogin = (t: string, user: string) => {
     setToken(t);
     setUsername(user);
+    setRole(getRoleFromToken(t));
     setPage(pageFromHash());
   };
 
@@ -119,6 +131,7 @@ export default function App() {
     revokeSession(); // revoga o refresh token no backend + limpa o cookie httpOnly
     setToken(null);
     setUsername('');
+    setRole('USER');
   };
 
   // ---- Não autenticado: tela de login ----
@@ -138,6 +151,7 @@ export default function App() {
           currentPage={page}
           onNavigate={(p) => { setPage(p); window.location.hash = p; }}
           username={username}
+          role={role}
           onLogout={handleSignOut}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(c => !c)}

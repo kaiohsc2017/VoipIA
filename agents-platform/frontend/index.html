@@ -118,6 +118,22 @@ var USER_KEY    = 'asteriskia_user';
 function getToken(){ return localStorage.getItem(TOKEN_KEY); }
 function getUser() { return localStorage.getItem(USER_KEY)||''; }
 function clearAuth(){ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(REFRESH_KEY); localStorage.removeItem(USER_KEY); }
+// Extrai a claim "role" do JWT (mesmo token/segredo do backend Telecom) sem validar
+// assinatura — só um hint de UI pra esconder nav/botoes admin; a autorizacao real
+// continua sendo aplicada pelo agents-backend (auth.py require_admin) em cada request.
+function getRole(){
+  var tok = getToken();
+  if (!tok) return 'USER';
+  try {
+    var b64 = tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    while (b64.length % 4) b64 += '=';
+    var json = decodeURIComponent(atob(b64).split('').map(function(c){
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    var claims = JSON.parse(json);
+    return claims.role === 'ADMIN' ? 'ADMIN' : 'USER';
+  } catch (e) { return 'USER'; }
+}
 
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -781,6 +797,7 @@ function AgentForm(props) {
 
 // ── AGENTS PAGE ───────────────────────────────────────────────────────────────
 function Agents(props) {
+  var isAdmin = !!props.isAdmin;
   var servers = props.servers || [];
   var agState = useState([]);
   var agents  = agState[0];
@@ -853,14 +870,14 @@ function Agents(props) {
       h('td', {className:'tsm'}, schedLabel),
       h('td', null,
         h('div', {className:'flex gap2'},
-          h('button',{className:'btn btn-sm btn-p',title:'Executar agora',onClick:function(){runNow(a.id)}}, h(Ico,{n:'play',s:12})),
+          isAdmin && h('button',{className:'btn btn-sm btn-p',title:'Executar agora',onClick:function(){runNow(a.id)}}, h(Ico,{n:'play',s:12})),
           h('button',{className:'btn btn-sm btn-g',title:'Logs',onClick:function(){setLogsFor(a.id)}}, h(Ico,{n:'logs',s:12})),
-          h('button',{className:'btn btn-sm btn-g',title:'Editar',onClick:function(){setEditing(a);setShowForm(true)}}, h(Ico,{n:'edit',s:12})),
-          h('button',{className:'btn btn-sm '+(a.status==='paused'?'btn-s':'btn-g'),
+          isAdmin && h('button',{className:'btn btn-sm btn-g',title:'Editar',onClick:function(){setEditing(a);setShowForm(true)}}, h(Ico,{n:'edit',s:12})),
+          isAdmin && h('button',{className:'btn btn-sm '+(a.status==='paused'?'btn-s':'btn-g'),
             title:a.status==='paused'?'Retomar':'Pausar',onClick:function(){toggle(a)}},
             h(Ico,{n:a.status==='paused'?'play':'pause',s:12})
           ),
-          h('button',{className:'btn btn-sm btn-d',title:'Excluir',
+          isAdmin && h('button',{className:'btn btn-sm btn-d',title:'Excluir',
             onClick:function(){setConf({msg:'Excluir "'+a.name+'"?',fn:function(){del(a.id)}})}},
             h(Ico,{n:'trash',s:12})
           )
@@ -871,12 +888,12 @@ function Agents(props) {
 
   return h('div', null,
     conf && h(Confirm, {msg:conf.msg, onOk:function(){conf.fn();setConf(null)}, onCancel:function(){setConf(null)}}),
-    (showForm||editing) && h(AgentForm, {agent:editing,servers:servers,onSave:save,onClose:function(){setShowForm(false);setEditing(null)}}),
+    isAdmin && (showForm||editing) && h(AgentForm, {agent:editing,servers:servers,onSave:save,onClose:function(){setShowForm(false);setEditing(null)}}),
     logsFor && h(LogModal, {agentId:logsFor, onClose:function(){setLogsFor(null)}}),
 
     h('div',{className:'topbar'},
       h('span',{className:'tbtitle'},'Agentes'),
-      h('div',{className:'flex gap2'},
+      isAdmin && h('div',{className:'flex gap2'},
         h('button',{className:'btn btn-p',onClick:function(){setEditing(null);setShowForm(true)}},h(Ico,{n:'plus',s:14}),'Novo agente')
       )
     ),
@@ -899,7 +916,8 @@ function Agents(props) {
 }
 
 // ── SERVERS PAGE ──────────────────────────────────────────────────────────────
-function Servers() {
+function Servers(props) {
+  var isAdmin = !!props.isAdmin;
   var srvState  = useState([]);
   var servers   = srvState[0];
   var setServers = srvState[1];
@@ -963,16 +981,16 @@ function Servers() {
       h('td',null,(s.tags||[]).map(function(t){return h('span',{key:t,className:'tag'},t);})),
       h('td',null,h('div',{className:'flex gap2'},
         testBtn,
-        h('button',{className:'btn btn-sm btn-g',onClick:function(){testConn(s.id)},disabled:testing[s.id]==='testing'},'Testar'),
-        h('button',{className:'btn btn-sm btn-g',onClick:function(){openForm(s)}},h(Ico,{n:'edit',s:12})),
-        h('button',{className:'btn btn-sm btn-d',onClick:function(){setConf({msg:'Remover "'+s.name+'"?',fn:function(){del(s.id)}})}},h(Ico,{n:'trash',s:12}))
+        isAdmin && h('button',{className:'btn btn-sm btn-g',onClick:function(){testConn(s.id)},disabled:testing[s.id]==='testing'},'Testar'),
+        isAdmin && h('button',{className:'btn btn-sm btn-g',onClick:function(){openForm(s)}},h(Ico,{n:'edit',s:12})),
+        isAdmin && h('button',{className:'btn btn-sm btn-d',onClick:function(){setConf({msg:'Remover "'+s.name+'"?',fn:function(){del(s.id)}})}},h(Ico,{n:'trash',s:12}))
       ))
     );
   });
 
   return h('div',null,
     conf&&h(Confirm,{msg:conf.msg,onOk:function(){conf.fn();setConf(null)},onCancel:function(){setConf(null)}}),
-    showForm&&h('div',{className:'overlay'},
+    isAdmin && showForm&&h('div',{className:'overlay'},
       h('div',{className:'modal'},
         h('div',{className:'mh'},h('span',{className:'mt'},editing?'Editar Servidor':'Novo Servidor'),h('button',{className:'xbtn',onClick:function(){setShowForm(false)}},h(Ico,{n:'x',s:18}))),
         h('div',{className:'mb'},
@@ -997,7 +1015,7 @@ function Servers() {
         h('div',{className:'mf'},h('button',{className:'btn btn-g',onClick:function(){setShowForm(false)}},'Cancelar'),h('button',{className:'btn btn-p',onClick:save},editing?'Salvar':'Adicionar'))
       )
     ),
-    h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Servidores SSH'),h('button',{className:'btn btn-p',onClick:function(){openForm(null)}},h(Ico,{n:'plus',s:14}),'Novo servidor')),
+    h('div',{className:'topbar'},h('span',{className:'tbtitle'},'Servidores SSH'),isAdmin && h('button',{className:'btn btn-p',onClick:function(){openForm(null)}},h(Ico,{n:'plus',s:14}),'Novo servidor')),
     h('div',{className:'content'},
       h('div',{className:'card'},
         servers.length===0
@@ -1199,6 +1217,8 @@ function Reports() {
 }
 
 // ── APP ───────────────────────────────────────────────────────────────────────
+// adminOnly reflete o que auth.py (require_admin) exige nos routers correspondentes
+// (system.py /secrets, llm_config.py /config e /test) — sincronizar manualmente.
 var NAV = [
   {id:'dashboard', label:'Dashboard',          icon:'dashboard'},
   {id:'agents',    label:'Agentes',            icon:'agents'},
@@ -1206,10 +1226,12 @@ var NAV = [
   {id:'knowledge', label:'Base de Conhecimento',icon:'knowledge'},
   {id:'logs',      label:'Logs',               icon:'logs'},
   {id:'reports',   label:'Alertas',            icon:'reports'},
-  {id:'secrets',   label:'Secrets',             icon:'key'},
+  {id:'secrets',   label:'Secrets',             icon:'key', adminOnly:true},
   {id:'docs',      label:'Documentação',        icon:'book', external: true},
-  {id:'llm',       label:'Config. IA',          icon:'settings'}
+  {id:'llm',       label:'Config. IA',          icon:'settings', adminOnly:true}
 ];
+var NAV_ADMIN_ONLY = {};
+NAV.forEach(function(p){ if(p.adminOnly) NAV_ADMIN_ONLY[p.id] = true; });
 
 function App(props) {
   var pgState  = useState('dashboard');
@@ -1239,20 +1261,24 @@ function App(props) {
     return function(){try{if(ws)ws.close();}catch(e){}};
   },[]);
 
+  var isAdmin = props.role === 'ADMIN';
+
   // Renderiza apenas a página ativa — evita mount simultâneo de todos os componentes
   var pageMap = {
     dashboard: function(){ return h(Dashboard); },
-    agents:    function(){ return h(Agents, {servers: servers}); },
-    servers:   function(){ return h(Servers); },
+    agents:    function(){ return h(Agents, {servers: servers, isAdmin: isAdmin}); },
+    servers:   function(){ return h(Servers, {isAdmin: isAdmin}); },
     knowledge: function(){ return h(Knowledge); },
     logs:      function(){ return h(LogsPage); },
     reports:   function(){ return h(Reports); },
     secrets:   function(){ return h(SecretsPage); },
     llm:       function(){ return h(LLMSettings); }
   };
-  var activePage = pageMap[page] ? pageMap[page]() : null;
+  // Página admin-only acessada sem ser admin (estado preso de antes do login
+  // trocar de usuário, por exemplo): volta pro dashboard em vez de renderizar.
+  var activePage = (pageMap[page] && (!NAV_ADMIN_ONLY[page] || isAdmin)) ? pageMap[page]() : pageMap.dashboard();
 
-  var navItems = NAV.map(function(p) {
+  var navItems = NAV.filter(function(p){ return !p.adminOnly || isAdmin; }).map(function(p) {
     if (p.external) {
       return h('div', {key:p.id, className:'nitem', style:{cursor:'pointer'},
         onClick:function(){ window.open('/agents/docs.html','_blank'); }},
@@ -1572,10 +1598,11 @@ function Login(props) {
 function Root() {
   var authS=useState(getToken()); var token=authS[0]; var setToken=authS[1];
   var userS=useState(getUser());  var user=userS[0];  var setUser=userS[1];
-  function onLogin(tok,usr){setToken(tok);setUser(usr);}
-  function onLogout(){clearAuth();setToken(null);setUser('');}
+  var roleS=useState(getRole());  var role=roleS[0];  var setRole=roleS[1];
+  function onLogin(tok,usr){setToken(tok);setUser(usr);setRole(getRole());}
+  function onLogout(){clearAuth();setToken(null);setUser('');setRole('USER');}
   if(!token){return h(Login,{onLogin:onLogin});}
-  return h(App,{onLogout:onLogout,user:user});
+  return h(App,{onLogout:onLogout,user:user,role:role});
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(h(Root));</script>

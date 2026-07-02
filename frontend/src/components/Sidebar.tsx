@@ -4,27 +4,31 @@ interface SidebarProps {
   currentPage: Page;
   onNavigate: (page: Page) => void;
   username: string;
+  role: 'ADMIN' | 'USER';
   onLogout: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
 }
 
-const NAV_ITEMS: { page: Page; icon: string; label: string; section: string; external?: string }[] = [
+// adminOnly reflete exatamente o que SecurityConfig.java exige com hasRole("ADMIN")
+// (/users/**, /settings/**, /logs/**, /security/**) — manter em sincronia manual.
+const NAV_ITEMS: { page: Page; icon: string; label: string; section: string; external?: string; adminOnly?: boolean }[] = [
   { page: 'dashboard',  icon: '📊', label: 'Dashboard',          section: 'GERAL'     },
   { page: 'modulo1',    icon: '🎫', label: 'URA',                section: 'MÓDULOS'   },
   { page: 'modulo2',    icon: '📞', label: 'Conectividade',      section: 'MÓDULOS'   },
   { page: 'modulo3',    icon: '🚨', label: 'Monitoramento',      section: 'MÓDULOS'   },
   { page: 'agents',     icon: '🤖', label: 'Agentes',            section: 'MÓDULOS',  external: '/agents/' },
   { page: 'masterdata', icon: '👤', label: 'Clientes',           section: 'CADASTROS' },
-  { page: 'users',      icon: '👥', label: 'Usuários e Ramais',  section: 'CADASTROS' },
-  { page: 'settings',   icon: '🔧', label: 'Configurações',      section: 'SISTEMA'   },
-  { page: 'logs',       icon: '🖥️', label: 'Logs',               section: 'SISTEMA'   },
-  { page: 'security',   icon: '🛡️', label: 'Segurança',          section: 'SISTEMA'   },
+  { page: 'users',      icon: '👥', label: 'Usuários e Ramais',  section: 'CADASTROS', adminOnly: true },
+  { page: 'settings',   icon: '🔧', label: 'Configurações',      section: 'SISTEMA',   adminOnly: true },
+  { page: 'logs',       icon: '🖥️', label: 'Logs',               section: 'SISTEMA',   adminOnly: true },
+  { page: 'security',   icon: '🛡️', label: 'Segurança',          section: 'SISTEMA',   adminOnly: true },
   { page: 'audit',      icon: '🔐', label: 'Auditoria',          section: 'SISTEMA'   },
 ];
 
-export default function Sidebar({ currentPage, onNavigate, username, onLogout, collapsed, onToggleCollapse }: SidebarProps) {
+export default function Sidebar({ currentPage, onNavigate, username, role, onLogout, collapsed, onToggleCollapse }: SidebarProps) {
   let lastSection = '';
+  const visibleItems = NAV_ITEMS.filter(item => !item.adminOnly || role === 'ADMIN');
 
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
@@ -40,7 +44,7 @@ export default function Sidebar({ currentPage, onNavigate, username, onLogout, c
 
       {/* Nav */}
       <nav className="sidebar-nav">
-        {NAV_ITEMS.map(item => {
+        {visibleItems.map(item => {
           const showSection = item.section !== lastSection;
           lastSection = item.section;
           return (
@@ -97,7 +101,7 @@ export default function Sidebar({ currentPage, onNavigate, username, onLogout, c
           </div>
           <div>
             <div className="user-name">{username}</div>
-            <div className="user-role">Administrador</div>
+            <div className="user-role">{role === 'ADMIN' ? 'Administrador' : 'Usuário'}</div>
           </div>
         </div>
         <button className="btn-logout" onClick={onLogout}>

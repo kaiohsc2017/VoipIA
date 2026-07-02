@@ -108,4 +108,28 @@ function logout() {
   window.dispatchEvent(new Event('asteriskia:logout'));
 }
 
+/**
+ * Extrai a claim "role" do JWT sem validar assinatura — é só um hint de UI
+ * (esconder nav/rotas admin), a autorização real continua sendo aplicada
+ * pelo backend em toda requisição. Tokens antigos sem a claim ou payload
+ * inválido caem em 'USER' (o menos privilegiado), igual ao JwtService.java.
+ */
+export function getRoleFromToken(token: string | null): 'ADMIN' | 'USER' {
+  if (!token) return 'USER';
+  try {
+    const payload = token.split('.')[1];
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
+        .join(''),
+    );
+    const claims = JSON.parse(json);
+    return claims.role === 'ADMIN' ? 'ADMIN' : 'USER';
+  } catch {
+    return 'USER';
+  }
+}
+
 export default api;
