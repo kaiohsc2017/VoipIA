@@ -1,14 +1,21 @@
 """routers/agents.py"""
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from uuid import UUID
 from models import AgentCreate, AgentOut
 from database import DB
+from auth import require_admin
 import json, uuid, logging
 from datetime import datetime, timezone
 
 logger = logging.getLogger("asteriskia.agents")
 
 router = APIRouter()
+
+# Leitura (listar/detalhar/memória/stats) fica aberta a qualquer usuário autenticado.
+# Escrita e execução exigem ADMIN — um agente roda comandos via SSH em servidores
+# cadastrados, então qualquer usuário autenticado poder criar/editar/disparar um
+# agente equivale a RCE remoto sem controle nenhum.
+_ADMIN = [Depends(require_admin)]
 
 # Chaves cujo valor é sensível e nunca deve ser devolvido ao cliente em texto puro.
 _SECRET_KEYS = {
@@ -72,7 +79,7 @@ async def list_agents(limit: int = 100, offset: int = 0):
         total = await db.fetchval("SELECT COUNT(*) FROM agents")
         return {"items": [_sanitize_agent(dict(r)) for r in rows], "total": total, "limit": limit, "offset": offset}
 
-@router.post("/", response_model=dict)
+@router.post("/", response_model=dict, dependencies=_ADMIN)
 async def create_agent(body: AgentCreate):
     async with DB() as db:
         row = await db.fetchrow("""
@@ -98,7 +105,7 @@ async def get_agent(agent_id: UUID):
         if not row: raise HTTPException(404, "Agente não encontrado")
         return _sanitize_agent(dict(row))
 
-@router.put("/{agent_id}")
+@router.put("/{agent_id}", dependencies=_ADMIN)
 async def update_agent(agent_id: UUID, body: AgentCreate, request: Request):
     async with DB() as db:
         row = await db.fetchrow("""
@@ -127,25 +134,25 @@ async def update_agent(agent_id: UUID, body: AgentCreate, request: Request):
         logger.warning("[agents] reload_agent error: %s", e)
     return _sanitize_agent(agent)
 
-@router.delete("/{agent_id}")
+@router.delete("/{agent_id}", dependencies=_ADMIN)
 async def delete_agent(agent_id: UUID):
     async with DB() as db:
         await db.execute("DELETE FROM agents WHERE id=$1", agent_id)
         return {"ok": True}
 
-@router.post("/{agent_id}/run")
+@router.post("/{agent_id}/run", dependencies=_ADMIN)
 async def run_agent_now(agent_id: UUID, request: Request):
     scheduler = request.app.state.scheduler
     result = await scheduler.run_now(str(agent_id))
     return result
 
-@router.post("/{agent_id}/pause")
+@router.post("/{agent_id}/pause", dependencies=_ADMIN)
 async def pause_agent(agent_id: UUID):
     async with DB() as db:
         await db.execute("UPDATE agents SET status='paused' WHERE id=$1", agent_id)
         return {"ok": True}
 
-@router.post("/{agent_id}/resume")
+@router.post("/{agent_id}/resume", dependencies=_ADMIN)
 async def resume_agent(agent_id: UUID):
     async with DB() as db:
         await db.execute("UPDATE agents SET status='idle' WHERE id=$1", agent_id)

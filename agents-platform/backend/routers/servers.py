@@ -1,12 +1,17 @@
 """routers/servers.py"""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from uuid import UUID
 from models import ServerCreate
 from database import DB
 from executor import _build_ssh_kwargs
+from auth import require_admin
 import asyncssh, json
 
 router = APIRouter()
+
+# Cadastro de servidor guarda credenciais SSH usadas pelos agentes — escrita e
+# teste de conexão exigem ADMIN. Leitura (sem password/ssh_key) fica aberta.
+_ADMIN = [Depends(require_admin)]
 
 @router.get("/")
 async def list_servers(limit: int = 100, offset: int = 0):
@@ -20,7 +25,7 @@ async def list_servers(limit: int = 100, offset: int = 0):
 # Colunas seguras para retornar ao cliente — nunca expõe password/ssh_key.
 _SAFE_COLS = "id,name,host,port,username,auth_type,tags,active,created_at"
 
-@router.post("/")
+@router.post("/", dependencies=_ADMIN)
 async def create_server(body: ServerCreate):
     async with DB() as db:
         row = await db.fetchrow(f"""
@@ -30,7 +35,7 @@ async def create_server(body: ServerCreate):
              body.auth_type, body.password, body.ssh_key, body.tags)
         return dict(row)
 
-@router.put("/{server_id}")
+@router.put("/{server_id}", dependencies=_ADMIN)
 async def update_server(server_id: UUID, body: ServerCreate):
     async with DB() as db:
         row = await db.fetchrow(f"""
@@ -42,13 +47,13 @@ async def update_server(server_id: UUID, body: ServerCreate):
         if not row: raise HTTPException(404)
         return dict(row)
 
-@router.delete("/{server_id}")
+@router.delete("/{server_id}", dependencies=_ADMIN)
 async def delete_server(server_id: UUID):
     async with DB() as db:
         await db.execute("DELETE FROM servers WHERE id=$1", server_id)
         return {"ok": True}
 
-@router.post("/{server_id}/test")
+@router.post("/{server_id}/test", dependencies=_ADMIN)
 async def test_connection(server_id: UUID):
     async with DB() as db:
         row = await db.fetchrow("SELECT * FROM servers WHERE id=$1", server_id)

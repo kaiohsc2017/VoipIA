@@ -1,10 +1,15 @@
 """routers/llm_config.py — leitura, escrita e teste da configuração LLM"""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 from llm import cfg, ask, is_enabled, read_env_file, write_env_file, reload_config, PROVIDERS_CATALOG, ENV_KEYS
+from auth import require_admin
 
 router = APIRouter()
+
+# Config e teste tocam API keys de provedores LLM — restrito a ADMIN.
+# /status e /providers continuam públicos (ver _PUBLIC em main.py).
+_ADMIN = [Depends(require_admin)]
 
 class LLMSaveRequest(BaseModel):
     AGENTS_LLM_ENABLED:         str = "false"
@@ -23,7 +28,7 @@ async def llm_status():
     """Status atual — sem expor as API keys."""
     return cfg.summary()
 
-@router.get("/config")
+@router.get("/config", dependencies=_ADMIN)
 async def llm_config_read():
     """Lê o .env.agents atual — retorna valores mascarando as keys."""
     values = read_env_file()
@@ -36,7 +41,7 @@ async def llm_config_read():
             masked[k] = v
     return {"values": masked, "has_file": True}
 
-@router.post("/config")
+@router.post("/config", dependencies=_ADMIN)
 async def llm_config_save(body: LLMSaveRequest):
     """Salva o .env.agents e recarrega a configuração em memória."""
     values = {k: (getattr(body, k) or "") for k in ENV_KEYS}
@@ -52,7 +57,7 @@ async def llm_providers():
     """Lista provedores suportados com modelos populares."""
     return {"providers": PROVIDERS_CATALOG, "current": cfg.summary()}
 
-@router.post("/test")
+@router.post("/test", dependencies=_ADMIN)
 async def llm_test():
     """Testa o LLM ativo com prompt simples."""
     if not is_enabled():

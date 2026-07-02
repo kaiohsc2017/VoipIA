@@ -1,12 +1,17 @@
 """routers/system.py — health check, retenção de dados, secrets por agente"""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from uuid import UUID
 from database import DB
+from auth import require_admin
 import asyncio, logging
 
 logger = logging.getLogger("asteriskia.system")
 
 router = APIRouter()
+
+# Retenção (config operacional) e secrets por agente (credenciais) — restrito a ADMIN.
+# /health continua público (ver _PUBLIC em main.py, usado por uptime monitors).
+_ADMIN = [Depends(require_admin)]
 
 # ── Health Check ──────────────────────────────────────────────────────────────
 
@@ -41,13 +46,13 @@ async def health():
 
 # ── Retenção de dados ─────────────────────────────────────────────────────────
 
-@router.get("/retention")
+@router.get("/retention", dependencies=_ADMIN)
 async def get_retention():
     async with DB() as db:
         row = await db.fetchrow("SELECT * FROM retention_config WHERE id=1")
         return dict(row) if row else {}
 
-@router.put("/retention")
+@router.put("/retention", dependencies=_ADMIN)
 async def update_retention(body: dict):
     exec_days  = int(body.get("executions_days", 90))
     logs_days  = int(body.get("logs_days", 30))
@@ -66,7 +71,7 @@ async def update_retention(body: dict):
     return {"ok": True, "executions_days": exec_days,
             "logs_days": logs_days, "alerts_days": alert_days}
 
-@router.post("/retention/run")
+@router.post("/retention/run", dependencies=_ADMIN)
 async def run_retention_now():
     """Força execução imediata da limpeza de dados."""
     from executor import _apply_retention
@@ -75,7 +80,7 @@ async def run_retention_now():
 
 # ── Secrets por agente ────────────────────────────────────────────────────────
 
-@router.get("/agents/{agent_id}/secrets")
+@router.get("/agents/{agent_id}/secrets", dependencies=_ADMIN)
 async def list_secrets(agent_id: UUID):
     async with DB() as db:
         rows = await db.fetch(
@@ -83,7 +88,7 @@ async def list_secrets(agent_id: UUID):
             agent_id)
         return [dict(r) for r in rows]  # value nunca retornado na listagem
 
-@router.post("/agents/{agent_id}/secrets")
+@router.post("/agents/{agent_id}/secrets", dependencies=_ADMIN)
 async def upsert_secret(agent_id: UUID, body: dict):
     key   = str(body.get("key", "")).strip()
     value = str(body.get("value", "")).strip()
@@ -97,7 +102,7 @@ async def upsert_secret(agent_id: UUID, body: dict):
         """, agent_id, key, value)
     return {"ok": True, "key": key}
 
-@router.delete("/agents/{agent_id}/secrets/{key}")
+@router.delete("/agents/{agent_id}/secrets/{key}", dependencies=_ADMIN)
 async def delete_secret(agent_id: UUID, key: str):
     async with DB() as db:
         await db.execute(

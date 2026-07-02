@@ -103,6 +103,7 @@ async def jwt_middleware(request: Request, call_next):
     try:
         payload = _jwt.decode(token, JWT_KEY, algorithms=["HS256"])
         request.state.user = payload.get("sub", "")
+        request.state.role = payload.get("role", "USER")
         # Rejeita tokens de 2FA em etapa pendente
         if payload.get("totp_pending"):
             return JSONResponse({"detail": "2FA pendente"}, status_code=401)
