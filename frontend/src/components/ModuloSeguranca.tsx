@@ -519,8 +519,8 @@ export default function ModuloSeguranca() {
               <div style={{ color:'var(--text-muted)', textAlign:'center', padding:32 }}>
                 {loading ? 'Carregando…' : 'Nenhum IP bloqueado.'}
               </div>
-            ) : filteredBanned.map((b,i) => (
-              <div key={i} style={{ display:'grid',
+            ) : filteredBanned.map((b) => (
+              <div key={`${b.ip}-${b.jail}`} style={{ display:'grid',
                 gridTemplateColumns:'140px 80px 1fr 80px 90px',
                 gap:8, padding:'8px 16px',
                 borderBottom:'0.5px solid var(--border-glass)33',

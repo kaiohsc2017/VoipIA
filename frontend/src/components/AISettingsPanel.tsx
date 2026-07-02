@@ -255,7 +255,7 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({ open, onToggle
                       </div>
                     )}
                     {entries.map((entry, idx) => (
-                      <div key={idx} style={{
+                      <div key={`${entry.provider}-${entry.modelId}`} style={{
                         display: 'flex', alignItems: 'center', gap: 10,
                         padding: '10px 14px', borderRadius: 8,
                         background: idx === 0

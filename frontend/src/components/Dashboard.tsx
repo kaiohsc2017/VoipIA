@@ -346,8 +346,8 @@ export default function Dashboard() {
                       }
                       labelLine={false}
                     >
-                      {pieData.map((_, i) => (
-                        <Cell key={i} fill={STATUS_COLORS[pieData[i].name] ?? PIE_COLORS[i % PIE_COLORS.length]} />
+                      {pieData.map((entry, i) => (
+                        <Cell key={entry.name} fill={STATUS_COLORS[entry.name] ?? PIE_COLORS[i % PIE_COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip formatter={(v: any, n: any) => [v, n]} />
@@ -377,8 +377,8 @@ export default function Dashboard() {
                           <stop offset="100%" stopColor="#3b82f6" />
                         </linearGradient>
                       </defs>
-                      {barData.map((_, i) => (
-                        <Cell key={i} fill="url(#barGrad)" />
+                      {barData.map((entry) => (
+                        <Cell key={entry.name} fill="url(#barGrad)" />
                       ))}
                     </Bar>
                   </BarChart>

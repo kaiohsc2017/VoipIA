@@ -101,6 +101,7 @@ function HistoricoModal({ test, onClose }: HistoricoModalProps) {
         setTotalPages(r.data.totalPages);
         setPage(r.data.number);
       })
+      .catch(err => console.error('Erro ao carregar histórico de testes:', err))
       .finally(() => setLoading(false));
   }, [test.id, activePeriod, dateFrom, dateTo]);
 
@@ -249,6 +250,7 @@ function DashboardKPIs() {
     setLoading(true);
     api.get<ConnectivityStats>(`/stats/connectivity?period=${p}`)
       .then(r => setStats(r.data))
+      .catch(err => console.error('Erro ao carregar KPIs de conectividade:', err))
       .finally(() => setLoading(false));
   };
 
@@ -417,6 +419,7 @@ export default function ModuloConectividade() {
         setResTotalPages(r.data.totalPages);
         setResPage(r.data.number);
       })
+      .catch(err => console.error('Erro ao carregar resultados de conectividade:', err))
       .finally(() => setLoading(false));
   };
 
@@ -429,7 +432,7 @@ export default function ModuloConectividade() {
     ]).then(([b, c, o, s]) => {
       setBus(b.data); setClients(c.data);
       setOperations(o.data); setSegments(s.data);
-    });
+    }).catch(err => console.error('Erro ao carregar dados mestres:', err));
   };
 
   useEffect(() => {

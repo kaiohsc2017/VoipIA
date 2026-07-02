@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { subscribe } from '../api/websocket';
 import api from '../api/client';
 import type { CallRecord, PageResponse, Ura } from '../api/types';
@@ -30,12 +30,16 @@ function DashboardTab() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Ref sempre atualizado com o período atual — evita stale closure no callback do WebSocket
+  const periodRef = useRef(period);
+  useEffect(() => { periodRef.current = period; }, [period]);
+
   // Carrega na montagem e se inscreve no WebSocket para atualizar em tempo real
   useEffect(() => {
     load('week');
     const unsub = subscribe('/topic/calls', () => {
       // Nova chamada registrada — recarrega o gráfico sem trocar o período
-      load(period);
+      load(periodRef.current);
     });
     return () => unsub?.();
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
@@ -112,9 +116,13 @@ function KpiBar() {
     api.get<CallStats>(`/stats/calls?period=${p}`).then(r => setStats(r.data));
   }, []);
 
+  // Ref sempre atualizado com o período atual — evita stale closure no callback do WebSocket
+  const periodRef = useRef(period);
+  useEffect(() => { periodRef.current = period; }, [period]);
+
   useEffect(() => {
     load('today');
-    const unsub = subscribe('/topic/calls', () => load(period));
+    const unsub = subscribe('/topic/calls', () => load(periodRef.current));
     return () => unsub?.();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
