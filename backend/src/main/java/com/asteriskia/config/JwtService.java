@@ -49,11 +49,24 @@ public class JwtService {
      * @return Token JWT assinado com claim "extension"
      */
     public String generateToken(String username, Integer extension) {
+        return generateToken(username, extension, "USER");
+    }
+
+    /**
+     * Gera um token JWT com claims de ramal SIP e role (RBAC).
+     *
+     * @param username  Nome de usuário (subject do token)
+     * @param extension Ramal SIP do usuário (ex: 9001)
+     * @param role      "ADMIN" ou "USER" — usado por JwtAuthFilter para autorização
+     * @return Token JWT assinado com claims "extension" e "role"
+     */
+    public String generateToken(String username, Integer extension, String role) {
         long nowMs = System.currentTimeMillis();
         var builder = Jwts.builder()
                 .subject(username)
                 .issuedAt(new Date(nowMs))
                 .expiration(new Date(nowMs + (long) expirationHours * 3600 * 1000))
+                .claim("role", role != null ? role : "USER")
                 .signWith(key(), Jwts.SIG.HS256);
         if (extension != null) {
             builder.claim("extension", extension);
@@ -76,6 +89,23 @@ public class JwtService {
                 .parseSignedClaims(token)
                 .getPayload()
                 .getSubject();
+    }
+
+    /**
+     * Extrai a claim "role" de um token válido. Tokens antigos emitidos antes
+     * do RBAC (sem a claim) são tratados como "USER" — o menos privilegiado.
+     *
+     * @param token Token JWT
+     * @return "ADMIN" ou "USER"
+     */
+    public String extractRole(String token) {
+        Object role = Jwts.parser()
+                .verifyWith(key())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .get("role");
+        return role != null ? role.toString() : "USER";
     }
 
     /**

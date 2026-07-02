@@ -3,6 +3,7 @@ package com.asteriskia.config;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -11,7 +12,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * SecurityConfig — Segurança JWT + InternalKey da API REST.
+ * SecurityConfig — Segurança JWT + InternalKey da API REST, com RBAC (ADMIN/USER).
  *
  * Endpoints públicos (sem autenticação):
  *   - POST /api/v1/auth/login        → obter token JWT (frontend)
@@ -22,7 +23,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * Nota sobre /ws: o SockJS faz um GET em /ws/info antes do upgrade WebSocket.
  * Sem liberar /ws/**, o Spring Security retorna 401 nessa requisição e
  * a conexão do Dashboard em tempo real falha. A autenticação de mensagens
- * STOMP pode ser adicionada via WebSocketSecurityConfig se necessário.
+ * STOMP (JWT no frame CONNECT) é feita em WebSocketConfig.
+ *
+ * RBAC: JwtAuthFilter concede ROLE_ADMIN ou ROLE_USER (claim "role" do JWT).
+ * InternalKeyFilter concede ROLE_INTERNAL para serviços internos (AI Agent).
+ * Endpoints administrativos (fail2ban, .env, logs de container/AMI, gestão de
+ * usuários, edição de config do Asterisk) exigem ROLE_ADMIN. Escrita em URAs
+ * (POST/PUT/PATCH/DELETE) exige ADMIN ou INTERNAL — leitura fica liberada
+ * para qualquer usuário autenticado (usada no filtro do dashboard de chamadas).
  *
  * Serviços internos (AI Agent, Scheduler) autenticam via X-Internal-Key header.
  * Frontend e usuários autenticam via Bearer JWT.
@@ -54,7 +62,24 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/ws/**"            // SockJS handshake (GET /ws/info) e upgrade WebSocket
                         ).permitAll()
-                        // Todos os demais endpoints exigem autenticação (JWT ou InternalKey)
+
+                        // Leitura de URAs: qualquer usuário autenticado (filtro do dashboard
+                        // de chamadas usa a lista de URAs) — precisa vir ANTES da regra de
+                        // escrita abaixo, pois a primeira regra que casar decide.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/uras/**").authenticated()
+                        // Escrita de URAs: apenas ADMIN (frontend) ou serviços internos.
+                        .requestMatchers("/api/v1/uras/**").hasAnyRole("ADMIN", "INTERNAL")
+
+                        // Administração pura — apenas ADMIN.
+                        .requestMatchers(
+                                "/api/v1/security/**",        // controle do fail2ban
+                                "/api/v1/settings/**",         // reescreve o .env de produção
+                                "/api/v1/logs/**",              // docker logs + AMI
+                                "/api/v1/users/**",             // gestão de usuários
+                                "/api/v1/asterisk-config/**"    // edita pjsip/extensions + reload AMI
+                        ).hasRole("ADMIN")
+
+                        // Todos os demais endpoints exigem apenas autenticação (JWT ou InternalKey)
                         .anyRequest().authenticated()
                 )
                 // InternalKeyFilter roda antes do JWT: serviços internos usam X-Internal-Key

@@ -23,7 +23,7 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
     setLoading(true);
     try {
-      const { data } = await api.post<LoginResponse & { refreshToken?: string; requiresTotp?: boolean; tempToken?: string; displayName?: string }>('/auth/login', form);
+      const { data } = await api.post<LoginResponse & { requiresTotp?: boolean; tempToken?: string; displayName?: string }>('/auth/login', form);
 
       if (data.requiresTotp && data.tempToken) {
         // 2FA ativo → mostra campo de código TOTP
@@ -33,9 +33,9 @@ export default function Login({ onLogin }: LoginProps) {
         return;
       }
 
-      // Login normal (sem 2FA)
+      // Login normal (sem 2FA). O refresh token vai num cookie httpOnly
+      // setado pelo backend — nunca chega aqui em JS.
       localStorage.setItem('asteriskia_token', data.token!);
-      localStorage.setItem('asteriskia_refresh_token', data.refreshToken!);
       localStorage.setItem('asteriskia_user', form.username);
       onLogin(data.token!, form.username);
     } catch (err: any) {
@@ -52,12 +52,11 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
     setLoading(true);
     try {
-      const { data } = await api.post<{ token: string; refreshToken: string; extension: number; displayName: string }>('/auth/totp/verify', {
+      const { data } = await api.post<{ token: string; extension: number; displayName: string }>('/auth/totp/verify', {
         tempToken,
         code: totpCode.replace(/\s/g, ''),
       });
       localStorage.setItem('asteriskia_token', data.token);
-      localStorage.setItem('asteriskia_refresh_token', data.refreshToken);
       localStorage.setItem('asteriskia_user', form.username);
       onLogin(data.token, form.username);
     } catch (err: any) {

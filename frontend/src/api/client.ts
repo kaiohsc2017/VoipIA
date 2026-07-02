@@ -4,6 +4,9 @@
  * - baseURL: variável de ambiente VITE_API_URL (padrão: http://localhost:8080/api/v1)
  * - Interceptor de request: injeta Bearer token do localStorage
  * - Interceptor de response: redireciona para login em 401
+ * - O refresh token vive num cookie httpOnly (setado pelo backend em
+ *   /auth/login e /auth/refresh) — nunca em localStorage/JS. withCredentials
+ *   é obrigatório para o navegador enviar/receber esse cookie.
  */
 
 import axios from 'axios';
@@ -14,6 +17,7 @@ const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
   timeout: 15_000,
+  withCredentials: true,
 });
 
 // ---- Request interceptor: injeta JWT ----
@@ -60,19 +64,11 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = localStorage.getItem('asteriskia_refresh_token');
-      if (!refreshToken) {
-        processQueue(error, null);
-        isRefreshing = false;
-        logout();
-        return Promise.reject(error);
-      }
-
       try {
-        const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
+        // Sem body: o refresh token vai no cookie httpOnly (withCredentials).
+        const { data } = await axios.post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true });
         localStorage.setItem('asteriskia_token', data.token);
-        localStorage.setItem('asteriskia_refresh_token', data.refreshToken);
-        
+
         processQueue(null, data.token);
         originalRequest.headers.Authorization = `Bearer ${data.token}`;
         return api(originalRequest);
@@ -95,10 +91,20 @@ api.interceptors.response.use(
   },
 );
 
+/**
+ * Revoga o refresh token no backend e limpa o cookie httpOnly (não há como
+ * o JS limpar um cookie httpOnly diretamente). Best-effort — não bloqueia
+ * o logout local se a rede falhar. Não dispara 'asteriskia:logout' (quem
+ * chama já está tratando o encerramento da sessão local).
+ */
+export function revokeSession() {
+  return axios.post(`${BASE_URL}/auth/logout`, {}, { withCredentials: true }).catch(() => {});
+}
+
 function logout() {
   localStorage.removeItem('asteriskia_token');
-  localStorage.removeItem('asteriskia_refresh_token');
   localStorage.removeItem('asteriskia_user');
+  revokeSession();
   window.dispatchEvent(new Event('asteriskia:logout'));
 }
 
