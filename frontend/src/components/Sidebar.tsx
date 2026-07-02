@@ -1,6 +1,6 @@
 import { canRead } from '../api/client';
 
-type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings' | 'audit' | 'logs' | 'security' | 'agents';
+type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups';
 
 interface SidebarProps {
   currentPage: Page;
@@ -15,7 +15,9 @@ interface SidebarProps {
 
 // resource espelha o catálogo de recursos do RBAC granular (ResourceCatalog.java
 // / access_group_permissions) — manter em sincronia manual com o backend.
-const NAV_ITEMS: { page: Page; icon: string; label: string; section: string; external?: string; resource: string }[] = [
+// Itens com adminOnly (em vez de resource) não têm resource_key próprio —
+// o backend exige ROLE_ADMIN puro nesse endpoint (ver AccessGroupController).
+const NAV_ITEMS: { page: Page; icon: string; label: string; section: string; external?: string; resource?: string; adminOnly?: boolean }[] = [
   { page: 'dashboard',  icon: '📊', label: 'Dashboard',          section: 'GERAL',     resource: 'telecom.dashboard'    },
   { page: 'modulo1',    icon: '🎫', label: 'URA',                section: 'MÓDULOS',   resource: 'telecom.modulo1'      },
   { page: 'modulo2',    icon: '📞', label: 'Conectividade',      section: 'MÓDULOS',   resource: 'telecom.modulo2'      },
@@ -26,12 +28,15 @@ const NAV_ITEMS: { page: Page; icon: string; label: string; section: string; ext
   { page: 'settings',   icon: '🔧', label: 'Configurações',      section: 'SISTEMA',   resource: 'telecom.settings'     },
   { page: 'logs',       icon: '🖥️', label: 'Logs',               section: 'SISTEMA',   resource: 'telecom.logs'         },
   { page: 'security',   icon: '🛡️', label: 'Segurança',          section: 'SISTEMA',   resource: 'telecom.security'     },
+  { page: 'accessGroups', icon: '🔑', label: 'Grupos de Acesso', section: 'SISTEMA',   adminOnly: true                  },
   { page: 'audit',      icon: '🔐', label: 'Auditoria',          section: 'SISTEMA',   resource: 'telecom.audit'        },
 ];
 
 export default function Sidebar({ currentPage, onNavigate, username, role, perms, onLogout, collapsed, onToggleCollapse }: SidebarProps) {
   let lastSection = '';
-  const visibleItems = NAV_ITEMS.filter(item => canRead(role, perms, item.resource));
+  const visibleItems = NAV_ITEMS.filter(item =>
+    item.adminOnly ? role === 'ADMIN' : canRead(role, perms, item.resource!)
+  );
 
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>

@@ -14,6 +14,27 @@ export interface LoginResponse {
   expiresInHours: number;
 }
 
+// ---- Grupos de acesso (RBAC granular — V22) ----
+export interface AccessGroupPermission {
+  resourceKey: string;
+  canRead: boolean;
+  canWrite: boolean;
+}
+
+export interface AccessGroup {
+  id: number;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  permissions: AccessGroupPermission[];
+}
+
+export interface AccessGroupRequest {
+  name: string;
+  description: string | null;
+  permissions: AccessGroupPermission[];
+}
+
 // ---- URAs (Módulo 1) ----
 export interface Ura {
   id: number;

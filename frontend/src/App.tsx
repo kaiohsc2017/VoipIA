@@ -18,6 +18,7 @@ const MasterData         = lazy(() => import('./components/MasterData'));
 const Users              = lazy(() => import('./components/Users'));
 const Settings           = lazy(() => import('./components/Settings'));
 const Auditoria          = lazy(() => import('./components/Auditoria'));
+const AccessGroups       = lazy(() => import('./components/AccessGroups'));
 
 // ─── ErrorBoundary ─────────────────────────────────────────────────────────────
 // Evita que erros em componentes filhos desmontem toda a árvore React (tela em branco).
@@ -104,7 +105,7 @@ export default function App() {
   const [perms, setPerms] = useState<Record<string, string>>(() => getPermissionsFromToken(localStorage.getItem('asteriskia_token')));
   const pageFromHash = (): Page => {
     const hash = window.location.hash.replace('#', '').trim() as Page;
-    const valid: Page[] = ['dashboard','modulo1','modulo2','modulo3','masterdata','users','settings','audit','logs','security'];
+    const valid: Page[] = ['dashboard','modulo1','modulo2','modulo3','masterdata','users','settings','audit','logs','security','accessGroups'];
     if (!valid.includes(hash)) return 'dashboard';
     // Acesso direto via hash (digitado/favoritado) a uma página sem permissão de
     // leitura: volta pro dashboard. O botão de nav já fica escondido (ver
@@ -112,6 +113,10 @@ export default function App() {
     const currentToken = localStorage.getItem('asteriskia_token');
     const currentRole = getRoleFromToken(currentToken);
     const currentPerms = getPermissionsFromToken(currentToken);
+    // Grupos de acesso não têm resource_key próprio — o backend (AccessGroupController)
+    // exige ROLE_ADMIN puro (evita o ovo-e-galinha de um grupo customizado
+    // precisar de si mesmo pra existir), então a checagem aqui é direto por role.
+    if (hash === 'accessGroups') return currentRole === 'ADMIN' ? hash : 'dashboard';
     const resource = PAGE_RESOURCE[hash];
     if (resource && !canRead(currentRole, currentPerms, resource)) return 'dashboard';
     return hash;
@@ -188,6 +193,7 @@ export default function App() {
               {page === 'audit'      && <Auditoria />}
               {page === 'logs'       && <ModuloLogs />}
               {page === 'security'   && <ModuloSeguranca />}
+              {page === 'accessGroups' && <AccessGroups />}
             </ErrorBoundary>
           </Suspense>
         </main>
