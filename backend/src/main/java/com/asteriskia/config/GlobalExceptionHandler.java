@@ -36,9 +36,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, String>> handleRuntimeException(RuntimeException ex) {
+        // Detalhe completo só no log do servidor — nunca no corpo da resposta,
+        // que pode conter fragmentos de SQL, caminhos de arquivo ou nomes de
+        // configuração internos (ex: exceções do Hibernate, IllegalArgumentException).
         log.error("Erro interno detectado: ", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", ex.getMessage() != null ? ex.getMessage() : "Erro interno do servidor"));
+                .body(Map.of("error", "Erro interno do servidor"));
     }
 
     @ExceptionHandler(Exception.class)

@@ -12,6 +12,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -103,11 +105,30 @@ public class RateLimitFilter implements Filter {
                 Map.of("error", "Muitas tentativas. Tente novamente em " + retryAfterSec + "s."));
     }
 
+    /**
+     * SEGURANÇA: só confia em X-Forwarded-For/X-Real-IP quando a conexão TCP
+     * direta vem do próprio Caddy (o único reverse proxy da stack). Sem essa
+     * checagem, qualquer container na mesma rede docker (ou um cliente que
+     * chegasse direto, se a porta fosse exposta) poderia forjar esses headers
+     * e resetar o contador de tentativas de login a cada requisição.
+     */
     private String resolveIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) return forwarded.split(",")[0].trim();
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) return realIp.trim();
-        return request.getRemoteAddr();
+        String remoteAddr = request.getRemoteAddr();
+        if (isTrustedProxy(remoteAddr)) {
+            String forwarded = request.getHeader("X-Forwarded-For");
+            if (forwarded != null && !forwarded.isBlank()) return forwarded.split(",")[0].trim();
+            String realIp = request.getHeader("X-Real-IP");
+            if (realIp != null && !realIp.isBlank()) return realIp.trim();
+        }
+        return remoteAddr;
+    }
+
+    private boolean isTrustedProxy(String remoteAddr) {
+        try {
+            return InetAddress.getByName("caddy").getHostAddress().equals(remoteAddr);
+        } catch (UnknownHostException e) {
+            log.warn("Não foi possível resolver o host 'caddy' — headers de IP encaminhado ignorados.");
+            return false;
+        }
     }
 }

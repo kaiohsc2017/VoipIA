@@ -63,6 +63,10 @@ public class CallRecordService {
         int resolvedUraId = uraId != null ? uraId : DEFAULT_URA_ID;
         log.info("Registrando chamada UUID={} uraId={}", callUuid, resolvedUraId);
 
+        // Uma chamada que falhou antes de coletar respostas (ex: cliente desligou
+        // cedo) pode chegar sem nenhum field — nunca deixar isso abortar o registro.
+        if (fields == null) fields = Map.of();
+
         // Número do chamador — usa o valor explícito se for real (não "desconhecido"),
         // caso contrário cai no ramal informado pelo usuário durante a URA.
         String callerPhone = callerNumber != null && !callerNumber.isBlank()
