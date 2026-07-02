@@ -53,6 +53,24 @@ def _mask_secrets(obj):
     return obj
 
 
+def _rules_has_ssh_exec(rules: dict) -> bool:
+    """True se `rules.checks[]` tiver algum `cmd`/`fix_cmd` — executado
+    literalmente via SSH em qualquer servidor cadastrado (SSHTestExecutor,
+    executor.py). PERM_WRITE_agents.agents (permissão granular de "editar
+    agente") não deveria bastar pra isso — equivale a RCE remoto usando
+    credenciais SSH que o usuário nunca viu."""
+    for check in (rules or {}).get("checks", []):
+        if isinstance(check, dict) and (check.get("cmd") or check.get("fix_cmd")):
+            return True
+    return False
+
+
+def _require_admin_for_ssh_exec(rules: dict, request: Request) -> None:
+    if _rules_has_ssh_exec(rules) and getattr(request.state, "role", "USER") != "ADMIN":
+        raise HTTPException(403,
+            "Definir/editar comandos SSH (checks[].cmd/fix_cmd) exige administrador")
+
+
 def _sanitize_agent(agent: dict) -> dict:
     """Mascara credenciais embutidas em `rules` antes de devolver o agente ao cliente.
 
@@ -81,7 +99,8 @@ async def list_agents(limit: int = Query(default=100, le=500), offset: int = 0):
         return {"items": [_sanitize_agent(dict(r)) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 @router.post("/", response_model=dict, dependencies=_WRITE)
-async def create_agent(body: AgentCreate):
+async def create_agent(body: AgentCreate, request: Request):
+    _require_admin_for_ssh_exec(body.rules, request)
     async with DB() as db:
         row = await db.fetchrow("""
             INSERT INTO agents (name, description, type, skill, server_ids, target_urls,
@@ -108,6 +127,7 @@ async def get_agent(agent_id: UUID):
 
 @router.put("/{agent_id}", dependencies=_WRITE)
 async def update_agent(agent_id: UUID, body: AgentCreate, request: Request):
+    _require_admin_for_ssh_exec(body.rules, request)
     async with DB() as db:
         row = await db.fetchrow("""
             UPDATE agents SET name=$1, description=$2, type=$3, skill=$4,

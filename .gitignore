@@ -66,8 +66,7 @@ bkp-config/
 security/config/action.d/
 
 # --- Arquivos de estado runtime (gerados em execução, não versionar) ---
-security/lockdown.flag
-security/whitelist.txt
+security/state/
 asterisk/config/acl.conf
 
 # --- Claude Code (sessão local — não versionar) ---

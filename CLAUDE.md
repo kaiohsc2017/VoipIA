@@ -407,19 +407,31 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > `external_media_address`/`external_signaling_address` não vazios, portas RTP `10000-10100/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
 
-### 🟠 Auditoria full-stack pós-RBAC (2026-07-02) — 3 CRITICAL corrigidos, 11 HIGH + 10 MEDIUM + 4 LOW pendentes
+### 🟠 Auditoria full-stack pós-RBAC (2026-07-02) — 3 CRITICAL + 11 HIGH corrigidos, 10 MEDIUM + 4 LOW pendentes
 4 agentes `security-reviewer`/`react-reviewer` em paralelo (Java fora do RBAC, Python ai-agent+agents-platform,
 os dois frontends, infraestrutura) acharam 33 problemas; achados de infra confirmados ao vivo em produção
 (`ss`, `iptables -t nat`, `pg_hba.conf`). Ver memória `asteriskia-rbac-granular-feature` e o relatório completo
 em https://claude.ai/code/artifact/b04225b4-fef1-4c3c-95f1-9951de5389c9.
-- ✅ **Corrigidos**: `AiProviderController` sem controle de acesso (`SecurityConfig.java` — matchers
+- ✅ **3 CRITICAL corrigidos**: `AiProviderController` sem controle de acesso (`SecurityConfig.java` — matchers
   `/api/v1/ai/**` reusando `telecom.settings`); `install.sh` não gerava senha dos ramais SIP
   (`RAMAL_*_PASSWORD` hardcoded/vazio) — agora gera via `gen_pass` e injeta em `VITE_SIP_PASSWORD`;
   Postgres publicado em `0.0.0.0:5433` — `docker-compose.yml` agora vincula a `127.0.0.1`.
-- ⏳ **11 HIGH ainda pendentes** (destaques): RCE via SSH com `PERM_WRITE_agents.agents`, SSRF em
-  `notifier.py` e `SettingsTestController`, upload/delete de knowledge base sem autorização, senha
-  SIP em texto plano em `GET /users`, mount RW dos scripts do container `security`, credencial TURN
-  visível via `ps`/`docker inspect`.
+- ✅ **11 HIGH corrigidos** (código pronto, **ainda NÃO deployado**): RCE via SSH com
+  `PERM_WRITE_agents.agents` (bloqueado pra não-ADMIN em `agents.py`); SSRF em `notifier.py` e
+  `SettingsTestController` (host privado/loopback bloqueado + redirect 3xx desabilitado no
+  `RestTemplate`/`aiohttp` — resíduo aceito: DNS rebinding/TOCTOU não coberto, mitigar exigiria pin
+  de IP na conexão real); upload/delete de knowledge base sem autorização (`require_permission`);
+  senha SIP em texto plano em `GET /users` (endpoint dedicado `GET /{id}/extension-password` sob
+  demanda — **nota**: continua devolvendo a fórmula fictícia `"webrtc"+extensão+"pass"`, não a senha
+  real do `.env`, pendência pré-existente não resolvida por este fix); mount RW dos scripts do
+  container `security` (restrito a `security/state/`); credencial TURN visível via
+  `docker top`/`docker inspect Config.Cmd` (movida pra `environment:` + injeção em runtime —
+  resíduo aceito: ainda visível via `docker inspect Config.Env`, mesmo nível de `POSTGRES_PASSWORD`);
+  API key do Gemini vazava via query string e mensagem de erro (`llm.py` — agora em header, erro
+  genérico pro usuário); vazamento de segredos com sufixo `_CREDENTIAL` no `GET /settings`
+  (`SettingsService.java`); injeção de seção INI em `asterisk.conf` via `banaction`/valores de jail
+  (`SecurityController.java`); áudio de alertas sem header de autenticação (`ModuloAlertas.tsx`,
+  extraído junto com `ModuloURA.tsx` pro componente compartilhado `AuthedAudio.tsx`).
 - ⏳ **10 MEDIUM + 4 LOW** — ver artifact para a lista completa.
 
 ### 🟡 Importantes

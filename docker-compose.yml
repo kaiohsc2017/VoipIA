@@ -242,7 +242,13 @@ services:
       - fail2ban_socket:/var/run/fail2ban
       - security_cmds:/var/run/asteriskia-security
       - /opt/AsteriskIA/security/config:/opt/asteriskia/security/config
-      - /opt/AsteriskIA/security:/opt/asteriskia/security
+      # Achado de segurança: montava o diretório security/ INTEIRO em RW,
+      # incluindo entrypoint.sh/lockdown-watcher.sh — um RCE no backend
+      # escreveria o script que o container security executa como root
+      # (NET_ADMIN + network_mode: host). Restrito a só o estado que o
+      # SecurityController lê/escreve (lockdown.flag, whitelist.txt,
+      # manual-bans.csv) — nenhum script do container security os lê.
+      - /opt/AsteriskIA/security/state:/opt/asteriskia/security
     networks:
       asteriskia-net:
           ipv4_address: 172.16.7.14
@@ -283,7 +289,14 @@ services:
   # TURN Server — Coturn para relay de RTP WebRTC
   # network_mode: host é obrigatório: o TURN aloca portas UDP no host para
   # relay bidirecional entre browser e Asterisk.
-  # Credencial passada via --user para não ser hardcoded no arquivo de config.
+  # Achado de segurança: --user=asteriskia:${TURN_CREDENTIAL} na linha de comando
+  # deixava a credencial em texto claro em `docker top`/`docker inspect` (Config.Cmd)
+  # pra qualquer um com acesso ao socket Docker. Credencial agora só via variável de
+  # ambiente — o entrypoint injeta no arquivo de config em runtime, então o comando
+  # final do processo (turnserver -c ...) não contém o valor. Resíduo aceito: a
+  # credencial continua visível via `docker inspect` (Config.Env) — mesmo nível de
+  # exposição de POSTGRES_PASSWORD e demais segredos já passados por `environment:`
+  # no resto deste arquivo, que já exige acesso ao Docker (gate do docker-helper).
   # ---------------------------------------------------------------------------
   coturn:
     image: coturn/coturn:4.6.2
@@ -291,12 +304,16 @@ services:
     restart: unless-stopped
     network_mode: host
     user: root
+    environment:
+      TURN_CREDENTIAL: ${TURN_CREDENTIAL}
     volumes:
       - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
       - /var/lib/docker/volumes/asteriskia_caddy_data/_data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/app.voiphash.com.br:/etc/coturn/tls:ro
+    entrypoint: ["/bin/sh", "-c"]
     command: >-
-      -c /etc/coturn/turnserver.conf
-      --user=asteriskia:${TURN_CREDENTIAL}
+      cp /etc/coturn/turnserver.conf /tmp/turnserver.conf &&
+      echo "user=asteriskia:$$TURN_CREDENTIAL" >> /tmp/turnserver.conf &&
+      exec turnserver -c /tmp/turnserver.conf
 
   # ---------------------------------------------------------------------------
   # Security — Fail2ban + nftables (lockdown SIP)

@@ -113,11 +113,10 @@ const API = window.AGENTS_API || '/agents';
 
 var TELECOM_API = window.TELECOM_API || '/api/v1';
 var TOKEN_KEY   = 'asteriskia_token';
-var REFRESH_KEY = 'asteriskia_refresh_token';
 var USER_KEY    = 'asteriskia_user';
 function getToken(){ return localStorage.getItem(TOKEN_KEY); }
 function getUser() { return localStorage.getItem(USER_KEY)||''; }
-function clearAuth(){ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(REFRESH_KEY); localStorage.removeItem(USER_KEY); }
+function clearAuth(){ localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); }
 // Extrai a claim "role" do JWT (mesmo token/segredo do backend Telecom) sem validar
 // assinatura — só um hint de UI pra esconder nav/botoes admin; a autorizacao real
 // continua sendo aplicada pelo agents-backend (auth.py require_admin) em cada request.
@@ -166,10 +165,26 @@ function _authHeaders(extra) {
   return h;
 }
 function _apiFetch(p, opts) {
+  // Achados de segurança/robustez: (1) o catch final engolia QUALQUER falha —
+  // rede fora do ar, 403, 404, 500 — devolvendo {} sempre, sem a promise
+  // nunca rejeitar; toda página mostrava "nenhum registro" mesmo com a API
+  // fora do ar. (2) hadToken era lido DEPOIS do clearAuth() já ter limpado o
+  // token, então a condição nunca era verdadeira e a página nunca recarregava
+  // numa sessão expirada.
   return fetch(API+p, opts).then(function(r){
-    if (r.status === 401) { clearAuth(); if (getToken()) location.reload(); return {}; }
+    var hadToken = !!getToken();
+    if (r.status === 401) {
+      clearAuth();
+      if (hadToken) location.reload();
+      return Promise.reject(new Error('Sessao expirada'));
+    }
+    if (!r.ok) {
+      return r.json().catch(function(){ return {}; }).then(function(d){
+        return Promise.reject(new Error((d && d.message) || ('Erro ' + r.status)));
+      });
+    }
     return r.json();
-  }).catch(function(){ return {}; });
+  });
 }
 const api = {
   get:  function(p)      { return _apiFetch(p, {headers: _authHeaders()}); },
@@ -398,12 +413,14 @@ function SecretsPage() {
       .then(function(r){
         if(r&&r.ok){ flash('Secret salvo.'); setForm({key:'',value:''}); loadSecrets(selAgent); }
         else flash('Erro ao salvar.');
-      });
+      })
+      .catch(function(e){ flash(e.message||'Erro ao salvar.'); });
   }
 
   function del(key) {
     api.del('/api/system/agents/'+selAgent+'/secrets/'+encodeURIComponent(key))
-      .then(function(){ loadSecrets(selAgent); });
+      .then(function(){ loadSecrets(selAgent); })
+      .catch(function(e){ flash(e.message||'Erro ao remover.'); });
   }
 
   function flash(m) { setMsg(m); setTimeout(function(){setMsg(null);},3000); }
@@ -837,6 +854,8 @@ function Agents(props) {
   var conf    = cfState[0];
   var setConf = cfState[1];
   var ldState = useState(true); var loading=ldState[0]; var setLoading=ldState[1];
+  var msgState = useState(null); var msg = msgState[0]; var setMsg = msgState[1];
+  function flash(m) { setMsg(m); setTimeout(function(){setMsg(null);},4000); }
 
   function load() {
     setLoading(true);
@@ -847,28 +866,29 @@ function Agents(props) {
   useEffect(function(){ load(); }, []);
 
   function save(data) {
-    if (editing) {
-      api.put('/api/agents/'+editing.id, data).then(function(r){
-        if(r&&r.id) setAgents(function(list){ return list.map(function(x){ return x.id===r.id?r:x; }); });
-        else load();
-      });
-    } else {
-      api.post('/api/agents/', data).then(function(r){
-        if(r&&r.id) setAgents(function(list){ return list.concat([r]); });
-        else load();
-      });
-    }
+    var req = editing
+      ? api.put('/api/agents/'+editing.id, data).then(function(r){
+          if(r&&r.id) setAgents(function(list){ return list.map(function(x){ return x.id===r.id?r:x; }); });
+          else load();
+        })
+      : api.post('/api/agents/', data).then(function(r){
+          if(r&&r.id) setAgents(function(list){ return list.concat([r]); });
+          else load();
+        });
+    req.catch(function(e){ flash(e.message||'Erro ao salvar agente.'); });
     setShowForm(false); setEditing(null);
   }
   function del(id) {
-    api.del('/api/agents/'+id).then(function(){ setAgents(function(list){ return list.filter(function(x){return x.id!==id}); }); });
+    api.del('/api/agents/'+id)
+      .then(function(){ setAgents(function(list){ return list.filter(function(x){return x.id!==id}); }); })
+      .catch(function(e){ flash(e.message||'Erro ao remover agente.'); });
   }
   function toggle(a) {
     var ep = a.status==='paused' ? '/api/agents/'+a.id+'/resume' : '/api/agents/'+a.id+'/pause';
-    api.post(ep,{}).then(function(){ load(); });
+    api.post(ep,{}).then(function(){ load(); }).catch(function(e){ flash(e.message||'Erro ao alterar status.'); });
   }
   function runNow(id) {
-    api.post('/api/agents/'+id+'/run',{}).then(function(){ load(); });
+    api.post('/api/agents/'+id+'/run',{}).then(function(){ load(); }).catch(function(e){ flash(e.message||'Erro ao executar agente.'); });
   }
 
   var typeLabel = {ssh_test:'SSH Test',web_monitor:'Web Monitor',log_monitor:'Log Monitor',database:'Database'};
@@ -909,6 +929,7 @@ function Agents(props) {
   });
 
   return h('div', null,
+    msg && h('div',{className:'alertbar'},msg),
     conf && h(Confirm, {msg:conf.msg, onOk:function(){conf.fn();setConf(null)}, onCancel:function(){setConf(null)}}),
     isAdmin && (showForm||editing) && h(AgentForm, {agent:editing,servers:servers,onSave:save,onClose:function(){setShowForm(false);setEditing(null)}}),
     logsFor && h(LogModal, {agentId:logsFor, onClose:function(){setLogsFor(null)}}),
@@ -955,6 +976,10 @@ function Servers(props) {
   var testState = useState({});
   var testing   = testState[0];
   var setTesting = testState[1];
+  var msgState  = useState(null);
+  var msg       = msgState[0];
+  var setMsg    = msgState[1];
+  function flash(m) { setMsg(m); setTimeout(function(){setMsg(null);},4000); }
   var def = {name:'',host:'',port:22,username:'',auth_type:'password',password:'',ssh_key:'',tags:[]};
   var fdState = useState(def);
   var fd      = fdState[0];
@@ -971,14 +996,16 @@ function Servers(props) {
   useEffect(function(){ load(); }, []);
 
   function save() {
-    if (editing) {
-      api.put('/api/servers/'+editing.id, fd).then(function(){ load(); setShowForm(false); setEditing(null); });
-    } else {
-      api.post('/api/servers/', fd).then(function(){ load(); setShowForm(false); setEditing(null); });
-    }
+    var req = editing
+      ? api.put('/api/servers/'+editing.id, fd)
+      : api.post('/api/servers/', fd);
+    req.then(function(){ load(); setShowForm(false); setEditing(null); })
+       .catch(function(e){ flash(e.message||'Erro ao salvar servidor.'); });
   }
   function del(id){
-    api.del('/api/servers/'+id).then(function(){ setServers(function(l){return l.filter(function(x){return x.id!==id});}); });
+    api.del('/api/servers/'+id)
+      .then(function(){ setServers(function(l){return l.filter(function(x){return x.id!==id});}); })
+      .catch(function(e){ flash(e.message||'Erro ao remover servidor.'); });
   }
   function testConn(id){
     setTesting(function(t){var n=Object.assign({},t);n[id]='testing';return n;});
@@ -1011,6 +1038,7 @@ function Servers(props) {
   });
 
   return h('div',null,
+    msg && h('div',{className:'alertbar'},msg),
     conf&&h(Confirm,{msg:conf.msg,onOk:function(){conf.fn();setConf(null)},onCancel:function(){setConf(null)}}),
     isAdmin && showForm&&h('div',{className:'overlay'},
       h('div',{className:'modal'},
@@ -1083,7 +1111,9 @@ function Knowledge() {
     });
   }
   function del(id){
-    api.del('/api/knowledge/'+id).then(function(){ setDocs(function(d){return d.filter(function(x){return x.id!==id});}); });
+    api.del('/api/knowledge/'+id)
+      .then(function(){ setDocs(function(d){return d.filter(function(x){return x.id!==id});}); })
+      .catch(function(e){ setMsg(e.message||'Erro ao remover documento.'); setTimeout(function(){setMsg(null);},4000); });
   }
 
   var rows = docs.map(function(d) {
@@ -1571,7 +1601,6 @@ function Login(props) {
       var tok = d.token || d.accessToken || d.access_token || '';
       if (!tok) { setErr('Resposta inesperada do servidor.'); return; }
       localStorage.setItem(TOKEN_KEY, tok);
-      if (d.refreshToken) localStorage.setItem(REFRESH_KEY, d.refreshToken);
       localStorage.setItem(USER_KEY, d.username || user.trim());
       props.onLogin(tok, d.username || user.trim());
     })

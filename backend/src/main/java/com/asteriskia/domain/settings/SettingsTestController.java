@@ -9,6 +9,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.net.InetAddress;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
 
 /**
@@ -45,6 +46,9 @@ public class SettingsTestController {
         if (baseUrl.isEmpty() || email.isEmpty() || token.isEmpty() || isMasked(token)) {
             return bad("Preencha os campos JIRA_BASE_URL, JIRA_USER_EMAIL e JIRA_API_TOKEN antes de testar.");
         }
+        if (!isSafePublicUrl(baseUrl)) {
+            return bad("JIRA_BASE_URL inválida ou aponta para um host privado/interno.");
+        }
 
         try {
             // Usa o mesmo WebClient + headers da integração real (API v3)
@@ -68,6 +72,9 @@ public class SettingsTestController {
 
         if (apiUrl.isEmpty() || user.isEmpty() || password.isEmpty() || isMasked(password)) {
             return bad("Preencha os campos ZABBIX_API_URL, ZABBIX_USER e ZABBIX_PASSWORD antes de testar.");
+        }
+        if (!isSafePublicUrl(apiUrl)) {
+            return bad("ZABBIX_API_URL inválida ou aponta para um host privado/interno.");
         }
 
         try {
@@ -157,6 +164,37 @@ public class SettingsTestController {
 
     private boolean isMasked(String value) {
         return value != null && value.startsWith("\u2022");
+    }
+
+    /**
+     * Achado de seguran\u00e7a (SSRF): JIRA_BASE_URL/ZABBIX_API_URL v\u00eam do body da
+     * requisi\u00e7\u00e3o \u2014 qualquer usu\u00e1rio com PERM_WRITE_telecom.settings podia apontar
+     * pra 172.16.7.11:5432, 169.254.169.254 ou localhost:8080 e o backend fazia a
+     * chamada (no caso do Jira, at\u00e9 com a credencial Basic Auth no header, vazando
+     * o token pro host arbitr\u00e1rio). Resolve o host e bloqueia qualquer IP privado/
+     * loopback/link-local/multicast antes de qualquer chamada de teste. Res\u00edduo
+     * conhecido: n\u00e3o protege contra DNS rebinding (o host \u00e9 resolvido de novo na
+     * conex\u00e3o real) nem contra redirect 3xx do host de destino \u2014 ver valida\u00e7\u00e3o de
+     * redirect desabilitado no RestTemplate (AppConfig) para o caso do Zabbix.
+     */
+    private boolean isSafePublicUrl(String url) {
+        try {
+            URI uri = new URI(url);
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            if (host == null || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
+                return false;
+            }
+            for (InetAddress addr : InetAddress.getAllByName(host)) {
+                if (addr.isLoopbackAddress() || addr.isSiteLocalAddress() || addr.isLinkLocalAddress()
+                        || addr.isAnyLocalAddress() || addr.isMulticastAddress()) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (URISyntaxException | java.net.UnknownHostException e) {
+            return false;
+        }
     }
 
     private String sanitize(String msg) {

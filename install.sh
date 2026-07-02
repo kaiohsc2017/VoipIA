@@ -583,6 +583,7 @@ docker exec asteriskia-asterisk asterisk -rx "module reload res_pjsip.so" 2>/dev
 log_step "✅ Instalação concluída!"
 
 ADMIN_PASS_SHOW=$(grep "^ADMIN_PASSWORD=" "$ENV_FILE" | cut -d= -f2)
+RAMAL_9002_PASS_SHOW=$(grep "^RAMAL_9002_PASSWORD=" "$ENV_FILE" | cut -d= -f2)
 
 echo ""
 echo -e "${BOLD}Acesso:${NC}"
@@ -596,7 +597,7 @@ echo -e "  Integrado ao painel — sem configuração adicional"
 echo ""
 echo -e "${BOLD}Softphone físico (ramal 9002):${NC}"
 echo -e "  Servidor: ${CYAN}${PUBLIC_IP}${NC}  Porta: ${CYAN}5060 UDP${NC}"
-echo -e "  Usuário:  ${CYAN}9002${NC}  Senha: ${CYAN}sip9002pass2025${NC}"
+echo -e "  Usuário:  ${CYAN}9002${NC}  Senha: ${CYAN}${RAMAL_9002_PASS_SHOW}${NC}"
 echo -e "  Codecs:   ${CYAN}G.729 / G.711a / G.711u${NC}"
 echo ""
 echo -e "${BOLD}${YELLOW}Próximos passos obrigatórios:${NC}"

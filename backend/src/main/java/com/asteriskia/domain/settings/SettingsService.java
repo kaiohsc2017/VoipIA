@@ -56,21 +56,18 @@ public class SettingsService {
     /** Máximo de backups do .env a manter. */
     private static final int MAX_BACKUPS = 10;
 
-    /** Conjunto de chaves cujos valores não devem ser expostos no GET. */
-    static final Set<String> SECRET_KEYS = Set.of(
-            "SIP_TRUNK_PASSWORD",
-            "GEMINI_API_KEY",
-            "JIRA_API_TOKEN",
-            "ZABBIX_PASSWORD",
-            "TELEGRAM_BOT_TOKEN",
-            "BACKEND_JWT_SECRET",
-            "INTERNAL_API_KEY",
-            "ADMIN_PASSWORD",
-            "POSTGRES_PASSWORD",
-            "AST_AMI_PASSWORD",
-            "GRAFANA_ADMIN_PASSWORD",
-            "VITE_SIP_PASSWORD"
-    );
+    /**
+     * Sufixos de chave cujo valor não deve ser exposto no GET. Achado de segurança:
+     * a allowlist fixa anterior não cobria chaves novas (ex: RAMAL_*_PASSWORD,
+     * AGENTS_LLM_*_KEY) — um grupo de acesso com só PERM_READ_telecom.settings via
+     * a credencial em texto claro. Critério por sufixo cobre qualquer chave futura
+     * sem precisar lembrar de atualizar uma lista.
+     */
+    private static final Set<String> SECRET_SUFFIXES = Set.of("_PASSWORD", "_KEY", "_TOKEN", "_SECRET", "_CREDENTIAL");
+
+    private static boolean isSecretKey(String key) {
+        return SECRET_SUFFIXES.stream().anyMatch(key::endsWith);
+    }
 
     // -------------------------------------------------------------------------
     // Jobs assíncronos de apply
@@ -177,7 +174,7 @@ public class SettingsService {
                 if (eq > 0) {
                     String key   = line.substring(0, eq).trim();
                     String value = line.substring(eq + 1).trim();
-                    boolean secret = SECRET_KEYS.contains(key);
+                    boolean secret = isSecretKey(key);
                     entries.add(EnvEntry.field(key, secret ? MASK_DISPLAY : value, secret));
                 }
             }
@@ -307,7 +304,7 @@ public class SettingsService {
             String oldVal = current.get(key);
             // Compara valores; pula se for igual
             if (!Objects.equals(oldVal, newVal)) {
-                boolean secret = SECRET_KEYS.contains(key);
+                boolean secret = isSecretKey(key);
                 records.add(SettingsHistory.builder()
                         .changedAt(OffsetDateTime.now())
                         .changedBy(changedBy != null ? changedBy : "admin")

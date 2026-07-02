@@ -103,7 +103,7 @@ async def list_alerts(limit: int = Query(default=100, le=500)):
         """, limit)
         return [dict(r) for r in rows]
 
-@router.get("/{execution_id}")
+@router.get("/{execution_id}", dependencies=_ADMIN)
 async def get_execution(execution_id: UUID):
     async with DB() as db:
         row = await db.fetchrow("SELECT * FROM executions WHERE id=$1", execution_id)

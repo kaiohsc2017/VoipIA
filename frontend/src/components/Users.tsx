@@ -6,7 +6,6 @@ interface AppUser {
   username: string;
   displayName: string;
   extension: number;
-  extensionPassword: string;
   isActive: boolean;
   role: string;
   createdAt: string;
@@ -46,6 +45,22 @@ export default function Users() {
   const [editForm, setEditForm]   = useState<EditForm>({ displayName: '', password: '', isActive: true, role: 'USER' });
   const [saving, setSaving]       = useState(false);
   const [revealedPass, setRevealedPass] = useState<number | null>(null);
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<number, string>>({});
+
+  // Achado de segurança: extensionPassword não vem mais na listagem —
+  // busca sob demanda no endpoint dedicado ao clicar "revelar".
+  const handleToggleReveal = (userId: number) => {
+    if (revealedPass === userId) {
+      setRevealedPass(null);
+      return;
+    }
+    setRevealedPass(userId);
+    if (!(userId in revealedPasswords)) {
+      api.get<{ extensionPassword: string }>(`/users/${userId}/extension-password`)
+        .then(r => setRevealedPasswords(prev => ({ ...prev, [userId]: r.data?.extensionPassword ?? '' })))
+        .catch(() => setRevealedPasswords(prev => ({ ...prev, [userId]: '(erro ao buscar)' })));
+    }
+  };
 
   // 2FA modal state
   const [totpUser, setTotpUser]   = useState<AppUser | null>(null);
@@ -279,12 +294,12 @@ export default function Users() {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span className="mono" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          {revealedPass === u.id ? u.extensionPassword : '••••••••••••'}
+                          {revealedPass === u.id ? (revealedPasswords[u.id] ?? '...') : '••••••••••••'}
                         </span>
                         <button
                           className="btn btn-ghost btn-sm btn-icon"
                           title={revealedPass === u.id ? 'Ocultar' : 'Revelar senha'}
-                          onClick={() => setRevealedPass(prev => prev === u.id ? null : u.id)}
+                          onClick={() => handleToggleReveal(u.id)}
                         >
                           {revealedPass === u.id ? '🙈' : '👁️'}
                         </button>

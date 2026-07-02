@@ -6,6 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import UraManagementTab from './UraManagementTab';
+import { AuthedAudio } from './AuthedAudio';
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString('pt-BR', {
@@ -161,37 +162,6 @@ function KpiBar() {
 
 // ─── Player de áudio inline ───────────────────────────────────────────────────
 
-/**
- * Busca o áudio via api.get (anexa o JWT) e reproduz como blob — uma tag
- * <audio src="/api/..."> direta não funciona porque o endpoint exige
- * autenticação e o navegador não anexa o header Authorization nesse caso.
- */
-function AuthedAudio({ callId, style, autoPlay, onError }: {
-  callId: number;
-  style?: React.CSSProperties;
-  autoPlay?: boolean;
-  onError?: () => void;
-}) {
-  const [src, setSrc] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let objectUrl: string | null = null;
-    api.get(`/calls/${callId}/audio`, { responseType: 'blob' })
-      .then(res => {
-        objectUrl = URL.createObjectURL(res.data);
-        setSrc(objectUrl);
-      })
-      .catch(() => { setFailed(true); onError?.(); });
-    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [callId]);
-
-  if (failed) return <span style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>Erro ao carregar áudio</span>;
-  if (!src) return <span className="spinner" style={{ width: 16, height: 16 }} />;
-  return <audio controls autoPlay={autoPlay} src={src} style={style} />;
-}
-
 function AudioPlayer({ callId }: { callId: number }) {
   const [show, setShow] = useState(false);
   if (!show) {
@@ -205,7 +175,7 @@ function AudioPlayer({ callId }: { callId: number }) {
   }
   return (
     <AuthedAudio
-      callId={callId}
+      path={`/calls/${callId}/audio`}
       autoPlay
       style={{ height: 28, minWidth: 180, maxWidth: 240 }}
       onError={() => setShow(false)}
@@ -383,7 +353,7 @@ export default function ModuloURA() {
               <div>
                 <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Gravação da chamada</div>
                 {detailCall.audioFilePath ? (
-                  <AuthedAudio callId={detailCall.id} style={{ width: '100%', height: 36 }} />
+                  <AuthedAudio path={`/calls/${detailCall.id}/audio`} style={{ width: '100%', height: 36 }} />
                 ) : (
                   <span style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>Gravação não disponível</span>
                 )}

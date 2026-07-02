@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
 import type { AlertCall, AlertContact, Operation, PageResponse } from '../api/types';
+import { AuthedAudio } from './AuthedAudio';
 
 const CALL_STATUS_CLASS: Record<string, string> = {
   ATENDIDA:     'badge-success',
@@ -95,10 +96,9 @@ function AlertAudioPlayer({ alertId }: { alertId: number }) {
     );
   }
   return (
-    <audio
-      controls
+    <AuthedAudio
+      path={`/alert-calls/${alertId}/audio`}
       autoPlay
-      src={`/api/v1/alert-calls/${alertId}/audio`}
       style={{ height: 28, minWidth: 180, maxWidth: 240 }}
       onError={() => setShow(false)}
     />

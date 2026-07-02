@@ -1,6 +1,7 @@
 """notifier.py — envio de alertas: Telegram, Web, E-mail, Webhook"""
-import asyncio, aiohttp, os, json, smtplib, ssl, logging
+import asyncio, aiohttp, os, json, smtplib, ssl, logging, socket, ipaddress
 from email.mime.text import MIMEText
+from urllib.parse import urlparse
 from datetime import datetime, timezone
 
 logger = logging.getLogger("asteriskia.notifier")
@@ -54,16 +55,43 @@ async def send_email(to: str, subject: str, body: str) -> bool:
         logger.error("[notifier] e-mail error: %s", e)
         return False
 
+async def _is_safe_public_url(url: str) -> bool:
+    """Achado de segurança (SSRF): notify_webhook_url é campo livre, editável
+    por qualquer usuário com PERM_WRITE_agents.agents — sem esta checagem,
+    alguém aponta pra 172.16.7.11:5432 ou 169.254.169.254 e força o
+    container a fazer a requisição. Resolve o host e bloqueia qualquer IP
+    privado/loopback/link-local antes de disparar o POST."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            return False
+        infos = await asyncio.to_thread(socket.getaddrinfo, parsed.hostname, None)
+        for family, _, _, _, sockaddr in infos:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return False
+        return True
+    except Exception:
+        return False
+
+
 async def send_webhook(url: str, payload: dict) -> bool:
     """Envia POST JSON para webhook configurado no agente."""
     if not url:
         return False
+    if not await _is_safe_public_url(url):
+        logger.warning("[notifier] webhook bloqueado — host privado/loopback/inválido: %s", url)
+        return False
     try:
         async with aiohttp.ClientSession() as session:
+            # allow_redirects=False: um host público controlado pelo atacante
+            # responderia 302 pra um IP privado sem passar de novo por
+            # _is_safe_public_url — webhook de notificação não precisa seguir redirect.
             async with session.post(
                 url, json=payload,
                 headers={"Content-Type": "application/json", "User-Agent": "AsteriskIA-Agents/2.0"},
-                timeout=aiohttp.ClientTimeout(total=15)
+                timeout=aiohttp.ClientTimeout(total=15),
+                allow_redirects=False
             ) as r:
                 return r.status < 400
     except Exception as e:

@@ -55,6 +55,16 @@ public class SecurityController {
     private static final List<String> MANAGED_JAILS =
         List.of("asterisk-auth", "asterisk-scan", "asterisk-flood");
 
+    /**
+     * Achado de segurança: banaction era gravado sem validação nenhuma em
+     * asterisk.conf. Allowlist das ações realmente usadas neste stack
+     * (iptables/nftables — ver security/config/jail.d/asterisk.conf).
+     */
+    private static final Set<String> ALLOWED_BANACTIONS = Set.of(
+        "iptables-multiport", "iptables-allports", "iptables",
+        "nftables-multiport", "nftables-allports", "nftables"
+    );
+
     // ── Status geral ──────────────────────────────────────────────────────────
 
     @GetMapping("/status")
@@ -106,6 +116,9 @@ public class SecurityController {
 
         if (!MANAGED_JAILS.contains(jail))
             return ResponseEntity.badRequest().body(Map.of("message", "Jail desconhecido: " + jail));
+        if (body.containsKey("banaction") && !ALLOWED_BANACTIONS.contains(String.valueOf(body.get("banaction"))))
+            return ResponseEntity.badRequest().body(Map.of("message",
+                "banaction inválido. Permitidos: " + ALLOWED_BANACTIONS));
         try {
             if (body.containsKey("maxretry"))
                 updateJailParam(jail, "maxretry", String.valueOf(body.get("maxretry")));
@@ -581,6 +594,15 @@ public class SecurityController {
     }
 
     private void updateJailParam(String jail, String key, String value) throws IOException {
+        // Achado de segurança: sem esta checagem, um valor com \r/\n/[/] injeta
+        // seções INI arbitrárias em asterisk.conf, recarregado em seguida no
+        // container security (NET_ADMIN + network_mode: host). Checagem por
+        // contains() em vez de regex ".*[\\r\\n\\[\\]].*" — sem Pattern.DOTALL o "."
+        // não cruza quebra de linha, então qualquer valor com 2+ newlines (o
+        // mínimo necessário pra injetar uma seção de verdade) passava incólume.
+        if (value.contains("\r") || value.contains("\n") || value.contains("[") || value.contains("]"))
+            throw new IOException("Valor inválido para " + key + ": não pode conter quebra de linha ou colchetes");
+
         Path path = Path.of(jailConfigDir, "asterisk.conf");
         String content = Files.readString(path, StandardCharsets.UTF_8);
 

@@ -20,9 +20,11 @@ Variáveis suportadas:
   AGENTS_LLM_COMPAT_KEY   = (opcional)
 """
 
-import os, aiohttp
+import os, aiohttp, logging
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger("asteriskia.llm")
 
 # ─── Caminho do arquivo dedicado ─────────────────────────────────────────────
 
@@ -222,12 +224,13 @@ cfg = LLMConfig()
 # ─── Chamadas por provedor ────────────────────────────────────────────────────
 
 async def _call_google(prompt: str) -> str:
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{cfg.model}:generateContent?key={cfg.google_key}"
-    )
+    # Achado de segurança (CRITICAL): a key ia na query string — qualquer erro
+    # ≠429 ecoa a URL completa via str(e) (aiohttp.ClientResponseError inclui
+    # a URL da requisição). Header x-goog-api-key nunca aparece em str(e).
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{cfg.model}:generateContent"
     async with aiohttp.ClientSession() as s:
         async with s.post(url, json={"contents":[{"parts":[{"text":prompt}]}]},
+                          headers={"x-goog-api-key": cfg.google_key},
                           timeout=aiohttp.ClientTimeout(total=30)) as r:
             if r.status == 429:
                 raise RuntimeError("Limite de gastos atingido (429) — verifique aistudio.google.com/spend")
@@ -313,7 +316,12 @@ Seja direto e técnico. Responda em português."""
         else:
             return f"[Provedor '{cfg.provider}' não suportado]"
     except Exception as e:
-        return f"[Erro IA ({cfg.provider}/{cfg.model}): {e}]"
+        # Achado de segurança (CRITICAL): repassar str(e) bruto ao usuário já
+        # vazou a API key do Google via query string; essa string também é
+        # persistida em agent_memory/execution_logs indefinidamente. Detalhe
+        # completo só no log do servidor.
+        logger.error("[llm] erro ao chamar %s/%s: %s", cfg.provider, cfg.model, e)
+        return f"[Erro IA ({cfg.provider}/{cfg.model}) — ver logs do backend para detalhes]"
 
 def is_enabled() -> bool:
     ok, _ = cfg.is_ready()

@@ -68,6 +68,20 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * Achado de segurança: GET /users devolvia extensionPassword em claro pra
+     * todos os ramais de uma vez (o botão "revelar" do frontend só escondia
+     * visualmente — o valor já estava na memória do componente desde o
+     * carregamento da lista). Endpoint dedicado: só busca sob demanda, ao
+     * clicar "revelar" em um usuário específico.
+     */
+    @GetMapping("/{id}/extension-password")
+        public ResponseEntity<?> getExtensionPassword(@PathVariable Integer id) {
+        return userRepo.findById(id)
+                .map(u -> ResponseEntity.ok(new ExtensionPasswordResponse(extensionPasswordFor(u))))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @PostMapping
         public ResponseEntity<?> createUser(@Valid @RequestBody CreateUserRequest req,
                                         HttpServletRequest httpRequest) {
@@ -177,7 +191,9 @@ public class UserController {
                     u.getUsername(),
                     u.getDisplayName(),
                     u.getExtension(),
-                    "webrtc" + u.getExtension() + "pass",
+                    // Achado de segurança: não gravar mais a senha em claro aqui —
+                    // só disponível sob demanda via GET /{id}/extension-password.
+                    null,
                     u.getIsActive(),
                     u.getRole(),
                     u.getCreatedAt() != null ? u.getCreatedAt().toString() : null
@@ -186,4 +202,10 @@ public class UserController {
     }
 
     public record ErrorResponse(String message) {}
+
+    public record ExtensionPasswordResponse(String extensionPassword) {}
+
+    private String extensionPasswordFor(AppUser u) {
+        return "webrtc" + u.getExtension() + "pass";
+    }
 }
