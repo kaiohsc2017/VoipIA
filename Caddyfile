@@ -74,10 +74,14 @@ app.voiphash.com.br {
 
 	# ── Documentação estática ─────────────────────────────────────────────────
 	# Arquivos HTML servidos diretamente pelo Caddy a partir do volume montado.
+	# Achado: faltava strip_prefix — sem isso, uma requisição a /docs/x.html
+	# procurava o arquivo em /srv/docs/docs/x.html (que não existe) em vez de
+	# /srv/docs/x.html, dando 404 sempre. Nunca funcionou nessa URL.
 	@docs {
 		path /docs/*
 	}
 	handle @docs {
+		uri strip_prefix /docs
 		root * /srv/docs
 		file_server
 	}
