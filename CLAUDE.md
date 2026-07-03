@@ -312,8 +312,8 @@ AsteriskIA/
 ├── docs/
 │   └── deploy-ubuntu.html       # Guia de instalação Ubuntu 22/24
 ├── tools/
-│   ├── asteriskia-agent.py      # CLI com memória PostgreSQL (RAG via pg_trgm)
-│   └── agente-google.py         # Variante com SDK google-genai
+│   └── agente-google.py         # Agente CLI local (Gemini + memória PostgreSQL/pg_trgm,
+│                                 # ferramentas bash/write_file com confirmação)
 ├── docker-compose.yml
 ├── Caddyfile
 ├── .env.example
