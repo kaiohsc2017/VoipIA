@@ -195,6 +195,7 @@ else
     RAMAL_1002_PASS=$(gen_pass)
     RAMAL_9001_PASS=$(gen_pass)
     RAMAL_9002_PASS=$(gen_pass)
+    TURN_PASS=$(gen_pass)
 
     cat > "$ENV_FILE" << EOF
 # =============================================================================
@@ -217,6 +218,8 @@ INTERNAL_API_KEY=${INTERNAL_KEY}
 POSTGRES_DB=asteriskia
 POSTGRES_USER=asteriskia
 POSTGRES_PASSWORD=${POSTGRES_PASS}
+# Porta de acesso local (bind 127.0.0.1 apenas — ver docker-compose.yml)
+POSTGRES_PORT=5433
 
 # ── Asterisk AMI ──────────────────────────────────────────────────────────────
 AST_AMI_USER=asteriskia
@@ -254,6 +257,12 @@ VITE_SIP_URI=sip:9001@app.voiphash.com.br
 VITE_SIP_PASSWORD=${RAMAL_9001_PASS}
 VITE_STUN_URL=stun:stun.l.google.com:19302
 
+# ── TURN (coturn — relay de RTP quando STUN não basta, ex: NAT simétrico) ─────
+TURN_CREDENTIAL=${TURN_PASS}
+VITE_TURN_URL=turn:${PUBLIC_IP}:3478
+VITE_TURN_USER=asteriskia
+VITE_TURN_CREDENTIAL=${TURN_PASS}
+
 # ── CORS ──────────────────────────────────────────────────────────────────────
 BACKEND_ALLOWED_ORIGINS=https://app.voiphash.com.br
 
@@ -288,6 +297,8 @@ AGENTS_LLM_ENABLED=false
 AGENTS_LLM_GOOGLE_KEY=
 AGENTS_LLM_ANTHROPIC_KEY=
 AGENTS_LLM_OPENAI_KEY=
+AGENTS_LLM_MINIMAX_KEY=
+AGENTS_LLM_MINIMAX_GROUP_ID=
 AGENTS_LLM_COMPAT_URL=http://localhost:11434/v1
 AGENTS_LLM_COMPAT_KEY=
 EOF
@@ -314,6 +325,11 @@ ufw allow 5060/udp > /dev/null 2>&1     # SIP UDP
 ufw allow 5060/tcp > /dev/null 2>&1     # SIP TCP
 ufw allow 8088/tcp > /dev/null 2>&1     # WebRTC WS (Asterisk)
 ufw allow 15000:15500/udp > /dev/null 2>&1  # RTP media
+ufw allow 3478/udp > /dev/null 2>&1     # TURN (coturn) — controle
+ufw allow 3478/tcp > /dev/null 2>&1     # TURN (coturn) — controle
+ufw allow 5349/tcp > /dev/null 2>&1     # TURNS (TLS)
+ufw allow 5349/udp > /dev/null 2>&1     # TURNS (TLS)
+ufw allow 49152:49652/udp > /dev/null 2>&1  # TURN — relay (coturn/turnserver.conf)
 ufw --force enable > /dev/null 2>&1
 log_ok "UFW configurado"
 
