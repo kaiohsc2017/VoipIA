@@ -1273,7 +1273,6 @@ function Reports() {
 // ── APP ───────────────────────────────────────────────────────────────────────
 // resource espelha o catálogo do RBAC granular (ResourceCatalog.java /
 // access_group_permissions, prefixo "agents.") — sincronizar manualmente.
-// Itens "external" (docs) não passam por permissão, são só um link estático.
 var NAV = [
   {id:'dashboard', label:'Dashboard',          icon:'dashboard',  resource:'agents.dashboard'},
   {id:'agents',    label:'Agentes',            icon:'agents',     resource:'agents.agents'},
@@ -1282,7 +1281,6 @@ var NAV = [
   {id:'logs',      label:'Logs',               icon:'logs',       resource:'agents.logs'},
   {id:'reports',   label:'Alertas',            icon:'reports',    resource:'agents.reports'},
   {id:'secrets',   label:'Secrets',             icon:'key',       resource:'agents.secrets'},
-  {id:'docs',      label:'Documentação',        icon:'book', external: true},
   {id:'llm',       label:'Config. IA',          icon:'settings',  resource:'agents.llm'}
 ];
 
@@ -1345,13 +1343,6 @@ function App(props) {
   var activePage = (pageMap[page] && canOpenPage(page)) ? pageMap[page]() : pageMap.dashboard();
 
   var navItems = NAV.filter(function(p){ return !p.resource || canRead(role, perms, p.resource); }).map(function(p) {
-    if (p.external) {
-      return h('div', {key:p.id, className:'nitem', style:{cursor:'pointer'},
-        onClick:function(){ window.open('/agents/docs.html','_blank'); }},
-        h(Ico,{n:p.icon,s:15}), p.label,
-        h('span',{style:{marginLeft:'auto',opacity:0.4,fontSize:10}}, '↗')
-      );
-    }
     return h('div', {key:p.id, className:'nitem '+(page===p.id?'on':''), onClick:function(){setPage(p.id)}},
       h(Ico,{n:p.icon,s:15}), p.label,
         (p.id==='reports'&&alertCount>0)?h('span',{style:{marginLeft:'auto',background:'#ef4444',color:'#fff',fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:99}},alertCount):null

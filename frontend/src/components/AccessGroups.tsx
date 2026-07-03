@@ -16,6 +16,7 @@ const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agent
   { key: 'telecom.logs',         label: 'Logs',                   system: 'Telecom' },
   { key: 'telecom.security',     label: 'Segurança',              system: 'Telecom' },
   { key: 'telecom.audit',        label: 'Auditoria',              system: 'Telecom' },
+  { key: 'telecom.docs',         label: 'Documentação',           system: 'Telecom' },
   { key: 'agents.dashboard',     label: 'Dashboard',              system: 'Agentes' },
   { key: 'agents.agents',        label: 'Agentes (cadastro)',     system: 'Agentes' },
   { key: 'agents.servers',       label: 'Servidores SSH',         system: 'Agentes' },

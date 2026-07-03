@@ -2,11 +2,11 @@ import type { ComponentType } from 'react';
 import {
   LayoutDashboard, Headset, PhoneCall, AlertTriangle, Bot, Users, UsersRound,
   Settings, Terminal, ShieldCheck, KeyRound, ClipboardList, ChevronLeft,
-  ChevronRight, LogOut, ExternalLink,
+  ChevronRight, LogOut, ExternalLink, BookOpen,
 } from 'lucide-react';
 import { canRead } from '../api/client';
 
-type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups';
+type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs';
 
 interface SidebarProps {
   currentPage: Page;
@@ -36,6 +36,7 @@ const NAV_ITEMS: { page: Page; icon: ComponentType<{ size?: number; strokeWidth?
   { page: 'security',   icon: ShieldCheck,     label: 'Segurança',          section: 'SISTEMA',   resource: 'telecom.security'     },
   { page: 'accessGroups', icon: KeyRound,      label: 'Grupos de Acesso',   section: 'SISTEMA',   adminOnly: true                  },
   { page: 'audit',      icon: ClipboardList,   label: 'Auditoria',          section: 'SISTEMA',   resource: 'telecom.audit'        },
+  { page: 'docs',       icon: BookOpen,        label: 'Documentação',       section: 'SISTEMA',   resource: 'telecom.docs'         },
 ];
 
 export default function Sidebar({ currentPage, onNavigate, username, role, perms, onLogout, collapsed, onToggleCollapse }: SidebarProps) {

@@ -58,7 +58,6 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copia arquivos estáticos da plataforma de Agentes
 COPY agents-platform/frontend/index.html /usr/share/nginx/html/agents/index.html
-COPY agents-platform/frontend/docs.html  /usr/share/nginx/html/agents/docs.html
 COPY agents-platform/frontend/js         /usr/share/nginx/html/agents/js
 
 # Achado de segurança (débito aceito): master process do nginx rodava como

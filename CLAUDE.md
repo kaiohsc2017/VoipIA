@@ -95,7 +95,7 @@ docker compose up -d --build frontend
 - **Migrations Telecom:** Flyway — classpath `backend/src/main/resources/db/migration/` — V1 a V21
   aplicadas em produção; **V22 (grupos de acesso) commitada, aguardando deploy do backend**
 - **Migrations Agentes:** `agents-platform/backend/migrate.py` — `CREATE TABLE IF NOT EXISTS` (idempotente)
-- **Próxima migration Flyway:** V23 — confirme sempre com `ls backend/src/main/resources/db/migration/ | sort -V | tail -1`
+- **Próxima migration Flyway:** V25 — confirme sempre com `ls backend/src/main/resources/db/migration/ | sort -V | tail -1`
 
 ```bash
 # Acesso direto (porta exposta apenas localmente)
@@ -186,6 +186,18 @@ Senhas SIP saíram do `pjsip.conf.template` (versionado) e são injetadas via `e
 Consulte o valor atual com: `grep '^RAMAL_9001_PASSWORD=' /opt/AsteriskIA/env/.env`
 
 **Tronco SIP:** peer IP-based com `186.233.141.64` — sem usuário/senha, fechado por IP
+
+---
+
+## Documentação (página "Documentação" no Telecom)
+
+Manual do sistema acessível pela Sidebar (seção SISTEMA, `resource_key: telecom.docs`, migration
+V24 — liberado por padrão para os dois grupos seed). Página React em
+`frontend/src/components/Documentacao.tsx` (+ `docs/DocsLayout.tsx`, `docs/sections/*.tsx`),
+migrada de `agents-platform/frontend/docs.html` (removido) e expandida com seções novas sobre o
+Telecom (URA multi-instância, Conectividade, Alertas Zabbix, RBAC granular, Softphone/ramais) além
+do manual original da Plataforma de Agentes. O botão "Documentação" que existia no menu da
+Plataforma de Agentes (abrindo `/agents/docs.html`) foi removido — o acesso agora é só pelo Telecom.
 
 ---
 
@@ -283,7 +295,7 @@ AsteriskIA/
 │   ├── Dockerfile               # Multi-stage: node:22-alpine → nginx:1.27-alpine
 │   ├── nginx.conf               # SPA fallback + proxy /agents/api e /agents/ws
 │   └── src/
-│       └── components/          # Dashboard, Settings, AISettingsPanel, Softphone…
+│       └── components/          # Dashboard, Settings, AISettingsPanel, Softphone… (inclui docs/ — Documentacao.tsx, migrado de agents-platform/frontend/docs.html)
 ├── agents-platform/
 │   ├── backend/
 │   │   ├── main.py              # FastAPI app + JWT middleware + WebSocket broadcast
@@ -295,7 +307,6 @@ AsteriskIA/
 │   │   └── routers/             # agents, servers, executions, reports, knowledge, llm_config, system
 │   └── frontend/
 │       ├── index.html           # React 18 UMD — SPA sem build step
-│       ├── docs.html            # Manual da plataforma de agentes
 │       └── js/                  # React 18 UMD local
 ├── security/
 │   ├── Dockerfile
