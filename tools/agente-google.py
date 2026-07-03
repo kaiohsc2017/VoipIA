@@ -14,7 +14,7 @@ Memória (RAG simples via pg_trgm):
   - sessions       : histórico resumido de sessões anteriores
 
 Pré-requisitos:
-    pip install google-genai psycopg2-binary python-dotenv
+    pip install google-genai psycopg2-binary
 
 Uso:
     python3 tools/agente-google.py
@@ -206,6 +206,22 @@ class Memory:
                 cur.execute(sql, params)
                 # FIX: return estava com indentação incorreta no original (fora do with)
                 return list(cur.fetchall()) if fetch else None
+        except psycopg2.OperationalError as e:
+            # Achado: conexão persistente (self.conn) nunca era reaberta se caísse
+            # (idle timeout do Postgres, blip de rede) — a partir daí toda
+            # memória silenciosamente parava de funcionar pelo resto da sessão.
+            # Tenta reconectar uma vez antes de desistir.
+            print(f"{C.YELL}⚠ Conexão com o banco caiu, tentando reconectar…{C.R}")
+            self._connect()
+            if not self.conn:
+                return [] if fetch else None
+            try:
+                with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                    cur.execute(sql, params)
+                    return list(cur.fetchall()) if fetch else None
+            except Exception as e2:
+                print(f"{C.YELL}⚠ DB (após reconectar): {e2}{C.R}")
+                return [] if fetch else None
         except Exception as e:
             print(f"{C.YELL}⚠ DB: {e}{C.R}")
             return [] if fetch else None
@@ -447,9 +463,14 @@ NEEDS_CONFIRM_RE = re.compile(
     r"docker\s+compose\s+(up|down|restart|stop|rm)|"
     r"docker\s+(restart|stop|start|exec|rm)|"
     r"git\s+(pull|push|checkout|reset|rebase)|"
-    r"iptables|ufw|firewall|\brm\s+-|sed\s+-i|tee\s+|"
+    r"iptables|nft|ufw|firewall|\brm\s+-|\bmv\s+|sed\s+-i|tee\s+|"
     r"systemctl\s+(restart|stop|start|enable|disable)|"
-    r"apt(-get)?\s+install",
+    r"apt(-get)?\s+install|"
+    # Achado: faltavam redirecionamento de saída (trunca arquivo) e comandos
+    # SQL destrutivos passados via bash/psql — nenhum dos dois batia em
+    # nenhum padrão acima, executavam sem pedir confirmação nenhuma.
+    r"[^>]>\s*/|"
+    r"drop\s+table|drop\s+database|truncate\s+table|delete\s+from",
     re.IGNORECASE,
 )
 
@@ -728,7 +749,15 @@ def main():
                 history.pop()
                 break
 
-            candidate  = response.candidates[0]
+            candidate = response.candidates[0]
+            # Achado: se a resposta vier sem conteúdo (bloqueio de SAFETY,
+            # corte por MAX_TOKENS sem texto, etc.), candidate.content pode vir
+            # None — acessar .parts direto derrubava o loop inteiro sem
+            # nenhuma mensagem de erro pro usuário.
+            if candidate.content is None or not candidate.content.parts:
+                print(f"\n{C.RED}✗ Resposta vazia da API (finish_reason={candidate.finish_reason.name}){C.R}")
+                history.pop()
+                break
             parts      = candidate.content.parts
             text_parts = [p.text for p in parts if p.text]
             tool_calls = [p.function_call for p in parts if p.function_call]
