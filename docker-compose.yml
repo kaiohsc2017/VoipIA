@@ -40,6 +40,15 @@ services:
     image: postgres:16-alpine
     container_name: asteriskia-postgres
     restart: unless-stopped
+    # Achado de segurança (débito aceito): nenhum serviço tinha resource limits —
+    # um container comprometido ou com bug de memória podia consumir todo o host.
+    # Valores conservadores-mas-generosos (safety net, não tuning fino) — ajustar
+    # com métricas reais de produção quando disponíveis.
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
     environment:
       POSTGRES_DB:       ${POSTGRES_DB}
       POSTGRES_USER:     ${POSTGRES_USER}
@@ -70,6 +79,13 @@ services:
       dockerfile: Dockerfile
     container_name: asteriskia-asterisk
     restart: unless-stopped
+    # Resource limit (ver comentário completo no serviço postgres) — folga maior
+    # aqui por ser processamento de áudio em tempo real (RTP/codecs).
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.5"
     depends_on:
       postgres:
         condition: service_healthy
@@ -128,6 +144,11 @@ services:
       dockerfile: Dockerfile
     container_name: asteriskia-ai-agent
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
     depends_on:
       asterisk:
         condition: service_healthy
@@ -174,6 +195,11 @@ services:
       dockerfile: Dockerfile
     container_name: asteriskia-docker-helper
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
     environment:
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     volumes:
@@ -199,6 +225,11 @@ services:
       dockerfile: Dockerfile
     container_name: asteriskia-backend
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
     depends_on:
       postgres:
         condition: service_healthy
@@ -278,6 +309,15 @@ services:
         VITE_TURN_CREDENTIAL: ${VITE_TURN_CREDENTIAL:-}
     container_name: asteriskia-frontend
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    # Necessário pra bindar a porta 80 (<1024) rodando como usuário não-root
+    # "nginx" (ver Dockerfile) em vez de root.
+    cap_add:
+      - NET_BIND_SERVICE
     depends_on:
       backend:
         condition: service_healthy
@@ -304,6 +344,11 @@ services:
     restart: unless-stopped
     network_mode: host
     user: root
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
     environment:
       TURN_CREDENTIAL: ${TURN_CREDENTIAL}
     volumes:
@@ -335,6 +380,11 @@ services:
     container_name: asteriskia-security
     restart: unless-stopped
     network_mode: host
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
     cap_add:
       - NET_ADMIN
       - NET_RAW
@@ -371,6 +421,11 @@ services:
       dockerfile: Dockerfile
     container_name: asteriskia-agents-api
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
     depends_on:
       postgres:
         condition: service_healthy
@@ -420,6 +475,11 @@ services:
     image: caddy:2-alpine
     container_name: asteriskia-caddy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
     depends_on:
       frontend:
         condition: service_started   # nginx não tem healthcheck — started é suficiente

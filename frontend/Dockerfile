@@ -61,6 +61,17 @@ COPY agents-platform/frontend/index.html /usr/share/nginx/html/agents/index.html
 COPY agents-platform/frontend/docs.html  /usr/share/nginx/html/agents/docs.html
 COPY agents-platform/frontend/js         /usr/share/nginx/html/agents/js
 
+# Achado de segurança (débito aceito): master process do nginx rodava como
+# root (necessário só pra bindar a porta 80, <1024). Roda como o usuário
+# "nginx" (já existe na imagem oficial, UID 101) — precisa de
+# CAP_NET_BIND_SERVICE (adicionado no docker-compose.yml) pra ainda
+# conseguir bindar a porta privilegiada sem ser root. Diretórios de
+# runtime (cache/pid/log) precisam de chown explícito porque por padrão
+# só o processo root os cria/possui na inicialização.
+RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /usr/share/nginx/html \
+    && touch /var/run/nginx.pid && chown nginx:nginx /var/run/nginx.pid
+USER nginx
+
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
