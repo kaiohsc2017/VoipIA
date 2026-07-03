@@ -192,6 +192,40 @@ public class AuthController {
                 .build();
     }
 
+    /**
+     * Emite um token de streaming de vida curta (60s), usado por EventSource
+     * (SSE) e WebSocket — APIs de browser que não permitem header Authorization
+     * customizado, então precisam do token na query string. Reflete a mesma
+     * role/perm do JWT principal de quem chama (JwtAuthFilter já validou o
+     * Bearer token antes de chegar aqui — reextrai as claims do próprio header
+     * pra não depender de reconstruir authorities do SecurityContext).
+     *
+     * Achado da revisão de segurança: exige que o token de ENTRADA seja o
+     * principal, nunca outro streaming token — sem essa checagem, um streaming
+     * token vazado (o cenário que esta feature existe pra mitigar) poderia ser
+     * renovado indefinidamente chamando este endpoint a cada <60s, recuperando
+     * validade essencialmente ilimitada a partir de um único vazamento e
+     * anulando o propósito do TTL curto.
+     */
+    @PostMapping("/streaming-token")
+    public ResponseEntity<?> streamingToken(HttpServletRequest request) {
+        String auth = request.getHeader("Authorization");
+        if (auth == null || !auth.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("Não autenticado"));
+        }
+        String mainToken = auth.substring(7);
+        if (!jwtService.isValid(mainToken) || jwtService.isStreamingScope(mainToken)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("Token inválido ou expirado"));
+        }
+        String username = jwtService.extractUsername(mainToken);
+        String role = jwtService.extractRole(mainToken);
+        Map<String, String> perms = jwtService.extractPermissions(mainToken);
+        String token = jwtService.generateStreamingToken(username, role, perms);
+        return ResponseEntity.ok(new StreamingTokenResponse(token, 60));
+    }
+
     // ── DTOs ──────────────────────────────────────────────────────────────────
 
     public record LoginRequest(
@@ -208,4 +242,6 @@ public class AuthController {
     ) {}
 
     public record ErrorResponse(String message) {}
+
+    public record StreamingTokenResponse(String token, int expiresInSeconds) {}
 }

@@ -1304,14 +1304,23 @@ function App(props) {
     var proto=(location.protocol==='https:'?'wss:':'ws:');
     var host=location.host||'localhost';
     var ws;
-    try{
-      var wsToken = getToken() || '';
-      ws=new WebSocket(proto+'//'+host+'/agents/ws/alerts?token='+encodeURIComponent(wsToken));
-      ws.onmessage=function(e){
-        try{var d=JSON.parse(e.data||'{}');if(d.level==='error'||d.level==='warning'){setAlertCount(function(n){return n+1;});}}catch(ex){}
-      };
-    }catch(e){}
-    return function(){try{if(ws)ws.close();}catch(e){}};
+    var cancelled=false;
+    // Achado de segurança (débito aceito): o JWT principal (8h) trafegando na
+    // query string do WebSocket ficava exposto em logs de acesso e histórico
+    // do browser. WebSocket não permite header Authorization customizado, mas
+    // agora busca um token de streaming de vida curta (60s, emitido pelo
+    // backend Java) a cada conexão, em vez do token principal de sessão.
+    fetch(TELECOM_API+'/auth/streaming-token', {method:'POST', headers:_authHeaders()})
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(new Error('streaming-token')); })
+      .then(function(d){
+        if (cancelled || !d.token) return;
+        ws=new WebSocket(proto+'//'+host+'/agents/ws/alerts?token='+encodeURIComponent(d.token));
+        ws.onmessage=function(e){
+          try{var d2=JSON.parse(e.data||'{}');if(d2.level==='error'||d2.level==='warning'){setAlertCount(function(n){return n+1;});}}catch(ex){}
+        };
+      })
+      .catch(function(){});
+    return function(){cancelled=true;try{if(ws)ws.close();}catch(e){}};
   },[]);
 
   var role = props.role, perms = props.perms || {};

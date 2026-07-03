@@ -166,6 +166,55 @@ public class JwtService {
         }
     }
 
+    /** TTL do token de streaming — só o suficiente pra abrir a conexão WS/SSE. */
+    private static final long STREAMING_TOKEN_TTL_MS = 60_000L;
+
+    /**
+     * Gera um token de streaming de vida curta (60s), usado em WebSocket/SSE
+     * onde o browser não permite header Authorization customizado (só cookie
+     * ou query string). Achado de segurança (débito aceito): o JWT principal
+     * (8h de validade) trafegando na URL ficava exposto em logs de acesso,
+     * histórico do browser e proxies — este token carrega as mesmas claims
+     * "role"/"perm" do usuário (pra manter a autorização granular idêntica),
+     * mas expira em 60s e tem a claim "scope=stream" que o distingue do
+     * token principal — {@link #isStreamingScope} rejeita qualquer token sem
+     * essa claim, então o token principal não pode ser usado nesses endpoints
+     * mesmo que alguém tente colar ele na URL manualmente.
+     */
+    public String generateStreamingToken(String username, String role, Map<String, String> perms) {
+        long nowMs = System.currentTimeMillis();
+        var builder = Jwts.builder()
+                .subject(username)
+                .issuedAt(new Date(nowMs))
+                .expiration(new Date(nowMs + STREAMING_TOKEN_TTL_MS))
+                .claim("role", role != null ? role : "USER")
+                .claim("scope", "stream")
+                .signWith(key(), Jwts.SIG.HS256);
+        if (perms != null && !perms.isEmpty()) {
+            builder.claim("perm", perms);
+        }
+        return builder.compact();
+    }
+
+    /**
+     * Verifica se o token tem a claim scope=stream — usado por
+     * {@code StreamingTokenFilter} pra garantir que só um token de streaming
+     * (nunca o principal de 8h) seja aceito via query string.
+     */
+    public boolean isStreamingScope(String token) {
+        try {
+            Object scope = Jwts.parser()
+                    .verifyWith(key())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .get("scope");
+            return "stream".equals(scope);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /**
      * Gera um token temporário de 5 minutos com claim totp_pending=true.
      * Usado na segunda etapa do login quando 2FA está ativo.

@@ -172,13 +172,24 @@ export default function ModuloLogs() {
   useEffect(() => { loadDocker(); }, [loadDocker]);
   useEffect(() => { if (activeTab === 'asterisk') loadAsterisk(); }, [activeTab, loadAsterisk]);
 
+  // Achado de segurança (débito aceito): o JWT principal (8h) trafegando na
+  // query string de EventSource/download ficava exposto em logs de acesso e
+  // histórico do browser. EventSource/window.open não permitem header
+  // Authorization customizado, então continuam precisando de query string —
+  // mas agora é um token de streaming de vida curta (60s), buscado sob
+  // demanda a cada conexão/download em vez do token principal de sessão.
+  const getStreamingToken = async (): Promise<string> => {
+    const { data } = await api.post<{ token: string }>('/auth/streaming-token');
+    return data.token;
+  };
+
   // ── SSE Docker ──────────────────────────────────────────────────────────────
-  const toggleDockerLive = () => {
+  const toggleDockerLive = async () => {
     if (dockerLive) {
       dockerEsRef.current?.close(); dockerEsRef.current = null;
       setDockerLive(false); return;
     }
-    const token = localStorage.getItem('asteriskia_token') ?? '';
+    const token = await getStreamingToken();
     const svcs  = [...dockerSvcs].join(',');
     const lvls  = [...dockerLevels].join(',');
     const base  = (import.meta.env.VITE_API_URL ?? '').replace('/api/v1','');
@@ -195,12 +206,12 @@ export default function ModuloLogs() {
   };
 
   // ── SSE Asterisk ─────────────────────────────────────────────────────────────
-  const toggleAstLive = () => {
+  const toggleAstLive = async () => {
     if (astLive) {
       astEsRef.current?.close(); astEsRef.current = null;
       setAstLive(false); return;
     }
-    const token = localStorage.getItem('asteriskia_token') ?? '';
+    const token = await getStreamingToken();
     const lvls  = [...astCats].join(',');
     const base  = (import.meta.env.VITE_API_URL ?? '').replace('/api/v1','');
     const url   = `${base}/api/v1/logs/asterisk/stream?levels=${lvls}&token=${token}`;
@@ -224,13 +235,13 @@ export default function ModuloLogs() {
       services: [...dockerSvcs].join(','), lines: String(dockerLines),
       from: dockerFrom, to: dockerTo,
     });
-    const token = localStorage.getItem('asteriskia_token') ?? '';
+    const token = await getStreamingToken();
     const base  = (import.meta.env.VITE_API_URL ?? '').replace('/api/v1','');
     window.open(`${base}/api/v1/logs/docker/download?${params}&token=${token}`);
   };
 
   const downloadAsterisk = async () => {
-    const token = localStorage.getItem('asteriskia_token') ?? '';
+    const token = await getStreamingToken();
     const base  = (import.meta.env.VITE_API_URL ?? '').replace('/api/v1','');
     window.open(`${base}/api/v1/logs/asterisk/download?lines=${astLines}&token=${token}`);
   };

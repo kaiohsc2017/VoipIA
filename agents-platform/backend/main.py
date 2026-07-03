@@ -121,12 +121,19 @@ app.include_router(llm_config.router, prefix="/api/llm",        tags=["llm"])
 app.include_router(system.router,     prefix="/api/system",     tags=["system"])
 
 def _ws_auth(token: str | None) -> bool:
-    """Valida JWT no handshake do WebSocket (query param ?token=)."""
+    """Valida JWT no handshake do WebSocket (query param ?token=).
+
+    Achado de segurança (débito aceito): o JWT principal (8h de validade)
+    trafegando na query string do WebSocket ficava exposto em logs de acesso
+    e histórico do browser. Agora só aceita o token de streaming de vida
+    curta (60s, claim scope=stream) emitido por POST /api/v1/auth/streaming-token
+    no backend Java — o JWT principal colado na URL não passa mais aqui.
+    """
     if not token:
         return False
     try:
         payload = _jwt.decode(token, JWT_KEY, algorithms=["HS256"])
-        return not payload.get("totp_pending", False)
+        return payload.get("scope") == "stream" and not payload.get("totp_pending", False)
     except JWTError:
         return False
 

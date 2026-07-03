@@ -46,6 +46,7 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final InternalKeyFilter internalKeyFilter;
+    private final StreamingTokenFilter streamingTokenFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -127,7 +128,10 @@ public class SecurityConfig {
                 )
                 // InternalKeyFilter roda antes do JWT: serviços internos usam X-Internal-Key
                 .addFilterBefore(internalKeyFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // StreamingTokenFilter: só entra em ação nos paths de streaming/download de
+                // logs, quando não há Authorization header (SSE não permite header custom).
+                .addFilterBefore(streamingTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
