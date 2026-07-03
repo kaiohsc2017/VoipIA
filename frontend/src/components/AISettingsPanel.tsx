@@ -211,8 +211,8 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({ open, onToggle
           </div>
           <span style={{
             fontSize: '0.65rem', padding: '2px 8px', borderRadius: 6, fontWeight: 500,
-            background: 'rgba(45,79,214,0.08)', color: 'var(--clr-primary)',
-            border: '1px solid rgba(45,79,214,0.2)',
+            background: 'rgba(99,102,241,0.08)', color: 'var(--clr-primary)',
+            border: '1px solid rgba(99,102,241,0.2)',
           }}>ai-agent</span>
           <span style={{
             color: 'var(--text-muted)', transition: 'transform .2s',
@@ -259,17 +259,17 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({ open, onToggle
                         display: 'flex', alignItems: 'center', gap: 10,
                         padding: '10px 14px', borderRadius: 8,
                         background: idx === 0
-                          ? 'rgba(45,79,214,0.05)'
+                          ? 'rgba(99,102,241,0.05)'
                           : 'var(--bg-input)',
                         border: idx === 0
-                          ? '1px solid rgba(45,79,214,0.25)'
+                          ? '1px solid rgba(99,102,241,0.25)'
                           : '1px solid var(--border-glass)',
                       }}>
                         <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'grab' }}>⠿</span>
                         <span style={{
                           fontSize: '0.7rem', fontWeight: 600,
                           padding: '1px 7px', borderRadius: 20, minWidth: 20, textAlign: 'center',
-                          background: idx === 0 ? 'rgba(45,79,214,0.12)' : 'rgba(148,163,184,0.12)',
+                          background: idx === 0 ? 'rgba(99,102,241,0.12)' : 'rgba(148,163,184,0.12)',
                           color: idx === 0 ? 'var(--clr-primary)' : 'var(--text-secondary)',
                         }}>{idx + 1}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -439,7 +439,7 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({ open, onToggle
                       onClick={() => !disabled && selectProvider(prov)}
                       style={{
                         border: `1px solid ${selected ? 'var(--clr-primary)' : 'var(--border-glass)'}`,
-                        background: selected ? 'rgba(45,79,214,0.06)' : 'var(--bg-input)',
+                        background: selected ? 'rgba(99,102,241,0.06)' : 'var(--bg-input)',
                         borderRadius: 8, padding: '10px 12px',
                         cursor: disabled ? 'not-allowed' : 'pointer',
                         opacity: disabled ? .45 : 1,
@@ -487,7 +487,7 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({ open, onToggle
                         style={{
                           padding: '10px 14px', cursor: 'pointer',
                           borderBottom: '1px solid var(--border-glass)',
-                          background: selModel?.id === model.id ? 'rgba(45,79,214,0.05)' : 'transparent',
+                          background: selModel?.id === model.id ? 'rgba(99,102,241,0.05)' : 'transparent',
                           transition: 'background 0.1s',
                         }}
                       >

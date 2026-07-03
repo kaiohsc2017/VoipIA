@@ -1,3 +1,9 @@
+import type { ComponentType } from 'react';
+import {
+  LayoutDashboard, Headset, PhoneCall, AlertTriangle, Bot, Users, UsersRound,
+  Settings, Terminal, ShieldCheck, KeyRound, ClipboardList, ChevronLeft,
+  ChevronRight, LogOut, ExternalLink,
+} from 'lucide-react';
 import { canRead } from '../api/client';
 
 type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups';
@@ -17,19 +23,19 @@ interface SidebarProps {
 // / access_group_permissions) — manter em sincronia manual com o backend.
 // Itens com adminOnly (em vez de resource) não têm resource_key próprio —
 // o backend exige ROLE_ADMIN puro nesse endpoint (ver AccessGroupController).
-const NAV_ITEMS: { page: Page; icon: string; label: string; section: string; external?: string; resource?: string; adminOnly?: boolean }[] = [
-  { page: 'dashboard',  icon: '📊', label: 'Dashboard',          section: 'GERAL',     resource: 'telecom.dashboard'    },
-  { page: 'modulo1',    icon: '🎫', label: 'URA',                section: 'MÓDULOS',   resource: 'telecom.modulo1'      },
-  { page: 'modulo2',    icon: '📞', label: 'Conectividade',      section: 'MÓDULOS',   resource: 'telecom.modulo2'      },
-  { page: 'modulo3',    icon: '🚨', label: 'Monitoramento',      section: 'MÓDULOS',   resource: 'telecom.modulo3'      },
-  { page: 'agents',     icon: '🤖', label: 'Agentes',            section: 'MÓDULOS',   resource: 'telecom.agents_link', external: '/agents/' },
-  { page: 'masterdata', icon: '👤', label: 'Clientes',           section: 'CADASTROS', resource: 'telecom.masterdata'   },
-  { page: 'users',      icon: '👥', label: 'Usuários e Ramais',  section: 'CADASTROS', resource: 'telecom.users'        },
-  { page: 'settings',   icon: '🔧', label: 'Configurações',      section: 'SISTEMA',   resource: 'telecom.settings'     },
-  { page: 'logs',       icon: '🖥️', label: 'Logs',               section: 'SISTEMA',   resource: 'telecom.logs'         },
-  { page: 'security',   icon: '🛡️', label: 'Segurança',          section: 'SISTEMA',   resource: 'telecom.security'     },
-  { page: 'accessGroups', icon: '🔑', label: 'Grupos de Acesso', section: 'SISTEMA',   adminOnly: true                  },
-  { page: 'audit',      icon: '🔐', label: 'Auditoria',          section: 'SISTEMA',   resource: 'telecom.audit'        },
+const NAV_ITEMS: { page: Page; icon: ComponentType<{ size?: number; strokeWidth?: number }>; label: string; section: string; external?: string; resource?: string; adminOnly?: boolean }[] = [
+  { page: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard',          section: 'GERAL',     resource: 'telecom.dashboard'    },
+  { page: 'modulo1',    icon: Headset,         label: 'URA',                section: 'MÓDULOS',   resource: 'telecom.modulo1'      },
+  { page: 'modulo2',    icon: PhoneCall,       label: 'Conectividade',      section: 'MÓDULOS',   resource: 'telecom.modulo2'      },
+  { page: 'modulo3',    icon: AlertTriangle,   label: 'Monitoramento',      section: 'MÓDULOS',   resource: 'telecom.modulo3'      },
+  { page: 'agents',     icon: Bot,             label: 'Agentes',            section: 'MÓDULOS',   resource: 'telecom.agents_link', external: '/agents/' },
+  { page: 'masterdata', icon: Users,           label: 'Clientes',           section: 'CADASTROS', resource: 'telecom.masterdata'   },
+  { page: 'users',      icon: UsersRound,      label: 'Usuários e Ramais',  section: 'CADASTROS', resource: 'telecom.users'        },
+  { page: 'settings',   icon: Settings,        label: 'Configurações',      section: 'SISTEMA',   resource: 'telecom.settings'     },
+  { page: 'logs',       icon: Terminal,        label: 'Logs',               section: 'SISTEMA',   resource: 'telecom.logs'         },
+  { page: 'security',   icon: ShieldCheck,     label: 'Segurança',          section: 'SISTEMA',   resource: 'telecom.security'     },
+  { page: 'accessGroups', icon: KeyRound,      label: 'Grupos de Acesso',   section: 'SISTEMA',   adminOnly: true                  },
+  { page: 'audit',      icon: ClipboardList,   label: 'Auditoria',          section: 'SISTEMA',   resource: 'telecom.audit'        },
 ];
 
 export default function Sidebar({ currentPage, onNavigate, username, role, perms, onLogout, collapsed, onToggleCollapse }: SidebarProps) {
@@ -55,6 +61,7 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
         {visibleItems.map(item => {
           const showSection = item.section !== lastSection;
           lastSection = item.section;
+          const Icon = item.icon;
           return (
             <div key={item.page}>
               {showSection && (
@@ -69,9 +76,9 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
                   title={collapsed ? item.label : undefined}
                   style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
-                  <span className="nav-icon">{item.icon}</span>
+                  <span className="nav-icon"><Icon size={17} strokeWidth={1.75} /></span>
                   <span>{item.label}</span>
-                  {!collapsed && <span style={{ marginLeft: 'auto', fontSize: '10px', opacity: 0.5 }}>↗</span>}
+                  {!collapsed && <ExternalLink size={12} style={{ marginLeft: 'auto', opacity: 0.5 }} />}
                 </a>
               ) : (
                 <div
@@ -82,7 +89,7 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
                   title={collapsed ? item.label : undefined}
                   onKeyDown={e => e.key === 'Enter' && onNavigate(item.page)}
                 >
-                  <span className="nav-icon">{item.icon}</span>
+                  <span className="nav-icon"><Icon size={17} strokeWidth={1.75} /></span>
                   <span>{item.label}</span>
                 </div>
               )}
@@ -99,7 +106,9 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
           onClick={onToggleCollapse}
           title={collapsed ? 'Expandir menu' : 'Recolher menu'}
         >
-          <span className="toggle-icon">{collapsed ? '▶' : '◀'}</span>
+          <span className="toggle-icon">
+            {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+          </span>
           <span className="toggle-label">Recolher</span>
         </button>
 
@@ -113,7 +122,7 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
           </div>
         </div>
         <button className="btn-logout" onClick={onLogout}>
-          <span>🚪</span>
+          <LogOut size={15} />
           <span>Sair</span>
         </button>
       </div>

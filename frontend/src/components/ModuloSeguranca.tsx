@@ -325,8 +325,8 @@ export default function ModuloSeguranca() {
           <button key={id} onClick={() => setActiveTab(id)} style={{
             padding:'9px 18px', background:'none', border:'none', cursor:'pointer',
             fontSize:'0.85rem', fontWeight: activeTab===id ? 600 : 400,
-            color: activeTab===id ? '#2d4fd6' : 'var(--text-muted)',
-            borderBottom: activeTab===id ? '2px solid #2d4fd6' : '2px solid transparent',
+            color: activeTab===id ? '#6366f1' : 'var(--text-muted)',
+            borderBottom: activeTab===id ? '2px solid #6366f1' : '2px solid transparent',
           }}>{label}</button>
         ))}
       </div>

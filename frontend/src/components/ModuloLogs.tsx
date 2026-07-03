@@ -66,7 +66,7 @@ function MiniChart({ data, height=48 }: { data?: ChartData; height?: number }) {
       <div style={{ fontSize:'0.72rem', color:'var(--text-muted)', marginBottom:6, display:'flex', alignItems:'center', gap:6 }}>
         📊 Volume por hora
         <span style={{ marginLeft:'auto', display:'flex', gap:10, fontSize:'0.68rem' }}>
-          <span style={{ color:'rgba(45,79,214,0.7)' }}>■ eventos</span>
+          <span style={{ color:'rgba(99,102,241,0.7)' }}>■ eventos</span>
           <span style={{ color:'rgba(185,28,28,0.6)' }}>■ erros</span>
         </span>
       </div>
@@ -80,7 +80,7 @@ function MiniChart({ data, height=48 }: { data?: ChartData; height?: number }) {
             <div key={h} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:1 }}>
               <div style={{ width:'100%', display:'flex', flexDirection:'column', alignItems:'center', gap:1 }}>
                 {errH > 0 && <div style={{ width:'100%', height:errH, background:'rgba(185,28,28,0.5)', borderRadius:'2px 2px 0 0' }}/>}
-                <div style={{ width:'100%', height:barH-errH, background:'rgba(45,79,214,0.4)', borderRadius: errH>0?0:'2px 2px 0 0' }}/>
+                <div style={{ width:'100%', height:barH-errH, background:'rgba(99,102,241,0.4)', borderRadius: errH>0?0:'2px 2px 0 0' }}/>
               </div>
               <span style={{ fontSize:9, color:'var(--text-muted)', whiteSpace:'nowrap' }}>{h}</span>
             </div>
@@ -283,8 +283,8 @@ export default function ModuloLogs() {
           <button key={id} onClick={() => setActiveTab(id)} style={{
             padding:'10px 20px', background:'none', border:'none', cursor:'pointer',
             fontSize:'0.88rem', fontWeight: activeTab===id ? 600 : 400,
-            color: activeTab===id ? '#2d4fd6' : 'var(--text-muted)',
-            borderBottom: activeTab===id ? '2px solid #2d4fd6' : '2px solid transparent',
+            color: activeTab===id ? '#6366f1' : 'var(--text-muted)',
+            borderBottom: activeTab===id ? '2px solid #6366f1' : '2px solid transparent',
           }}>{label}</button>
         ))}
       </div>
@@ -299,8 +299,8 @@ export default function ModuloLogs() {
               <button key={id} onClick={() => { setDockerSubTab(id); if(dockerLive){toggleDockerLive();} }} style={{
                 padding:'8px 16px', background:'none', border:'none', cursor:'pointer',
                 fontSize:'0.82rem', fontWeight: dockerSubTab===id ? 600 : 400,
-                color: dockerSubTab===id ? '#2d4fd6' : 'var(--text-muted)',
-                borderBottom: dockerSubTab===id ? '2px solid #2d4fd6' : '2px solid transparent',
+                color: dockerSubTab===id ? '#6366f1' : 'var(--text-muted)',
+                borderBottom: dockerSubTab===id ? '2px solid #6366f1' : '2px solid transparent',
               }}>{label}</button>
             ))}
           </div>
@@ -344,9 +344,9 @@ export default function ModuloLogs() {
               <button key={s} onClick={() => setDockerSvcs(toggleSet(dockerSvcs, s))}
                 style={{
                   fontSize:'0.72rem', padding:'2px 8px', borderRadius:4, cursor:'pointer',
-                  border: dockerSvcs.has(s) ? '1px solid rgba(45,79,214,0.4)' : '0.5px solid var(--border-glass)',
-                  background: dockerSvcs.has(s) ? 'rgba(45,79,214,0.08)' : 'var(--bg-card)',
-                  color: dockerSvcs.has(s) ? '#2d4fd6' : 'var(--text-muted)',
+                  border: dockerSvcs.has(s) ? '1px solid rgba(99,102,241,0.4)' : '0.5px solid var(--border-glass)',
+                  background: dockerSvcs.has(s) ? 'rgba(99,102,241,0.08)' : 'var(--bg-card)',
+                  color: dockerSvcs.has(s) ? '#6366f1' : 'var(--text-muted)',
                 }}>{s}</button>
             ))}
             <span style={{ fontSize:'0.72rem', color:'var(--text-muted)', marginLeft:8, marginRight:2 }}>Nível:</span>
@@ -480,9 +480,9 @@ export default function ModuloLogs() {
                 <button key={c} onClick={() => setAstCats(toggleSet(astCats, c))}
                   style={{
                     fontSize:'0.72rem', padding:'2px 8px', borderRadius:4, cursor:'pointer',
-                    border: astCats.has(c) ? `1px solid ${LEVEL_COLORS[c] ?? '#2d4fd6'}55` : '0.5px solid var(--border-glass)',
-                    background: astCats.has(c) ? (LEVEL_BG[c] ?? 'rgba(45,79,214,0.08)') : 'var(--bg-card)',
-                    color: astCats.has(c) ? (LEVEL_COLORS[c] ?? '#2d4fd6') : 'var(--text-muted)',
+                    border: astCats.has(c) ? `1px solid ${LEVEL_COLORS[c] ?? '#6366f1'}55` : '0.5px solid var(--border-glass)',
+                    background: astCats.has(c) ? (LEVEL_BG[c] ?? 'rgba(99,102,241,0.08)') : 'var(--bg-card)',
+                    color: astCats.has(c) ? (LEVEL_COLORS[c] ?? '#6366f1') : 'var(--text-muted)',
                   }}>{c}</button>
               ))}
               <span style={{ marginLeft:'auto', fontSize:'0.72rem', color:'var(--text-muted)' }}>

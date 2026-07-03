@@ -234,8 +234,8 @@ function AsteriskFilePanel({
         </div>
         <span style={{
           fontSize: '0.65rem', padding: '2px 8px', borderRadius: 6, fontWeight: 500,
-          background: 'rgba(45,79,214,0.08)', color: 'var(--clr-primary)',
-          border: '1px solid rgba(45,79,214,0.2)',
+          background: 'rgba(99,102,241,0.08)', color: 'var(--clr-primary)',
+          border: '1px solid rgba(99,102,241,0.2)',
         }}>asterisk</span>
         <span style={{
           color: 'var(--text-muted)', transition: 'transform .2s',
@@ -249,7 +249,7 @@ function AsteriskFilePanel({
           {/* Hint */}
           <div style={{
             marginTop: 14, padding: '10px 14px', borderRadius: 8,
-            background: 'rgba(45,79,214,0.05)', border: '1px solid rgba(45,79,214,0.15)',
+            background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)',
             fontSize: '0.78rem', color: 'var(--clr-primary)', lineHeight: 1.6,
           }}>
             {hint}
