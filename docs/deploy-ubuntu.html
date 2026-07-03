@@ -135,9 +135,16 @@
     <tr><td>443</td><td>TCP/UDP</td><td>HTTPS / QUIC (Caddy)</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
     <tr><td>5060</td><td>UDP/TCP</td><td>SIP (registro de softphones)</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
     <tr><td>8088</td><td>TCP</td><td>WebSocket Asterisk (WebRTC)</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
-    <tr><td>10000–10100</td><td>UDP</td><td>RTP media (áudio das chamadas)</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
+    <tr><td>15000–15500</td><td>UDP</td><td>RTP media (áudio das chamadas)</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
+    <tr><td>3478</td><td>UDP/TCP</td><td>TURN (coturn) — controle</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
+    <tr><td>5349</td><td>UDP/TCP</td><td>TURNS (coturn, TLS)</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
+    <tr><td>49152–49652</td><td>UDP</td><td>TURN — relay de mídia</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
     <tr><td>22</td><td>TCP</td><td>SSH</td><td><span class="badge badge-info">Manutenção</span></td></tr>
   </table>
+  <div class="callout info">
+    <div class="callout-icon">ℹ️</div>
+    <p><strong>TURN (coturn)</strong> é o relay usado quando STUN não basta pra atravessar NAT (ex: NAT simétrico, redes corporativas restritivas) — sem essas portas abertas, o softphone WebRTC pode falhar em conectar áudio para uma fração dos usuários, mesmo com SIP_PUBLIC_IP correto.</p>
+  </div>
 </div>
 
 <div class="section anchor" id="sistema">
@@ -208,7 +215,13 @@ nano /opt/AsteriskIA/env/.env</span></pre>
     <tr><td><code>BACKEND_JWT_SECRET</code></td><td>Segredo JWT (mín. 32 chars)</td><td><code>openssl rand -base64 32</code></td></tr>
     <tr><td><code>INTERNAL_API_KEY</code></td><td>Chave ai-agent &harr; backend</td><td><code>openssl rand -hex 16</code></td></tr>
     <tr><td><code>AST_AMI_PASSWORD</code></td><td>Senha AMI Asterisk</td><td><code>openssl rand -hex 16</code></td></tr>
+    <tr><td><code>TURN_CREDENTIAL</code></td><td>Credencial do relay TURN (coturn) — deve ser <strong>igual</strong> a <code>VITE_TURN_CREDENTIAL</code></td><td><code>openssl rand -hex 16</code></td></tr>
+    <tr><td><code>VITE_TURN_URL</code></td><td>URL do TURN visível pelo cliente WebRTC</td><td><code>turn:SEU_IP_PUBLICO:3478</code></td></tr>
   </table>
+  <div class="callout ok">
+    <div class="callout-icon">✅</div>
+    <p><strong>Caminho recomendado:</strong> use <code>bash install.sh</code> (raiz do repositório) em vez de editar o <code>.env</code> manualmente — ele gera todas as credenciais acima automaticamente (senhas, JWT secret, TURN, ramais SIP), detecta o IP público e já configura o firewall. Os passos manuais desta página servem como referência/troubleshooting, não como o fluxo principal.</p>
+  </div>
   <div class="callout info">
     <div class="callout-icon">ℹ️</div>
     <p>A API Key da IA é configurada pelo painel (Settings → Inteligência Artificial), não no .env. Os modelos são gerenciados no banco — alterar no .env não tem efeito.</p>
@@ -247,8 +260,10 @@ asteriskia-security     Up (healthy)</span></pre>
 {"level":"info","msg":"authorization finalized","identifier":"app.voiphash.com.br","authz_status":"valid"}</span>
 
 <span class="cmt"># Recarregar Caddyfile sem downtime (após editar o arquivo)</span>
-<span class="cmd">curl -X POST http://localhost:2019/load   -H "Content-Type: text/caddyfile"   --data-binary @/opt/AsteriskIA/Caddyfile</span>
-<span class="out">{"id":""}</span></pre>
+<span class="cmt"># Admin API via socket Unix (não TCP:2019 — evita expor a API pra outros containers da rede)</span>
+<span class="cmd">curl --unix-socket /opt/AsteriskIA/caddy-admin/admin.sock http://localhost/load \
+  -H "Content-Type: text/caddyfile" \
+  --data-binary @/opt/AsteriskIA/Caddyfile</span></pre>
   </div>
 </div>
 
@@ -320,7 +335,7 @@ docker exec asteriskia-asterisk asterisk -rx "module reload res_pjsip.so"</span>
     <tr><td>Servidor</td><td><code>SEU_IP_PUBLICO</code></td></tr>
     <tr><td>Porta</td><td><code>5060 UDP</code></td></tr>
     <tr><td>Usuário</td><td><code>9002</code></td></tr>
-    <tr><td>Senha</td><td><code>sip9002pass2025</code></td></tr>
+    <tr><td>Senha</td><td>Gerada automaticamente pelo <code>install.sh</code> — ver <code>grep RAMAL_9002_PASSWORD env/.env</code></td></tr>
     <tr><td>Codecs</td><td>G.729 / G.711a / G.711u</td></tr>
   </table>
   <h3>URA — Ramal 1000</h3>
@@ -357,12 +372,15 @@ ufw allow ssh
 ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 443/udp
 ufw allow 5060/udp && ufw allow 5060/tcp
 ufw allow 8088/tcp
-ufw allow 10000:10100/udp
+ufw allow 15000:15500/udp
+ufw allow 3478/udp && ufw allow 3478/tcp
+ufw allow 5349/tcp && ufw allow 5349/udp
+ufw allow 49152:49652/udp
 ufw --force enable</span></pre>
   </div>
   <div class="callout warn">
     <div class="callout-icon">⚠️</div>
-    <p>Se o servidor está atrás de um firewall de cloud (AWS Security Groups, Oracle NSG), abra as mesmas portas também no nível do cloud provider — especialmente <strong>10000-10100/UDP</strong> para RTP.</p>
+    <p>Se o servidor está atrás de um firewall de cloud (AWS Security Groups, Oracle NSG), abra as mesmas portas também no nível do cloud provider — especialmente <strong>15000-15500/UDP</strong> (RTP) e <strong>49152-49652/UDP</strong> (relay TURN).</p>
   </div>
 </div>
 
@@ -413,8 +431,8 @@ docker exec asteriskia-asterisk asterisk -rx "dialplan reload"</span></pre>
   <div class="code-block"><div class="code-header"><span class="code-label">Recarregar PJSIP (sem restart)</span></div>
     <pre><span class="cmd">docker exec asteriskia-asterisk asterisk -rx "module reload res_pjsip.so"</span></pre>
   </div>
-  <div class="code-block"><div class="code-header"><span class="code-label">Recarregar Caddyfile</span></div>
-    <pre><span class="cmd">curl -X POST "http://localhost:2019/load" \
+  <div class="code-block"><div class="code-header"><span class="code-label">Recarregar Caddyfile (socket Unix, não TCP:2019)</span></div>
+    <pre><span class="cmd">curl --unix-socket /opt/AsteriskIA/caddy-admin/admin.sock http://localhost/load \
   -H "Content-Type: text/caddyfile" \
   --data-binary @/opt/AsteriskIA/Caddyfile</span></pre>
   </div>
@@ -442,7 +460,9 @@ docker exec asteriskia-asterisk asterisk -rx "dialplan reload"</span></pre>
     <li>Perguntas da URA configuradas no Módulo 1 → Fluxo URA</li>
     <li>Teste de chamada 9001 → 1000 com boas-vindas audível</li>
     <li>Chamada completa com Jira criado e dashboard atualizado</li>
-    <li>Portas 10000-10100/UDP abertas no firewall e cloud provider</li>
+    <li>Portas 15000-15500/UDP (RTP) abertas no firewall e cloud provider</li>
+    <li>Portas do TURN abertas: 3478 (tcp/udp), 5349 (tcp/udp), 49152-49652/UDP</li>
+    <li>TURN_CREDENTIAL e VITE_TURN_CREDENTIAL configurados e idênticos</li>
     <li>Fail2ban ativo para proteção contra SIP scanners</li>
     <li>Backup automático configurado</li>
   </ul>
