@@ -463,18 +463,33 @@ em https://claude.ai/code/artifact/b04225b4-fef1-4c3c-95f1-9951de5389c9.
 - `SuporteController` cria issues reais no Jira via function calling da IA (tool `abrir_protocolo_suporte`)
 - Swagger/OpenAPI foi removido do projeto (dependência springdoc retirada do pom.xml)
 
-### 🟢 Débito de segurança aceito (revisão completa concluída — ver memória `asteriskia-security-remediation`)
-- Hardening de infra Docker: containers rodando como root (falta `USER` não-root nos Dockerfiles),
-  sem resource limits (memory/cpu), `coturn` com `user: root`, `security/entrypoint.sh` monta a
-  fila `security_cmds` com `chmod 777` — mexer nisso exige rebuild+teste cuidadoso de múltiplos
-  containers, área sensível dado o histórico de fragilidade do WebRTC
-- CSP (Content-Security-Policy) deliberadamente ausente no Caddyfile — headers HSTS/X-Content-Type-Options/
-  X-Frame-Options/Referrer-Policy já aplicados, mas CSP precisa de teste manual completo do softphone
-  (registro SIP + áudio bidirecional) antes de ativar, mesmo em modo Report-Only primeiro
-- Token JWT trafega via query string em conexões WebSocket (`agents-platform/backend/main.py`)
-  e EventSource/SSE (`frontend/src/components/ModuloLogs.tsx`) — limitação de API do browser
-  (não dá pra mandar header customizado nessas duas APIs); mitigação correta é um token de
-  streaming dedicado e de vida curta, ainda não implementado
+### ✅ Débito de segurança — 2 de 3 fechados (2026-07-03), 1 parcial
+- **CSP**: `Content-Security-Policy-Report-Only` ativo no Caddyfile (não bloqueia nada, só reporta
+  violações no console do browser) — validado em produção. Migrar pra enforcement real exige
+  observar violações reais primeiro (softphone, WebRTC) antes de trocar pra `Content-Security-Policy`.
+- **Token JWT via query string em WS/SSE**: substituído por token de streaming dedicado (60s, claim
+  `scope=stream`) — `POST /api/v1/auth/streaming-token` (Java) emite, `StreamingTokenFilter` (Java) e
+  `_ws_auth` (Python) validam. Streaming token não funciona como Bearer normal nem pode gerar outro
+  streaming token (renovação em cadeia bloqueada). Validado em produção.
+- **Hardening de infra Docker — parcial**:
+  - ✅ Resource limits (memory/cpus) em todos os 10 serviços.
+  - ✅ `frontend` (nginx) roda como usuário não-root (`CAP_NET_BIND_SERVICE` pra ainda bindar a
+    porta 80) — validado com tráfego real em produção.
+  - ⏳ **Continua root, por bloqueio real confirmado em produção** (não é preguiça — tentei
+    `agents-backend` e quebrou): `agents-backend`, `ai-agent` e o `backend` Java montam
+    bind mounts/volumes compartilhados com outro container rodando como root
+    (`/opt/AsteriskIA/env` é `700 root:root` no host; `asterisk_recordings` é escrito pelo
+    `asterisk`; `security_cmds`/`fail2ban_socket` são escritos pelo `security`) — um UID não-root
+    não consegue ler/escrever nesses caminhos compartilhados. Corrigir direito exige um esquema de
+    GID compartilhado entre os containers ou mudar permissão de diretório no host — mudança maior,
+    ainda não feita.
+  - ⏳ `docker-helper` continua root **por design, não por descuido**: ele monta `/var/run/docker.sock`,
+    e isso já equivale a root no host independente do UID do processo dentro do container —
+    de-rootizar não traria ganho de segurança real.
+  - ⏳ `asterisk`/`coturn`/`security` continuam root: portas privilegiadas (5060, 3478) e
+    `NET_ADMIN`/`network_mode: host` são requisitos genuínos da função de cada um.
+  - ⏳ `chmod 777` na fila `security_cmds` (`security/entrypoint.sh`) segue como está — depende do
+    mesmo fix de GID compartilhado do `backend` acima.
 
 ---
 
