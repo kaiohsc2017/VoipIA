@@ -40,11 +40,13 @@ import subprocess, os, sys, json, textwrap, re
 from pathlib import Path
 from datetime import datetime, timezone
 
-try:
-    from google import genai
-    from google.genai import types
-except ImportError:
-    print("❌  pip install google-genai"); sys.exit(1)
+# Achado de performance: `from google import genai` sozinho leva ~1.4s (SDK
+# pesada — carrega grpc/protobuf/etc.) e respondia por ~85% do tempo de
+# inicialização do script. Import adiado pra dentro de main(), logo após o
+# banner aparecer na tela — o usuário vê feedback imediato em vez de esperar
+# a SDK carregar antes de qualquer coisa aparecer. TOOL_DECLARATIONS/
+# TOOLS_LIST (dependem de `types`) foram movidos pra dentro de main() pelo
+# mesmo motivo — não podem ficar em nível de módulo sem o import.
 
 try:
     import psycopg2
@@ -560,61 +562,6 @@ def handle_memory_write(args: dict, mem: Memory) -> str:
     except Exception as e:
         return json.dumps({"success": False, "output": str(e)})
 
-# ─── Definição das ferramentas para o Gemini ─────────────────────────────────
-
-TOOL_DECLARATIONS = [
-    types.FunctionDeclaration(
-        name="bash",
-        description=(
-            "Executa comando bash no VPS de produção do AsteriskIA. "
-            "Leitura: execute direto. Modificação: requires_confirmation=true."
-        ),
-        parameters={"type": "object", "properties": {
-            "command":              {"type": "string", "description": "Comando bash a executar"},
-            "description":          {"type": "string", "description": "O que o comando faz"},
-            "requires_confirmation": {"type": "boolean", "description": "True para comandos destrutivos"},
-        }, "required": ["command", "description"]},
-    ),
-    types.FunctionDeclaration(
-        name="write_file",
-        description="Escreve/sobrescreve arquivo no VPS. Sempre pede confirmação e faz backup.",
-        parameters={"type": "object", "properties": {
-            "path":        {"type": "string", "description": "Caminho absoluto"},
-            "content":     {"type": "string", "description": "Conteúdo completo"},
-            "description": {"type": "string", "description": "Descrição da mudança"},
-        }, "required": ["path", "content", "description"]},
-    ),
-    types.FunctionDeclaration(
-        name="memory_write",
-        description=(
-            "Grava uma memória persistente no banco. Use para registrar aprendizados da sessão: "
-            "fixes aplicados, padrões de erro descobertos, preferências do usuário, "
-            "estado atualizado do projeto, ou resumo da sessão. "
-            "Chame isso sempre que aprender algo novo ou resolver um problema."
-        ),
-        parameters={"type": "object", "properties": {
-            "type": {
-                "type": "string",
-                "enum": ["fix", "error_pattern", "preference", "project_state", "session_summary"],
-                "description": "Tipo de memória a gravar",
-            },
-            "data": {
-                "type": "object",
-                "description": (
-                    "Dados da memória. "
-                    "fix: {title, problem, root_cause, fix_applied, files_changed[], commands_run[], succeeded, notes, tags[]} | "
-                    "error_pattern: {pattern, cause, solution, tags[]} | "
-                    "preference: {key, value} | "
-                    "project_state: {key, value} | "
-                    "session_summary: {summary, actions[], outcome}"
-                ),
-            },
-        }, "required": ["type", "data"]},
-    ),
-]
-
-TOOLS_LIST = [types.Tool(function_declarations=TOOL_DECLARATIONS)]
-
 # ─── UI ───────────────────────────────────────────────────────────────────────
 
 def banner(mem: Memory):
@@ -677,10 +624,67 @@ def main():
         db_pass = env.get("DB_PASS") or env.get("POSTGRES_PASSWORD", "")
         dsn = f"host={db_host} port={db_port} dbname={db_name} user={db_user} password={db_pass}"
 
-    mem    = Memory(dsn)
+    mem = Memory(dsn)
+    banner(mem)
+
+    # Import pesado adiado até aqui — banner já visível, feedback imediato pro usuário.
+    from google import genai
+    from google.genai import types
+
     client = genai.Client(api_key=api_key)
 
-    banner(mem)
+    # ─── Definição das ferramentas para o Gemini ───────────────────────────────
+    TOOL_DECLARATIONS = [
+        types.FunctionDeclaration(
+            name="bash",
+            description=(
+                "Executa comando bash no VPS de produção do AsteriskIA. "
+                "Leitura: execute direto. Modificação: requires_confirmation=true."
+            ),
+            parameters={"type": "object", "properties": {
+                "command":              {"type": "string", "description": "Comando bash a executar"},
+                "description":          {"type": "string", "description": "O que o comando faz"},
+                "requires_confirmation": {"type": "boolean", "description": "True para comandos destrutivos"},
+            }, "required": ["command", "description"]},
+        ),
+        types.FunctionDeclaration(
+            name="write_file",
+            description="Escreve/sobrescreve arquivo no VPS. Sempre pede confirmação e faz backup.",
+            parameters={"type": "object", "properties": {
+                "path":        {"type": "string", "description": "Caminho absoluto"},
+                "content":     {"type": "string", "description": "Conteúdo completo"},
+                "description": {"type": "string", "description": "Descrição da mudança"},
+            }, "required": ["path", "content", "description"]},
+        ),
+        types.FunctionDeclaration(
+            name="memory_write",
+            description=(
+                "Grava uma memória persistente no banco. Use para registrar aprendizados da sessão: "
+                "fixes aplicados, padrões de erro descobertos, preferências do usuário, "
+                "estado atualizado do projeto, ou resumo da sessão. "
+                "Chame isso sempre que aprender algo novo ou resolver um problema."
+            ),
+            parameters={"type": "object", "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["fix", "error_pattern", "preference", "project_state", "session_summary"],
+                    "description": "Tipo de memória a gravar",
+                },
+                "data": {
+                    "type": "object",
+                    "description": (
+                        "Dados da memória. "
+                        "fix: {title, problem, root_cause, fix_applied, files_changed[], commands_run[], succeeded, notes, tags[]} | "
+                        "error_pattern: {pattern, cause, solution, tags[]} | "
+                        "preference: {key, value} | "
+                        "project_state: {key, value} | "
+                        "session_summary: {summary, actions[], outcome}"
+                    ),
+                },
+            }, "required": ["type", "data"]},
+        ),
+    ]
+    TOOLS_LIST = [types.Tool(function_declarations=TOOL_DECLARATIONS)]
 
     print(f"{C.GRAY}Coletando estado dos containers…{C.R}")
     r = run_cmd("docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'")
