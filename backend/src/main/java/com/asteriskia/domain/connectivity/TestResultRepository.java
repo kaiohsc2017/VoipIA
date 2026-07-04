@@ -16,12 +16,18 @@ public interface TestResultRepository extends JpaRepository<TestResult, Long> {
      * Query unificada com todos os filtros opcionais.
      * Cada parâmetro é ignorado quando NULL — permite qualquer combinação de filtros
      * sem explodir em if/else.
+     *
+     * dateFrom/dateTo usam CAST explícito no lado do "IS NULL": sem o cast, o Postgres
+     * não consegue inferir o tipo desse parâmetro (só aparece em "? IS NULL", sem
+     * nenhuma outra coluna pra deduzir o tipo) e falha com
+     * "ERROR: could not determine data type of parameter $N" sempre que a busca é
+     * feita sem informar as duas datas.
      */
     @Query("SELECT r FROM TestResult r JOIN r.numberTest nt " +
            "WHERE (:numberTestId  IS NULL OR nt.id                  = :numberTestId) " +
            "AND   (:status        IS NULL OR r.status               = :status) " +
-           "AND   (:dateFrom      IS NULL OR r.executedAt           >= :dateFrom) " +
-           "AND   (:dateTo        IS NULL OR r.executedAt           <= :dateTo) " +
+           "AND   (CAST(:dateFrom AS timestamp) IS NULL OR r.executedAt >= :dateFrom) " +
+           "AND   (CAST(:dateTo   AS timestamp) IS NULL OR r.executedAt <= :dateTo) " +
            "AND   (:businessUnitId IS NULL OR nt.businessUnit.id    = :businessUnitId) " +
            "AND   (:clientId      IS NULL OR nt.client.id           = :clientId) " +
            "AND   (:operationId   IS NULL OR nt.operation.id        = :operationId) " +

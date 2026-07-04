@@ -10,15 +10,12 @@ interface Jail {
 interface BannedIp {
   ip: string; jail: string; origin: 'fail2ban'|'manual'; note?: string; ts?: string;
 }
-interface Threat {
-  ip: string; jail: string; failures: number;
-}
 interface Status {
   fail2banRunning: boolean; activeJails: number; totalBanned: number;
   jails: Jail[]; whitelist: string[];
 }
 
-type ActiveTab = 'jails'|'blocked'|'whitelist'|'threats';
+type ActiveTab = 'jails'|'blocked'|'whitelist';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const JAIL_LABELS: Record<string,string> = {
@@ -60,7 +57,6 @@ function Badge({ children, color }: { children: React.ReactNode; color: 'green'|
 export default function ModuloSeguranca() {
   const [status,     setStatus]     = useState<Status|null>(null);
   const [banned,     setBanned]     = useState<BannedIp[]>([]);
-  const [threats,    setThreats]    = useState<Threat[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [activeTab,  setActiveTab]  = useState<ActiveTab>('jails');
 
@@ -97,15 +93,13 @@ export default function ModuloSeguranca() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [statusRes, bannedRes, threatsRes, lockdownRes] = await Promise.all([
+      const [statusRes, bannedRes, lockdownRes] = await Promise.all([
         api.get<Status>('/security/status'),
         api.get<BannedIp[]>('/security/banned'),
-        api.get<Threat[]>('/security/threats'),
         api.get<{active:boolean}>('/security/lockdown'),
       ]);
       setStatus(statusRes.data);
       setBanned(bannedRes.data);
-      setThreats(threatsRes.data);
       setLockdown(lockdownRes.data.active);
     } catch { showToast(false, 'Erro ao carregar dados de segurança.'); }
     finally { setLoading(false); }
@@ -173,14 +167,6 @@ export default function ModuloSeguranca() {
       showToast(true, `IP ${ip} desbloqueado.`);
       load();
     } catch { showToast(false, 'Erro ao desbloquear IP.'); }
-  };
-
-  const handleBanThreat = async (t: Threat) => {
-    try {
-      await api.post('/security/ban', { ip: t.ip, note: `Banido manualmente via ameaças (${t.failures} tentativas)`, jail: t.jail });
-      showToast(true, `IP ${t.ip} bloqueado.`);
-      load();
-    } catch { showToast(false, 'Erro.'); }
   };
 
   // ── Whitelist ─────────────────────────────────────────────────────────────
@@ -301,11 +287,10 @@ export default function ModuloSeguranca() {
       </div>
 
       {/* Cards de estatísticas */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:20 }}>
         {[
           { val: status?.totalBanned ?? '—',  lbl:'IPs bloqueados',     color:'var(--color-text-danger)'  },
           { val: status?.activeJails ?? '—',  lbl:'Jails ativos',       color:'var(--color-text-info)'    },
-          { val: threats.length,               lbl:'Em monitoramento',   color:'var(--color-text-warning)' },
           { val: status?.whitelist?.length ?? 0, lbl:'Na lista branca',  color:'var(--color-text-success)' },
         ].map((s,i) => (
           <div key={i} style={{ background:'var(--bg-input)', borderRadius:8, padding:'12px 14px',
@@ -320,7 +305,7 @@ export default function ModuloSeguranca() {
       <div style={{ display:'flex', borderBottom:'1px solid var(--border-glass)', marginBottom:16 }}>
         {([
           ['jails','⚙️ Jails fail2ban'],['blocked','🚫 IPs Bloqueados'],
-          ['whitelist','✅ Lista Branca'],['threats','⚠️ Ameaças'],
+          ['whitelist','✅ Lista Branca'],
         ] as const).map(([id,label]) => (
           <button key={id} onClick={() => setActiveTab(id)} style={{
             padding:'9px 18px', background:'none', border:'none', cursor:'pointer',
@@ -571,52 +556,6 @@ export default function ModuloSeguranca() {
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* ── ABA: AMEAÇAS ──────────────────────────────────────────────────── */}
-      {activeTab === 'threats' && (
-        <div className="stat-card" style={{ padding:0, overflow:'hidden' }}>
-          <div style={{ padding:'10px 16px', borderBottom:'0.5px solid var(--border-glass)',
-            background:'var(--bg-input)', fontSize:'0.78rem', color:'var(--text-muted)',
-            display:'flex', alignItems:'center', gap:8 }}>
-            ⚠️ IPs que estão acumulando tentativas e se aproximando do limite de bloqueio automático
-            <button onClick={load} className="btn btn-ghost btn-sm" style={{ marginLeft:'auto' }}>
-              🔄 Atualizar
-            </button>
-          </div>
-          {threats.length === 0 ? (
-            <div style={{ color:'var(--text-muted)', textAlign:'center', padding:40 }}>
-              {loading ? 'Carregando…' : '✅ Nenhuma ameaça ativa no momento.'}
-            </div>
-          ) : threats.map((t,i) => {
-            const jail = status?.jails.find(j => j.name === t.jail);
-            const max  = jail?.maxretry ?? 5;
-            const pct  = Math.min(100, Math.round((t.failures / max) * 100));
-            return (
-              <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 16px',
-                borderBottom:'0.5px solid var(--border-glass)' }}>
-                <span style={{ fontFamily:'monospace', fontSize:'0.8rem', minWidth:140 }}>{t.ip}</span>
-                <Badge color="gray">{t.jail}</Badge>
-                <span style={{ fontSize:'0.78rem', fontWeight:600,
-                  color: pct>=80 ? 'var(--color-text-danger)' : 'var(--color-text-warning)',
-                  minWidth:60 }}>
-                  {t.failures} / {max}
-                </span>
-                <div style={{ flex:1, height:6, background:'var(--border-glass)', borderRadius:3, overflow:'hidden' }}>
-                  <div style={{ height:'100%', width:`${pct}%`, borderRadius:3,
-                    background: pct>=80 ? 'var(--color-text-danger)' : 'var(--color-text-warning)',
-                    transition:'width .3s' }} />
-                </div>
-                <span style={{ fontSize:'0.72rem', color:'var(--text-muted)', minWidth:40 }}>{pct}%</span>
-                <button onClick={() => handleBanThreat(t)}
-                  className="btn btn-ghost btn-sm" style={{ fontSize:'0.75rem', color:'var(--color-text-danger)',
-                  borderColor:'var(--color-border-danger,#ef4444)' }}>
-                  🚫 Banir já
-                </button>
-              </div>
-            );
-          })}
         </div>
       )}
     </div>

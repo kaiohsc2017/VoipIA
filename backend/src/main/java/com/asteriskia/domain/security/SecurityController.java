@@ -312,26 +312,6 @@ public class SecurityController {
         }
     }
 
-    // ── Threats ───────────────────────────────────────────────────────────────
-
-    @GetMapping("/threats")
-    public ResponseEntity<List<Map<String,Object>>> threats() {
-        List<Map<String,Object>> result = new ArrayList<>();
-        for (String jail : MANAGED_JAILS) {
-            try {
-                String out = f2b.exec("get", jail, "monitored");
-                if (out == null || out.isBlank() || out.contains("No")) continue;
-                for (String line : out.split("\n")) {
-                    Map<String,Object> e = f2b.parseMonitoredLine(line.trim(), jail);
-                    if (e != null) result.add(e);
-                }
-            } catch (Exception e) {
-                log.debug("threats jail {}: {}", jail, e.getMessage());
-            }
-        }
-        return ResponseEntity.ok(result);
-    }
-
     @PostMapping("/test-regex")
     public ResponseEntity<Map<String, Object>> testRegex(
             @RequestBody Map<String, String> body) {

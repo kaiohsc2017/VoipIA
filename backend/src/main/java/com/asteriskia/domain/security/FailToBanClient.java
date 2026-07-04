@@ -8,9 +8,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -82,16 +80,5 @@ public class FailToBanClient {
         if (status == null) return 0;
         Matcher m = Pattern.compile("Total failed:\\s*(\\d+)").matcher(status);
         return m.find() ? SecurityFileUtils.parseInt(m.group(1)) : 0;
-    }
-
-    public Map<String,Object> parseMonitoredLine(String line, String jail) {
-        Matcher m = Pattern.compile("(\\S+).*failures\\s*=\\s*(\\d+)",
-            Pattern.CASE_INSENSITIVE).matcher(line);
-        if (!m.find()) return null;
-        Map<String,Object> e = new LinkedHashMap<>();
-        e.put("ip",       m.group(1));
-        e.put("failures", SecurityFileUtils.parseInt(m.group(2)));
-        e.put("jail",     jail);
-        return e;
     }
 }

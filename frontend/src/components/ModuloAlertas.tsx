@@ -149,7 +149,9 @@ export default function ModuloAlertas() {
   const [filterOperationId, setFilterOperationId] = useState<string>('');
 
   useEffect(() => {
-    api.get<Operation[]>('/master/operations').then(r => setOperations(r.data.filter(op => op.isActive)));
+    api.get<Operation[]>('/operations')
+      .then(r => setOperations(r.data.filter(op => op.isActive)))
+      .catch(err => console.error('Erro ao carregar operações:', err));
   }, []);
 
   const loadAlerts = (p = 0) => {
