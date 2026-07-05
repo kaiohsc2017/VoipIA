@@ -68,6 +68,10 @@ logs/
 bkp-config/
 security/config/action.d/
 
+# --- Dumps de banco (dados reais de clientes — NUNCA commitar) ---
+backups/
+*.sql.gz
+
 # --- Arquivos de estado runtime (gerados em execução, não versionar) ---
 security/state/
 asterisk/config/acl.conf
