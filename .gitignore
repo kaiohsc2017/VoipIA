@@ -5,6 +5,9 @@
 # Variáveis de ambiente (NUNCA commitar)
 .env
 
+# Credenciais anotadas manualmente (PAT do GitHub, chaves) — NUNCA commitar
+git.txt
+
 # Diretório de secrets de produção — NÃO É PARTE DO REPOSITÓRIO
 # Fica em /opt/AsteriskIA/env/ na VPS (fora do git working tree)
 env/
