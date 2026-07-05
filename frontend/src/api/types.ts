@@ -104,6 +104,9 @@ export interface Segment {
   name: string;
   description?: string;
   isActive: boolean;
+  defaultStartTime?: string;
+  defaultIntervalMinutes?: number;
+  defaultQuantity?: number;
 }
 
 export interface Client {
@@ -121,10 +124,45 @@ export interface Operation {
   isActive: boolean;
 }
 
+// ---- DATACENTER (cadastro central de números) ----
+export type NumberType = 'DDR' | 'ZERO_OITO_ZERO_ZERO' | 'WHATSAPP';
+
+export interface PhoneNumber {
+  id: number;
+  phoneNumber: string;
+  numberType: NumberType;
+  businessUnit: BusinessUnit;
+  client: Client;
+  operation?: Operation;
+  segment?: Segment;
+  observation?: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface PhoneNumberRequest {
+  phoneNumber: string;
+  numberType: NumberType;
+  businessUnitId: number;
+  clientId?: number;
+  newClientName?: string;
+  operationId?: number;
+  segmentId?: number;
+  observation?: string;
+  isActive?: boolean;
+}
+
+export interface PhoneNumberSaveResult {
+  phoneNumber: PhoneNumber;
+  clientCreated: boolean;
+  usedSystemDefaultTemplate: boolean;
+}
+
 // ---- Number Tests (Módulo 2) ----
 export interface NumberTest {
   id: number;
   phoneNumber: string;
+  phoneNumberSource?: PhoneNumber;
   businessUnit: BusinessUnit;
   client: Client;
   operation: Operation;

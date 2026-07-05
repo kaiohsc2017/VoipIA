@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
+import type { PhoneNumber } from '../api/types';
+import CompletarPendentesModal from './CompletarPendentesModal';
 
 type TabKey = 'bu' | 'client' | 'operation' | 'segment';
 
@@ -24,6 +26,8 @@ export default function MasterData() {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<Partial<GenericEntity>>({});
   const [saving, setSaving] = useState(false);
+  const [pendingCounts, setPendingCounts] = useState<Record<number, number>>({});
+  const [completingClient, setCompletingClient] = useState<GenericEntity | null>(null);
 
   const currentTab = TABS.find(t => t.key === tab)!;
 
@@ -35,7 +39,24 @@ export default function MasterData() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [tab]);
+  const loadPendingCounts = () => {
+    api.get<PhoneNumber[]>('/phone-numbers')
+      .then(r => {
+        const counts: Record<number, number> = {};
+        for (const n of r.data ?? []) {
+          if (!n.operation || !n.segment) {
+            counts[n.client.id] = (counts[n.client.id] ?? 0) + 1;
+          }
+        }
+        setPendingCounts(counts);
+      })
+      .catch(() => setPendingCounts({}));
+  };
+
+  useEffect(() => {
+    load();
+    if (tab === 'client') loadPendingCounts();
+  }, [tab]);
 
   const openCreate = () => {
     setEditItem({ name: '', isActive: true });
@@ -132,13 +153,14 @@ export default function MasterData() {
                   <th style={{ width: 60 }}>#</th>
                   <th>Nome</th>
                   <th style={{ width: 120 }}>Status</th>
+                  {tab === 'client' && <th style={{ width: 130 }}>DATACENTER</th>}
                   <th style={{ width: 160 }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="table-empty">
+                    <td colSpan={tab === 'client' ? 5 : 4} className="table-empty">
                       Nenhum registro cadastrado.<br />
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         Clique em "＋ Novo" para adicionar.
@@ -154,6 +176,18 @@ export default function MasterData() {
                         {item.isActive ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
+                    {tab === 'client' && (
+                      <td>
+                        {pendingCounts[item.id] ? (
+                          <button className="btn btn-ghost btn-sm" style={{ color: '#f59e0b', borderColor: 'rgba(245,158,11,0.4)' }}
+                            onClick={() => setCompletingClient(item)}>
+                            ⚠️ {pendingCounts[item.id]} pendente{pendingCounts[item.id] !== 1 ? 's' : ''}
+                          </button>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>
+                        )}
+                      </td>
+                    )}
                     <td>
                       <div className="flex gap-1">
                         <button
@@ -212,6 +246,35 @@ export default function MasterData() {
                   <option value="false">Inativo</option>
                 </select>
               </div>
+
+              {tab === 'segment' && (
+                <>
+                  <div style={{ margin: '16px 0 8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Template padrão de agendamento — aplicado a todo teste de conectividade novo criado
+                    a partir do DATACENTER para este segmento (deixe em branco para usar o default do sistema: 08:00 / 60min / 3×).
+                  </div>
+                  <div className="form-grid-3">
+                    <div className="form-group">
+                      <label className="form-label">Horário padrão</label>
+                      <input type="time" className="form-input"
+                        value={(editItem.defaultStartTime as string | undefined)?.slice(0, 5) ?? ''}
+                        onChange={e => setEditItem(i => ({ ...i, defaultStartTime: e.target.value ? e.target.value + ':00' : undefined }))} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Intervalo padrão (min)</label>
+                      <input type="number" className="form-input" min={1}
+                        value={(editItem.defaultIntervalMinutes as number | undefined) ?? ''}
+                        onChange={e => setEditItem(i => ({ ...i, defaultIntervalMinutes: e.target.value ? +e.target.value : undefined }))} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Quantidade padrão</label>
+                      <input type="number" className="form-input" min={1}
+                        value={(editItem.defaultQuantity as number | undefined) ?? ''}
+                        onChange={e => setEditItem(i => ({ ...i, defaultQuantity: e.target.value ? +e.target.value : undefined }))} />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button>
@@ -221,6 +284,14 @@ export default function MasterData() {
             </div>
           </div>
         </div>
+      )}
+
+      {completingClient && (
+        <CompletarPendentesModal
+          clientId={completingClient.id}
+          clientName={completingClient.name}
+          onClose={() => { setCompletingClient(null); loadPendingCounts(); }}
+        />
       )}
     </>
   );

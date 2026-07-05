@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.*;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.text.Normalizer;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -224,13 +223,13 @@ public class MasterDataController {
             return ResponseEntity.badRequest().body(Map.of("error", "Arquivo vazio."));
 
         Map<String, BusinessUnit> buMap  = buRepo.findAll().stream()
-                .collect(Collectors.toMap(b -> norm(b.getName()), Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(b -> NameNormalizer.normalize(b.getName()), Function.identity(), (a, b) -> a));
         Map<String, Client>       cliMap = clientRepo.findAll().stream()
-                .collect(Collectors.toMap(c -> norm(c.getName()), Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(c -> NameNormalizer.normalize(c.getName()), Function.identity(), (a, b) -> a));
         Map<String, Operation>    opMap  = opRepo.findAll().stream()
-                .collect(Collectors.toMap(o -> norm(o.getName()), Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(o -> NameNormalizer.normalize(o.getName()), Function.identity(), (a, b) -> a));
         Map<String, Segment>      segMap = segRepo.findAll().stream()
-                .collect(Collectors.toMap(s -> norm(s.getName()), Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(s -> NameNormalizer.normalize(s.getName()), Function.identity(), (a, b) -> a));
 
         List<NumberTest>          toSave = new ArrayList<>();
         List<Map<String, Object>> errors = new ArrayList<>();
@@ -260,10 +259,10 @@ public class MasterDataController {
                     String actStr  = col(cols, 8);
 
                     if (phone.isBlank())         throw new IllegalArgumentException("Número vazio");
-                    BusinessUnit bu  = buMap.get(norm(buName));
-                    Client       cli = cliMap.get(norm(cliName));
-                    Operation    op  = opMap.get(norm(opName));
-                    Segment      seg = segMap.get(norm(segName));
+                    BusinessUnit bu  = buMap.get(NameNormalizer.normalize(buName));
+                    Client       cli = cliMap.get(NameNormalizer.normalize(cliName));
+                    Operation    op  = opMap.get(NameNormalizer.normalize(opName));
+                    Segment      seg = segMap.get(NameNormalizer.normalize(segName));
                     if (bu  == null) throw new IllegalArgumentException("BU não encontrada: '" + buName + "'");
                     if (cli == null) throw new IllegalArgumentException("Cliente não encontrado: '" + cliName + "'");
                     if (op  == null) throw new IllegalArgumentException("Operação não encontrada: '" + opName + "'");
@@ -272,7 +271,7 @@ public class MasterDataController {
                     String t = timeStr.trim();
                     if (t.matches("\\d{1,2}:\\d{2}")) t += ":00";
                     boolean active = !"false".equalsIgnoreCase(actStr.trim())
-                                  && !"nao".equals(norm(actStr.trim()))
+                                  && !"nao".equals(NameNormalizer.normalize(actStr.trim()))
                                   && !"0".equals(actStr.trim());
 
                     toSave.add(NumberTest.builder()
@@ -306,14 +305,6 @@ public class MasterDataController {
     private static String col(String[] cols, int i) {
         return (i < cols.length) ? cols[i].trim().replaceAll("^\"|\"$", "") : "";
     }
-
-    private static String norm(String s) {
-        if (s == null) return "";
-        return Normalizer.normalize(s.trim().toLowerCase(), Normalizer.Form.NFD)
-                .replaceAll("[\\p{InCombiningDiacriticalMarks}]", "")
-                .replaceAll("\\s+", " ");
-    }
-
 
 }
 

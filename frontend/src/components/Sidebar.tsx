@@ -2,11 +2,11 @@ import type { ComponentType } from 'react';
 import {
   LayoutDashboard, Headset, PhoneCall, AlertTriangle, Bot, Users, UsersRound,
   Settings, Terminal, ShieldCheck, KeyRound, ClipboardList, ChevronLeft,
-  ChevronRight, LogOut, ExternalLink, BookOpen,
+  ChevronRight, LogOut, ExternalLink, BookOpen, Server,
 } from 'lucide-react';
 import { canRead } from '../api/client';
 
-type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs';
+type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'datacenter' | 'masterdata' | 'users' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs';
 
 interface SidebarProps {
   currentPage: Page;
@@ -29,6 +29,7 @@ const NAV_ITEMS: { page: Page; icon: ComponentType<{ size?: number; strokeWidth?
   { page: 'modulo2',    icon: PhoneCall,       label: 'Conectividade',      section: 'MÓDULOS',   resource: 'telecom.modulo2'      },
   { page: 'modulo3',    icon: AlertTriangle,   label: 'Monitoramento',      section: 'MÓDULOS',   resource: 'telecom.modulo3'      },
   { page: 'agents',     icon: Bot,             label: 'Agentes',            section: 'MÓDULOS',   resource: 'telecom.agents_link', external: '/agents/' },
+  { page: 'datacenter', icon: Server,          label: 'DATACENTER',         section: 'CADASTROS', resource: 'telecom.datacenter'   },
   { page: 'masterdata', icon: Users,           label: 'Clientes',           section: 'CADASTROS', resource: 'telecom.masterdata'   },
   { page: 'users',      icon: UsersRound,      label: 'Usuários e Ramais',  section: 'CADASTROS', resource: 'telecom.users'        },
   { page: 'settings',   icon: Settings,        label: 'Configurações',      section: 'SISTEMA',   resource: 'telecom.settings'     },

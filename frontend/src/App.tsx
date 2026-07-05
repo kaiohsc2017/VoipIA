@@ -14,6 +14,7 @@ const ModuloURA          = lazy(() => import('./components/ModuloURA'));
 const ModuloConectividade= lazy(() => import('./components/ModuloConectividade'));
 const ModuloAlertas      = lazy(() => import('./components/ModuloAlertas'));
 const Softphone          = lazy(() => import('./components/Softphone'));
+const DataCenter         = lazy(() => import('./components/DataCenter'));
 const MasterData         = lazy(() => import('./components/MasterData'));
 const Users              = lazy(() => import('./components/Users'));
 const Settings           = lazy(() => import('./components/Settings'));
@@ -91,6 +92,7 @@ const PAGE_RESOURCE: Partial<Record<Page, string>> = {
   modulo1:    'telecom.modulo1',
   modulo2:    'telecom.modulo2',
   modulo3:    'telecom.modulo3',
+  datacenter: 'telecom.datacenter',
   masterdata: 'telecom.masterdata',
   users:      'telecom.users',
   settings:   'telecom.settings',
@@ -107,7 +109,7 @@ export default function App() {
   const [perms, setPerms] = useState<Record<string, string>>(() => getPermissionsFromToken(localStorage.getItem('asteriskia_token')));
   const pageFromHash = (): Page => {
     const hash = window.location.hash.replace('#', '').trim() as Page;
-    const valid: Page[] = ['dashboard','modulo1','modulo2','modulo3','masterdata','users','settings','audit','logs','security','accessGroups','docs'];
+    const valid: Page[] = ['dashboard','modulo1','modulo2','modulo3','datacenter','masterdata','users','settings','audit','logs','security','accessGroups','docs'];
     if (!valid.includes(hash)) return 'dashboard';
     // Acesso direto via hash (digitado/favoritado) a uma página sem permissão de
     // leitura: volta pro dashboard. O botão de nav já fica escondido (ver
@@ -189,6 +191,7 @@ export default function App() {
               {page === 'modulo1'    && <ModuloURA />}
               {page === 'modulo2'    && <ModuloConectividade />}
               {page === 'modulo3'    && <ModuloAlertas />}
+              {page === 'datacenter' && <DataCenter />}
               {page === 'masterdata' && <MasterData />}
               {page === 'users'      && <Users />}
               {page === 'settings'   && <Settings />}

@@ -11,6 +11,18 @@ import type {
   PageResponse,
 } from '../api/types';
 
+/**
+ * Determina a guia (0800/DDR) de um NumberTest. Prioriza o tipo explícito
+ * vindo do DATACENTER (phoneNumberSource.numberType); testes legados criados
+ * manualmente antes desta feature (sem vínculo) caem no fallback de prefixo
+ * do número — igual ao roteamento do ManagerTelecom, só como fallback.
+ */
+function connectivityTab(t: NumberTest): '0800' | 'ddr' {
+  if (t.phoneNumberSource?.numberType === 'ZERO_OITO_ZERO_ZERO') return '0800';
+  if (t.phoneNumberSource?.numberType === 'DDR') return 'ddr';
+  return t.phoneNumber.replace(/\D/g, '').startsWith('0800') ? '0800' : 'ddr';
+}
+
 const STATUS_CLASS: Record<string, string> = {
   SUCESSO: 'badge-success', FALHA: 'badge-danger', OCUPADO: 'badge-warning',
   TIMEOUT: 'badge-warning', SEM_RESPOSTA: 'badge-gray',
@@ -337,7 +349,7 @@ function DashboardKPIs() {
 // ─── Módulo Principal ─────────────────────────────────────────────────────────
 
 export default function ModuloConectividade() {
-  const [tab, setTab] = useState<'tests' | 'results' | 'dashboard'>('tests');
+  const [tab, setTab] = useState<'0800' | 'ddr' | 'results' | 'dashboard'>('0800');
   const [tests, setTests] = useState<NumberTest[]>([]);
   const [results, setResults] = useState<TestResult[]>([]);
   const [bus, setBus] = useState<BusinessUnit[]>([]);
@@ -437,7 +449,7 @@ export default function ModuloConectividade() {
 
   useEffect(() => {
     loadMasterData();
-    if (tab === 'tests') loadTests();
+    if (tab === '0800' || tab === 'ddr') loadTests();
     else if (tab === 'results') loadResults();
     // dashboard carrega internamente
   }, [tab]);
@@ -613,8 +625,11 @@ export default function ModuloConectividade() {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-2" style={{ marginBottom: 20 }}>
-          <button className={`btn ${tab === 'tests' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('tests')}>
-            📋 Testes Cadastrados
+          <button className={`btn ${tab === '0800' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('0800')}>
+            📟 0800
+          </button>
+          <button className={`btn ${tab === 'ddr' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('ddr')}>
+            📞 DDR
           </button>
           <button className={`btn ${tab === 'results' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('results')}>
             📊 Resultados
@@ -624,13 +639,15 @@ export default function ModuloConectividade() {
           </button>
         </div>
 
-        {/* ---- TESTS TAB ---- */}
-        {tab === 'tests' && (
+        {/* ---- 0800 / DDR TABS ---- */}
+        {(tab === '0800' || tab === 'ddr') && (() => {
+          const filteredTests = tests.filter(t => connectivityTab(t) === tab);
+          return (
           <>
             <div className="toolbar">
               <div className="toolbar-left">
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.855rem' }}>
-                  {tests.length} número{tests.length !== 1 ? 's' : ''} cadastrado{tests.length !== 1 ? 's' : ''}
+                  {filteredTests.length} número{filteredTests.length !== 1 ? 's' : ''} cadastrado{filteredTests.length !== 1 ? 's' : ''}
                 </span>
               </div>
               <div className="toolbar-right" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -650,6 +667,7 @@ export default function ModuloConectividade() {
                     <tr>
                       <th>#</th>
                       <th>Número</th>
+                      <th>Origem</th>
                       <th>BU</th>
                       <th>Cliente</th>
                       <th>Operação</th>
@@ -663,14 +681,14 @@ export default function ModuloConectividade() {
                     </tr>
                   </thead>
                   <tbody>
-                    {tests.length === 0 ? (
-                      <tr><td colSpan={12} className="table-empty">
-                        Nenhum teste cadastrado.<br />
+                    {filteredTests.length === 0 ? (
+                      <tr><td colSpan={13} className="table-empty">
+                        Nenhum teste cadastrado nesta guia.<br />
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          Certifique-se de ter cadastrado BU, Cliente, Operação e Segmento em "Dados Mestres".
+                          Cadastre o número no DATACENTER com Operação e Segmento definidos, ou crie um teste manual aqui.
                         </span>
                       </td></tr>
-                    ) : tests.map(t => (
+                    ) : filteredTests.map(t => (
                       <tr
                         key={t.id}
                         style={{ cursor: 'pointer' }}
@@ -683,6 +701,11 @@ export default function ModuloConectividade() {
                       >
                         <td className="td-muted">{t.id}</td>
                         <td className="mono">{t.phoneNumber}</td>
+                        <td>
+                          <span className={`badge ${t.phoneNumberSource ? 'badge-success' : 'badge-gray'}`} title={t.phoneNumberSource ? 'Origem: DATACENTER' : 'Criado manualmente nesta tela'}>
+                            {t.phoneNumberSource ? '🔗 DATACENTER' : '✍️ Manual'}
+                          </span>
+                        </td>
                         <td>{t.businessUnit?.name}</td>
                         <td>{t.client?.name}</td>
                         <td>{t.operation?.name}</td>
@@ -714,7 +737,8 @@ export default function ModuloConectividade() {
               </div>
             )}
           </>
-        )}
+          );
+        })()}
 
         {/* ---- RESULTS TAB ---- */}
         {tab === 'results' && (
