@@ -474,6 +474,21 @@ em https://claude.ai/code/artifact/b04225b4-fef1-4c3c-95f1-9951de5389c9.
 - `SuporteController` cria issues reais no Jira via function calling da IA (tool `abrir_protocolo_suporte`)
 - Swagger/OpenAPI foi removido do projeto (dependência springdoc retirada do pom.xml)
 
+### 🟡 Controle de acesso por BU (2026-07-05) — cadastros/Chamadas/Conectividade cobertos, Alertas Zabbix não
+Usuário ganhou BU obrigatória (`user_business_units`) e o JWT carrega a claim `bu`
+(`BusinessUnitContext`, authorities `BU_<id>`) — ADMIN sempre vê tudo. Escopo aplicado em:
+Cadastros (Cliente/Operação/BU — itens sem BU ficam visíveis a todos, já que a BU é opcional
+nesses cadastros), Chamadas (`CallRecordService`, via `uras.business_unit_id`) e Conectividade
+(`number-tests`/`test-results`, via `NumberTest.businessUnit`, já obrigatória).
+- **Gap conhecido, não coberto**: Alertas Zabbix (`AlertCall`) não tem nenhum caminho de derivar a
+  BU de um incidente/host monitorado — o disparo de ligação (`AlertService.triggerAlert`) nem
+  filtra por operação hoje, só percorre os contatos de plantão por prioridade. `AlertContact` tem
+  `operationId` opcional, mas não foi conectado ao filtro de BU nesta entrega. Resolver direito
+  exigiria decisão de produto sobre como um host Zabbix se relaciona a uma BU/Operação — fora do
+  escopo desta entrega.
+- Usuários pré-existentes (antes da migration V26) foram migrados com `access_indeterminate=true`
+  e vinculados a todas as BUs ativas, para não perder acesso retroativamente.
+
 ### ✅ Débito de segurança — 2 de 3 fechados (2026-07-03), 1 parcial
 - **CSP**: `Content-Security-Policy-Report-Only` ativo no Caddyfile (não bloqueia nada, só reporta
   violações no console do browser) — validado em produção. Migrar pra enforcement real exige
