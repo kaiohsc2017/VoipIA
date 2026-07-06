@@ -45,12 +45,12 @@ class ConnectivityControllerTest {
     private RateLimitFilter rateLimitFilter;
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ADMIN") // ADMIN bypassa BusinessUnitContext — testa só o filtro explícito, não a restrição por BU
     void listResults_semFiltros_deveChamarFindWithFiltersNulos() throws Exception {
         when(testResultRepo.findWithFilters(
                 isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(),
-                any(Pageable.class)))
+                isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/test-results"))
@@ -59,16 +59,16 @@ class ConnectivityControllerTest {
         verify(testResultRepo).findWithFilters(
                 isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(),
-                any(Pageable.class));
+                isNull(), any(Pageable.class));
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ADMIN") // ADMIN bypassa BusinessUnitContext — testa só o filtro explícito, não a restrição por BU
     void listResults_comBusinessUnitId_devePassarParaRepository() throws Exception {
         when(testResultRepo.findWithFilters(
                 isNull(), isNull(), isNull(), isNull(),
                 eq(5L), isNull(), isNull(), isNull(),
-                any(Pageable.class)))
+                isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/test-results?businessUnitId=5"))
@@ -77,16 +77,16 @@ class ConnectivityControllerTest {
         verify(testResultRepo).findWithFilters(
                 isNull(), isNull(), isNull(), isNull(),
                 eq(5L), isNull(), isNull(), isNull(),
-                any(Pageable.class));
+                isNull(), any(Pageable.class));
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(roles = "ADMIN") // ADMIN bypassa BusinessUnitContext — testa só o filtro explícito, não a restrição por BU
     void listResults_comTodosFiltros_devePassarTodosParaRepository() throws Exception {
         when(testResultRepo.findWithFilters(
                 isNull(), eq("SUCESSO"), isNull(), isNull(),
                 eq(1L), eq(2L), eq(3L), eq(4L),
-                any(Pageable.class)))
+                isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/test-results?status=SUCESSO&businessUnitId=1&clientId=2&operationId=3&segmentId=4"))
@@ -95,6 +95,6 @@ class ConnectivityControllerTest {
         verify(testResultRepo).findWithFilters(
                 isNull(), eq("SUCESSO"), isNull(), isNull(),
                 eq(1L), eq(2L), eq(3L), eq(4L),
-                any(Pageable.class));
+                isNull(), any(Pageable.class));
     }
 }

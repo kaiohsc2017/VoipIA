@@ -68,7 +68,7 @@ class AuthControllerTest {
 
         when(userRepo.findByUsernameAndIsActiveTrue("kaio")).thenReturn(Optional.of(user));
         when(accessGroupService.permissionsFor(any())).thenReturn(java.util.Map.of());
-        when(jwtService.generateToken(eq("kaio"), eq(9001), any(), any())).thenReturn("jwt-token-mock");
+        when(jwtService.generateToken(eq("kaio"), eq(9001), any(), any(), eq(java.util.Set.of()))).thenReturn("jwt-token-mock");
         when(refreshTokenService.generateRefreshToken("kaio")).thenReturn("refresh-token-mock");
         doNothing().when(auditService).logAs(any(), any(), any(), any(), anyBoolean());
 
@@ -142,7 +142,7 @@ class AuthControllerTest {
         // delete) ou excluído — cai no branch "default" de refresh().
         when(userRepo.findByUsernameAndIsActiveTrue(username)).thenReturn(Optional.empty());
         when(refreshTokenService.generateRefreshToken(username)).thenReturn("novo-refresh-token");
-        when(jwtService.generateToken(eq(username), eq(9001), eq("USER"), any()))
+        when(jwtService.generateToken(eq(username), eq(9001), eq("USER"), any(), eq(java.util.Set.of())))
                 .thenReturn("novo-jwt-mock");
 
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/refresh")
@@ -152,7 +152,7 @@ class AuthControllerTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, String>> permsCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(jwtService).generateToken(eq(username), eq(9001), eq("USER"), permsCaptor.capture());
+        verify(jwtService).generateToken(eq(username), eq(9001), eq("USER"), permsCaptor.capture(), eq(java.util.Set.of()));
 
         // O bug corrigido: perms vinha pré-inicializado com o grupo Administradores
         // (leitura+escrita em todos os 19 recursos) mesmo quando role="USER".
