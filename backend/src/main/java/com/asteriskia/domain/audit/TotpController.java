@@ -91,6 +91,7 @@ public class TotpController {
         }
 
         user.setTotpEnabled(true);
+        user.setFirstLoginCompleted(true);
         userRepo.save(user);
 
         auditService.logAs(request, username, "TOTP_ENABLED", "2FA ativado com sucesso", true);
@@ -182,7 +183,8 @@ public class TotpController {
                         "type",         "Bearer",
                         "expiresInHours", 8,
                         "extension",    user.getExtension(),
-                        "displayName",  user.getDisplayName()
+                        "displayName",  user.getDisplayName(),
+                        "firstLoginCompleted", Boolean.TRUE.equals(user.getFirstLoginCompleted())
                 ));
     }
 
@@ -195,9 +197,26 @@ public class TotpController {
         AppUser user = userRepo.findByUsername(username).orElse(null);
         if (user == null) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(Map.of(
-                "totpEnabled", Boolean.TRUE.equals(user.getTotpEnabled()),
-                "username",    username
+                "totpEnabled",         Boolean.TRUE.equals(user.getTotpEnabled()),
+                "firstLoginCompleted", Boolean.TRUE.equals(user.getFirstLoginCompleted()),
+                "username",            username
         ));
+    }
+
+    /**
+     * Marca que o usuário já passou pela oferta de MFA do primeiro login —
+     * chamado tanto ao pular a oferta quanto (redundante, sem problema) ao
+     * ativar o 2FA pelo fluxo normal de /enable.
+     */
+    @PostMapping("/first-login-complete")
+    public ResponseEntity<?> firstLoginComplete() {
+        String username = currentUsername();
+        if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        AppUser user = userRepo.findByUsername(username).orElse(null);
+        if (user == null) return ResponseEntity.notFound().build();
+        user.setFirstLoginCompleted(true);
+        userRepo.save(user);
+        return ResponseEntity.ok(Map.of("firstLoginCompleted", true));
     }
 
     // ─────────────────────────────────────────────────────────────────────────

@@ -106,7 +106,7 @@ public class AuthController {
             log.info("Login ENV: '{}' → ramal 9001 (fallback)", request.username());
             return ResponseEntity.ok()
                     .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshToken, 30L * 24 * 3600).toString())
-                    .body(new LoginResponse(token, "Bearer", 8, 9001, "Administrador"));
+                    .body(new LoginResponse(token, "Bearer", 8, 9001, "Administrador", true));
         }
 
         // 3. Credenciais inválidas
@@ -141,7 +141,8 @@ public class AuthController {
         log.info("Login DB: '{}' → ramal {}", user.getUsername(), user.getExtension());
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshToken, 30L * 24 * 3600).toString())
-                .body(new LoginResponse(token, "Bearer", 8, user.getExtension(), user.getDisplayName()));
+                .body(new LoginResponse(token, "Bearer", 8, user.getExtension(), user.getDisplayName(),
+                        Boolean.TRUE.equals(user.getFirstLoginCompleted())));
     }
 
     @PostMapping("/refresh")
@@ -171,6 +172,7 @@ public class AuthController {
                 ? accessGroupService.permissionsFor(accessGroupService.administradores())
                 : java.util.Map.<String, String>of();
         Set<Integer> businessUnitIds = Set.of();
+        boolean firstLoginCompleted = true;
 
         Optional<AppUser> userOpt = userRepo.findByUsernameAndIsActiveTrue(username);
         if (userOpt.isPresent()) {
@@ -186,6 +188,7 @@ public class AuthController {
             role = user.getRole();
             perms = accessGroupService.permissionsFor(user.getAccessGroup());
             businessUnitIds = user.businessUnitIds();
+            firstLoginCompleted = Boolean.TRUE.equals(user.getFirstLoginCompleted());
         }
 
         // Rotação: revoga o antigo e gera um novo
@@ -196,7 +199,7 @@ public class AuthController {
         log.info("Token renovado via refresh para '{}'", username);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshCookie(newRefreshToken, 30L * 24 * 3600).toString())
-                .body(new LoginResponse(newJwt, "Bearer", 8, extension, displayName));
+                .body(new LoginResponse(newJwt, "Bearer", 8, extension, displayName, firstLoginCompleted));
     }
 
     @PostMapping("/logout")
@@ -259,7 +262,8 @@ public class AuthController {
             String type,
             int expiresInHours,
             Integer extension,
-            String displayName
+            String displayName,
+            boolean firstLoginCompleted
     ) {}
 
     public record ErrorResponse(String message) {}
