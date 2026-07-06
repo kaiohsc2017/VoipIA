@@ -15,8 +15,11 @@ import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.web.multipart.MultipartFile;
@@ -174,6 +177,31 @@ public class MasterDataController {
         return ResponseEntity.ok(client.getOperations().stream().toList());
     }
 
+    /**
+     * Sincroniza (substitui por completo) as Unidades de Negócio vinculadas a um cliente.
+     * Campo opcional — lista vazia é válida e limpa a associação.
+     */
+    @PutMapping("/clients/{id}/business-units")
+        public ResponseEntity<?> syncClientBusinessUnits(@PathVariable Integer id,
+                                                       @RequestBody List<Integer> businessUnitIds,
+                                                       HttpServletRequest req) {
+        var clientOpt = clientRepo.findById(id);
+        if (clientOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        var resolved = resolveBusinessUnits(businessUnitIds);
+        if (resolved.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Um ou mais IDs de Unidade de Negócio informados não existem."));
+        }
+        Client client = clientOpt.get();
+        client.setBusinessUnits(resolved.get());
+        Client saved = clientRepo.save(client);
+        auditService.log(req, "MASTERDATA_UPDATE",
+                "BUs do cliente '" + saved.getName() + "' atualizadas (id=" + id + ")", true);
+        return ResponseEntity.ok(saved);
+    }
+
     // -----------------------------------------------------------------------
     // Operations
     // -----------------------------------------------------------------------
@@ -226,6 +254,88 @@ public class MasterDataController {
         opRepo.deleteById(id);
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * Sincroniza (substitui por completo) as Unidades de Negócio vinculadas a uma operação.
+     * Campo opcional — lista vazia é válida e limpa a associação.
+     */
+    @PutMapping("/operations/{id}/business-units")
+        public ResponseEntity<?> syncOperationBusinessUnits(@PathVariable Integer id,
+                                                           @RequestBody List<Integer> businessUnitIds,
+                                                           HttpServletRequest req) {
+        var opOpt = opRepo.findById(id);
+        if (opOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        var resolved = resolveBusinessUnits(businessUnitIds);
+        if (resolved.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Um ou mais IDs de Unidade de Negócio informados não existem."));
+        }
+        Operation op = opOpt.get();
+        op.setBusinessUnits(resolved.get());
+        Operation saved = opRepo.save(op);
+        auditService.log(req, "MASTERDATA_UPDATE",
+                "BUs da operação '" + saved.getName() + "' atualizadas (id=" + id + ")", true);
+        return ResponseEntity.ok(saved);
+    }
+
+    /**
+     * Sincroniza (substitui por completo) quais Clientes têm esta Operação vinculada.
+     * A relação é dona pelo lado de {@code Client.operations} — aqui percorremos os clientes
+     * que precisam ganhar ou perder o vínculo e salvamos cada um deles.
+     * Campo opcional — lista vazia é válida e desvincula a operação de todos os clientes.
+     */
+    @PutMapping("/operations/{id}/clients")
+        @Transactional
+    public ResponseEntity<?> syncOperationClients(@PathVariable Integer id,
+                                                   @RequestBody List<Integer> clientIds,
+                                                   HttpServletRequest req) {
+        var opOpt = opRepo.findById(id);
+        if (opOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Operation op = opOpt.get();
+
+        List<Integer> ids = clientIds == null ? List.of() : clientIds;
+        Set<Integer> desiredIds = Set.copyOf(ids);
+        List<Client> desiredClients = clientRepo.findAllById(desiredIds);
+        if (desiredClients.size() != desiredIds.size()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Um ou mais IDs de cliente informados não existem."));
+        }
+
+        // Remove o vínculo dos clientes que hoje têm a operação mas não estão na lista nova.
+        for (Client client : new ArrayList<>(op.getClients())) {
+            if (!desiredIds.contains(client.getId())) {
+                client.getOperations().remove(op);
+                clientRepo.save(client);
+            }
+        }
+
+        // Adiciona o vínculo aos clientes da lista nova que ainda não o têm.
+        for (Client client : desiredClients) {
+            if (!client.getOperations().contains(op)) {
+                client.getOperations().add(op);
+                clientRepo.save(client);
+            }
+        }
+
+        auditService.log(req, "MASTERDATA_UPDATE",
+                "Clientes vinculados à operação '" + op.getName() + "' atualizados (id=" + id + ")", true);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Resolve os IDs de BusinessUnit informados; vazio se algum ID não existir. */
+    private Optional<Set<BusinessUnit>> resolveBusinessUnits(List<Integer> businessUnitIds) {
+        List<Integer> ids = businessUnitIds == null ? List.of() : businessUnitIds;
+        List<BusinessUnit> found = buRepo.findAllById(ids);
+        if (found.size() != Set.copyOf(ids).size()) {
+            return Optional.empty();
+        }
+        return Optional.of(new HashSet<>(found));
+    }
+
     // -----------------------------------------------------------------------
     // Importação em lote de Testes de Conectividade via CSV/XLSX
     // -----------------------------------------------------------------------
