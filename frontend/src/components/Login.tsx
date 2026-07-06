@@ -17,6 +17,23 @@ export default function Login({ onLogin }: LoginProps) {
   const [totpCode, setTotpCode]         = useState('');
   const [totpDisplayName, setTotpDisplayName] = useState('');
 
+  // --- Oferta de MFA no primeiro login (opcional) ---
+  const [mfaStep, setMfaStep] = useState<'none' | 'offer' | 'setup'>('none');
+  const [mfaSetupData, setMfaSetupData] = useState<{ secret: string; qrCodeUrl: string } | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaMsg, setMfaMsg] = useState('');
+
+  // Guarda a sessão e entra no app — ou, se for o primeiro login, oferece MFA antes.
+  const finishLogin = (token: string, firstLoginCompleted?: boolean) => {
+    localStorage.setItem('asteriskia_token', token);
+    localStorage.setItem('asteriskia_user', form.username);
+    if (!firstLoginCompleted) {
+      setMfaStep('offer');
+      return;
+    }
+    onLogin(token, form.username);
+  };
+
   // --- Etapa 1: usuário + senha ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,9 +52,7 @@ export default function Login({ onLogin }: LoginProps) {
 
       // Login normal (sem 2FA). O refresh token vai num cookie httpOnly
       // setado pelo backend — nunca chega aqui em JS.
-      localStorage.setItem('asteriskia_token', data.token!);
-      localStorage.setItem('asteriskia_user', form.username);
-      onLogin(data.token!, form.username);
+      finishLogin(data.token!, data.firstLoginCompleted);
     } catch (err: any) {
       const msg = err.response?.data?.error ?? err.response?.data?.message ?? 'Credenciais inválidas. Tente novamente.';
       setError(msg);
@@ -52,13 +67,11 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
     setLoading(true);
     try {
-      const { data } = await api.post<{ token: string; extension: number; displayName: string }>('/auth/totp/verify', {
+      const { data } = await api.post<{ token: string; extension: number; displayName: string; firstLoginCompleted?: boolean }>('/auth/totp/verify', {
         tempToken,
         code: totpCode.replace(/\s/g, ''),
       });
-      localStorage.setItem('asteriskia_token', data.token);
-      localStorage.setItem('asteriskia_user', form.username);
-      onLogin(data.token, form.username);
+      finishLogin(data.token, data.firstLoginCompleted);
     } catch (err: any) {
       const msg = err.response?.data?.error ?? 'Código inválido ou expirado.';
       setError(msg);
@@ -75,6 +88,41 @@ export default function Login({ onLogin }: LoginProps) {
     setError('');
   };
 
+  // --- Oferta de MFA (primeiro login) ---
+  const skipMfaOffer = async () => {
+    try { await api.post('/auth/totp/first-login-complete'); } catch { /* não bloqueia o login por isso */ }
+    onLogin(localStorage.getItem('asteriskia_token')!, form.username);
+  };
+
+  const startMfaSetup = async () => {
+    setLoading(true);
+    setMfaMsg('');
+    try {
+      const { data } = await api.post<{ secret: string; qrCodeUrl: string }>('/auth/totp/setup');
+      setMfaSetupData(data);
+      setMfaStep('setup');
+    } catch {
+      setMfaMsg('Erro ao iniciar configuração do 2FA. Tente novamente ou pule por agora.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmMfaSetup = async () => {
+    const code = mfaCode.replace(/\s/g, '');
+    if (code.length !== 6) { setMfaMsg('Digite os 6 dígitos do código.'); return; }
+    setLoading(true);
+    setMfaMsg('');
+    try {
+      await api.post('/auth/totp/enable', { code });
+      onLogin(localStorage.getItem('asteriskia_token')!, form.username);
+    } catch {
+      setMfaMsg('Código inválido. Verifique o app autenticador e tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="login-page">
       <div className="login-card">
@@ -84,7 +132,55 @@ export default function Login({ onLogin }: LoginProps) {
           <span className="login-logo-text">AsteriskIA</span>
         </div>
 
-        {!requiresTotp ? (
+        {mfaStep === 'offer' ? (
+          /* ── Oferta de MFA no primeiro login (opcional) ── */
+          <>
+            <h1 className="login-title">Ative a verificação em 2 etapas</h1>
+            <p className="login-subtitle">
+              Deixe sua conta mais segura com um código extra a cada login. É opcional — você pode configurar depois em "Usuários e Ramais".
+            </p>
+            {mfaMsg && (
+              <div className="login-error"><span>⚠️</span><span>{mfaMsg}</span></div>
+            )}
+            <button type="button" className="btn login-btn" onClick={startMfaSetup} disabled={loading}>
+              {loading ? 'Carregando…' : '🔐 Configurar agora'}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={skipMfaOffer} style={{ width: '100%', marginTop: 10 }} disabled={loading}>
+              Pular por agora
+            </button>
+          </>
+        ) : mfaStep === 'setup' && mfaSetupData ? (
+          /* ── Configuração de MFA: QR Code + confirmação ── */
+          <>
+            <h1 className="login-title">Escaneie o QR Code</h1>
+            <p className="login-subtitle">
+              Abra o Google Authenticator (ou outro app TOTP), escaneie o código abaixo e digite o código gerado.
+            </p>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <img src={mfaSetupData.qrCodeUrl} alt="QR Code 2FA" style={{ width: 180, height: 180, borderRadius: 8, background: '#fff', padding: 8 }} />
+              <div style={{ marginTop: 8, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Ou insira manualmente: <code style={{ background: 'rgba(255,255,255,0.08)', padding: '2px 8px', borderRadius: 4 }}>{mfaSetupData.secret}</code>
+              </div>
+            </div>
+            {mfaMsg && (
+              <div className="login-error"><span>⚠️</span><span>{mfaMsg}</span></div>
+            )}
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <input
+                type="text" inputMode="numeric" pattern="[0-9 ]*" maxLength={7}
+                className="form-input" placeholder="000 000" autoFocus autoComplete="one-time-code"
+                style={{ letterSpacing: '0.3em', fontSize: '1.4rem', textAlign: 'center' }}
+                value={mfaCode} onChange={e => setMfaCode(e.target.value)}
+              />
+            </div>
+            <button type="button" className="btn login-btn" onClick={confirmMfaSetup} disabled={loading || mfaCode.replace(/\s/g, '').length < 6}>
+              {loading ? 'Verificando…' : '✅ Ativar 2FA'}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={skipMfaOffer} style={{ width: '100%', marginTop: 10 }} disabled={loading}>
+              Pular por agora
+            </button>
+          </>
+        ) : !requiresTotp ? (
           /* ── Etapa 1: usuário + senha ── */
           <>
             <h1 className="login-title">Bem-vindo de volta</h1>

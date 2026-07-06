@@ -12,6 +12,7 @@ export interface LoginResponse {
   token: string;
   type: string;
   expiresInHours: number;
+  firstLoginCompleted?: boolean;
 }
 
 // ---- Grupos de acesso (RBAC granular — V22) ----
