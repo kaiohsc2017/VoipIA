@@ -606,7 +606,7 @@ export default function ModuloConectividade() {
   return (
     <>
       <div className="page-header">
-        <h1>📞 Módulo 2 — Testes de Conectividade</h1>
+        <h1>📞 Testes de Conectividade</h1>
         <p>Gerenciamento de números a testar, histórico de resultados e dashboard de KPIs</p>
       </div>
       <div className="page-body">

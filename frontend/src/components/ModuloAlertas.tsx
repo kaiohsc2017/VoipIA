@@ -217,7 +217,7 @@ export default function ModuloAlertas() {
   return (
     <>
       <div className="page-header">
-        <h1>🚨 Módulo 3 — Alertas Zabbix</h1>
+        <h1>🚨 Alertas Zabbix</h1>
         <p>Histórico de alertas de infraestrutura e contatos de plantão</p>
       </div>
       <div className="page-body">
