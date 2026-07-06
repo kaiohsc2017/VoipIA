@@ -49,8 +49,12 @@ public class Client {
     @JsonIgnore
     private Set<Operation> operations = new HashSet<>();
 
-    /** Unidades de Negócio (BU) às quais o cliente pode ser associado — opcional, múltiplo. */
-    @ManyToMany(fetch = FetchType.LAZY)
+    /**
+     * Unidades de Negócio (BU) às quais o cliente pode ser associado — opcional, múltiplo.
+     * EAGER (não LAZY): serializado direto pelo Jackson e spring.jpa.open-in-view=false
+     * neste projeto — LAZY aqui vira LazyInitializationException fora de transação.
+     */
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "client_business_units",
             joinColumns = @JoinColumn(name = "client_id"),

@@ -30,10 +30,17 @@ import com.asteriskia.domain.connectivity.NumberTestRepository;
  * MasterDataController — CRUD de dados mestres (Módulo 2).
  * Agrupa os 4 recursos: BusinessUnit, Segment, Client, Operation.
  * Registra criações, atualizações e remoções no AuditLog (Fase 13).
+ *
+ * {@code @Transactional} em nível de classe: Client/Operation carregam
+ * businessUnits como coleção LAZY (V25) e são serializados diretamente pelo
+ * Jackson — sem uma sessão Hibernate aberta durante a serialização, o acesso
+ * lazy fora de transação lança LazyInitializationException (spring.jpa.open-
+ * in-view=false neste projeto).
  */
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
+@Transactional
 public class MasterDataController {
 
     private final BusinessUnitRepository buRepo;

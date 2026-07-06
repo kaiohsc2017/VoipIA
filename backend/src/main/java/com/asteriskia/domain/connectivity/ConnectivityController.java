@@ -31,11 +31,18 @@ import java.util.List;
  * Também consumido pelo Scheduler Python para:
  *   - GET  /api/v1/number-tests?active=true   → carrega testes agendados
  *   - POST /api/v1/test-results               → registra resultado de cada chamada
+ *
+ * {@code @Transactional} em nível de classe: NumberTest/TestResult carregam
+ * Client/Operation, que por sua vez têm businessUnits como coleção LAZY
+ * (V25) — sem sessão Hibernate aberta durante a serialização do Jackson, o
+ * acesso lazy fora de transação lança LazyInitializationException
+ * (spring.jpa.open-in-view=false neste projeto).
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
+@Transactional
 public class ConnectivityController {
 
     private final NumberTestRepository    numberTestRepo;

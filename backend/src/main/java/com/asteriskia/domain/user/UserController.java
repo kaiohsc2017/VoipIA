@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -30,11 +31,18 @@ import java.util.Set;
  * GET   /api/v1/users/{id}     → busca por ID
  * PUT   /api/v1/users/{id}     → atualiza nome/senha/status
  * DELETE /api/v1/users/{id}    → desativa usuário (soft delete)
+ *
+ * {@code @Transactional} em nível de classe: AppUser carrega businessUnits
+ * como coleção LAZY (V26) e é serializado diretamente pelo Jackson — sem uma
+ * sessão Hibernate aberta durante a serialização, o acesso lazy fora de
+ * transação lança LazyInitializationException (spring.jpa.open-in-view=false
+ * neste projeto).
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
+@Transactional
 public class UserController {
 
     private final AppUserRepository      userRepo;

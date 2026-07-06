@@ -64,8 +64,13 @@ public class AppUser {
     @Builder.Default
     private Boolean totpEnabled = false;
 
-    /** Unidades de Negócio (BU) do usuário — obrigatório, restringe os dados visíveis a essas BUs. */
-    @ManyToMany(fetch = FetchType.LAZY)
+    /**
+     * Unidades de Negócio (BU) do usuário — obrigatório, restringe os dados visíveis a essas BUs.
+     * EAGER (não LAZY): businessUnitIds() é chamado em AuthController/TotpController fora de
+     * qualquer transação (após o AppUser já ter saído do repositório) — LAZY aqui vira
+     * LazyInitializationException a cada login (spring.jpa.open-in-view=false neste projeto).
+     */
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_business_units",
             joinColumns = @JoinColumn(name = "user_id"),

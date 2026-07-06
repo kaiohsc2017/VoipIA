@@ -43,7 +43,9 @@ public class Ura {
      * do usuário logado. Opcional: URAs sem BU (ex.: a legada id=1) só
      * aparecem para ADMIN quando o controle de acesso por BU está ativo.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
+    // EAGER (não LAZY): UraController serializa Ura direto, sem @Transactional
+    // — mesmo padrão já usado por NumberTest.businessUnit/client/operation/segment.
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "business_unit_id")
     private BusinessUnit businessUnit;
 
