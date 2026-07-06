@@ -9,6 +9,15 @@ interface AppUser {
   isActive: boolean;
   role: string;
   createdAt: string;
+  businessUnitIds: number[];
+  accessExpiresAt: string | null;
+  accessIndeterminate: boolean;
+  totpEnabled: boolean;
+}
+
+interface BusinessUnitOption {
+  id: number;
+  name: string;
 }
 
 interface CreateForm {
@@ -16,6 +25,9 @@ interface CreateForm {
   password: string;
   displayName: string;
   role: string;
+  businessUnitIds: number[];
+  accessExpiresAt: string;
+  accessIndeterminate: boolean;
 }
 
 interface EditForm {
@@ -23,7 +35,18 @@ interface EditForm {
   password: string;
   isActive: boolean;
   role: string;
+  businessUnitIds: number[];
+  accessExpiresAt: string;
+  accessIndeterminate: boolean;
 }
+
+// Regra de negócio: acesso com prazo determinado nunca passa de 60 dias (espelha o backend).
+const MAX_ACCESS_DAYS = 60;
+const maxAccessDate = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + MAX_ACCESS_DAYS);
+  return d.toISOString().slice(0, 10);
+};
 
 // ─── 2FA state por usuário ────────────────────────────────────────────────────
 
@@ -34,15 +57,22 @@ interface TotpSetup {
   account: string;
 }
 
-const EMPTY_CREATE: CreateForm = { username: '', password: '', displayName: '', role: 'USER' };
+const EMPTY_CREATE: CreateForm = {
+  username: '', password: '', displayName: '', role: 'USER',
+  businessUnitIds: [], accessExpiresAt: maxAccessDate(), accessIndeterminate: false,
+};
 
 export default function Users() {
   const [users, setUsers]         = useState<AppUser[]>([]);
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnitOption[]>([]);
   const [loading, setLoading]     = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser]   = useState<AppUser | null>(null);
   const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE);
-  const [editForm, setEditForm]   = useState<EditForm>({ displayName: '', password: '', isActive: true, role: 'USER' });
+  const [editForm, setEditForm]   = useState<EditForm>({
+    displayName: '', password: '', isActive: true, role: 'USER',
+    businessUnitIds: [], accessExpiresAt: maxAccessDate(), accessIndeterminate: false,
+  });
   const [saving, setSaving]       = useState(false);
   const [revealedPass, setRevealedPass] = useState<number | null>(null);
   const [revealedPasswords, setRevealedPasswords] = useState<Record<number, string>>({});
@@ -79,16 +109,29 @@ export default function Users() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.get<BusinessUnitOption[]>('/business-units')
+      .then(r => setBusinessUnits(r.data ?? []))
+      .catch(() => setBusinessUnits([]));
+  }, []);
+
+  const toggleBu = (ids: number[], id: number): number[] =>
+    ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id];
 
   // ---- Criar usuário ----
   const handleCreate = async () => {
     if (!createForm.username.trim()) { alert('Informe o username.'); return; }
     if (!createForm.password.trim() || createForm.password.length < 6) { alert('Senha deve ter ao menos 6 caracteres.'); return; }
     if (!createForm.displayName.trim()) { alert('Informe o nome de exibição.'); return; }
+    if (createForm.businessUnitIds.length === 0) { alert('Selecione ao menos uma Unidade de Negócio (BU).'); return; }
+    if (!createForm.accessIndeterminate && !createForm.accessExpiresAt) { alert('Informe a data de expiração do acesso ou marque acesso indeterminado.'); return; }
     setSaving(true);
     try {
-      await api.post('/users', createForm);
+      await api.post('/users', {
+        ...createForm,
+        accessExpiresAt: createForm.accessIndeterminate ? null : createForm.accessExpiresAt,
+      });
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE);
       load();
@@ -103,13 +146,20 @@ export default function Users() {
   // ---- Editar usuário ----
   const openEdit = (u: AppUser) => {
     setEditUser(u);
-    setEditForm({ displayName: u.displayName, password: '', isActive: u.isActive, role: u.role });
+    setEditForm({
+      displayName: u.displayName, password: '', isActive: u.isActive, role: u.role,
+      businessUnitIds: u.businessUnitIds ?? [],
+      accessExpiresAt: u.accessExpiresAt ?? maxAccessDate(),
+      accessIndeterminate: u.accessIndeterminate,
+    });
   };
 
   const handleEdit = async () => {
     if (!editUser) return;
     if (!editForm.displayName.trim()) { alert('Informe o nome de exibição.'); return; }
     if (editForm.password && editForm.password.length < 6) { alert('Nova senha deve ter ao menos 6 caracteres.'); return; }
+    if (editForm.businessUnitIds.length === 0) { alert('Selecione ao menos uma Unidade de Negócio (BU).'); return; }
+    if (!editForm.accessIndeterminate && !editForm.accessExpiresAt) { alert('Informe a data de expiração do acesso ou marque acesso indeterminado.'); return; }
     setSaving(true);
     try {
       await api.put(`/users/${editUser.id}`, {
@@ -117,11 +167,29 @@ export default function Users() {
         password: editForm.password || undefined,
         isActive: editForm.isActive,
         role: editForm.role,
+        businessUnitIds: editForm.businessUnitIds,
+        accessExpiresAt: editForm.accessIndeterminate ? null : editForm.accessExpiresAt,
+        accessIndeterminate: editForm.accessIndeterminate,
       });
       setEditUser(null);
       load();
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      alert(err?.response?.data?.message ?? 'Erro ao salvar usuário.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ---- Reset de MFA pelo admin ----
+  const handleResetTotp = async (u: AppUser) => {
+    if (!confirm(`Resetar o MFA de "${u.username}"? O usuário precisará configurar o 2FA novamente no próximo login, se quiser continuar usando.`)) return;
+    try {
+      await api.post(`/users/${u.id}/totp/reset`);
+      load();
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      alert(err?.response?.data?.message ?? 'Erro ao resetar MFA.');
     }
   };
 
@@ -270,15 +338,17 @@ export default function Users() {
                   <th style={{ width: 90 }}>Ramal</th>
                   <th>Senha do Ramal</th>
                   <th style={{ width: 80 }}>Perfil</th>
-                  <th style={{ width: 80 }}>2FA</th>
+                  <th>BU</th>
+                  <th style={{ width: 110 }}>Acesso até</th>
+                  <th style={{ width: 90 }}>2FA</th>
                   <th style={{ width: 90 }}>Status</th>
-                  <th style={{ width: 170 }}>Ações</th>
+                  <th style={{ width: 200 }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="table-empty">
+                    <td colSpan={11} className="table-empty">
                       Nenhum usuário cadastrado.<br />
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         Clique em "＋ Novo Usuário" para adicionar.
@@ -314,15 +384,24 @@ export default function Users() {
                         {u.role === 'ADMIN' ? '🛡 Admin' : '👤 User'}
                       </span>
                     </td>
-                    {/* 2FA badge — placeholder visual (status real só via modal) */}
+                    <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      {(u.businessUnitIds ?? []).length === 0
+                        ? '—'
+                        : (u.businessUnitIds ?? [])
+                            .map(id => businessUnits.find(b => b.id === id)?.name ?? `#${id}`)
+                            .join(', ')}
+                    </td>
+                    <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      {u.accessIndeterminate ? 'Indeterminado' : (u.accessExpiresAt ?? '—')}
+                    </td>
                     <td>
                       <span
-                        className="badge badge-gray"
+                        className={`badge ${u.totpEnabled ? 'badge-success' : 'badge-gray'}`}
                         style={{ cursor: 'pointer', fontSize: '0.68rem' }}
                         onClick={() => openTotp(u)}
                         title="Gerenciar 2FA"
                       >
-                        🔐 2FA
+                        {u.totpEnabled ? '🛡️ Ativo' : '🔓 2FA'}
                       </span>
                     </td>
                     <td>
@@ -343,6 +422,14 @@ export default function Users() {
                           title="Configurar 2FA"
                           style={{ color: '#a78bfa' }}
                         >🔐</button>
+                        {u.totpEnabled && (
+                          <button
+                            className="btn btn-ghost btn-sm btn-icon"
+                            onClick={() => handleResetTotp(u)}
+                            title="Resetar MFA (admin)"
+                            style={{ color: '#fbbf24' }}
+                          >♻️</button>
+                        )}
                         {u.isActive && (
                           <button
                             className="btn btn-danger btn-sm btn-icon"
@@ -411,6 +498,42 @@ export default function Users() {
                   <option value="ADMIN">🛡 Administrador</option>
                 </select>
               </div>
+              <div className="form-group">
+                <label className="form-label">Unidade(s) de Negócio (BU) *</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {businessUnits.map(bu => (
+                    <span key={bu.id} className="chip"
+                      style={{
+                        cursor: 'pointer',
+                        background: createForm.businessUnitIds.includes(bu.id) ? 'rgba(124,58,237,0.25)' : 'rgba(255,255,255,0.06)',
+                        color: createForm.businessUnitIds.includes(bu.id) ? '#a78bfa' : 'var(--text-muted)',
+                      }}
+                      onClick={() => setCreateForm(f => ({ ...f, businessUnitIds: toggleBu(f.businessUnitIds, bu.id) }))}
+                    >{bu.name}</span>
+                  ))}
+                  {businessUnits.length === 0 && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nenhuma BU cadastrada.</span>}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                  O usuário só verá dados das BUs selecionadas.
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Acesso ao sistema</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', marginBottom: 8 }}>
+                  <input type="checkbox" checked={createForm.accessIndeterminate}
+                    onChange={e => setCreateForm(f => ({ ...f, accessIndeterminate: e.target.checked }))} />
+                  Acesso por tempo indeterminado
+                </label>
+                <input type="date" className="form-input"
+                  disabled={createForm.accessIndeterminate}
+                  min={new Date().toISOString().slice(0, 10)}
+                  max={maxAccessDate()}
+                  value={createForm.accessExpiresAt}
+                  onChange={e => setCreateForm(f => ({ ...f, accessExpiresAt: e.target.value }))} />
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                  Prazo máximo: {MAX_ACCESS_DAYS} dias a partir de hoje.
+                </div>
+              </div>
               <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(124,58,237,0.08)', borderRadius: 8, fontSize: '0.8rem', color: '#a78bfa' }}>
                 📞 Um ramal SIP WebRTC será atribuído automaticamente ao novo usuário.
               </div>
@@ -465,6 +588,39 @@ export default function Users() {
                   <option value="true">Ativo</option>
                   <option value="false">Inativo</option>
                 </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Unidade(s) de Negócio (BU) *</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {businessUnits.map(bu => (
+                    <span key={bu.id} className="chip"
+                      style={{
+                        cursor: 'pointer',
+                        background: editForm.businessUnitIds.includes(bu.id) ? 'rgba(124,58,237,0.25)' : 'rgba(255,255,255,0.06)',
+                        color: editForm.businessUnitIds.includes(bu.id) ? '#a78bfa' : 'var(--text-muted)',
+                      }}
+                      onClick={() => setEditForm(f => ({ ...f, businessUnitIds: toggleBu(f.businessUnitIds, bu.id) }))}
+                    >{bu.name}</span>
+                  ))}
+                  {businessUnits.length === 0 && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nenhuma BU cadastrada.</span>}
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Acesso ao sistema</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', marginBottom: 8 }}>
+                  <input type="checkbox" checked={editForm.accessIndeterminate}
+                    onChange={e => setEditForm(f => ({ ...f, accessIndeterminate: e.target.checked }))} />
+                  Acesso por tempo indeterminado
+                </label>
+                <input type="date" className="form-input"
+                  disabled={editForm.accessIndeterminate}
+                  min={new Date().toISOString().slice(0, 10)}
+                  max={maxAccessDate()}
+                  value={editForm.accessExpiresAt}
+                  onChange={e => setEditForm(f => ({ ...f, accessExpiresAt: e.target.value }))} />
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                  Prazo máximo: {MAX_ACCESS_DAYS} dias a partir de hoje.
+                </div>
               </div>
             </div>
             <div className="modal-footer">
