@@ -1,5 +1,6 @@
 package com.asteriskia.domain.ura;
 
+import com.asteriskia.domain.masterdata.BusinessUnit;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -36,6 +37,15 @@ public class Ura {
     @Column(name = "jira_integration_enabled", nullable = false)
     @Builder.Default
     private Boolean jiraIntegrationEnabled = true;
+
+    /**
+     * BU de origem da URA — usada para escopar Chamadas (call_records) por BU
+     * do usuário logado. Opcional: URAs sem BU (ex.: a legada id=1) só
+     * aparecem para ADMIN quando o controle de acesso por BU está ativo.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "business_unit_id")
+    private BusinessUnit businessUnit;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

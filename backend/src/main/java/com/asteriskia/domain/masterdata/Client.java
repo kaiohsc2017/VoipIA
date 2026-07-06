@@ -49,6 +49,16 @@ public class Client {
     @JsonIgnore
     private Set<Operation> operations = new HashSet<>();
 
+    /** Unidades de Negócio (BU) às quais o cliente pode ser associado — opcional, múltiplo. */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "client_business_units",
+            joinColumns = @JoinColumn(name = "client_id"),
+            inverseJoinColumns = @JoinColumn(name = "business_unit_id")
+    )
+    @Builder.Default
+    private Set<BusinessUnit> businessUnits = new HashSet<>();
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

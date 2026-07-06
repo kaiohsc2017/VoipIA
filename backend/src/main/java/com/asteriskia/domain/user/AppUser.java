@@ -1,11 +1,15 @@
 package com.asteriskia.domain.user;
 
+import com.asteriskia.domain.masterdata.BusinessUnit;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * AppUser — Usuário do sistema AsteriskIA.
@@ -60,6 +64,30 @@ public class AppUser {
     @Builder.Default
     private Boolean totpEnabled = false;
 
+    /** Unidades de Negócio (BU) do usuário — obrigatório, restringe os dados visíveis a essas BUs. */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "user_business_units",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "business_unit_id")
+    )
+    @Builder.Default
+    private Set<BusinessUnit> businessUnits = new HashSet<>();
+
+    /** Data limite de acesso (máx. 60 dias a partir da criação/edição). Null se access_indeterminate=true. */
+    @Column(name = "access_expires_at")
+    private LocalDate accessExpiresAt;
+
+    /** Se true, o usuário tem acesso por tempo indeterminado — accessExpiresAt deve ficar null. */
+    @Column(name = "access_indeterminate", nullable = false)
+    @Builder.Default
+    private Boolean accessIndeterminate = false;
+
+    /** Marca se o usuário já passou pela oferta de configuração de MFA no primeiro login. */
+    @Column(name = "first_login_completed", nullable = false)
+    @Builder.Default
+    private Boolean firstLoginCompleted = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -67,5 +95,17 @@ public class AppUser {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    /** IDs das BUs do usuário — usado para popular a claim "bu" do JWT. */
+    public Set<Integer> businessUnitIds() {
+        return businessUnits.stream().map(BusinessUnit::getId).collect(java.util.stream.Collectors.toSet());
+    }
+
+    /** true se o acesso do usuário expirou (accessExpiresAt no passado e não é indeterminado). */
+    public boolean hasExpiredAccess() {
+        return !Boolean.TRUE.equals(accessIndeterminate)
+                && accessExpiresAt != null
+                && accessExpiresAt.isBefore(LocalDate.now());
+    }
 }
 
