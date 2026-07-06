@@ -290,14 +290,14 @@ export default function ModuloURA() {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-2" style={{ marginBottom: 20, display: 'flex', gap: 6 }}>
-          <button className={`btn ${tab === 'calls'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('calls')}>
-            📋 Chamadas
+          <button className={`btn ${tab === 'uras'      ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('uras')}>
+            🎛️ URAs
           </button>
           <button className={`btn ${tab === 'dashboard' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('dashboard')}>
             📊 Dashboard
           </button>
-          <button className={`btn ${tab === 'uras'      ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('uras')}>
-            🎛️ URAs
+          <button className={`btn ${tab === 'calls'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('calls')}>
+            📋 Chamadas
           </button>
         </div>
 
