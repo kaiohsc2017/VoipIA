@@ -1,8 +1,9 @@
 import type { ComponentType } from 'react';
+import { useState } from 'react';
 import {
   LayoutDashboard, Headset, PhoneCall, AlertTriangle, Bot, Users, UsersRound,
-  Settings, Terminal, ShieldCheck, KeyRound, ClipboardList, ChevronLeft,
-  ChevronRight, LogOut, ExternalLink, BookOpen,
+  Settings, Terminal, ShieldCheck, KeyRound, ClipboardList,
+  LogOut, ExternalLink, BookOpen,
 } from 'lucide-react';
 import { canRead } from '../api/client';
 
@@ -45,11 +46,20 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
     item.adminOnly ? role === 'ADMIN' : canRead(role, perms, item.resource!)
   );
 
-  return (
-    <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
+  // Expansão temporária ao passar o mouse — só entra em ação quando o menu
+  // está no estado fixo "colapsado"; não altera o estado `collapsed` do App.tsx.
+  const [hoverExpanded, setHoverExpanded] = useState(false);
+  const isEffectivelyCollapsed = collapsed && !hoverExpanded;
 
-      {/* Logo */}
-      <div className="sidebar-logo">
+  return (
+    <aside
+      className={`sidebar${isEffectivelyCollapsed ? ' collapsed' : ''}`}
+      onMouseEnter={() => { if (collapsed) setHoverExpanded(true); }}
+      onMouseLeave={() => setHoverExpanded(false)}
+    >
+
+      {/* Logo — clique colapsa/expande o menu */}
+      <div className="sidebar-logo" onClick={onToggleCollapse} style={{ cursor: 'pointer' }}>
         <div className="logo-mark">
           <div className="logo-icon">A★</div>
           <span className="logo-text">AsteriskIA</span>
@@ -74,12 +84,12 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
-                  title={collapsed ? item.label : undefined}
+                  title={isEffectivelyCollapsed ? item.label : undefined}
                   style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
                   <span className="nav-icon"><Icon size={17} strokeWidth={1.75} /></span>
                   <span>{item.label}</span>
-                  {!collapsed && <ExternalLink size={12} style={{ marginLeft: 'auto', opacity: 0.5 }} />}
+                  {!isEffectivelyCollapsed && <ExternalLink size={12} style={{ marginLeft: 'auto', opacity: 0.5 }} />}
                 </a>
               ) : (
                 <div
@@ -87,7 +97,7 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
                   onClick={() => onNavigate(item.page)}
                   role="button"
                   tabIndex={0}
-                  title={collapsed ? item.label : undefined}
+                  title={isEffectivelyCollapsed ? item.label : undefined}
                   onKeyDown={e => e.key === 'Enter' && onNavigate(item.page)}
                 >
                   <span className="nav-icon"><Icon size={17} strokeWidth={1.75} /></span>
@@ -99,20 +109,8 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
         })}
       </nav>
 
-      {/* Footer: toggle + usuário + sair */}
+      {/* Footer: usuário + sair */}
       <div className="sidebar-footer">
-        {/* Botão de recolher — parte do footer, sem posição absoluta */}
-        <button
-          className="sidebar-toggle-btn"
-          onClick={onToggleCollapse}
-          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-        >
-          <span className="toggle-icon">
-            {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
-          </span>
-          <span className="toggle-label">Recolher</span>
-        </button>
-
         <div className="user-info">
           <div className="user-avatar">
             {username.charAt(0).toUpperCase()}

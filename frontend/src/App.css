@@ -123,40 +123,6 @@
 .sidebar .nav-section-label { color: rgba(255,255,255,0.35); }
 .sidebar .logo-version      { color: rgba(255,255,255,0.35); }
 
-/* Botão de colapso — no footer, sem position absoluta */
-.sidebar-toggle-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 9px 12px;
-  margin-bottom: 10px;
-  cursor: pointer;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: var(--radius-sm);
-  color: rgba(255,255,255,0.6);
-  font-size: 0.82rem;
-  font-weight: 500;
-  transition: all var(--transition);
-  white-space: nowrap;
-  overflow: hidden;
-}
-.sidebar-toggle-btn:hover {
-  background: rgba(255,255,255,0.12);
-  color: #ffffff;
-}
-.sidebar-toggle-btn .toggle-icon { font-size: 0.65rem; flex-shrink: 0; }
-.sidebar-toggle-btn .toggle-label { flex: 1; text-align: left; }
-
-/* Collapsed: só ícone centralizado */
-.sidebar.collapsed .sidebar-toggle-btn {
-  justify-content: center;
-  padding: 9px;
-  gap: 0;
-}
-.sidebar.collapsed .toggle-label { display: none; }
-
 /* Estado colapsado */
 .sidebar.collapsed {
   width: 64px;
