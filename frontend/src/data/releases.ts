@@ -26,7 +26,7 @@ export const RELEASES: ReleaseEntry[] = [
       'Ordem do menu de Cadastros ajustada para BU, Operação, Segmento, Cliente.',
       'Cadastro de Usuários: BU obrigatória (múltipla) e restrição de acesso aos dados dessa(s) BU(s).',
       'Cadastro de Usuários: expiração de acesso configurável (máx. 60 dias) ou acesso por tempo indeterminado.',
-      'Autenticação em duas etapas (MFA/TOTP): reset pelo administrador via endpoint dedicado, sem exigir o código do usuário atual.',
+      'Autenticação em duas etapas (MFA/TOTP): oferta opcional no primeiro login e reset pelo administrador via endpoint dedicado, sem exigir o código do usuário atual.',
       'Tela de URA: reordenação das abas para URA, Dashboard, Chamadas.',
       'Menu lateral: colapsa ao clicar no logo do sistema e expande ao passar o mouse.',
       'Remoção dos prefixos "Módulo 2" e "Módulo 3" dos títulos de Conectividade e Alertas.',
