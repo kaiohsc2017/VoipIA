@@ -8,8 +8,11 @@ import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * JwtService — Geração e validação de tokens JWT (JJWT 0.12+).
@@ -80,6 +83,19 @@ public class JwtService {
      * @return Token JWT assinado com claims "extension", "role" e "perm"
      */
     public String generateToken(String username, Integer extension, String role, Map<String, String> perms) {
+        return generateToken(username, extension, role, perms, Set.of());
+    }
+
+    /**
+     * Gera um token JWT com claims de ramal, role, permissões granulares e as
+     * BUs (Unidades de Negócio) do usuário — usadas para restringir os dados
+     * visíveis a essas BUs (controle de acesso por BU). ADMIN não carrega
+     * claim "bu" — enxerga todas as BUs, ver {@code BusinessUnitContext}.
+     *
+     * @param businessUnitIds IDs das BUs do usuário; vazio omite a claim "bu"
+     */
+    public String generateToken(String username, Integer extension, String role, Map<String, String> perms,
+                                 Collection<Integer> businessUnitIds) {
         long nowMs = System.currentTimeMillis();
         var builder = Jwts.builder()
                 .subject(username)
@@ -92,6 +108,9 @@ public class JwtService {
         }
         if (perms != null && !perms.isEmpty()) {
             builder.claim("perm", perms);
+        }
+        if (businessUnitIds != null && !businessUnitIds.isEmpty()) {
+            builder.claim("bu", List.copyOf(businessUnitIds));
         }
         return builder.compact();
     }
@@ -151,6 +170,31 @@ public class JwtService {
     }
 
     /**
+     * Extrai a claim "bu" (IDs das Unidades de Negócio do usuário) de um
+     * token válido. Ausente para ADMIN (bypassa o filtro) ou tokens antigos
+     * emitidos antes do controle de acesso por BU — quem chama deve tratar
+     * lista vazia como "sem BUs atribuídas", não como "todas as BUs".
+     *
+     * @param token Token JWT
+     * @return lista de IDs de BU, vazia se ausente
+     */
+    @SuppressWarnings("unchecked")
+    public List<Integer> extractBusinessUnitIds(String token) {
+        Object bu = Jwts.parser()
+                .verifyWith(key())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .get("bu");
+        if (!(bu instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+                .map(v -> v instanceof Number n ? n.intValue() : Integer.parseInt(v.toString()))
+                .toList();
+    }
+
+    /**
      * Valida o token: assinatura e expiração.
      *
      * @param token Token JWT a validar
@@ -182,6 +226,12 @@ public class JwtService {
      * mesmo que alguém tente colar ele na URL manualmente.
      */
     public String generateStreamingToken(String username, String role, Map<String, String> perms) {
+        return generateStreamingToken(username, role, perms, List.of());
+    }
+
+    /** Variante que também propaga a claim "bu" — mantém o mesmo escopo de BU do token principal. */
+    public String generateStreamingToken(String username, String role, Map<String, String> perms,
+                                          Collection<Integer> businessUnitIds) {
         long nowMs = System.currentTimeMillis();
         var builder = Jwts.builder()
                 .subject(username)
@@ -192,6 +242,9 @@ public class JwtService {
                 .signWith(key(), Jwts.SIG.HS256);
         if (perms != null && !perms.isEmpty()) {
             builder.claim("perm", perms);
+        }
+        if (businessUnitIds != null && !businessUnitIds.isEmpty()) {
+            builder.claim("bu", List.copyOf(businessUnitIds));
         }
         return builder.compact();
     }

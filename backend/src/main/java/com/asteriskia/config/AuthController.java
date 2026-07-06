@@ -17,8 +17,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * AuthController — Endpoint de autenticação JWT com suporte a 2FA TOTP (Fase 13).
@@ -75,6 +78,13 @@ public class AuthController {
             if (userOpt.isPresent()) {
                 AppUser user = userOpt.get();
                 if (ENCODER.matches(request.password(), user.getPasswordHash())) {
+                    if (user.hasExpiredAccess()) {
+                        auditService.logAs(httpRequest, user.getUsername(), "LOGIN_FAILED",
+                                "Acesso expirado em " + user.getAccessExpiresAt(), false);
+                        log.warn("Login bloqueado: acesso de '{}' expirado em {}", user.getUsername(), user.getAccessExpiresAt());
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                .body(new ErrorResponse("Acesso expirado. Contate o administrador."));
+                    }
                     return handleSuccessfulLogin(user, httpRequest);
                 }
             }
@@ -123,7 +133,8 @@ public class AuthController {
 
         // Login normal (sem 2FA)
         var perms = accessGroupService.permissionsFor(user.getAccessGroup());
-        String token = jwtService.generateToken(user.getUsername(), user.getExtension(), user.getRole(), perms);
+        String token = jwtService.generateToken(user.getUsername(), user.getExtension(), user.getRole(), perms,
+                user.businessUnitIds());
         String refreshToken = refreshTokenService.generateRefreshToken(user.getUsername());
         auditService.logAs(request, user.getUsername(), "LOGIN",
                 "Login bem-sucedido (ramal " + user.getExtension() + ")", true);
@@ -159,18 +170,27 @@ public class AuthController {
         var perms = isEnvFallbackAdmin
                 ? accessGroupService.permissionsFor(accessGroupService.administradores())
                 : java.util.Map.<String, String>of();
+        Set<Integer> businessUnitIds = Set.of();
 
         Optional<AppUser> userOpt = userRepo.findByUsernameAndIsActiveTrue(username);
         if (userOpt.isPresent()) {
-            extension = userOpt.get().getExtension();
-            displayName = userOpt.get().getDisplayName();
-            role = userOpt.get().getRole();
-            perms = accessGroupService.permissionsFor(userOpt.get().getAccessGroup());
+            AppUser user = userOpt.get();
+            if (user.hasExpiredAccess()) {
+                refreshTokenService.revokeRefreshToken(reqRefreshToken);
+                log.warn("Refresh bloqueado: acesso de '{}' expirado em {}", username, user.getAccessExpiresAt());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ErrorResponse("Acesso expirado. Contate o administrador."));
+            }
+            extension = user.getExtension();
+            displayName = user.getDisplayName();
+            role = user.getRole();
+            perms = accessGroupService.permissionsFor(user.getAccessGroup());
+            businessUnitIds = user.businessUnitIds();
         }
 
         // Rotação: revoga o antigo e gera um novo
         refreshTokenService.revokeRefreshToken(reqRefreshToken);
-        String newJwt = jwtService.generateToken(username, extension, role, perms);
+        String newJwt = jwtService.generateToken(username, extension, role, perms, businessUnitIds);
         String newRefreshToken = refreshTokenService.generateRefreshToken(username);
 
         log.info("Token renovado via refresh para '{}'", username);
@@ -222,7 +242,8 @@ public class AuthController {
         String username = jwtService.extractUsername(mainToken);
         String role = jwtService.extractRole(mainToken);
         Map<String, String> perms = jwtService.extractPermissions(mainToken);
-        String token = jwtService.generateStreamingToken(username, role, perms);
+        var businessUnitIds = jwtService.extractBusinessUnitIds(mainToken);
+        String token = jwtService.generateStreamingToken(username, role, perms, businessUnitIds);
         return ResponseEntity.ok(new StreamingTokenResponse(token, 60));
     }
 

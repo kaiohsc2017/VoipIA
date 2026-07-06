@@ -162,7 +162,8 @@ public class TotpController {
         // Código válido → emite JWT final (com a role real do usuário — antes
         // sempre virava "USER" independente do cargo, trancando admins com 2FA)
         var perms = accessGroupService.permissionsFor(user.getAccessGroup());
-        String jwt = jwtService.generateToken(user.getUsername(), user.getExtension(), user.getRole(), perms);
+        String jwt = jwtService.generateToken(user.getUsername(), user.getExtension(), user.getRole(), perms,
+                user.businessUnitIds());
         String newRefreshToken = refreshTokenService.generateRefreshToken(user.getUsername());
 
         auditService.logAs(request, username, "LOGIN",

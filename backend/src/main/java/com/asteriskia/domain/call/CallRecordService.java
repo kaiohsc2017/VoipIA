@@ -1,5 +1,6 @@
 package com.asteriskia.domain.call;
 
+import com.asteriskia.domain.masterdata.BusinessUnitContext;
 import com.asteriskia.domain.ura.Ura;
 import com.asteriskia.domain.ura.UraQuestion;
 import com.asteriskia.domain.ura.UraQuestionRepository;
@@ -9,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -162,12 +164,13 @@ public class CallRecordService {
 
     @Transactional(readOnly = true)
     public Page<CallRecord> findAll(Pageable pageable) {
-        return attachAnswers(repository.findAllByOrderByCallDateDesc(pageable));
+        return attachAnswers(repository.findAll(businessUnitScope(), pageable));
     }
 
     @Transactional(readOnly = true)
     public CallRecord findById(Long id) {
         CallRecord record = repository.findById(id)
+                .filter(this::inBusinessUnitScope)
                 .orElseThrow(() -> new RuntimeException("CallRecord não encontrado: " + id));
         record.setAnswers(loadAnswers(java.util.List.of(record.getId())).getOrDefault(record.getId(), java.util.List.of()));
         return record;
@@ -175,12 +178,35 @@ public class CallRecordService {
 
     @Transactional(readOnly = true)
     public Page<CallRecord> findByCallerNumber(String number, Pageable pageable) {
-        return attachAnswers(repository.findByCallerNumberContainingOrderByCallDateDesc(number, pageable));
+        Specification<CallRecord> spec = (root, query, cb) ->
+                cb.like(root.get("callerNumber"), "%" + number + "%");
+        return attachAnswers(repository.findAll(spec.and(businessUnitScope()), pageable));
     }
 
     @Transactional(readOnly = true)
     public Page<CallRecord> findByFilters(CallRecordFilter filter, Pageable pageable) {
-        return attachAnswers(repository.findAll(CallRecordSpecifications.withFilters(filter), pageable));
+        return attachAnswers(repository.findAll(
+                CallRecordSpecifications.withFilters(filter).and(businessUnitScope()), pageable));
+    }
+
+    /** Controle de acesso por BU — Specification neutra (sem restrição) para ADMIN. */
+    private Specification<CallRecord> businessUnitScope() {
+        if (!BusinessUnitContext.isRestricted()) {
+            return Specification.where(null);
+        }
+        return CallRecordSpecifications.restrictedToBusinessUnits(BusinessUnitContext.currentBusinessUnitIds());
+    }
+
+    /** true se a chamada é visível ao usuário atual — ADMIN sempre vê tudo. */
+    private boolean inBusinessUnitScope(CallRecord record) {
+        if (!BusinessUnitContext.isRestricted()) {
+            return true;
+        }
+        Ura ura = uraRepository.findById(record.getUraId()).orElse(null);
+        if (ura == null || ura.getBusinessUnit() == null) {
+            return true;
+        }
+        return BusinessUnitContext.currentBusinessUnitIds().contains(ura.getBusinessUnit().getId());
     }
 
     /** Preenche o campo transiente `answers` de cada registro da página (uma consulta em lote, não N+1). */

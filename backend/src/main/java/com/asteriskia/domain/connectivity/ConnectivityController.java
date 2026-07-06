@@ -1,5 +1,6 @@
 package com.asteriskia.domain.connectivity;
 
+import com.asteriskia.domain.masterdata.BusinessUnitContext;
 import com.asteriskia.domain.masterdata.BusinessUnitRepository;
 import com.asteriskia.domain.masterdata.ClientRepository;
 import com.asteriskia.domain.masterdata.OperationRepository;
@@ -52,6 +53,13 @@ public class ConnectivityController {
     @GetMapping("/number-tests")
         public ResponseEntity<List<NumberTest>> listNumberTests(
             @RequestParam(required = false) Boolean active) {
+        if (BusinessUnitContext.isRestricted()) {
+            var buIds = BusinessUnitContext.currentBusinessUnitIds();
+            List<NumberTest> result = active != null
+                    ? numberTestRepo.findByIsActiveAndBusinessUnit_IdIn(active, buIds)
+                    : numberTestRepo.findByBusinessUnit_IdIn(buIds);
+            return ResponseEntity.ok(result);
+        }
         List<NumberTest> result = active != null
                 ? numberTestRepo.findByIsActive(active)
                 : numberTestRepo.findAll();
@@ -61,8 +69,15 @@ public class ConnectivityController {
     @GetMapping("/number-tests/{id}")
         public ResponseEntity<NumberTest> getNumberTest(@PathVariable Long id) {
         return numberTestRepo.findById(id)
+                .filter(this::inBusinessUnitScope)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** true se o teste é visível ao usuário atual — ADMIN sempre vê tudo. */
+    private boolean inBusinessUnitScope(NumberTest test) {
+        return !BusinessUnitContext.isRestricted()
+                || BusinessUnitContext.currentBusinessUnitIds().contains(test.getBusinessUnit().getId());
     }
 
     @PostMapping("/number-tests")
@@ -111,10 +126,16 @@ public class ConnectivityController {
             @RequestParam(required = false)    Long   segmentId) {
 
         PageRequest pageable = PageRequest.of(page, size, Sort.by("executedAt").descending());
+        // Controle de acesso por BU: allowedBusinessUnitIds intersecta a query com as
+        // BUs do usuário logado — não confiar apenas no filtro opcional businessUnitId,
+        // que o próprio cliente da requisição controla.
+        java.util.List<Long> allowedBusinessUnitIds = BusinessUnitContext.isRestricted()
+                ? BusinessUnitContext.currentBusinessUnitIds().stream().map(Integer::longValue).toList()
+                : null;
         Page<TestResult> result = testResultRepo.findWithFilters(
                 numberTestId, status, dateFrom, dateTo,
                 businessUnitId, clientId, operationId, segmentId,
-                pageable);
+                allowedBusinessUnitIds, pageable);
         return ResponseEntity.ok(result);
     }
 

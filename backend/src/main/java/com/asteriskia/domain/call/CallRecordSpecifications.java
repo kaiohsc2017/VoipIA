@@ -1,6 +1,9 @@
 package com.asteriskia.domain.call;
 
+import com.asteriskia.domain.ura.Ura;
 import org.springframework.data.jpa.domain.Specification;
+
+import java.util.Set;
 
 /**
  * CallRecordSpecifications — monta a query dinâmica combinando os filtros
@@ -9,6 +12,24 @@ import org.springframework.data.jpa.domain.Specification;
 public final class CallRecordSpecifications {
 
     private CallRecordSpecifications() {}
+
+    /**
+     * Controle de acesso por BU: restringe a chamadas cuja URA pertence a uma
+     * das BUs do usuário — URAs sem BU definida (ex.: a legada id=1) ficam
+     * visíveis a todos, tratadas como "sem restrição" (BU é opcional na URA).
+     */
+    public static Specification<CallRecord> restrictedToBusinessUnits(Set<Integer> allowedBusinessUnitIds) {
+        return (root, query, cb) -> {
+            var subquery = query.subquery(Integer.class);
+            var uraRoot = subquery.from(Ura.class);
+            subquery.select(uraRoot.get("id"));
+            subquery.where(cb.or(
+                    cb.isNull(uraRoot.get("businessUnit")),
+                    uraRoot.get("businessUnit").get("id").in(allowedBusinessUnitIds)
+            ));
+            return root.get("uraId").in(subquery);
+        };
+    }
 
     public static Specification<CallRecord> withFilters(CallRecordFilter filter) {
         return (root, query, cb) -> {

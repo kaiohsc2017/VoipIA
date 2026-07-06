@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 
 @Repository
 public interface TestResultRepository extends JpaRepository<TestResult, Long> {
@@ -22,6 +23,11 @@ public interface TestResultRepository extends JpaRepository<TestResult, Long> {
      * nenhuma outra coluna pra deduzir o tipo) e falha com
      * "ERROR: could not determine data type of parameter $N" sempre que a busca é
      * feita sem informar as duas datas.
+     *
+     * allowedBusinessUnitIds: controle de acesso por BU (não é filtro opcional do
+     * usuário) — null significa ADMIN/sem restrição; para usuário restrito, o
+     * controller sempre informa a lista das BUs do usuário, mesmo sem o filtro
+     * businessUnitId explícito ter sido escolhido na tela.
      */
     @Query("SELECT r FROM TestResult r JOIN r.numberTest nt " +
            "WHERE (:numberTestId  IS NULL OR nt.id                  = :numberTestId) " +
@@ -31,7 +37,8 @@ public interface TestResultRepository extends JpaRepository<TestResult, Long> {
            "AND   (:businessUnitId IS NULL OR nt.businessUnit.id    = :businessUnitId) " +
            "AND   (:clientId      IS NULL OR nt.client.id           = :clientId) " +
            "AND   (:operationId   IS NULL OR nt.operation.id        = :operationId) " +
-           "AND   (:segmentId     IS NULL OR nt.segment.id          = :segmentId)")
+           "AND   (:segmentId     IS NULL OR nt.segment.id          = :segmentId) " +
+           "AND   (:allowedBusinessUnitIds IS NULL OR nt.businessUnit.id IN :allowedBusinessUnitIds)")
     Page<TestResult> findWithFilters(
             @Param("numberTestId")   Long          numberTestId,
             @Param("status")         String        status,
@@ -41,6 +48,7 @@ public interface TestResultRepository extends JpaRepository<TestResult, Long> {
             @Param("clientId")       Long          clientId,
             @Param("operationId")    Long          operationId,
             @Param("segmentId")      Long          segmentId,
+            @Param("allowedBusinessUnitIds") Collection<Long> allowedBusinessUnitIds,
             Pageable pageable);
 
     // Mantidos para compatibilidade com HistoricoModal (filtra por numberTestId + período)

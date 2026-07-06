@@ -49,6 +49,10 @@ public class MasterDataController {
         List<BusinessUnit> result = active != null
                 ? buRepo.findByIsActive(active)
                 : buRepo.findAll();
+        if (BusinessUnitContext.isRestricted()) {
+            var allowed = BusinessUnitContext.currentBusinessUnitIds();
+            result = result.stream().filter(bu -> allowed.contains(bu.getId())).toList();
+        }
         return ResponseEntity.ok(result);
     }
 
@@ -120,7 +124,7 @@ public class MasterDataController {
         List<Client> result = active != null
                 ? clientRepo.findByIsActive(active)
                 : clientRepo.findAll();
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(filterByBusinessUnitScope(result, c -> c.getBusinessUnits().stream().map(BusinessUnit::getId).toList()));
     }
 
     @PostMapping("/clients")
@@ -179,7 +183,25 @@ public class MasterDataController {
         List<Operation> result = active != null
                 ? opRepo.findByIsActive(active)
                 : opRepo.findAll();
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(filterByBusinessUnitScope(result, o -> o.getBusinessUnits().stream().map(BusinessUnit::getId).toList()));
+    }
+
+    /**
+     * Controle de acesso por BU: mantém apenas os itens sem BU (visíveis a
+     * todos — BU é opcional no cadastro) ou com ao menos uma BU em comum com
+     * o usuário logado. ADMIN não é filtrado.
+     */
+    private <T> List<T> filterByBusinessUnitScope(List<T> items, Function<T, List<Integer>> businessUnitIdsOf) {
+        if (!BusinessUnitContext.isRestricted()) {
+            return items;
+        }
+        var allowed = BusinessUnitContext.currentBusinessUnitIds();
+        return items.stream()
+                .filter(item -> {
+                    List<Integer> ids = businessUnitIdsOf.apply(item);
+                    return ids.isEmpty() || ids.stream().anyMatch(allowed::contains);
+                })
+                .toList();
     }
 
     @PostMapping("/operations")

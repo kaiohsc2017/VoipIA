@@ -73,6 +73,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         authorities.add(new SimpleGrantedAuthority("PERM_WRITE_" + resource));
                     }
                 });
+                // Controle de acesso por BU: authorities BU_<id> lidas por
+                // BusinessUnitContext para escopar queries. ADMIN não carrega
+                // claim "bu" (ver JwtService/AuthController) — bypassa o filtro.
+                jwtService.extractBusinessUnitIds(token)
+                        .forEach(buId -> authorities.add(new SimpleGrantedAuthority("BU_" + buId)));
 
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(username, null, authorities);
