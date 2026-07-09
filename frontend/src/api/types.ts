@@ -122,6 +122,39 @@ export interface Operation {
   isActive: boolean;
 }
 
+// ---- Cadastros: 0800 e Linhas ----
+export interface Numero0800Regenerado {
+  id?: number;
+  ordem: number;
+  numeroRegenerado?: string;
+  vdn?: string;
+  vetor?: string;
+  operadora?: string;
+}
+
+export interface Numero0800 {
+  id: number;
+  operadora: string;
+  numero: string;
+  client?: { id: number; name?: string } | null;
+  observacao?: string;
+  isActive: boolean;
+  businessUnits: BusinessUnit[];
+  regenerados: Numero0800Regenerado[];
+}
+
+export interface Linha {
+  id: number;
+  operadora: string;
+  operation?: { id: number; name?: string } | null;
+  chave?: string;
+  ipOperadora?: string;
+  ipAutoglass?: string;
+  observacao?: string;
+  isActive: boolean;
+  businessUnits: BusinessUnit[];
+}
+
 // ---- Number Tests (Módulo 2) ----
 export interface NumberTest {
   id: number;

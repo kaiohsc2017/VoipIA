@@ -3,11 +3,11 @@ import { useState } from 'react';
 import {
   LayoutDashboard, Headset, PhoneCall, AlertTriangle, Bot, Users, UsersRound,
   Settings, Terminal, ShieldCheck, KeyRound, ClipboardList,
-  LogOut, ExternalLink, BookOpen, Tag,
+  LogOut, ExternalLink, BookOpen, Tag, Phone, Cable,
 } from 'lucide-react';
 import { canRead } from '../api/client';
 
-type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs' | 'release';
+type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'cadastro0800' | 'linhas' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs' | 'release';
 
 interface SidebarProps {
   currentPage: Page;
@@ -32,6 +32,8 @@ const NAV_ITEMS: { page: Page; icon: ComponentType<{ size?: number; strokeWidth?
   { page: 'agents',     icon: Bot,             label: 'Agentes',            section: 'MÓDULOS',   resource: 'telecom.agents_link', external: '/agents/' },
   { page: 'masterdata', icon: Users,           label: 'Clientes',           section: 'CADASTROS', resource: 'telecom.masterdata'   },
   { page: 'users',      icon: UsersRound,      label: 'Usuários e Ramais',  section: 'CADASTROS', resource: 'telecom.users'        },
+  { page: 'cadastro0800', icon: Phone,         label: '0800',               section: 'CADASTROS', resource: 'telecom.0800'         },
+  { page: 'linhas',     icon: Cable,           label: 'Linhas',             section: 'CADASTROS', resource: 'telecom.linhas'       },
   { page: 'settings',   icon: Settings,        label: 'Configurações',      section: 'SISTEMA',   resource: 'telecom.settings'     },
   { page: 'logs',       icon: Terminal,        label: 'Logs',               section: 'SISTEMA',   resource: 'telecom.logs'         },
   { page: 'security',   icon: ShieldCheck,     label: 'Segurança',          section: 'SISTEMA',   resource: 'telecom.security'     },

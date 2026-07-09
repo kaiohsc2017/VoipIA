@@ -16,6 +16,8 @@ const ModuloAlertas      = lazy(() => import('./components/ModuloAlertas'));
 const Softphone          = lazy(() => import('./components/Softphone'));
 const MasterData         = lazy(() => import('./components/MasterData'));
 const Users              = lazy(() => import('./components/Users'));
+const Cadastro0800       = lazy(() => import('./components/Cadastro0800'));
+const Linhas             = lazy(() => import('./components/Linhas'));
 const Settings           = lazy(() => import('./components/Settings'));
 const Auditoria          = lazy(() => import('./components/Auditoria'));
 const AccessGroups       = lazy(() => import('./components/AccessGroups'));
@@ -94,6 +96,8 @@ const PAGE_RESOURCE: Partial<Record<Page, string>> = {
   modulo3:    'telecom.modulo3',
   masterdata: 'telecom.masterdata',
   users:      'telecom.users',
+  cadastro0800: 'telecom.0800',
+  linhas:     'telecom.linhas',
   settings:   'telecom.settings',
   logs:       'telecom.logs',
   security:   'telecom.security',
@@ -109,7 +113,7 @@ export default function App() {
   const [perms, setPerms] = useState<Record<string, string>>(() => getPermissionsFromToken(localStorage.getItem('asteriskia_token')));
   const pageFromHash = (): Page => {
     const hash = window.location.hash.replace('#', '').trim() as Page;
-    const valid: Page[] = ['dashboard','modulo1','modulo2','modulo3','masterdata','users','settings','audit','logs','security','accessGroups','docs','release'];
+    const valid: Page[] = ['dashboard','modulo1','modulo2','modulo3','masterdata','users','cadastro0800','linhas','settings','audit','logs','security','accessGroups','docs','release'];
     if (!valid.includes(hash)) return 'dashboard';
     // Acesso direto via hash (digitado/favoritado) a uma página sem permissão de
     // leitura: volta pro dashboard. O botão de nav já fica escondido (ver
@@ -193,6 +197,8 @@ export default function App() {
               {page === 'modulo3'    && <ModuloAlertas />}
               {page === 'masterdata' && <MasterData />}
               {page === 'users'      && <Users />}
+              {page === 'cadastro0800' && <Cadastro0800 />}
+              {page === 'linhas'     && <Linhas />}
               {page === 'settings'   && <Settings />}
               {page === 'audit'      && <Auditoria />}
               {page === 'logs'       && <ModuloLogs />}

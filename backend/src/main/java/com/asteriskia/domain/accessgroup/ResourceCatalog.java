@@ -20,6 +20,8 @@ public final class ResourceCatalog {
             "telecom.modulo3",
             "telecom.agents_link",
             "telecom.masterdata",
+            "telecom.0800",
+            "telecom.linhas",
             "telecom.users",
             "telecom.settings",
             "telecom.logs",
