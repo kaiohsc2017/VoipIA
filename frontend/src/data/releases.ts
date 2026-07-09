@@ -51,4 +51,13 @@ export const RELEASES: ReleaseEntry[] = [
       'Números 0800, seus grupos de regeneração e Linhas passam a selecionar a operadora a partir desse cadastro, em vez de texto livre.',
     ],
   },
+  {
+    version: 'v1.04',
+    date: '2026-07-08',
+    changes: [
+      'Números 0800 e Linhas: exportar os dados cadastrados para planilha (XLSX).',
+      'Números 0800 e Linhas: baixar um modelo de planilha para preenchimento, com aba de valores de referência (Operadoras/Clientes/Operações/BUs já cadastrados).',
+      'Números 0800 e Linhas: importar em lote a partir da planilha preenchida, com resumo de importados e erro por linha.',
+    ],
+  },
 ];
