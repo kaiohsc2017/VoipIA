@@ -60,4 +60,15 @@ export const RELEASES: ReleaseEntry[] = [
       'Números 0800 e Linhas: importar em lote a partir da planilha preenchida, com resumo de importados e erro por linha.',
     ],
   },
+  {
+    version: 'v1.05',
+    date: '2026-07-08',
+    changes: [
+      'Novo tema visual "Lumina Tech": paleta azul (antes violeta), com cores dedicadas de sucesso, alerta e erro.',
+      'Menu lateral: item ativo agora com indicador lateral, em vez de preenchimento sólido.',
+      'Dashboard: cards de indicadores com ícones em círculo, substituindo os emojis.',
+      'Gráficos (linha do tempo, distribuição e barras) recoloridos para o novo tema.',
+      'Telas de conteúdo com largura máxima, para melhor leitura em monitores ultrawide.',
+    ],
+  },
 ];
