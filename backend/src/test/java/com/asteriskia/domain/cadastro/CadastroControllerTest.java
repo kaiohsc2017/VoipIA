@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -56,6 +57,9 @@ class CadastroControllerTest {
 
     @MockBean
     private BusinessUnitRepository buRepo;
+
+    @MockBean
+    private CadastroExcelService excelService;
 
     @MockBean
     private AuditService auditService;
@@ -453,6 +457,106 @@ class CadastroControllerTest {
                     .andExpect(status().isCreated());
 
             verify(numero0800Repo).save(any(Numero0800.class));
+        }
+    }
+
+    // =========================================================================
+    // Exportação, modelo e importação em lote (XLSX)
+    // =========================================================================
+
+    @Nested
+    class ExportacaoEImportacao {
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        void exportNumeros0800_deveRetornarXlsx() throws Exception {
+            when(numero0800Repo.findAll()).thenReturn(List.of());
+            when(excelService.exportNumeros0800(anyList())).thenReturn(new byte[]{1, 2, 3});
+
+            mockMvc.perform(get("/api/v1/numeros-0800/export"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Content-Type",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        void templateNumeros0800_deveRetornarXlsx() throws Exception {
+            when(excelService.templateNumeros0800()).thenReturn(new byte[]{1, 2, 3});
+
+            mockMvc.perform(get("/api/v1/numeros-0800/template"))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        void importNumeros0800_arquivoVazio_deveRetornar400() throws Exception {
+            MockMultipartFile file = new MockMultipartFile("file", "vazio.xlsx", "application/octet-stream", new byte[0]);
+
+            mockMvc.perform(multipart("/api/v1/numeros-0800/import").file(file))
+                    .andExpect(status().isBadRequest());
+
+            verify(numero0800Repo, never()).saveAll(any());
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        void importNumeros0800_sucesso_deveRetornarResumo() throws Exception {
+            MockMultipartFile file = new MockMultipartFile("file", "dados.xlsx", "application/octet-stream", new byte[]{1});
+            Numero0800 n = Numero0800.builder().id(1).operadora(operadora("Vivo")).numero("0800111").build();
+            when(excelService.importNumeros0800(any())).thenReturn(new CadastroExcelService.ImportResult<>(List.of(n), List.of()));
+            when(numero0800Repo.saveAll(anyList())).thenReturn(List.of(n));
+            doNothing().when(auditService).log(any(), any(), any(), anyBoolean());
+
+            mockMvc.perform(multipart("/api/v1/numeros-0800/import").file(file))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.importados").value(1))
+                    .andExpect(jsonPath("$.erros").value(0));
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        void exportLinhas_deveRetornarXlsx() throws Exception {
+            when(linhaRepo.findAll()).thenReturn(List.of());
+            when(excelService.exportLinhas(anyList())).thenReturn(new byte[]{1, 2, 3});
+
+            mockMvc.perform(get("/api/v1/linhas/export"))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        void templateLinhas_deveRetornarXlsx() throws Exception {
+            when(excelService.templateLinhas()).thenReturn(new byte[]{1, 2, 3});
+
+            mockMvc.perform(get("/api/v1/linhas/template"))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        void importLinhas_arquivoVazio_deveRetornar400() throws Exception {
+            MockMultipartFile file = new MockMultipartFile("file", "vazio.xlsx", "application/octet-stream", new byte[0]);
+
+            mockMvc.perform(multipart("/api/v1/linhas/import").file(file))
+                    .andExpect(status().isBadRequest());
+
+            verify(linhaRepo, never()).saveAll(any());
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        void importLinhas_sucesso_deveRetornarResumo() throws Exception {
+            MockMultipartFile file = new MockMultipartFile("file", "dados.xlsx", "application/octet-stream", new byte[]{1});
+            Linha l = Linha.builder().id(1).operadora(operadora("Vivo")).build();
+            when(excelService.importLinhas(any())).thenReturn(new CadastroExcelService.ImportResult<>(List.of(l), List.of()));
+            when(linhaRepo.saveAll(anyList())).thenReturn(List.of(l));
+            doNothing().when(auditService).log(any(), any(), any(), anyBoolean());
+
+            mockMvc.perform(multipart("/api/v1/linhas/import").file(file))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.importados").value(1))
+                    .andExpect(jsonPath("$.erros").value(0));
         }
     }
 }

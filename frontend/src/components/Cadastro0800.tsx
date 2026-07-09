@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api, { canWrite, getPermissionsFromToken, getRoleFromToken } from '../api/client';
 import type { BusinessUnit, Client, Numero0800, Operadora } from '../api/types';
+import ImportModal, { triggerDownload } from './shared/ImportModal';
 
 const MAX_REGENERADOS = 5;
 
@@ -191,6 +192,7 @@ export default function Cadastro0800() {
   // filtro active=true, senão o campo aparece em branco apesar do vínculo
   // continuar válido.
   const [operadoraFallbacks, setOperadoraFallbacks] = useState<Operadora[]>([]);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -322,6 +324,15 @@ export default function Cadastro0800() {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const res = await api.get('/numeros-0800/export', { responseType: 'blob' });
+      triggerDownload(res.data, `numeros-0800_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch {
+      alert('Erro ao exportar.');
+    }
+  };
+
   const filteredItems = filterBu
     ? items.filter(item => item.businessUnits?.some(bu => String(bu.id) === filterBu))
     : items;
@@ -357,11 +368,15 @@ export default function Cadastro0800() {
               {buOptions.map(bu => <option key={bu.id} value={String(bu.id)}>{bu.name}</option>)}
             </select>
           </div>
-          {hasWrite && (
-            <div className="toolbar-right">
+          <div className="toolbar-right" style={{ gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={handleExport}>📤 Exportar</button>
+            {hasWrite && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowImportModal(true)}>📥 Importar</button>
+            )}
+            {hasWrite && (
               <button className="btn btn-primary" onClick={openCreate}>＋ Novo 0800</button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Table */}
@@ -558,6 +573,24 @@ export default function Cadastro0800() {
             </div>
           </div>
         </div>
+      )}
+
+      {showImportModal && (
+        <ImportModal
+          title="Importar Números 0800 em Lote"
+          importUrl="/numeros-0800/import"
+          templateUrl="/numeros-0800/template"
+          templateFilename="modelo-numeros-0800.xlsx"
+          instructions={[
+            'Baixe o arquivo modelo e preencha a aba "Modelo".',
+            'Os nomes de Operadora, Cliente e BU devem ser exatamente como cadastrados.',
+            'A aba "Valores de Referência" lista os nomes válidos.',
+            'Campo "Ativo": Sim ou Não.',
+            'Os campos de Regenerado são opcionais — deixe em branco os grupos que não usar.',
+          ]}
+          onClose={() => setShowImportModal(false)}
+          onImported={load}
+        />
       )}
     </>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api, { canWrite, getPermissionsFromToken, getRoleFromToken } from '../api/client';
 import type { BusinessUnit, Linha, Operadora, Operation } from '../api/types';
+import ImportModal, { triggerDownload } from './shared/ImportModal';
 
 /** Payload enviado para POST/PUT /linhas — operation/operadora nulos removem o vínculo. */
 interface LinhaPayload {
@@ -75,6 +76,7 @@ export default function Linhas() {
   // <select> de edição mesmo fora do filtro active=true, senão o campo
   // aparece em branco apesar do vínculo continuar válido.
   const [operadoraFallback, setOperadoraFallback] = useState<Operadora | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -168,6 +170,15 @@ export default function Linhas() {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const res = await api.get('/linhas/export', { responseType: 'blob' });
+      triggerDownload(res.data, `linhas_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch {
+      alert('Erro ao exportar.');
+    }
+  };
+
   const filteredItems = filterBu
     ? items.filter(item => item.businessUnits?.some(bu => String(bu.id) === filterBu))
     : items;
@@ -202,11 +213,15 @@ export default function Linhas() {
               {buOptions.map(bu => <option key={bu.id} value={String(bu.id)}>{bu.name}</option>)}
             </select>
           </div>
-          {hasWrite && (
-            <div className="toolbar-right">
+          <div className="toolbar-right" style={{ gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={handleExport}>📤 Exportar</button>
+            {hasWrite && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowImportModal(true)}>📥 Importar</button>
+            )}
+            {hasWrite && (
               <button className="btn btn-primary" onClick={openCreate}>＋ Nova Linha</button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Table */}
@@ -384,6 +399,23 @@ export default function Linhas() {
             </div>
           </div>
         </div>
+      )}
+
+      {showImportModal && (
+        <ImportModal
+          title="Importar Linhas em Lote"
+          importUrl="/linhas/import"
+          templateUrl="/linhas/template"
+          templateFilename="modelo-linhas.xlsx"
+          instructions={[
+            'Baixe o arquivo modelo e preencha a aba "Modelo".',
+            'Os nomes de Operadora, Operação e BU devem ser exatamente como cadastrados.',
+            'A aba "Valores de Referência" lista os nomes válidos.',
+            'Campo "Ativo": Sim ou Não.',
+          ]}
+          onClose={() => setShowImportModal(false)}
+          onImported={load}
+        />
       )}
     </>
   );

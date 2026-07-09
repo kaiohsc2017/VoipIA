@@ -7,11 +7,15 @@ import com.asteriskia.domain.masterdata.BusinessUnitRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +42,7 @@ public class CadastroController {
     private final LinhaRepository linhaRepo;
     private final BusinessUnitRepository buRepo;
     private final AuditService auditService;
+    private final CadastroExcelService excelService;
 
     // -----------------------------------------------------------------------
     // Números 0800
@@ -99,6 +104,38 @@ public class CadastroController {
         return ResponseEntity.ok(saved);
     }
 
+    /** Planilha XLSX com os números 0800 cadastrados, respeitando o escopo de BU do usuário. */
+    @GetMapping("/numeros-0800/export")
+    public ResponseEntity<byte[]> exportNumeros0800() throws IOException {
+        var items = filterByBusinessUnitScope(numero0800Repo.findAll(),
+                n -> n.getBusinessUnits().stream().map(BusinessUnit::getId).toList());
+        return xlsxResponse(excelService.exportNumeros0800(items), "numeros-0800.xlsx");
+    }
+
+    /** Modelo em branco para preenchimento e posterior importação via {@code /numeros-0800/import}. */
+    @GetMapping("/numeros-0800/template")
+    public ResponseEntity<byte[]> templateNumeros0800() throws IOException {
+        return xlsxResponse(excelService.templateNumeros0800(), "modelo-numeros-0800.xlsx");
+    }
+
+    /** Importa números 0800 em lote a partir de uma planilha XLSX preenchida a partir do modelo. */
+    @PostMapping("/numeros-0800/import")
+    public ResponseEntity<?> importNumeros0800(@RequestParam("file") MultipartFile file, HttpServletRequest req) throws IOException {
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Arquivo vazio."));
+        }
+        CadastroExcelService.ImportResult<Numero0800> result;
+        try {
+            result = excelService.importNumeros0800(file);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+        List<Numero0800> saved = numero0800Repo.saveAll(result.toSave());
+        auditService.log(req, "CADASTRO_IMPORT",
+                "Importação de Números 0800: " + saved.size() + " importados, " + result.errors().size() + " erros", true);
+        return ResponseEntity.ok(Map.of("importados", saved.size(), "erros", result.errors().size(), "detalhes", result.errors()));
+    }
+
     // -----------------------------------------------------------------------
     // Linhas
     // -----------------------------------------------------------------------
@@ -157,6 +194,45 @@ public class CadastroController {
         auditService.log(req, "CADASTRO_UPDATE",
                 "BUs da linha '" + saved.getOperadora().getNome() + "' atualizadas (id=" + id + ")", true);
         return ResponseEntity.ok(saved);
+    }
+
+    /** Planilha XLSX com as linhas cadastradas, respeitando o escopo de BU do usuário. */
+    @GetMapping("/linhas/export")
+    public ResponseEntity<byte[]> exportLinhas() throws IOException {
+        var items = filterByBusinessUnitScope(linhaRepo.findAll(),
+                l -> l.getBusinessUnits().stream().map(BusinessUnit::getId).toList());
+        return xlsxResponse(excelService.exportLinhas(items), "linhas.xlsx");
+    }
+
+    /** Modelo em branco para preenchimento e posterior importação via {@code /linhas/import}. */
+    @GetMapping("/linhas/template")
+    public ResponseEntity<byte[]> templateLinhas() throws IOException {
+        return xlsxResponse(excelService.templateLinhas(), "modelo-linhas.xlsx");
+    }
+
+    /** Importa linhas em lote a partir de uma planilha XLSX preenchida a partir do modelo. */
+    @PostMapping("/linhas/import")
+    public ResponseEntity<?> importLinhas(@RequestParam("file") MultipartFile file, HttpServletRequest req) throws IOException {
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Arquivo vazio."));
+        }
+        CadastroExcelService.ImportResult<Linha> result;
+        try {
+            result = excelService.importLinhas(file);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+        List<Linha> saved = linhaRepo.saveAll(result.toSave());
+        auditService.log(req, "CADASTRO_IMPORT",
+                "Importação de Linhas: " + saved.size() + " importadas, " + result.errors().size() + " erros", true);
+        return ResponseEntity.ok(Map.of("importados", saved.size(), "erros", result.errors().size(), "detalhes", result.errors()));
+    }
+
+    private ResponseEntity<byte[]> xlsxResponse(byte[] bytes, String filename) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(bytes);
     }
 
     /**
