@@ -71,7 +71,9 @@
 .main-content {
   flex: 1;
   margin-left: var(--sidebar-width);
-  min-height: 100vh;
+  height: 100vh;          /* altura fixa — necessário para overflow-y funcionar */
+  overflow-y: auto;       /* scroll aqui, não no body — habilita position:sticky nos filhos */
+  overflow-x: hidden;
   background: var(--bg-deep);
   display: flex;
   flex-direction: column;

@@ -2,23 +2,20 @@
 
 .docs-layout {
   display: flex;
-  min-height: 100%;
+  /* Ocupa toda a altura disponível abaixo do page-header */
+  height: calc(100vh - 110px);
   background: var(--bg-deep);
+  overflow: hidden;   /* o scroll acontece em cada coluna, não aqui */
 }
 
-/* ── TOC lateral ── */
+/* ── TOC lateral — fixo, não rola com o conteúdo ── */
 .docs-toc {
   width: 260px;
   flex-shrink: 0;
   background: var(--gradient-sidebar);
   padding: 24px 0 40px;
-  overflow-y: auto;
-  /* 110px ≈ altura do .page-header acima (título curto + subtítulo de uma
-     linha) — sem isso o TOC, que também é sticky, sobrepõe o cabeçalho ao
-     rolar a página. */
-  max-height: calc(100vh - 110px);
-  position: sticky;
-  top: 110px;
+  overflow-y: auto;   /* rola só se houver mais itens que a altura */
+  height: 100%;       /* ocupa toda a altura do docs-layout */
 }
 
 .docs-toc-group {
@@ -50,6 +47,9 @@
   flex: 1;
   max-width: 960px;
   padding: 40px 48px 96px;
+  overflow-y: auto;   /* conteúdo rola independentemente do TOC */
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .docs-hero {

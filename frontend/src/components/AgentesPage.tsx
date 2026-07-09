@@ -28,7 +28,7 @@ export default function AgentesPage() {
 
       <div className="page-body" style={{ padding: 0, display: 'flex', flex: 1 }}>
         <iframe
-          src="/agents/"
+          src="/agents/?embedded=1"
           title="Plataforma de Agentes"
           style={{ flex: 1, width: '100%', height: 'calc(100vh - 90px)', border: 'none' }}
         />

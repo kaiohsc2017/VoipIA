@@ -23,14 +23,22 @@ export default function DocsLayout({ children }: DocsLayoutProps) {
           setActiveId(visible[0].target.id);
         }
       },
-      { root, rootMargin: '-10% 0px -70% 0px', threshold: 0 }
+      // root = docs-content: observer detecta seções visíveis no scroll do conteúdo
+      { root, rootMargin: '-5% 0px -60% 0px', threshold: 0 }
     );
     sections.forEach(s => observer.observe(s));
     return () => observer.disconnect();
   }, [children]);
 
   const handleNavigate = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const el = document.getElementById(id);
+    if (!el || !contentRef.current) return;
+    // Scroll dentro do docs-content (que tem overflow-y: auto)
+    // em vez do window/body, para que o TOC fixo não se mova
+    contentRef.current.scrollTo({
+      top: el.offsetTop - 24,
+      behavior: 'smooth',
+    });
   };
 
   return (
