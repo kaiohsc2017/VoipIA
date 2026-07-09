@@ -6,6 +6,9 @@ import {
   LogOut, ExternalLink, BookOpen, Tag, Phone, Cable,
 } from 'lucide-react';
 import { canRead } from '../api/client';
+import { RELEASES } from '../data/releases';
+
+const CURRENT_VERSION = RELEASES[RELEASES.length - 1].version;
 
 type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'cadastro0800' | 'linhas' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs' | 'release';
 
@@ -67,7 +70,7 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
           <div className="logo-icon">A★</div>
           <span className="logo-text">AsteriskIA</span>
         </div>
-        <div className="logo-version">v1.0 — Painel de Controle</div>
+        <div className="logo-version">{CURRENT_VERSION} — Painel de Controle</div>
       </div>
 
       {/* Nav */}

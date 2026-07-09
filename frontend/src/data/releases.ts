@@ -33,4 +33,14 @@ export const RELEASES: ReleaseEntry[] = [
       'Nova tela de Release Notes com o histórico de versões do sistema.',
     ],
   },
+  {
+    version: 'v1.02',
+    date: '2026-07-08',
+    changes: [
+      'Novo bloco de Cadastros: Números 0800, com grupos de regeneração (até 5) e vínculo opcional a Cliente/BU.',
+      'Novo bloco de Cadastros: Linhas de operadora, com IPs, chave e vínculo opcional a Operação/BU.',
+      'Correção: pausar/ativar um número 0800 ou linha não apaga mais as BUs vinculadas.',
+      'Correção: criar um número 0800 com grupo de regeneração não retorna mais erro interno do servidor.',
+    ],
+  },
 ];
