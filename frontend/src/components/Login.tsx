@@ -128,19 +128,7 @@ export default function Login({ onLogin }: LoginProps) {
       <div className="login-card">
         {/* Logo */}
         <div className="login-logo">
-          <svg width="36" height="36" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{filter: 'drop-shadow(0 0 8px rgba(99,102,241,0.5))'}}>
-            <defs>
-              <linearGradient id="lgLogin" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#818cf8"/>
-                <stop offset="100%" stopColor="#6366f1"/>
-              </linearGradient>
-            </defs>
-            <rect x="2"  y="14" width="4" height="12" rx="2" fill="url(#lgLogin)" opacity="0.7"/>
-            <rect x="8"  y="8"  width="4" height="18" rx="2" fill="url(#lgLogin)"/>
-            <rect x="14" y="4"  width="4" height="22" rx="2" fill="url(#lgLogin)"/>
-            <rect x="20" y="10" width="4" height="16" rx="2" fill="url(#lgLogin)" opacity="0.9"/>
-            <rect x="26" y="16" width="4" height="10" rx="2" fill="url(#lgLogin)" opacity="0.6"/>
-          </svg>
+          <div className="login-logo-icon">A★</div>
           <span className="login-logo-text">AsteriskIA</span>
         </div>
 
