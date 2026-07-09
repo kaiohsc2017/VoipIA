@@ -63,16 +63,27 @@ public class Numero0800 {
     private Set<BusinessUnit> businessUnits = new HashSet<>();
 
     /**
-     * Grupos de regeneração (até 5) do número 0800 — unidirecional, dono da
-     * relação. EAGER pelo mesmo motivo das BUs acima.
+     * Grupos de regeneração (até 5) do número 0800 — bidirecional
+     * ({@link Numero0800Regenerado} é o lado dono da FK). EAGER pelo mesmo
+     * motivo das BUs acima. Setter customizado abaixo mantém a referência de
+     * volta sincronizada — sem ela, o Hibernate insere a linha filha sem
+     * {@code numero_0800_id} (ver Javadoc de {@link Numero0800Regenerado}).
      */
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-    @JoinColumn(name = "numero_0800_id")
+    @OneToMany(mappedBy = "numero0800", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("ordem ASC")
     @Valid
     @Size(max = 5, message = "Máximo de 5 regenerados por número 0800")
+    @Setter(AccessLevel.NONE)
     @Builder.Default
     private List<Numero0800Regenerado> regenerados = new ArrayList<>();
+
+    public void setRegenerados(List<Numero0800Regenerado> novos) {
+        regenerados.clear();
+        if (novos != null) {
+            novos.forEach(r -> r.setNumero0800(this));
+            regenerados.addAll(novos);
+        }
+    }
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

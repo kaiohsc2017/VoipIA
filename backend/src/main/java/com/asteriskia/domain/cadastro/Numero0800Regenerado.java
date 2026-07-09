@@ -1,5 +1,6 @@
 package com.asteriskia.domain.cadastro;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -8,8 +9,12 @@ import lombok.*;
 
 /**
  * Numero0800Regenerado — grupo de regeneração (até 5) de um número 0800.
- * Unidirecional: o dono da relação é {@link Numero0800#getRegenerados()}, esta
- * entidade não referencia o pai de volta.
+ * Bidirecional (dono da FK): precisa ser o lado dono para que o Hibernate
+ * inclua {@code numero_0800_id} já no INSERT — um {@code @OneToMany}
+ * unidirecional com {@code @JoinColumn} faz Hibernate inserir a linha sem a
+ * FK e só depois rodar um UPDATE para setá-la, o que falha porque a coluna é
+ * NOT NULL. Ver {@link Numero0800#setRegenerados}, que mantém esta referência
+ * sincronizada.
  */
 @Entity
 @Table(name = "numero_0800_regenerados")
@@ -19,6 +24,11 @@ public class Numero0800Regenerado {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "numero_0800_id", nullable = false)
+    @JsonIgnore
+    private Numero0800 numero0800;
 
     @NotNull
     @Min(1)
