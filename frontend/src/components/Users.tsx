@@ -297,7 +297,7 @@ export default function Users() {
         <div className="stat-card" style={{ padding: '14px 20px', marginBottom: 20, display: 'flex', gap: 32, flexWrap: 'wrap', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Usuários ativos</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#68d391' }}>{activeCount}</div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#34c759' }}>{activeCount}</div>
           </div>
           <div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total cadastrado</div>
@@ -361,7 +361,7 @@ export default function Users() {
                     <td><span className="mono" style={{ fontWeight: 600 }}>{u.username}</span></td>
                     <td>{u.displayName}</td>
                     <td>
-                      <span className="chip" style={{ background: 'rgba(124,58,237,0.15)', color: '#a78bfa', fontFamily: 'monospace' }}>
+                      <span className="chip" style={{ background: 'rgba(0,122,255,0.15)', color: '#4da8ff', fontFamily: 'monospace' }}>
                         📞 {u.extension}
                       </span>
                     </td>
@@ -420,7 +420,7 @@ export default function Users() {
                           className="btn btn-ghost btn-sm btn-icon"
                           onClick={() => openTotp(u)}
                           title="Configurar 2FA"
-                          style={{ color: '#a78bfa' }}
+                          style={{ color: '#4da8ff' }}
                         >🔐</button>
                         {u.totpEnabled && (
                           <button
@@ -505,8 +505,8 @@ export default function Users() {
                     <span key={bu.id} className="chip"
                       style={{
                         cursor: 'pointer',
-                        background: createForm.businessUnitIds.includes(bu.id) ? 'rgba(124,58,237,0.25)' : 'rgba(255,255,255,0.06)',
-                        color: createForm.businessUnitIds.includes(bu.id) ? '#a78bfa' : 'var(--text-muted)',
+                        background: createForm.businessUnitIds.includes(bu.id) ? 'rgba(0,122,255,0.25)' : 'rgba(255,255,255,0.06)',
+                        color: createForm.businessUnitIds.includes(bu.id) ? '#4da8ff' : 'var(--text-muted)',
                       }}
                       onClick={() => setCreateForm(f => ({ ...f, businessUnitIds: toggleBu(f.businessUnitIds, bu.id) }))}
                     >{bu.name}</span>
@@ -534,7 +534,7 @@ export default function Users() {
                   Prazo máximo: {MAX_ACCESS_DAYS} dias a partir de hoje.
                 </div>
               </div>
-              <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(124,58,237,0.08)', borderRadius: 8, fontSize: '0.8rem', color: '#a78bfa' }}>
+              <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(0,122,255,0.08)', borderRadius: 8, fontSize: '0.8rem', color: '#4da8ff' }}>
                 📞 Um ramal SIP WebRTC será atribuído automaticamente ao novo usuário.
               </div>
             </div>
@@ -557,7 +557,7 @@ export default function Users() {
               <button className="btn-close" onClick={() => setEditUser(null)}>×</button>
             </div>
             <div className="modal-body">
-              <div style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(124,58,237,0.08)', borderRadius: 8, fontSize: '0.8rem', color: '#a78bfa' }}>
+              <div style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(0,122,255,0.08)', borderRadius: 8, fontSize: '0.8rem', color: '#4da8ff' }}>
                 📞 Ramal fixo: <strong>{editUser.extension}</strong> — não pode ser alterado
               </div>
               <div className="form-group">
@@ -596,8 +596,8 @@ export default function Users() {
                     <span key={bu.id} className="chip"
                       style={{
                         cursor: 'pointer',
-                        background: editForm.businessUnitIds.includes(bu.id) ? 'rgba(124,58,237,0.25)' : 'rgba(255,255,255,0.06)',
-                        color: editForm.businessUnitIds.includes(bu.id) ? '#a78bfa' : 'var(--text-muted)',
+                        background: editForm.businessUnitIds.includes(bu.id) ? 'rgba(0,122,255,0.25)' : 'rgba(255,255,255,0.06)',
+                        color: editForm.businessUnitIds.includes(bu.id) ? '#4da8ff' : 'var(--text-muted)',
                       }}
                       onClick={() => setEditForm(f => ({ ...f, businessUnitIds: toggleBu(f.businessUnitIds, bu.id) }))}
                     >{bu.name}</span>
@@ -651,14 +651,14 @@ export default function Users() {
                     <>
                       <div style={{
                         textAlign: 'center', padding: '20px',
-                        background: totpStatus ? 'rgba(72,199,142,0.08)' : 'rgba(124,58,237,0.08)',
+                        background: totpStatus ? 'rgba(72,199,142,0.08)' : 'rgba(0,122,255,0.08)',
                         borderRadius: 10, marginBottom: 16,
-                        border: `1px solid ${totpStatus ? 'rgba(72,199,142,0.3)' : 'rgba(124,58,237,0.3)'}`,
+                        border: `1px solid ${totpStatus ? 'rgba(72,199,142,0.3)' : 'rgba(0,122,255,0.3)'}`,
                       }}>
                         <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>
                           {totpStatus ? '🛡️' : '🔓'}
                         </div>
-                        <div style={{ fontWeight: 600, fontSize: '1rem', color: totpStatus ? '#68d391' : '#a78bfa' }}>
+                        <div style={{ fontWeight: 600, fontSize: '1rem', color: totpStatus ? '#34c759' : '#4da8ff' }}>
                           {totpStatus ? '2FA Ativado' : '2FA Desativado'}
                         </div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
@@ -670,9 +670,9 @@ export default function Users() {
 
                       {totpMsg && (
                         <div style={{ padding: '8px 12px', borderRadius: 8, marginBottom: 12, fontSize: '0.85rem',
-                          background: totpMsg.startsWith('✅') ? 'rgba(72,199,142,0.1)' : 'rgba(239,68,68,0.1)',
-                          color: totpMsg.startsWith('✅') ? '#68d391' : '#f87171',
-                          border: `1px solid ${totpMsg.startsWith('✅') ? 'rgba(72,199,142,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                          background: totpMsg.startsWith('✅') ? 'rgba(72,199,142,0.1)' : 'rgba(255,107,107,0.1)',
+                          color: totpMsg.startsWith('✅') ? '#34c759' : '#ff6b6b',
+                          border: `1px solid ${totpMsg.startsWith('✅') ? 'rgba(72,199,142,0.3)' : 'rgba(255,107,107,0.3)'}`,
                         }}>
                           {totpMsg}
                         </div>
@@ -685,7 +685,7 @@ export default function Users() {
                       ) : (
                         <button
                           className="btn btn-ghost"
-                          style={{ width: '100%', borderColor: 'rgba(239,68,68,0.4)', color: '#f87171' }}
+                          style={{ width: '100%', borderColor: 'rgba(255,107,107,0.4)', color: '#ff6b6b' }}
                           onClick={() => { setTotpStep('disable'); setTotpCode(''); setTotpMsg(''); }}
                         >
                           🚫 Desativar 2FA
@@ -736,7 +736,7 @@ export default function Users() {
 
                       {totpMsg && (
                         <div style={{ padding: '8px 12px', borderRadius: 8, marginBottom: 8, fontSize: '0.85rem',
-                          background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+                          background: 'rgba(255,107,107,0.1)', color: '#ff6b6b', border: '1px solid rgba(255,107,107,0.3)' }}>
                           {totpMsg}
                         </div>
                       )}
@@ -747,8 +747,8 @@ export default function Users() {
                   {totpStep === 'disable' && (
                     <>
                       <div style={{ padding: '12px 16px', borderRadius: 8, marginBottom: 14,
-                        background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)',
-                        fontSize: '0.85rem', color: '#f87171', lineHeight: 1.6 }}>
+                        background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.3)',
+                        fontSize: '0.85rem', color: '#ff6b6b', lineHeight: 1.6 }}>
                         ⚠️ Para desativar o 2FA, insira o código atual do app autenticador para confirmar.
                       </div>
 
@@ -770,7 +770,7 @@ export default function Users() {
 
                       {totpMsg && (
                         <div style={{ padding: '8px 12px', borderRadius: 8, marginBottom: 8, fontSize: '0.85rem',
-                          background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+                          background: 'rgba(255,107,107,0.1)', color: '#ff6b6b', border: '1px solid rgba(255,107,107,0.3)' }}>
                           {totpMsg}
                         </div>
                       )}
@@ -801,7 +801,7 @@ export default function Users() {
                   <button className="btn btn-ghost" onClick={() => { setTotpStep('status'); setTotpMsg(''); }}>← Voltar</button>
                   <button
                     className="btn btn-ghost"
-                    style={{ borderColor: 'rgba(239,68,68,0.4)', color: '#f87171' }}
+                    style={{ borderColor: 'rgba(255,107,107,0.4)', color: '#ff6b6b' }}
                     onClick={confirmTotpDisable}
                     disabled={totpLoading || totpCode.replace(/\s/g, '').length < 6}
                   >

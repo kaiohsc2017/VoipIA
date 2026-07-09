@@ -164,11 +164,11 @@ function HistoricoModal({ test, onClose }: HistoricoModalProps) {
               </div>
               <div className="stat-card" style={{ flex: 1, padding: '10px 16px' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Sucesso</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#68d391' }}>{successCount}</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#34c759' }}>{successCount}</div>
               </div>
               <div className="stat-card" style={{ flex: 1, padding: '10px 16px' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Falha</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fc8181' }}>{failCount}</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#ff6b6b' }}>{failCount}</div>
               </div>
               <div className="stat-card" style={{ flex: 1, padding: '10px 16px' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Taxa sucesso</div>
@@ -288,13 +288,13 @@ function DashboardKPIs() {
       {/* KPI cards — os 7 solicitados */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12, marginBottom: 24 }}>
         {[
-          { label: 'Testes Realizados', value: total, color: '#7c3aed' },
+          { label: 'Testes Realizados', value: total, color: '#007aff' },
           { label: 'Testes Agendados', value: stats.scheduledCount, color: '#3b82f6' },
-          { label: 'Sucessos', value: success, color: '#68d391' },
-          { label: 'Falhas', value: failures, color: '#fc8181' },
-          { label: 'Taxa de Sucesso', value: `${stats.successRatePct}%`, color: '#68d391' },
-          { label: 'Taxa de Falha', value: `${stats.failRatePct}%`, color: '#fc8181' },
-          { label: '% Realizado', value: `${stats.completionRatePct}%`, color: '#f6ad55' },
+          { label: 'Sucessos', value: success, color: '#34c759' },
+          { label: 'Falhas', value: failures, color: '#ff6b6b' },
+          { label: 'Taxa de Sucesso', value: `${stats.successRatePct}%`, color: '#34c759' },
+          { label: 'Taxa de Falha', value: `${stats.failRatePct}%`, color: '#ff6b6b' },
+          { label: '% Realizado', value: `${stats.completionRatePct}%`, color: '#ff9f0a' },
         ].map(kpi => (
           <div key={kpi.label} className="stat-card" style={{ padding: '16px 20px' }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>{kpi.label}</div>
@@ -310,8 +310,8 @@ function DashboardKPIs() {
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie data={pieData} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={({ name, percent }) => percent != null ? `${name} ${(percent * 100).toFixed(0)}%` : name}>
-                <Cell fill="#68d391" />
-                <Cell fill="#fc8181" />
+                <Cell fill="#34c759" />
+                <Cell fill="#ff6b6b" />
               </Pie>
               <Tooltip />
             </PieChart>
@@ -325,7 +325,7 @@ function DashboardKPIs() {
               <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} />
               <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
               <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)' }} />
-              <Bar dataKey="value" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="value" fill="#007aff" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -781,7 +781,7 @@ export default function ModuloConectividade() {
                   onClick={exportConnectivity}
                   disabled={exporting}
                   title="Exporta os resultados com os filtros aplicados"
-                  style={{ borderColor: 'rgba(124,58,237,0.4)', color: '#a78bfa', minWidth: 140 }}
+                  style={{ borderColor: 'rgba(0,122,255,0.4)', color: '#4da8ff', minWidth: 140 }}
                 >
                   {exporting
                     ? <><span className="spinner" style={{ width: 12, height: 12, margin: '0 6px 0 0' }} />Exportando…</>
@@ -941,7 +941,7 @@ export default function ModuloConectividade() {
 
               {/* Instruções */}
               <div style={{
-                background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)',
+                background: 'rgba(0,122,255,0.08)', border: '1px solid rgba(0,122,255,0.2)',
                 borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: '0.83rem',
                 color: 'var(--text-muted)', lineHeight: 1.7,
               }}>
@@ -961,7 +961,7 @@ export default function ModuloConectividade() {
                 <button className="btn btn-ghost btn-sm"
                   onClick={downloadTemplate}
                   title="Baixar planilha modelo com os campos corretos e valores de referência"
-                  style={{ borderColor: 'rgba(16,185,129,0.4)', color: '#6ee7b7', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  style={{ borderColor: 'rgba(52,199,89,0.4)', color: '#34c759', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   ⬇ Baixar Modelo .xlsx
                 </button>
 
@@ -976,10 +976,10 @@ export default function ModuloConectividade() {
                   <div
                     onClick={() => fileInputRef.current?.click()}
                     style={{
-                      border: `2px dashed ${importFile ? 'rgba(124,58,237,0.6)' : 'rgba(255,255,255,0.12)'}`,
+                      border: `2px dashed ${importFile ? 'rgba(0,122,255,0.6)' : 'rgba(255,255,255,0.12)'}`,
                       borderRadius: 10, padding: '16px 20px', cursor: 'pointer',
                       textAlign: 'center', transition: 'all .2s',
-                      background: importFile ? 'rgba(124,58,237,0.06)' : 'transparent',
+                      background: importFile ? 'rgba(0,122,255,0.06)' : 'transparent',
                     }}
                     onDragOver={e => e.preventDefault()}
                     onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setImportFile(f); setImportResult(null); } }}
@@ -1010,19 +1010,19 @@ export default function ModuloConectividade() {
               {/* Resultado da importação */}
               {importResult && (
                 <div style={{
-                  background: importResult.erros === 0 ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
-                  border: `1px solid ${importResult.erros === 0 ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'}`,
+                  background: importResult.erros === 0 ? 'rgba(52,199,89,0.08)' : 'rgba(255,159,10,0.08)',
+                  border: `1px solid ${importResult.erros === 0 ? 'rgba(52,199,89,0.3)' : 'rgba(255,159,10,0.3)'}`,
                   borderRadius: 10, padding: '14px 18px', fontSize: '0.85rem',
                 }}>
                   <div style={{ display: 'flex', gap: 20, marginBottom: importResult.detalhes.length > 0 ? 12 : 0 }}>
                     <div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Importados</div>
-                      <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#68d391' }}>{importResult.importados}</div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#34c759' }}>{importResult.importados}</div>
                     </div>
                     {importResult.erros > 0 && (
                       <div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Com erro</div>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#fc8181' }}>{importResult.erros}</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#ff6b6b' }}>{importResult.erros}</div>
                       </div>
                     )}
                   </div>
@@ -1036,8 +1036,8 @@ export default function ModuloConectividade() {
                           background: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: '6px 10px',
                           marginBottom: 6, fontFamily: 'monospace', fontSize: '0.75rem',
                         }}>
-                          <span style={{ color: '#fc8181' }}>Linha {d.linha}:</span>{' '}
-                          <span style={{ color: '#fcd34d' }}>{d.erro}</span>
+                          <span style={{ color: '#ff6b6b' }}>Linha {d.linha}:</span>{' '}
+                          <span style={{ color: '#ff9f0a' }}>{d.erro}</span>
                         </div>
                       ))}
                     </div>

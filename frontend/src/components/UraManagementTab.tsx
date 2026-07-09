@@ -157,7 +157,7 @@ export default function UraManagementTab() {
             </div>
             <div className="modal-body">
               {error && (
-                <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: '.85rem', color: '#dc2626' }}>
+                <div style={{ background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.3)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: '.85rem', color: '#b3342f' }}>
                   {error}
                 </div>
               )}

@@ -65,11 +65,11 @@ function KpiBar() {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
         {[
-          { label: 'Total Alertas',   value: stats.totalAlerts,              color: '#7c3aed' },
-          { label: 'Atendidas',       value: stats.answered,                 color: '#68d391' },
-          { label: 'Não Atendidas',   value: stats.notAnswered,              color: '#f6ad55' },
-          { label: 'Falhas',          value: stats.failed,                   color: '#fc8181' },
-          { label: 'Taxa Atendimento',value: `${stats.answeredRatePct}%`,    color: '#68d391' },
+          { label: 'Total Alertas',   value: stats.totalAlerts,              color: '#007aff' },
+          { label: 'Atendidas',       value: stats.answered,                 color: '#34c759' },
+          { label: 'Não Atendidas',   value: stats.notAnswered,              color: '#ff9f0a' },
+          { label: 'Falhas',          value: stats.failed,                   color: '#ff6b6b' },
+          { label: 'Taxa Atendimento',value: `${stats.answeredRatePct}%`,    color: '#34c759' },
           { label: 'Telegram OK',     value: `${stats.telegramSuccessRatePct}%`, color: '#3b82f6' },
         ].map(kpi => (
           <div key={kpi.label} className="stat-card" style={{ padding: '14px 18px' }}>

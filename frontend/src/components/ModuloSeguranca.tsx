@@ -200,7 +200,7 @@ export default function ModuloSeguranca() {
           position:'fixed', top:20, right:24, zIndex:9999,
           background: toast.ok ? 'var(--color-background-success)' : 'var(--color-background-danger)',
           color: toast.ok ? 'var(--color-text-success)' : 'var(--color-text-danger)',
-          border:`0.5px solid ${toast.ok ? 'var(--color-border-success,#22c55e)' : 'var(--color-border-danger,#ef4444)'}`,
+          border:`0.5px solid ${toast.ok ? 'var(--color-border-success,var(--clr-success))' : 'var(--color-border-danger,var(--clr-danger))'}`,
           padding:'10px 18px', borderRadius:8, fontSize:'0.85rem', fontWeight:500, boxShadow:'0 4px 12px rgba(0,0,0,0.1)',
         }}>
           {toast.ok ? '✅' : '❌'} {toast.msg}
@@ -249,8 +249,8 @@ export default function ModuloSeguranca() {
       {/* Botão Lockdown */}
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20,
         padding:'12px 16px', borderRadius:8,
-        background: lockdown ? 'rgba(239,68,68,0.08)' : 'rgba(148,163,184,0.06)',
-        border: `1px solid ${lockdown ? 'rgba(239,68,68,0.3)' : 'var(--border-glass)'}` }}>
+        background: lockdown ? 'rgba(255,107,107,0.08)' : 'rgba(148,163,184,0.06)',
+        border: `1px solid ${lockdown ? 'rgba(255,107,107,0.3)' : 'var(--border-glass)'}` }}>
         <div style={{ flex:1 }}>
           <div style={{ fontWeight:600, fontSize:'0.9rem', color: lockdown ? 'var(--color-text-danger)' : 'var(--text-primary)' }}>
             {lockdown ? '🔴 Modo Lockdown Ativo' : '🟢 Modo Normal (fail2ban)'}
@@ -310,8 +310,8 @@ export default function ModuloSeguranca() {
           <button key={id} onClick={() => setActiveTab(id)} style={{
             padding:'9px 18px', background:'none', border:'none', cursor:'pointer',
             fontSize:'0.85rem', fontWeight: activeTab===id ? 600 : 400,
-            color: activeTab===id ? '#6366f1' : 'var(--text-muted)',
-            borderBottom: activeTab===id ? '2px solid #6366f1' : '2px solid transparent',
+            color: activeTab===id ? 'var(--clr-primary)' : 'var(--text-muted)',
+            borderBottom: activeTab===id ? '2px solid var(--clr-primary)' : '2px solid transparent',
           }}>{label}</button>
         ))}
       </div>

@@ -90,7 +90,7 @@ function DashboardTab() {
                 labelStyle={{ color: '#e2e8f0' }}
               />
               <Legend wrapperStyle={{ fontSize: 12, color: '#94a3b8' }} />
-              <Bar dataKey="Chamadas" fill="#7c3aed" radius={[4,4,0,0]} />
+              <Bar dataKey="Chamadas" fill="#007aff" radius={[4,4,0,0]} />
               <Bar dataKey="Jira Abertas" fill="#3b82f6" radius={[4,4,0,0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -145,10 +145,10 @@ function KpiBar() {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
         {[
-          { label: 'Chamadas URA',  value: stats.totalCalls,               color: '#7c3aed' },
+          { label: 'Chamadas URA',  value: stats.totalCalls,               color: '#007aff' },
           { label: 'Chamados Jira', value: stats.callsWithJira,            color: '#3b82f6' },
-          { label: 'Taxa Jira',     value: `${stats.jiraSuccessRatePct}%`, color: '#68d391' },
-          { label: 'Duração Média', value: avgMin,                         color: '#f6ad55' },
+          { label: 'Taxa Jira',     value: `${stats.jiraSuccessRatePct}%`, color: '#34c759' },
+          { label: 'Duração Média', value: avgMin,                         color: '#ff9f0a' },
         ].map(kpi => (
           <div key={kpi.label} className="stat-card" style={{ padding: '12px 16px' }}>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>{kpi.label}</div>
@@ -449,7 +449,7 @@ export default function ModuloURA() {
                   className="btn btn-ghost btn-sm"
                   onClick={exportUra}
                   disabled={exporting}
-                  style={{ borderColor: 'rgba(124,58,237,0.4)', color: '#a78bfa', minWidth: 140 }}
+                  style={{ borderColor: 'rgba(0,122,255,0.4)', color: '#4da8ff', minWidth: 140 }}
                 >
                   {exporting
                     ? <><span className="spinner" style={{ width: 12, height: 12, margin: '0 6px 0 0' }} />Exportando…</>
@@ -552,7 +552,7 @@ export default function ModuloURA() {
                         <td>{c.clientName || c.callerNumber || <span className="text-muted">—</span>}</td>
                         <td>
                           {c.callType
-                            ? <span className="badge" style={{ background: c.callType.toLowerCase().includes('incidente') ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)', color: c.callType.toLowerCase().includes('incidente') ? '#dc2626' : '#2563eb' }}>{c.callType}</span>
+                            ? <span className="badge" style={{ background: c.callType.toLowerCase().includes('incidente') ? 'rgba(255,107,107,0.1)' : 'rgba(0,122,255,0.1)', color: c.callType.toLowerCase().includes('incidente') ? '#b3342f' : '#4da8ff' }}>{c.callType}</span>
                             : <span className="text-muted">—</span>}
                         </td>
                         <td>{priorityBadge(c.priority)}</td>

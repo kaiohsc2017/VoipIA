@@ -1,4 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import {
+  Ticket, PhoneCall, CheckCircle2, AlertTriangle, Timer, Radio, Globe,
+} from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -10,13 +14,13 @@ import type { CallRecord, TestResult, AlertCall, PageResponse } from '../api/typ
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const STATUS_COLORS: Record<string, string> = {
-  SUCESSO: '#68d391', FALHA: '#fc8181', OCUPADO: '#f6ad55',
-  SEM_RESPOSTA: '#94a3b8', TIMEOUT: '#9f7aea', INVALIDO: '#fc8181',
-  INDISPONIVEL: '#a0aec0', RECUSADO: '#fc8181',
+  SUCESSO: '#34c759', FALHA: '#ff6b6b', OCUPADO: '#ff9f0a',
+  SEM_RESPOSTA: '#94a3b8', TIMEOUT: '#9f7aea', INVALIDO: '#ff6b6b',
+  INDISPONIVEL: '#a0aec0', RECUSADO: '#ff6b6b',
 };
-const PIE_COLORS = ['#68d391', '#fc8181', '#f6ad55', '#9f7aea', '#94a3b8'];
+const PIE_COLORS = ['#34c759', '#ff6b6b', '#ff9f0a', '#9f7aea', '#94a3b8'];
 const ALERT_STATUS_COLOR: Record<string, string> = {
-  CONCLUIDA: '#68d391', PENDENTE: '#f6ad55', FALHA: '#fc8181', ERRO: '#fc8181',
+  CONCLUIDA: '#34c759', PENDENTE: '#ff9f0a', FALHA: '#ff6b6b', ERRO: '#ff6b6b',
 };
 const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -51,7 +55,7 @@ function buildHeatmap(results: TestResult[]): HeatCell[][] {
 function heatColor(cell: HeatCell): string {
   if (cell.count === 0) return 'rgba(148,163,184,0.06)';
   const rate = cell.count > 0 ? cell.success / cell.count : 0;
-  if (rate >= 0.8) return `rgba(104,211,145,${0.15 + rate * 0.55})`;
+  if (rate >= 0.8) return `rgba(52,199,89,${0.15 + rate * 0.55})`;
   if (rate >= 0.5) return `rgba(246,173,85,${0.15 + (1 - rate) * 0.45})`;
   return `rgba(252,129,129,${0.25 + (1 - rate) * 0.5})`;
 }
@@ -102,7 +106,7 @@ function Heatmap({ results }: { results: TestResult[] }) {
         {[0, 0.25, 0.5, 0.75, 1].map(v => (
           <div key={v} style={{
             width: 16, height: 16, borderRadius: 3,
-            background: v === 0 ? 'rgba(148,163,184,0.08)' : `rgba(104,211,145,${0.15 + v * 0.55})`,
+            background: v === 0 ? 'rgba(148,163,184,0.08)' : `rgba(52,199,89,${0.15 + v * 0.55})`,
             border: '1px solid rgba(148,163,184,0.08)',
           }} />
         ))}
@@ -244,13 +248,13 @@ export default function Dashboard() {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <h1>📊 Dashboard</h1>
+          <h1>Dashboard</h1>
           <span style={{
             fontSize: '0.72rem', fontWeight: 600, letterSpacing: 1,
             padding: '3px 10px', borderRadius: 20,
-            background: wsStatus === 'live' ? 'rgba(104,211,145,0.15)' : 'rgba(252,129,129,0.15)',
-            color: wsStatus === 'live' ? '#68d391' : '#fc8181',
-            border: `1px solid ${wsStatus === 'live' ? '#68d39140' : '#fc818140'}`,
+            background: wsStatus === 'live' ? 'rgba(52,199,89,0.15)' : 'rgba(255,107,107,0.15)',
+            color: wsStatus === 'live' ? '#34c759' : '#ff6b6b',
+            border: `1px solid ${wsStatus === 'live' ? '#34c75940' : '#ff6b6b40'}`,
           }}>
             {wsStatus === 'live' ? '⬤ LIVE' : wsStatus === 'connecting' ? '⬤ Conectando…' : '⬤ Offline'}
           </span>
@@ -264,27 +268,27 @@ export default function Dashboard() {
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-          gap: 14, marginBottom: 24,
+          gap: 24, marginBottom: 24,
         }}>
-          <KpiCard icon="🎫" value={callsToday}      label="Chamadas URA Hoje"
+          <KpiCard icon={Ticket} value={callsToday}      label="Chamadas URA Hoje"
             badge={callsToday > 0 ? `+${callsToday} hoje` : 'nenhuma'}
             badgeClass={callsToday > 0 ? 'info' : 'gray'} />
-          <KpiCard icon="📞" value={resultsToday.length} label="Testes Hoje"
+          <KpiCard icon={PhoneCall} value={resultsToday.length} label="Testes Hoje"
             badge={`${successToday} sucessos`} badgeClass="success" />
-          <KpiCard icon="✅" value={`${successRate}%`} label="Taxa de Sucesso"
-            badge={successRate >= 80 ? '🟢 Saudável' : successRate >= 60 ? '🟡 Atenção' : '🔴 Crítico'}
+          <KpiCard icon={CheckCircle2} value={`${successRate}%`} label="Taxa de Sucesso"
+            badge={successRate >= 80 ? 'Saudável' : successRate >= 60 ? 'Atenção' : 'Crítico'}
             badgeClass={successRate >= 80 ? 'success' : successRate >= 60 ? 'warning' : 'danger'} />
-          <KpiCard icon="🚨" value={activeAlerts}     label="Alertas Ativos"
+          <KpiCard icon={AlertTriangle} value={activeAlerts}     label="Alertas Ativos"
             badge={activeAlerts === 0 ? 'Nenhum' : `${activeAlerts} pendente${activeAlerts > 1 ? 's' : ''}`}
             badgeClass={activeAlerts === 0 ? 'success' : 'danger'} />
-          <KpiCard icon="⏱️" value={`${avgDuration}s`} label="Duração Média URA"
+          <KpiCard icon={Timer} value={`${avgDuration}s`} label="Duração Média URA"
             badge={calls.length > 0 ? `${calls.length} chamadas` : 'sem dados'}
             badgeClass="info" />
-          <KpiCard icon="📡" value={alertsToday}      label="Alertas Zabbix Hoje"
+          <KpiCard icon={Radio} value={alertsToday}      label="Alertas Zabbix Hoje"
             badge={alertsToday === 0 ? 'Nenhum' : `${alertsToday} disparo${alertsToday > 1 ? 's' : ''}`}
             badgeClass={alertsToday === 0 ? 'success' : 'warning'} />
           <KpiCard
-            icon="🌐"
+            icon={Globe}
             value={trunkStatus == null ? '…' : trunkStatus.status === 'ONLINE' ? 'Online' : trunkStatus.status === 'OFFLINE' ? 'Offline' : '—'}
             label="Tronco SIP"
             badge={trunkStatus == null ? 'Verificando…' : trunkStatus.status === 'ONLINE' && trunkStatus.rttMs >= 0 ? `${trunkStatus.rttMs}ms RTT` : trunkStatus.status === 'OFFLINE' ? 'Sem resposta' : 'Indisponível'}
@@ -295,7 +299,7 @@ export default function Dashboard() {
         {/* ── Area Chart ─────────────────────────────────────────────────── */}
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="card-header">
-            <span className="card-title">📈 Testes de Conectividade — Linha do Tempo</span>
+            <span className="card-title">Testes de Conectividade — Linha do Tempo</span>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
               Últimos {results.length} resultados
             </span>
@@ -306,12 +310,12 @@ export default function Dashboard() {
                 <AreaChart data={areaData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                   <defs>
                     <linearGradient id="gSuccess" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#68d391" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#68d391" stopOpacity={0.02} />
+                      <stop offset="5%" stopColor="#34c759" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#34c759" stopOpacity={0.02} />
                     </linearGradient>
                     <linearGradient id="gFail" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#fc8181" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#fc8181" stopOpacity={0.02} />
+                      <stop offset="5%" stopColor="#ff6b6b" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#ff6b6b" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" />
@@ -319,8 +323,8 @@ export default function Dashboard() {
                   <YAxis tick={{ fill: '#64748b', fontSize: 11 }} allowDecimals={false} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend wrapperStyle={{ fontSize: '0.82rem', color: '#94a3b8' }} />
-                  <Area type="monotone" dataKey="SUCESSO" stroke="#68d391" fill="url(#gSuccess)" strokeWidth={2} />
-                  <Area type="monotone" dataKey="FALHA"   stroke="#fc8181" fill="url(#gFail)"    strokeWidth={2} />
+                  <Area type="monotone" dataKey="SUCESSO" stroke="#34c759" fill="url(#gSuccess)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="FALHA"   stroke="#ff6b6b" fill="url(#gFail)"    strokeWidth={2} />
                   <Area type="monotone" dataKey="OUTROS"  stroke="#9f7aea" fill="none"            strokeWidth={1.5} strokeDasharray="4 2" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -333,7 +337,7 @@ export default function Dashboard() {
           {/* Pie */}
           <div className="card">
             <div className="card-header">
-              <span className="card-title">🍩 Distribuição de Status</span>
+              <span className="card-title">Distribuição de Status</span>
             </div>
             <div className="card-body" style={{ padding: '8px 16px 20px' }}>
               {pieData.length === 0 ? <EmptyChart msg="Sem dados de status" /> : (
@@ -360,7 +364,7 @@ export default function Dashboard() {
           {/* Bar */}
           <div className="card">
             <div className="card-header">
-              <span className="card-title">📊 Chamadas por Cliente</span>
+              <span className="card-title">Chamadas por Cliente</span>
             </div>
             <div className="card-body" style={{ padding: '8px 16px 20px' }}>
               {barData.length === 0 ? <EmptyChart msg="Nenhuma chamada registrada" /> : (
@@ -373,8 +377,8 @@ export default function Dashboard() {
                     <Bar dataKey="total" radius={[4, 4, 0, 0]}>
                       <defs>
                         <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#7c3aed" />
-                          <stop offset="100%" stopColor="#3b82f6" />
+                          <stop offset="0%" stopColor="#007aff" />
+                          <stop offset="100%" stopColor="#4da8ff" />
                         </linearGradient>
                       </defs>
                       {barData.map((entry) => (
@@ -391,7 +395,7 @@ export default function Dashboard() {
         {/* ── Heatmap ────────────────────────────────────────────────────── */}
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="card-header">
-            <span className="card-title">🔥 Mapa de Calor — Testes por Hora e Dia</span>
+            <span className="card-title">Mapa de Calor — Testes por Hora e Dia</span>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
               {results.length} registros · verde = sucesso · vermelho = falha
             </span>
@@ -408,9 +412,9 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header" style={{ flexWrap: 'wrap', gap: 8 }}>
             <span className="card-title">
-              ⚡ Últimas Atividades
+              Últimas Atividades
               {wsStatus === 'live' && (
-                <span style={{ fontSize: '0.72rem', color: '#68d391', marginLeft: 10 }}>
+                <span style={{ fontSize: '0.72rem', color: '#34c759', marginLeft: 10 }}>
                   ● ao vivo
                 </span>
               )}
@@ -418,9 +422,9 @@ export default function Dashboard() {
             {/* Tabs */}
             <div style={{ display: 'flex', gap: 6 }}>
               {([
-                { id: 'tests',  label: '📞 Testes',          count: results.length },
-                { id: 'calls',  label: '🎫 Chamadas URA',     count: calls.length },
-                { id: 'alerts', label: '🚨 Alertas Zabbix',   count: alerts.length },
+                { id: 'tests',  label: 'Testes',          count: results.length },
+                { id: 'calls',  label: 'Chamadas URA',     count: calls.length },
+                { id: 'alerts', label: 'Alertas Zabbix',   count: alerts.length },
               ] as { id: ActivityTab; label: string; count: number }[]).map(tab => (
                 <button
                   key={tab.id}
@@ -430,9 +434,9 @@ export default function Dashboard() {
                     padding: '4px 12px', borderRadius: 20, border: 'none',
                     cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600,
                     background: activityTab === tab.id
-                      ? 'rgba(124,58,237,0.25)' : 'rgba(255,255,255,0.05)',
-                    color: activityTab === tab.id ? '#a78bfa' : 'var(--text-muted)',
-                    outline: activityTab === tab.id ? '1px solid rgba(124,58,237,0.4)' : 'none',
+                      ? 'rgba(0,122,255,0.15)' : 'rgba(255,255,255,0.05)',
+                    color: activityTab === tab.id ? 'var(--clr-primary)' : 'var(--text-muted)',
+                    outline: activityTab === tab.id ? '1px solid rgba(0,122,255,0.35)' : 'none',
                     transition: 'all .15s',
                   }}
                 >
@@ -494,7 +498,7 @@ export default function Dashboard() {
                 ) : calls.slice(0, 15).map(c => (
                   <div key={c.id} className="result-item">
                     <div className="result-status-dot"
-                      style={{ background: c.jiraIssueKey ? '#68d391' : '#94a3b8' }} />
+                      style={{ background: c.jiraIssueKey ? '#34c759' : '#94a3b8' }} />
                     <span className="result-phone" style={{ minWidth: 130 }}>
                       {c.callerNumber}
                     </span>
@@ -503,8 +507,8 @@ export default function Dashboard() {
                     </span>
                     {c.jiraIssueKey ? (
                       <span className="badge" style={{
-                        background: 'rgba(104,211,145,0.15)', color: '#68d391',
-                        border: '1px solid rgba(104,211,145,0.3)',
+                        background: 'rgba(52,199,89,0.15)', color: '#34c759',
+                        border: '1px solid rgba(52,199,89,0.3)',
                       }}>
                         🎫 {c.jiraIssueKey}
                       </span>
@@ -570,15 +574,17 @@ export default function Dashboard() {
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
-function KpiCard({ icon, value, label, badge, badgeClass }: {
-  icon: string; value: string | number;
+function KpiCard({ icon: Icon, value, label, badge, badgeClass }: {
+  icon: LucideIcon; value: string | number;
   label: string; badge: string; badgeClass: string;
 }) {
   return (
     <div className="kpi-card">
-      <div className="kpi-icon">{icon}</div>
+      <div className="kpi-card-top">
+        <span className="kpi-label">{label}</span>
+        <div className={`kpi-icon ${badgeClass}`}><Icon size={16} strokeWidth={1.75} /></div>
+      </div>
       <div className="kpi-value">{value}</div>
-      <div className="kpi-label">{label}</div>
       <div className={`kpi-badge ${badgeClass}`}>{badge}</div>
     </div>
   );

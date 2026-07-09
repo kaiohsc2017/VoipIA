@@ -419,17 +419,17 @@ export default function Softphone() {
   const fmtDur = `${String(Math.floor(duration / 60)).padStart(2, '0')}:${String(duration % 60).padStart(2, '0')}`;
 
   const regBadge = {
-    registered:   { color: '#68d391', label: 'Registrado' },
-    registering:  { color: '#f6ad55', label: 'Conectando…' },
+    registered:   { color: '#34c759', label: 'Registrado' },
+    registering:  { color: '#ff9f0a', label: 'Conectando…' },
     unregistered: { color: '#94a3b8', label: 'Offline' },
-    failed:       { color: '#fc8181', label: 'Erro' },
+    failed:       { color: '#ff6b6b', label: 'Erro' },
   }[regState];
 
   const callBadge = {
     idle:     null,
-    calling:  { color: '#f6ad55', label: '📞 Chamando…' },
-    incoming: { color: '#7c3aed', label: '📲 Chamada Entrante' },
-    active:   { color: '#68d391', label: `🟢 ${fmtDur}` },
+    calling:  { color: '#ff9f0a', label: '📞 Chamando…' },
+    incoming: { color: '#007aff', label: '📲 Chamada Entrante' },
+    active:   { color: '#34c759', label: `🟢 ${fmtDur}` },
     ended:    { color: '#94a3b8', label: 'Encerrada' },
   }[callState];
 
@@ -442,11 +442,11 @@ export default function Softphone() {
         style={{
           position: 'fixed', bottom: 24, right: 24, zIndex: 1000,
           width: 54, height: 54, borderRadius: '50%',
-          background: callState === 'active' ? 'linear-gradient(135deg,#22c55e,#16a34a)'
-            : callState === 'incoming' ? 'linear-gradient(135deg,#7c3aed,#4f46e5)'
-            : 'linear-gradient(135deg,#3b82f6,#2563eb)',
+          background: callState === 'active' ? 'linear-gradient(135deg, var(--clr-success), var(--clr-success))'
+            : callState === 'incoming' ? 'linear-gradient(135deg,#007aff,#4da8ff)'
+            : 'linear-gradient(135deg,#007aff,#4da8ff)',
           border: 'none', cursor: 'pointer',
-          boxShadow: '0 4px 20px rgba(59,130,246,0.4)',
+          boxShadow: '0 4px 20px rgba(0,122,255,0.4)',
           fontSize: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
           animation: callState === 'incoming' ? 'pulse 1s infinite' : 'none',
           transition: 'transform 0.2s',
@@ -520,18 +520,18 @@ export default function Softphone() {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {callState === 'idle' && (
-                <ActionBtn color="#22c55e" onClick={dial} disabled={!dialInput.trim()} label="📞 Ligar" />
+                <ActionBtn color="#34c759" onClick={dial} disabled={!dialInput.trim()} label="📞 Ligar" />
               )}
               {callState === 'incoming' && (
                 <>
-                  <ActionBtn color="#22c55e" onClick={answer} label="✓ Atender" />
-                  <ActionBtn color="#ef4444" onClick={hangup} label="✕ Rejeitar" />
+                  <ActionBtn color="#34c759" onClick={answer} label="✓ Atender" />
+                  <ActionBtn color="#ff6b6b" onClick={hangup} label="✕ Rejeitar" />
                 </>
               )}
               {(callState === 'calling' || callState === 'active') && (
                 <>
-                  <ActionBtn color="#ef4444" onClick={hangup} label="📵 Encerrar" />
-                  <ActionBtn color={muted ? '#7c3aed' : '#475569'} onClick={toggleMute}
+                  <ActionBtn color="#ff6b6b" onClick={hangup} label="📵 Encerrar" />
+                  <ActionBtn color={muted ? '#007aff' : '#475569'} onClick={toggleMute}
                     label={muted ? '🔇 Muted' : '🎙 Mute'} />
                 </>
               )}

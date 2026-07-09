@@ -83,7 +83,7 @@ export default function ImportModal({ title, importUrl, templateUrl, templateFil
         <div className="modal-body">
 
           <div style={{
-            background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)',
+            background: 'rgba(0,122,255,0.08)', border: '1px solid rgba(0,122,255,0.2)',
             borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: '0.83rem',
             color: 'var(--text-muted)', lineHeight: 1.7,
           }}>
@@ -98,7 +98,7 @@ export default function ImportModal({ title, importUrl, templateUrl, templateFil
               className="btn btn-ghost btn-sm"
               onClick={downloadTemplate}
               title="Baixar planilha modelo com os campos corretos e valores de referência"
-              style={{ borderColor: 'rgba(16,185,129,0.4)', color: '#6ee7b7', whiteSpace: 'nowrap', flexShrink: 0 }}
+              style={{ borderColor: 'rgba(52,199,89,0.4)', color: '#34c759', whiteSpace: 'nowrap', flexShrink: 0 }}
             >
               ⬇ Baixar Modelo .xlsx
             </button>
@@ -114,10 +114,10 @@ export default function ImportModal({ title, importUrl, templateUrl, templateFil
               <div
                 onClick={() => fileInputRef.current?.click()}
                 style={{
-                  border: `2px dashed ${file ? 'rgba(124,58,237,0.6)' : 'rgba(255,255,255,0.12)'}`,
+                  border: `2px dashed ${file ? 'rgba(0,122,255,0.6)' : 'rgba(255,255,255,0.12)'}`,
                   borderRadius: 10, padding: '16px 20px', cursor: 'pointer',
                   textAlign: 'center', transition: 'all .2s',
-                  background: file ? 'rgba(124,58,237,0.06)' : 'transparent',
+                  background: file ? 'rgba(0,122,255,0.06)' : 'transparent',
                 }}
                 onDragOver={e => e.preventDefault()}
                 onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setFile(f); setResult(null); } }}
@@ -147,19 +147,19 @@ export default function ImportModal({ title, importUrl, templateUrl, templateFil
 
           {result && (
             <div style={{
-              background: result.erros === 0 ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
-              border: `1px solid ${result.erros === 0 ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'}`,
+              background: result.erros === 0 ? 'rgba(52,199,89,0.08)' : 'rgba(255,159,10,0.08)',
+              border: `1px solid ${result.erros === 0 ? 'rgba(52,199,89,0.3)' : 'rgba(255,159,10,0.3)'}`,
               borderRadius: 10, padding: '14px 18px', fontSize: '0.85rem',
             }}>
               <div style={{ display: 'flex', gap: 20, marginBottom: result.detalhes.length > 0 ? 12 : 0 }}>
                 <div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Importados</div>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#68d391' }}>{result.importados}</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#34c759' }}>{result.importados}</div>
                 </div>
                 {result.erros > 0 && (
                   <div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Com erro</div>
-                    <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#fc8181' }}>{result.erros}</div>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#ff6b6b' }}>{result.erros}</div>
                   </div>
                 )}
               </div>
@@ -173,8 +173,8 @@ export default function ImportModal({ title, importUrl, templateUrl, templateFil
                       background: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: '6px 10px',
                       marginBottom: 6, fontFamily: 'monospace', fontSize: '0.75rem',
                     }}>
-                      <span style={{ color: '#fc8181' }}>Linha {d.linha}:</span>{' '}
-                      <span style={{ color: '#fcd34d' }}>{d.erro}</span>
+                      <span style={{ color: '#ff6b6b' }}>Linha {d.linha}:</span>{' '}
+                      <span style={{ color: '#ff9f0a' }}>{d.erro}</span>
                     </div>
                   ))}
                 </div>

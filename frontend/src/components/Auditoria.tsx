@@ -117,7 +117,7 @@ export default function Auditoria() {
             { label: 'Total de eventos', value: totalElements, color: 'var(--text-primary)' },
             { label: 'Página atual', value: `${page + 1} / ${totalPages}`, color: 'var(--text-muted)' },
             { label: 'Itens por página', value: 50, color: 'var(--text-muted)' },
-            { label: 'Filtros ativos', value: [filterUsername, filterAction, filterFrom].filter(Boolean).length, color: '#a78bfa' },
+            { label: 'Filtros ativos', value: [filterUsername, filterAction, filterFrom].filter(Boolean).length, color: '#4da8ff' },
           ].map(k => (
             <div key={k.label} className="stat-card" style={{ padding: '12px 16px' }}>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>{k.label}</div>
@@ -170,7 +170,7 @@ export default function Auditoria() {
           <div className="toolbar-right" style={{ marginLeft: 'auto' }}>
             <button
               className="btn btn-ghost btn-sm"
-              style={{ borderColor: 'rgba(124,58,237,0.4)', color: '#a78bfa' }}
+              style={{ borderColor: 'rgba(0,122,255,0.4)', color: '#4da8ff' }}
               onClick={() => load(page)}
               title="Atualizar"
             >

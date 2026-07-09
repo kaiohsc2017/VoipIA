@@ -30,7 +30,7 @@ const AST_CATEGORIES: AstCategory[]   = ['REGISTER','CALL','PJSIP','DTLS','AMI',
 
 const LEVEL_COLORS: Record<string,string> = {
   ERROR:'#b91c1c', WARN:'#b45309', WARNING:'#b45309', INFO:'#075985',
-  DEBUG:'#6b7280', REGISTER:'#075985', CALL:'#166534', PJSIP:'#075985',
+  DEBUG:'#6b7280', REGISTER:'#075985', CALL:'#1a7a3d', PJSIP:'#075985',
   DTLS:'#b91c1c', AMI:'#6b7280', VERBOSE:'#6b7280', NOTICE:'#075985',
 };
 const LEVEL_BG: Record<string,string> = {
@@ -283,8 +283,8 @@ export default function ModuloLogs() {
           <button key={id} onClick={() => setActiveTab(id)} style={{
             padding:'10px 20px', background:'none', border:'none', cursor:'pointer',
             fontSize:'0.88rem', fontWeight: activeTab===id ? 600 : 400,
-            color: activeTab===id ? '#6366f1' : 'var(--text-muted)',
-            borderBottom: activeTab===id ? '2px solid #6366f1' : '2px solid transparent',
+            color: activeTab===id ? 'var(--clr-primary)' : 'var(--text-muted)',
+            borderBottom: activeTab===id ? '2px solid var(--clr-primary)' : '2px solid transparent',
           }}>{label}</button>
         ))}
       </div>
@@ -299,8 +299,8 @@ export default function ModuloLogs() {
               <button key={id} onClick={() => { setDockerSubTab(id); if(dockerLive){toggleDockerLive();} }} style={{
                 padding:'8px 16px', background:'none', border:'none', cursor:'pointer',
                 fontSize:'0.82rem', fontWeight: dockerSubTab===id ? 600 : 400,
-                color: dockerSubTab===id ? '#6366f1' : 'var(--text-muted)',
-                borderBottom: dockerSubTab===id ? '2px solid #6366f1' : '2px solid transparent',
+                color: dockerSubTab===id ? 'var(--clr-primary)' : 'var(--text-muted)',
+                borderBottom: dockerSubTab===id ? '2px solid var(--clr-primary)' : '2px solid transparent',
               }}>{label}</button>
             ))}
           </div>
@@ -344,9 +344,9 @@ export default function ModuloLogs() {
               <button key={s} onClick={() => setDockerSvcs(toggleSet(dockerSvcs, s))}
                 style={{
                   fontSize:'0.72rem', padding:'2px 8px', borderRadius:4, cursor:'pointer',
-                  border: dockerSvcs.has(s) ? '1px solid rgba(99,102,241,0.4)' : '0.5px solid var(--border-glass)',
-                  background: dockerSvcs.has(s) ? 'rgba(99,102,241,0.08)' : 'var(--bg-card)',
-                  color: dockerSvcs.has(s) ? '#6366f1' : 'var(--text-muted)',
+                  border: dockerSvcs.has(s) ? '1px solid rgba(0,122,255,0.4)' : '0.5px solid var(--border-glass)',
+                  background: dockerSvcs.has(s) ? 'rgba(0,122,255,0.08)' : 'var(--bg-card)',
+                  color: dockerSvcs.has(s) ? 'var(--clr-primary)' : 'var(--text-muted)',
                 }}>{s}</button>
             ))}
             <span style={{ fontSize:'0.72rem', color:'var(--text-muted)', marginLeft:8, marginRight:2 }}>Nível:</span>
@@ -406,10 +406,10 @@ export default function ModuloLogs() {
                 {(astStatus.endpoints ?? []).slice(0,5).map(ep => (
                   <div key={ep.name} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'3px 0', borderBottom:'0.5px solid var(--border-glass)', fontSize:'0.78rem' }}>
                     <span style={{ color:'var(--text-secondary)', display:'flex', alignItems:'center', gap:5 }}>
-                      <span style={{ width:6, height:6, borderRadius:'50%', background: ep.status.toLowerCase().includes('avail') ? '#22c55e' : '#ef4444', display:'inline-block' }} />
+                      <span style={{ width:6, height:6, borderRadius:'50%', background: ep.status.toLowerCase().includes('avail') ? 'var(--clr-success)' : 'var(--clr-danger)', display:'inline-block' }} />
                       {ep.name}
                     </span>
-                    <span style={{ fontFamily:'var(--font-mono)', fontSize:'0.72rem', color: ep.status.toLowerCase().includes('avail') ? '#166534' : '#991b1b', fontWeight:500 }}>
+                    <span style={{ fontFamily:'var(--font-mono)', fontSize:'0.72rem', color: ep.status.toLowerCase().includes('avail') ? '#1a7a3d' : '#b3342f', fontWeight:500 }}>
                       {ep.status}
                     </span>
                   </div>
@@ -421,7 +421,7 @@ export default function ModuloLogs() {
                 <div style={{ fontSize:'0.72rem', fontWeight:600, color:'var(--text-muted)', marginBottom:8 }}>🌐 Tronco SIP</div>
                 <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.78rem', padding:'3px 0', borderBottom:'0.5px solid var(--border-glass)' }}>
                   <span style={{ color:'var(--text-muted)' }}>{astStatus.trunk?.name}</span>
-                  <span style={{ fontWeight:500, color: astStatus.trunk?.status==='Registered'?'#166534':'#991b1b' }}>
+                  <span style={{ fontWeight:500, color: astStatus.trunk?.status==='Registered'?'#1a7a3d':'#b3342f' }}>
                     {astStatus.trunk?.status}
                   </span>
                 </div>
@@ -480,9 +480,9 @@ export default function ModuloLogs() {
                 <button key={c} onClick={() => setAstCats(toggleSet(astCats, c))}
                   style={{
                     fontSize:'0.72rem', padding:'2px 8px', borderRadius:4, cursor:'pointer',
-                    border: astCats.has(c) ? `1px solid ${LEVEL_COLORS[c] ?? '#6366f1'}55` : '0.5px solid var(--border-glass)',
-                    background: astCats.has(c) ? (LEVEL_BG[c] ?? 'rgba(99,102,241,0.08)') : 'var(--bg-card)',
-                    color: astCats.has(c) ? (LEVEL_COLORS[c] ?? '#6366f1') : 'var(--text-muted)',
+                    border: astCats.has(c) ? `1px solid ${LEVEL_COLORS[c] ?? '#007aff'}55` : '0.5px solid var(--border-glass)',
+                    background: astCats.has(c) ? (LEVEL_BG[c] ?? 'rgba(0,122,255,0.08)') : 'var(--bg-card)',
+                    color: astCats.has(c) ? (LEVEL_COLORS[c] ?? 'var(--clr-primary)') : 'var(--text-muted)',
                   }}>{c}</button>
               ))}
               <span style={{ marginLeft:'auto', fontSize:'0.72rem', color:'var(--text-muted)' }}>

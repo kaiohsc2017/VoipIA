@@ -223,8 +223,8 @@ function AsteriskFilePanel({
             {changed && (
               <span style={{
                 fontSize: '0.65rem', padding: '1px 7px', borderRadius: 20,
-                background: 'rgba(245,158,11,0.12)', color: '#92400e',
-                border: '1px solid rgba(245,158,11,0.35)',
+                background: 'rgba(255,159,10,0.12)', color: '#92400e',
+                border: '1px solid rgba(255,159,10,0.35)',
               }}>● alterado</span>
             )}
           </div>
@@ -615,9 +615,9 @@ export default function Settings() {
         <div style={{
           position: 'fixed', top: 20, right: 24, zIndex: 9999,
           padding: '12px 20px', borderRadius: 10,
-          background: toast.type === 'success' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-          border: `1px solid ${toast.type === 'success' ? '#10b981' : '#ef4444'}`,
-          color: toast.type === 'success' ? '#6ee7b7' : '#fca5a5',
+          background: toast.type === 'success' ? 'rgba(52,199,89,0.15)' : 'rgba(255,107,107,0.15)',
+          border: `1px solid ${toast.type === 'success' ? 'var(--clr-success)' : 'var(--clr-danger)'}`,
+          color: toast.type === 'success' ? '#34c759' : '#ff6b6b',
           backdropFilter: 'blur(12px)', fontSize: '0.875rem', maxWidth: 400,
           boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
         }}>
@@ -637,9 +637,9 @@ export default function Settings() {
           {[{ id: 'config' as Tab, label: '⚙️ Configurações' }, { id: 'history' as Tab, label: '📋 Histórico' }].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
               padding: '10px 20px', border: 'none',
-              borderBottom: activeTab === tab.id ? '2px solid #7c3aed' : '2px solid transparent',
+              borderBottom: activeTab === tab.id ? '2px solid #007aff' : '2px solid transparent',
               background: 'none', cursor: 'pointer',
-              color: activeTab === tab.id ? '#a78bfa' : 'var(--text-muted)',
+              color: activeTab === tab.id ? '#4da8ff' : 'var(--text-muted)',
               fontWeight: activeTab === tab.id ? 600 : 400, fontSize: '0.875rem',
             }}>{tab.label}</button>
           ))}
@@ -651,7 +651,7 @@ export default function Settings() {
             <div style={{
               display: 'flex', gap: 10, alignItems: 'flex-start',
               padding: '12px 16px', marginBottom: 24,
-              background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)',
+              background: 'rgba(0,122,255,0.08)', border: '1px solid rgba(0,122,255,0.2)',
               borderRadius: 10, fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6,
             }}>
               <span style={{ fontSize: '1rem', flexShrink: 0 }}>💡</span>
@@ -697,8 +697,8 @@ export default function Settings() {
                           {hasChanges && (
                             <span style={{
                               fontSize: '0.65rem', padding: '1px 7px', borderRadius: 20,
-                              background: 'rgba(245,158,11,0.15)', color: '#fcd34d',
-                              border: '1px solid rgba(245,158,11,0.3)',
+                              background: 'rgba(255,159,10,0.15)', color: '#ff9f0a',
+                              border: '1px solid rgba(255,159,10,0.3)',
                             }}>● alterado</span>
                           )}
                         </div>
@@ -711,17 +711,17 @@ export default function Settings() {
                         {section.affectedServices.map(s => (
                           <span key={s} style={{
                             fontSize: '0.65rem', padding: '2px 6px', borderRadius: 6,
-                            background: 'rgba(59,130,246,0.12)', color: '#93c5fd',
-                            border: '1px solid rgba(59,130,246,0.2)',
+                            background: 'rgba(0,122,255,0.12)', color: '#93c5fd',
+                            border: '1px solid rgba(0,122,255,0.2)',
                           }}>{s}</span>
                         ))}
                       </div>
                       {/* Badge status */}
                       <span style={{
                         fontSize: '0.72rem', fontWeight: 600, padding: '3px 10px', borderRadius: 20, flexShrink: 0,
-                        background: status === 'ok' ? 'rgba(16,185,129,0.15)' : status === 'error' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
-                        color: status === 'ok' ? '#6ee7b7' : status === 'error' ? '#fca5a5' : '#fcd34d',
-                        border: `1px solid ${status === 'ok' ? 'rgba(16,185,129,0.3)' : status === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)'}`,
+                        background: status === 'ok' ? 'rgba(52,199,89,0.15)' : status === 'error' ? 'rgba(255,107,107,0.15)' : 'rgba(255,159,10,0.15)',
+                        color: status === 'ok' ? '#34c759' : status === 'error' ? '#ff6b6b' : '#ff9f0a',
+                        border: `1px solid ${status === 'ok' ? 'rgba(52,199,89,0.3)' : status === 'error' ? 'rgba(255,107,107,0.3)' : 'rgba(255,159,10,0.3)'}`,
                       }}>
                         {status === 'ok' ? '✅ Configurado' : status === 'error' ? '❌ Com erros' : '⚠️ Pendente'}
                       </span>
@@ -748,9 +748,9 @@ export default function Settings() {
                               <div key={field.key} className="form-group" style={{ marginBottom: 0 }}>
                                 <label className="form-label" htmlFor={`field-${field.key}`}>
                                   {field.label}
-                                  {field.required && <span style={{ color: '#ef4444', marginLeft: 3 }}>*</span>}
+                                  {field.required && <span style={{ color: 'var(--clr-danger)', marginLeft: 3 }}>*</span>}
                                   {isSecret && (
-                                    <span style={{ marginLeft: 6, fontSize: '0.68rem', padding: '1px 6px', borderRadius: 4, background: 'rgba(124,58,237,0.15)', color: '#a78bfa' }}>🔐 secreto</span>
+                                    <span style={{ marginLeft: 6, fontSize: '0.68rem', padding: '1px 6px', borderRadius: 4, background: 'rgba(0,122,255,0.15)', color: '#4da8ff' }}>🔐 secreto</span>
                                   )}
                                 </label>
                                 <div style={{ display: 'flex', gap: 6 }}>
@@ -765,8 +765,8 @@ export default function Settings() {
                                       type={isSecret && !revealed ? 'password' : field.type === 'number' ? 'number' : 'text'}
                                       className="form-input"
                                       style={{ flex: 1, fontFamily: isSecret ? 'monospace' : undefined,
-                                        borderColor: fieldErr ? '#ef4444' : undefined,
-                                        boxShadow: fieldErr ? '0 0 0 1px #ef4444' : undefined }}
+                                        borderColor: fieldErr ? 'var(--clr-danger)' : undefined,
+                                        boxShadow: fieldErr ? '0 0 0 1px var(--clr-danger)' : undefined }}
                                       placeholder={field.placeholder ?? (isSecret ? '••••••••' : '')}
                                       value={value}
                                       onChange={e => handleChange(field.key, e.target.value, field)}
@@ -779,7 +779,7 @@ export default function Settings() {
                                     </button>
                                   )}
                                 </div>
-                                {fieldErr && <div style={{ color: '#f87171', fontSize: '0.73rem', marginTop: 4 }}>⚠ {fieldErr}</div>}
+                                {fieldErr && <div style={{ color: '#ff6b6b', fontSize: '0.73rem', marginTop: 4 }}>⚠ {fieldErr}</div>}
                                 {field.hint && !fieldErr && <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>{field.hint}</div>}
                                 <div style={{ fontSize: '0.68rem', color: 'rgba(148,163,184,0.45)', marginTop: 2, fontFamily: 'monospace' }}>{field.key}</div>
                               </div>
@@ -795,15 +795,15 @@ export default function Settings() {
                             <button className="btn btn-ghost btn-sm" onClick={() => handleTest(section)}
                               disabled={testState === 'loading'}
                               style={{
-                                borderColor: testState === 'ok' ? '#10b981' : testState === 'error' ? '#ef4444' : undefined,
-                                color: testState === 'ok' ? '#6ee7b7' : testState === 'error' ? '#fca5a5' : undefined,
+                                borderColor: testState === 'ok' ? 'var(--clr-success)' : testState === 'error' ? 'var(--clr-danger)' : undefined,
+                                color: testState === 'ok' ? '#34c759' : testState === 'error' ? '#ff6b6b' : undefined,
                               }}>
                               {testState === 'loading' ? <><span className="spinner" style={{ width: 12, height: 12, margin: '0 6px 0 0' }} />Testando…</> :
                                testState === 'ok' ? '✅ Conexão OK' : testState === 'error' ? '❌ Falhou' : '🔗 Testar'}
                             </button>
                           )}
                           {testMsg && (
-                            <span style={{ fontSize: '0.78rem', color: testState === 'ok' ? '#6ee7b7' : '#fca5a5', flex: 1 }}>{testMsg}</span>
+                            <span style={{ fontSize: '0.78rem', color: testState === 'ok' ? '#34c759' : '#ff6b6b', flex: 1 }}>{testMsg}</span>
                           )}
 
                           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -822,7 +822,7 @@ export default function Settings() {
                             {/* Aplicar */}
                             <button className="btn btn-primary btn-sm" onClick={() => handleApplySection(section)}
                               disabled={isSaving || isApplying}
-                              style={{ minWidth: 130, background: isApplying ? undefined : 'linear-gradient(135deg,#7c3aed,#2563eb)' }}>
+                              style={{ minWidth: 130, background: isApplying ? undefined : 'linear-gradient(135deg,#007aff,#4da8ff)' }}>
                               {isApplying
                                 ? <><span className="spinner" style={{ width: 11, height: 11, margin: '0 5px 0 0', borderTopColor: '#fff' }} />Aplicando…</>
                                 : '▶ Salvar e Aplicar'}
@@ -934,10 +934,10 @@ export default function Settings() {
                         <td style={{ whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '0.8rem' }}>
                           {new Date(entry.changedAt).toLocaleString('pt-BR')}
                         </td>
-                        <td><span style={{ background: 'rgba(124,58,237,0.15)', color: '#a78bfa', padding: '2px 8px', borderRadius: 6, fontSize: '0.78rem' }}>{entry.changedBy}</span></td>
+                        <td><span style={{ background: 'rgba(0,122,255,0.15)', color: '#4da8ff', padding: '2px 8px', borderRadius: 6, fontSize: '0.78rem' }}>{entry.changedBy}</span></td>
                         <td style={{ fontFamily: 'monospace', fontSize: '0.82rem', color: '#93c5fd' }}>{entry.envKey}</td>
                         <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text-muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{entry.oldValue ?? <em style={{ opacity: 0.5 }}>—</em>}</td>
-                        <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#6ee7b7', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{entry.newValue ?? <em style={{ opacity: 0.5 }}>—</em>}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#34c759', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{entry.newValue ?? <em style={{ opacity: 0.5 }}>—</em>}</td>
                         <td style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--text-muted)' }}>{entry.ipAddress ?? '—'}</td>
                       </tr>
                     ))}

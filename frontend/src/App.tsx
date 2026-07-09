@@ -59,7 +59,7 @@ class ErrorBoundary extends Component<
           <button
             style={{
               padding: '8px 20px', borderRadius: 8, border: 'none',
-              background: '#7c3aed', color: '#fff', cursor: 'pointer', fontSize: '0.875rem',
+              background: '#007aff', color: '#fff', cursor: 'pointer', fontSize: '0.875rem',
             }}
             onClick={() => { this.setState({ error: null }); window.location.reload(); }}
           >
