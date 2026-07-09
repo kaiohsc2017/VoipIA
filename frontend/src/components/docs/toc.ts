@@ -14,6 +14,15 @@ export interface TocGroup {
 
 export const TOC: TocGroup[] = [
   {
+    label: 'Instalação',
+    items: [
+      { id: 'instalacao-visao-geral', label: 'Requisitos e Visão Geral' },
+      { id: 'instalacao-ubuntu', label: 'Ubuntu 22.04 / 24.04' },
+      { id: 'instalacao-oracle', label: 'Oracle Linux 9' },
+      { id: 'instalacao-pos', label: 'Pós-Instalação' },
+    ],
+  },
+  {
     label: 'Telecom',
     items: [
       { id: 'telecom-visao-geral', label: 'Visão Geral do Sistema' },

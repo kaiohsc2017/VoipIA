@@ -71,4 +71,14 @@ export const RELEASES: ReleaseEntry[] = [
       'Telas de conteúdo com largura máxima, para melhor leitura em monitores ultrawide.',
     ],
   },
+  {
+    version: 'v1.06',
+    date: '2026-07-09',
+    changes: [
+      'Novo script de instalação para Oracle Linux 9 (install-oracle9.sh), ao lado do install.sh (Ubuntu).',
+      'install.sh: permissão do diretório env/ corrigida, espera pelo certificado TLS antes do coturn subir, e verificação final cobrindo todos os containers do stack.',
+      'Documentação: nova seção "Instalação" com o passo a passo para Ubuntu e Oracle Linux 9.',
+      'Documentação: correção da arquitetura da Plataforma de Agentes (banco e frontend unificados com o Telecom, não mais containers próprios) e adição do controle de acesso por Unidade de Negócio (BU).',
+    ],
+  },
 ];

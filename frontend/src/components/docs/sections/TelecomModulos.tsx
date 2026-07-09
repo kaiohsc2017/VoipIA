@@ -45,6 +45,8 @@ export default function TelecomModulos() {
                 [<FieldName>asteriskia-frontend</FieldName>, 'React 18 + Nginx — serve Telecom e Agentes'],
                 [<FieldName>asteriskia-agents-api</FieldName>, 'FastAPI — Plataforma de Agentes'],
                 [<FieldName>asteriskia-docker-helper</FieldName>, 'Único container com acesso ao docker.sock — API interna estreita, sem porta publicada'],
+                [<FieldName>asteriskia-coturn</FieldName>, 'Relay TURN/TURNS para WebRTC quando STUN não basta (ex: NAT simétrico) — network_mode: host'],
+                [<FieldName>asteriskia-security</FieldName>, 'Fail2ban + nftables — lockdown SIP e bans automáticos, network_mode: host'],
               ]}
             />
           </Card>

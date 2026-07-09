@@ -1,4 +1,5 @@
 import DocsLayout from './docs/DocsLayout';
+import Instalacao from './docs/sections/Instalacao';
 import TelecomModulos from './docs/sections/TelecomModulos';
 import TelecomRBAC from './docs/sections/TelecomRBAC';
 import Introducao from './docs/sections/Introducao';
@@ -14,6 +15,7 @@ import Sistema from './docs/sections/Sistema';
 export default function Documentacao() {
   return (
     <DocsLayout>
+      <Instalacao />
       <TelecomModulos />
       <TelecomRBAC />
       <Introducao />

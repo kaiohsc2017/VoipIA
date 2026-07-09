@@ -43,46 +43,50 @@ export default function Introducao() {
 
       <Section id="agentes-arquitetura" title="Arquitetura">
         <p>
-          A Plataforma de Agentes é composta por 3 containers Docker integrados ao AsteriskIA
-          Telecom via rede interna Docker (<code>asteriskia-net</code>) e roteados pelo Caddy em{' '}
-          <code>/agents/*</code>.
+          A Plataforma de Agentes não tem mais containers dedicados de frontend ou banco — hoje ela
+          é só um backend FastAPI, integrado ao AsteriskIA Telecom pela mesma rede Docker (
+          <code>asteriskia-net</code>) e pelo <strong>banco PostgreSQL unificado</strong> (mesma
+          instância e mesmo banco <code>asteriskia</code> do Telecom, só tabelas diferentes). O
+          frontend é servido pelo mesmo Nginx do Telecom (<code>asteriskia-frontend</code>), que
+          expõe o build React UMD dos Agentes em <code>/agents/</code>.
         </p>
 
         <Card>
           <FieldTable
             headers={['Container', 'Imagem', 'Porta', 'Responsabilidade']}
             rows={[
-              [<FieldName>asteriskia-agents-api</FieldName>, <FieldType>Python 3.12</FieldType>, <code>127.0.0.1:8000</code>, 'Backend FastAPI — API REST, scheduler, executors, WebSocket'],
-              [<FieldName>asteriskia-agents-ui</FieldName>, <FieldType>nginx:alpine</FieldType>, 'interno:80', 'Frontend React 18 UMD (HTML único, sem build step)'],
-              [<FieldName>asteriskia-agents-db</FieldName>, <FieldType>postgres:16</FieldType>, 'interno:5432', <>PostgreSQL — banco <code>agentsdb</code>, usuário <code>agents</code></>],
+              [<FieldName>asteriskia-agents-api</FieldName>, <FieldType>Python 3.12</FieldType>, 'interno:8000', 'Backend FastAPI — API REST, scheduler, executors, WebSocket'],
+              [<FieldName>asteriskia-frontend</FieldName>, <FieldType>nginx:alpine</FieldType>, 'interno:80', <>Serve o React 18 do Telecom em <code>/</code> e o React UMD dos Agentes em <code>/agents/</code> — mesmo container</>],
+              [<FieldName>asteriskia-postgres</FieldName>, <FieldType>postgres:16-alpine</FieldType>, '127.0.0.1:5433', <>Banco <strong>unificado</strong> — mesma instância e banco (<code>asteriskia</code>) do Telecom</>],
             ]}
           />
         </Card>
 
         <SubSection title="Roteamento Caddy">
           <CodeBlock label="Caddyfile">
-            <Cmt>{'# API dos agentes\n'}</Cmt>
+            <Cmt>{'# API dos agentes — strip /agents, vai pro backend FastAPI\n'}</Cmt>
             <Key>@agents-api</Key>{' { path /agents/api/* }\n'}
             {'handle @agents-api {\n'}
             {'    uri strip_prefix /agents\n'}
             {'    reverse_proxy '}<Str>agents-backend:8000</Str>{'\n}\n\n'}
-            <Cmt>{'# WebSocket em tempo real\n'}</Cmt>
+            <Cmt>{'# WebSocket em tempo real — mesmo strip, mesmo backend\n'}</Cmt>
             <Key>@agents-ws</Key>{' { header Connection *Upgrade*; path /agents/ws/* }\n'}
             {'handle @agents-ws {\n'}
             {'    uri strip_prefix /agents\n'}
             {'    reverse_proxy '}<Str>agents-backend:8000</Str>{'\n}\n\n'}
-            <Cmt>{'# Frontend\n'}</Cmt>
+            <Cmt>{'# Frontend — SEM strip_prefix: o nginx do Telecom já tem\n'}</Cmt>
+            <Cmt>{'# location /agents/ próprio, esperando o path completo.\n'}</Cmt>
             <Key>@agents-ui</Key>{' { path /agents* }\n'}
             {'handle @agents-ui {\n'}
-            {'    uri strip_prefix /agents\n'}
-            {'    reverse_proxy '}<Str>agents-frontend:80</Str>{'\n}'}
+            {'    reverse_proxy '}<Str>frontend:80</Str>{'\n}'}
           </CodeBlock>
         </SubSection>
 
         <Callout tone="info">
           O frontend usa <code>const API = '/agents'</code>. Todas as chamadas de API ficam em{' '}
-          <code>/agents/api/*</code> que o Caddy roteia para o backend na porta 8000. O login usa o
-          backend Spring Boot do Telecom via <code>/api/v1/auth/login</code>.
+          <code>/agents/api/*</code> que o Caddy roteia (com strip) para o backend na porta 8000. O
+          login usa o backend Spring Boot do Telecom via <code>/api/v1/auth/login</code> — a
+          Plataforma de Agentes não tem cadastro de usuário próprio.
         </Callout>
       </Section>
 

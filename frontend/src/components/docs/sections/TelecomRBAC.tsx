@@ -43,6 +43,34 @@ export default function TelecomRBAC() {
           Um administrador (role legada <code>ADMIN</code>) sempre enxerga tudo, mesmo com um token
           emitido antes do RBAC granular existir.
         </Callout>
+
+        <SubSection title="Escopo por Unidade de Negócio (BU)">
+          <p>
+            Além da permissão por menu, cada usuário é vinculado a uma ou mais{' '}
+            <strong>Unidades de Negócio (BU)</strong> — obrigatório no cadastro de usuário, com
+            suporte a múltiplas BUs por usuário. O JWT carrega essa informação na claim{' '}
+            <code>bu</code> (authorities <code>BU_&lt;id&gt;</code>), e os dados retornados pela API
+            são filtrados por ela. Um <code>ADMIN</code> sempre vê todas as BUs.
+          </p>
+
+          <Card>
+            <FieldTable
+              headers={['Área', 'Filtrado por BU?']}
+              rows={[
+                ['Cadastros (Cliente / Operação / BU)', 'Sim, mas BU é opcional nesses cadastros — item sem BU fica visível a todos'],
+                ['Chamadas (Módulo 1 — URA)', <>Sim, via <code>uras.business_unit_id</code></>],
+                ['Conectividade (Módulo 2)', <>Sim, via <code>NumberTest.businessUnit</code> (obrigatória)</>],
+                ['Alertas Zabbix (Módulo 3)', <><Badge tone="warn">Não coberto</Badge> — não há hoje um caminho para derivar a BU de um host/incidente monitorado</>],
+              ]}
+            />
+          </Card>
+
+          <Callout tone="warn">
+            Usuários criados antes dessa funcionalidade existir foram migrados com{' '}
+            <code>access_indeterminate = true</code> e vinculados a todas as BUs ativas, para não
+            perder acesso retroativamente.
+          </Callout>
+        </SubSection>
       </Section>
 
       <Section id="telecom-softphone" title="Softphone e Ramais">
