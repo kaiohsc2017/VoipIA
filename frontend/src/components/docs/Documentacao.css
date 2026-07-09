@@ -2,8 +2,8 @@
 
 .docs-layout {
   display: flex;
-  /* Ocupa o espaço restante após o page-header (~110px) */
-  height: calc(100vh - 110px);
+  /* Ocupa 100vh igual ao AgentesPage — sem page-header do Telecom acima */
+  height: 100vh;
   background: var(--bg-deep);
   overflow: hidden;
 }
@@ -16,7 +16,6 @@
   padding: 24px 0 40px;
   overflow-y: auto;
   height: 100%;
-  /* Sem position:sticky — o docs-layout já mantém o TOC no lugar */
   position: static;
 }
 
@@ -49,9 +48,27 @@
   flex: 1;
   max-width: 960px;
   padding: 40px 48px 96px;
-  overflow-y: auto;   /* conteúdo rola independentemente do TOC */
+  overflow-y: auto;
   height: 100%;
   box-sizing: border-box;
+}
+
+/* Título da documentação integrado ao conteúdo (substitui o page-header) */
+.docs-content-header {
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-glass);
+}
+.docs-content-header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+.docs-content-header p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0;
 }
 
 .docs-hero {

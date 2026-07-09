@@ -10,8 +10,7 @@ export default function DocsLayout({ children }: DocsLayoutProps) {
   const [activeId, setActiveId] = useState<string>(TOC[0].items[0].id);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Destaca o item do sumário correspondente à seção visível — substitui o
-  // listener de scroll do docs.html original por IntersectionObserver.
+  // IntersectionObserver com root = docs-content (container que faz scroll)
   useEffect(() => {
     const root = contentRef.current;
     if (!root) return;
@@ -19,11 +18,8 @@ export default function DocsLayout({ children }: DocsLayoutProps) {
     const observer = new IntersectionObserver(
       entries => {
         const visible = entries.filter(e => e.isIntersecting);
-        if (visible.length > 0) {
-          setActiveId(visible[0].target.id);
-        }
+        if (visible.length > 0) setActiveId(visible[0].target.id);
       },
-      // root = docs-content: observer detecta seções visíveis no scroll do conteúdo
       { root, rootMargin: '-5% 0px -60% 0px', threshold: 0 }
     );
     sections.forEach(s => observer.observe(s));
@@ -33,22 +29,15 @@ export default function DocsLayout({ children }: DocsLayoutProps) {
   const handleNavigate = (id: string) => {
     const el = document.getElementById(id);
     if (!el || !contentRef.current) return;
-    // Scroll dentro do docs-content (que tem overflow-y: auto)
-    // em vez do window/body, para que o TOC fixo não se mova
-    contentRef.current.scrollTo({
-      top: el.offsetTop - 24,
-      behavior: 'smooth',
-    });
+    contentRef.current.scrollTo({ top: el.offsetTop - 24, behavior: 'smooth' });
   };
 
   return (
-    <>
-      <div className="page-header">
-        <h1>Documentação</h1>
-        <p>Guia completo do sistema Telecom e da Plataforma de Agentes.</p>
-      </div>
+    // Mesmo padrão do AgentesPage: ocupa 100vh sem page-header do Telecom,
+    // para que o TOC lateral fique alinhado ao topo da tela.
+    <div className="docs-layout">
 
-      <div className="docs-layout">
+      {/* ── TOC lateral ── */}
       <nav className="docs-toc">
         {TOC.map(group => (
           <div key={group.label}>
@@ -69,7 +58,15 @@ export default function DocsLayout({ children }: DocsLayoutProps) {
         ))}
       </nav>
 
+      {/* ── Conteúdo — rola independente do TOC ── */}
       <div className="docs-content" ref={contentRef}>
+
+        {/* Título integrado ao conteúdo (sem page-header separado) */}
+        <div className="docs-content-header">
+          <h1>Documentação</h1>
+          <p>Guia completo do sistema Telecom e da Plataforma de Agentes.</p>
+        </div>
+
         <div className="docs-hero">
           <p>
             Guia completo do sistema Telecom (URA, Conectividade, Alertas, RBAC) e da Plataforma de
@@ -90,7 +87,6 @@ export default function DocsLayout({ children }: DocsLayoutProps) {
           Telecom + Plataforma de Agentes · <code>https://app.voiphash.com.br</code>
         </div>
       </div>
-      </div>
-    </>
+    </div>
   );
 }
