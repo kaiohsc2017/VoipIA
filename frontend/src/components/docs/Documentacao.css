@@ -2,20 +2,22 @@
 
 .docs-layout {
   display: flex;
-  /* Ocupa toda a altura disponível abaixo do page-header */
+  /* Ocupa o espaço restante após o page-header (~110px) */
   height: calc(100vh - 110px);
   background: var(--bg-deep);
-  overflow: hidden;   /* o scroll acontece em cada coluna, não aqui */
+  overflow: hidden;
 }
 
-/* ── TOC lateral — fixo, não rola com o conteúdo ── */
+/* ── TOC lateral — coluna fixa, rola internamente ── */
 .docs-toc {
   width: 260px;
   flex-shrink: 0;
   background: var(--gradient-sidebar);
   padding: 24px 0 40px;
-  overflow-y: auto;   /* rola só se houver mais itens que a altura */
-  height: 100%;       /* ocupa toda a altura do docs-layout */
+  overflow-y: auto;
+  height: 100%;
+  /* Sem position:sticky — o docs-layout já mantém o TOC no lugar */
+  position: static;
 }
 
 .docs-toc-group {
