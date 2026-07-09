@@ -4,7 +4,6 @@
   display: flex;
   min-height: 100%;
   background: var(--bg-deep);
-  margin: -24px;
 }
 
 /* ── TOC lateral ── */
@@ -14,9 +13,12 @@
   background: var(--gradient-sidebar);
   padding: 24px 0 40px;
   overflow-y: auto;
-  max-height: 100vh;
+  /* 110px ≈ altura do .page-header acima (título curto + subtítulo de uma
+     linha) — sem isso o TOC, que também é sticky, sobrepõe o cabeçalho ao
+     rolar a página. */
+  max-height: calc(100vh - 110px);
   position: sticky;
-  top: 0;
+  top: 110px;
 }
 
 .docs-toc-group {

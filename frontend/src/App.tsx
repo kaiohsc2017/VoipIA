@@ -24,6 +24,7 @@ const Auditoria          = lazy(() => import('./components/Auditoria'));
 const AccessGroups       = lazy(() => import('./components/AccessGroups'));
 const Documentacao       = lazy(() => import('./components/Documentacao'));
 const Release            = lazy(() => import('./components/Release'));
+const AgentesPage        = lazy(() => import('./components/AgentesPage'));
 
 // ─── ErrorBoundary ─────────────────────────────────────────────────────────────
 // Evita que erros em componentes filhos desmontem toda a árvore React (tela em branco).
@@ -106,6 +107,7 @@ const PAGE_RESOURCE: Partial<Record<Page, string>> = {
   audit:      'telecom.audit',
   docs:       'telecom.docs',
   release:    'telecom.release',
+  agents:     'telecom.agents_link',
 };
 
 export default function App() {
@@ -115,7 +117,7 @@ export default function App() {
   const [perms, setPerms] = useState<Record<string, string>>(() => getPermissionsFromToken(localStorage.getItem('asteriskia_token')));
   const pageFromHash = (): Page => {
     const hash = window.location.hash.replace('#', '').trim() as Page;
-    const valid: Page[] = ['dashboard','modulo1','modulo2','modulo3','masterdata','users','operadoras','cadastro0800','linhas','settings','audit','logs','security','accessGroups','docs','release'];
+    const valid: Page[] = ['dashboard','modulo1','modulo2','modulo3','masterdata','users','operadoras','cadastro0800','linhas','settings','audit','logs','security','accessGroups','docs','release','agents'];
     if (!valid.includes(hash)) return 'dashboard';
     // Acesso direto via hash (digitado/favoritado) a uma página sem permissão de
     // leitura: volta pro dashboard. O botão de nav já fica escondido (ver
@@ -209,6 +211,7 @@ export default function App() {
               {page === 'accessGroups' && <AccessGroups />}
               {page === 'docs'       && <Documentacao />}
               {page === 'release'    && <Release />}
+              {page === 'agents'     && <AgentesPage />}
             </ErrorBoundary>
           </Suspense>
         </main>

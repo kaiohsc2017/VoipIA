@@ -38,11 +38,11 @@ function fmtBantime(s: number) {
 
 function Badge({ children, color }: { children: React.ReactNode; color: 'green'|'red'|'amber'|'blue'|'gray' }) {
   const styles: Record<string, React.CSSProperties> = {
-    green: { background:'var(--color-background-success)', color:'var(--color-text-success)' },
-    red:   { background:'var(--color-background-danger)',  color:'var(--color-text-danger)'  },
-    amber: { background:'var(--color-background-warning)', color:'var(--color-text-warning)' },
-    blue:  { background:'var(--color-background-info)',    color:'var(--color-text-info)'    },
-    gray:  { background:'var(--bg-input)',                 color:'var(--text-muted)',
+    green: { background:'var(--bg-success-soft)', color:'var(--clr-success)' },
+    red:   { background:'var(--bg-danger-soft)',  color:'var(--clr-danger)'  },
+    amber: { background:'var(--bg-warning-soft)', color:'var(--clr-warning)' },
+    blue:  { background:'var(--bg-primary-soft)', color:'var(--clr-primary)' },
+    gray:  { background:'var(--bg-input)',        color:'var(--text-muted)',
              border:'0.5px solid var(--border-glass)' },
   };
   return (
@@ -192,30 +192,28 @@ export default function ModuloSeguranca() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div style={{ padding:'24px 28px', maxWidth:1100 }}>
-
+    <>
       {/* Toast */}
       {toast && (
         <div style={{
           position:'fixed', top:20, right:24, zIndex:9999,
-          background: toast.ok ? 'var(--color-background-success)' : 'var(--color-background-danger)',
-          color: toast.ok ? 'var(--color-text-success)' : 'var(--color-text-danger)',
-          border:`0.5px solid ${toast.ok ? 'var(--color-border-success,var(--clr-success))' : 'var(--color-border-danger,var(--clr-danger))'}`,
+          background: toast.ok ? 'var(--bg-success-soft)' : 'var(--bg-danger-soft)',
+          color: toast.ok ? 'var(--clr-success)' : 'var(--clr-danger)',
+          border:`0.5px solid ${toast.ok ? 'var(--clr-success)' : 'var(--clr-danger)'}`,
           padding:'10px 18px', borderRadius:8, fontSize:'0.85rem', fontWeight:500, boxShadow:'0 4px 12px rgba(0,0,0,0.1)',
         }}>
           {toast.ok ? '✅' : '❌'} {toast.msg}
         </div>
       )}
 
-      {/* Título */}
-      <div style={{ marginBottom:20 }}>
-        <h1 style={{ fontSize:'1.5rem', fontWeight:700, color:'var(--text-primary)', margin:0 }}>
-          🛡️ Segurança
-        </h1>
-        <p style={{ fontSize:'0.82rem', color:'var(--text-muted)', marginTop:4 }}>
+      <div className="page-header">
+        <h1>🛡️ Segurança</h1>
+        <p>
           {lockdown ? '🔴 MODO LOCKDOWN ATIVO — apenas IPs da lista branca podem conectar ao SIP' : 'Proteção SIP via fail2ban + iptables + ACL Asterisk — política libera geral, bloqueia seletivamente'}
         </p>
       </div>
+
+      <div className="page-body">
 
       {/* Camadas de proteção */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr auto 1fr', gap:8, alignItems:'center', marginBottom:20 }}>
@@ -231,7 +229,7 @@ export default function ModuloSeguranca() {
         ].map((item, i) => item === null ? (
           <div key={i} style={{ textAlign:'center', color:'var(--text-muted)', fontSize:18 }}>→</div>
         ) : (
-          <div key={i} className="stat-card" style={{ padding:'10px 14px', display:'flex', alignItems:'center', gap:10 }}>
+          <div key={i} className="card" style={{ padding:'10px 14px', display:'flex', alignItems:'center', gap:10 }}>
             <span style={{ fontSize:'1.3rem' }}>{item.icon}</span>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:'0.85rem', fontWeight:600, display:'flex', alignItems:'center', gap:6 }}>
@@ -252,7 +250,7 @@ export default function ModuloSeguranca() {
         background: lockdown ? 'rgba(255,107,107,0.08)' : 'rgba(148,163,184,0.06)',
         border: `1px solid ${lockdown ? 'rgba(255,107,107,0.3)' : 'var(--border-glass)'}` }}>
         <div style={{ flex:1 }}>
-          <div style={{ fontWeight:600, fontSize:'0.9rem', color: lockdown ? 'var(--color-text-danger)' : 'var(--text-primary)' }}>
+          <div style={{ fontWeight:600, fontSize:'0.9rem', color: lockdown ? 'var(--clr-danger)' : 'var(--text-primary)' }}>
             {lockdown ? '🔴 Modo Lockdown Ativo' : '🟢 Modo Normal (fail2ban)'}
           </div>
           <div style={{ fontSize:'0.78rem', color:'var(--text-muted)', marginTop:2 }}>
@@ -278,7 +276,7 @@ export default function ModuloSeguranca() {
             padding:'8px 18px', borderRadius:8, fontWeight:600, fontSize:'0.85rem',
             cursor: lockdownLoading ? 'not-allowed' : 'pointer',
             border:'none', opacity: lockdownLoading ? 0.6 : 1,
-            background: lockdown ? 'var(--color-text-danger)' : 'var(--color-text-primary)',
+            background: lockdown ? 'var(--clr-danger)' : 'var(--text-primary)',
             color: '#fff',
           }}
         >
@@ -289,9 +287,9 @@ export default function ModuloSeguranca() {
       {/* Cards de estatísticas */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:20 }}>
         {[
-          { val: status?.totalBanned ?? '—',  lbl:'IPs bloqueados',     color:'var(--color-text-danger)'  },
-          { val: status?.activeJails ?? '—',  lbl:'Jails ativos',       color:'var(--color-text-info)'    },
-          { val: status?.whitelist?.length ?? 0, lbl:'Na lista branca',  color:'var(--color-text-success)' },
+          { val: status?.totalBanned ?? '—',  lbl:'IPs bloqueados',     color:'var(--clr-danger)'  },
+          { val: status?.activeJails ?? '—',  lbl:'Jails ativos',       color:'var(--clr-primary)'    },
+          { val: status?.whitelist?.length ?? 0, lbl:'Na lista branca',  color:'var(--clr-success)' },
         ].map((s,i) => (
           <div key={i} style={{ background:'var(--bg-input)', borderRadius:8, padding:'12px 14px',
             border:'0.5px solid var(--border-glass)' }}>
@@ -321,7 +319,7 @@ export default function ModuloSeguranca() {
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
           {loading ? <div style={{ color:'var(--text-muted)', padding:32, textAlign:'center' }}>Carregando…</div>
           : (status?.jails ?? []).map(jail => (
-            <div key={jail.name} className="stat-card" style={{ padding:0, overflow:'hidden' }}>
+            <div key={jail.name} className="card" style={{ padding:0, overflow:'hidden' }}>
               <div style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 18px' }}>
                 <div style={{ flex:1 }}>
                   <div style={{ fontWeight:600, fontSize:'0.92rem', display:'flex', alignItems:'center', gap:8 }}>
@@ -430,8 +428,8 @@ export default function ModuloSeguranca() {
                 }}>
                   <div style={{ fontWeight:600, marginBottom:6 }}>
                     {testResult.count > 0
-                      ? <span style={{ color:'var(--color-text-danger)' }}>⚠️ {testResult.count} linhas corresponderam (em {testResult.tested} testadas)</span>
-                      : <span style={{ color:'var(--color-text-success)' }}>✅ Nenhuma correspondência (em {testResult.tested} testadas)</span>}
+                      ? <span style={{ color:'var(--clr-danger)' }}>⚠️ {testResult.count} linhas corresponderam (em {testResult.tested} testadas)</span>
+                      : <span style={{ color:'var(--clr-success)' }}>✅ Nenhuma correspondência (em {testResult.tested} testadas)</span>}
                   </div>
                   {testResult.matches.slice(0,5).map((m,i) => (
                     <div key={i} style={{ fontFamily:'monospace', fontSize:'0.72rem',
@@ -459,7 +457,7 @@ export default function ModuloSeguranca() {
 
       {/* ── ABA: IPs BLOQUEADOS ───────────────────────────────────────────── */}
       {activeTab === 'blocked' && (
-        <div className="stat-card" style={{ padding:0, overflow:'hidden' }}>
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
           <div style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px',
             borderBottom:'0.5px solid var(--border-glass)', background:'var(--bg-input)', flexWrap:'wrap' }}>
             <input aria-label="Buscar IP, jail ou motivo" placeholder="Buscar IP, jail ou motivo…" value={search}
@@ -530,7 +528,7 @@ export default function ModuloSeguranca() {
 
       {/* ── ABA: LISTA BRANCA ─────────────────────────────────────────────── */}
       {activeTab === 'whitelist' && (
-        <div className="stat-card" style={{ padding:0, overflow:'hidden' }}>
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'12px 16px',
             borderBottom:'0.5px solid var(--border-glass)', background:'var(--bg-input)' }}>
             <input value={wlIp} onChange={e => setWlIp(e.target.value)}
@@ -558,6 +556,7 @@ export default function ModuloSeguranca() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

@@ -43,6 +43,14 @@ async def llm_config_read():
             masked[k] = v
     return {"values": masked, "has_file": True}
 
+@router.get("/config/full", dependencies=_WRITE)
+async def llm_config_read_full():
+    """Lê o .env.agents com as keys em texto puro — usado só pelo formulário de
+    edição (mascarar aqui faria o usuário sobrescrever uma key válida com a
+    string mascarada ao salvar outro campo). Gate por permissão de escrita,
+    não de leitura, por expor os segredos sem máscara."""
+    return {"values": read_env_file(), "has_file": True}
+
 @router.post("/config", dependencies=_WRITE)
 async def llm_config_save(body: LLMSaveRequest):
     """Salva o .env.agents e recarrega a configuração em memória."""

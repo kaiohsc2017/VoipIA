@@ -3,7 +3,7 @@ import { useState } from 'react';
 import {
   LayoutDashboard, Headset, PhoneCall, AlertTriangle, Bot, Users, UsersRound,
   Settings, Terminal, ShieldCheck, KeyRound, ClipboardList,
-  LogOut, ExternalLink, BookOpen, Tag, Phone, Cable, Building2,
+  LogOut, BookOpen, Tag, Phone, Cable, Building2,
 } from 'lucide-react';
 import { canRead } from '../api/client';
 import { RELEASES } from '../data/releases';
@@ -27,12 +27,12 @@ interface SidebarProps {
 // / access_group_permissions) — manter em sincronia manual com o backend.
 // Itens com adminOnly (em vez de resource) não têm resource_key próprio —
 // o backend exige ROLE_ADMIN puro nesse endpoint (ver AccessGroupController).
-const NAV_ITEMS: { page: Page; icon: ComponentType<{ size?: number; strokeWidth?: number }>; label: string; section: string; external?: string; resource?: string; adminOnly?: boolean }[] = [
+const NAV_ITEMS: { page: Page; icon: ComponentType<{ size?: number; strokeWidth?: number }>; label: string; section: string; resource?: string; adminOnly?: boolean }[] = [
   { page: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard',          section: 'GERAL',     resource: 'telecom.dashboard'    },
   { page: 'modulo1',    icon: Headset,         label: 'URA',                section: 'MÓDULOS',   resource: 'telecom.modulo1'      },
   { page: 'modulo2',    icon: PhoneCall,       label: 'Conectividade',      section: 'MÓDULOS',   resource: 'telecom.modulo2'      },
   { page: 'modulo3',    icon: AlertTriangle,   label: 'Monitoramento',      section: 'MÓDULOS',   resource: 'telecom.modulo3'      },
-  { page: 'agents',     icon: Bot,             label: 'Agentes',            section: 'MÓDULOS',   resource: 'telecom.agents_link', external: '/agents/' },
+  { page: 'agents',     icon: Bot,             label: 'Agentes',            section: 'MÓDULOS',   resource: 'telecom.agents_link' },
   { page: 'masterdata', icon: Users,           label: 'Clientes',           section: 'CADASTROS', resource: 'telecom.masterdata'   },
   { page: 'users',      icon: UsersRound,      label: 'Usuários e Ramais',  section: 'CADASTROS', resource: 'telecom.users'        },
   { page: 'operadoras', icon: Building2,       label: 'Operadoras',         section: 'CADASTROS', resource: 'telecom.operadoras'   },
@@ -85,32 +85,17 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
               {showSection && (
                 <div className="nav-section-label">{item.section}</div>
               )}
-              {item.external ? (
-                <a
-                  href={item.external}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
-                  title={isEffectivelyCollapsed ? item.label : undefined}
-                  style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}
-                >
-                  <span className="nav-icon"><Icon size={17} strokeWidth={1.75} /></span>
-                  <span>{item.label}</span>
-                  {!isEffectivelyCollapsed && <ExternalLink size={12} style={{ marginLeft: 'auto', opacity: 0.5 }} />}
-                </a>
-              ) : (
-                <div
-                  className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
-                  onClick={() => onNavigate(item.page)}
-                  role="button"
-                  tabIndex={0}
-                  title={isEffectivelyCollapsed ? item.label : undefined}
-                  onKeyDown={e => e.key === 'Enter' && onNavigate(item.page)}
-                >
-                  <span className="nav-icon"><Icon size={17} strokeWidth={1.75} /></span>
-                  <span>{item.label}</span>
-                </div>
-              )}
+              <div
+                className={`nav-item ${currentPage === item.page ? 'active' : ''}`}
+                onClick={() => onNavigate(item.page)}
+                role="button"
+                tabIndex={0}
+                title={isEffectivelyCollapsed ? item.label : undefined}
+                onKeyDown={e => e.key === 'Enter' && onNavigate(item.page)}
+              >
+                <span className="nav-icon"><Icon size={17} strokeWidth={1.75} /></span>
+                <span>{item.label}</span>
+              </div>
             </div>
           );
         })}

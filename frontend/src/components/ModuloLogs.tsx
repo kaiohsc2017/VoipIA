@@ -265,17 +265,13 @@ export default function ModuloLogs() {
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: 1200 }}>
-
-      {/* Título */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize:'1.5rem', fontWeight:700, color:'var(--text-primary)', margin:0 }}>
-          🖥️ Logs do Sistema
-        </h1>
-        <p style={{ fontSize:'0.82rem', color:'var(--text-muted)', marginTop:4 }}>
-          Logs em tempo real e histórico de todos os serviços — Docker e Asterisk
-        </p>
+    <>
+      <div className="page-header">
+        <h1>🖥️ Logs do Sistema</h1>
+        <p>Logs em tempo real e histórico de todos os serviços — Docker e Asterisk</p>
       </div>
+
+      <div className="page-body">
 
       {/* Tabs principais */}
       <div style={{ display:'flex', borderBottom:'1px solid var(--border-glass)', marginBottom:20 }}>
@@ -291,7 +287,7 @@ export default function ModuloLogs() {
 
       {/* ── DOCKER ─────────────────────────────────────────────────────────── */}
       {activeTab === 'docker' && (
-        <div className="stat-card" style={{ padding:0, overflow:'hidden' }}>
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
 
           {/* Sub-tabs */}
           <div style={{ display:'flex', borderBottom:'0.5px solid var(--border-glass)', background:'var(--bg-input)' }}>
@@ -399,7 +395,7 @@ export default function ModuloLogs() {
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12 }}>
 
               {/* Ramais */}
-              <div className="stat-card" style={{ padding:'12px 14px' }}>
+              <div className="card" style={{ padding:'12px 14px' }}>
                 <div style={{ fontSize:'0.72rem', fontWeight:600, color:'var(--text-muted)', marginBottom:8, display:'flex', alignItems:'center', gap:5 }}>
                   🔌 Ramais registrados
                 </div>
@@ -417,7 +413,7 @@ export default function ModuloLogs() {
               </div>
 
               {/* Tronco */}
-              <div className="stat-card" style={{ padding:'12px 14px' }}>
+              <div className="card" style={{ padding:'12px 14px' }}>
                 <div style={{ fontSize:'0.72rem', fontWeight:600, color:'var(--text-muted)', marginBottom:8 }}>🌐 Tronco SIP</div>
                 <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.78rem', padding:'3px 0', borderBottom:'0.5px solid var(--border-glass)' }}>
                   <span style={{ color:'var(--text-muted)' }}>{astStatus.trunk?.name}</span>
@@ -432,7 +428,7 @@ export default function ModuloLogs() {
               </div>
 
               {/* Sistema */}
-              <div className="stat-card" style={{ padding:'12px 14px' }}>
+              <div className="card" style={{ padding:'12px 14px' }}>
                 <div style={{ fontSize:'0.72rem', fontWeight:600, color:'var(--text-muted)', marginBottom:8 }}>⚙️ Sistema</div>
                 <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.78rem', padding:'3px 0', borderBottom:'0.5px solid var(--border-glass)' }}>
                   <span style={{ color:'var(--text-muted)' }}>Uptime</span>
@@ -448,7 +444,7 @@ export default function ModuloLogs() {
           )}
 
           {/* Log Asterisk */}
-          <div className="stat-card" style={{ padding:0, overflow:'hidden' }}>
+          <div className="card" style={{ padding:0, overflow:'hidden' }}>
 
             {/* Toolbar */}
             <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', borderBottom:'0.5px solid var(--border-glass)', background:'var(--bg-input)', flexWrap:'wrap' }}>
@@ -515,6 +511,7 @@ export default function ModuloLogs() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

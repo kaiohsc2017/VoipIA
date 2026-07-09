@@ -34,7 +34,13 @@ export default function DocsLayout({ children }: DocsLayoutProps) {
   };
 
   return (
-    <div className="docs-layout">
+    <>
+      <div className="page-header">
+        <h1>Documentação</h1>
+        <p>Guia completo do sistema Telecom e da Plataforma de Agentes.</p>
+      </div>
+
+      <div className="docs-layout">
       <nav className="docs-toc">
         {TOC.map(group => (
           <div key={group.label}>
@@ -57,7 +63,6 @@ export default function DocsLayout({ children }: DocsLayoutProps) {
 
       <div className="docs-content" ref={contentRef}>
         <div className="docs-hero">
-          <h1>Documentação AsteriskIA</h1>
           <p>
             Guia completo do sistema Telecom (URA, Conectividade, Alertas, RBAC) e da Plataforma de
             Agentes (monitoramento autônomo e automação de infraestrutura).
@@ -77,6 +82,7 @@ export default function DocsLayout({ children }: DocsLayoutProps) {
           Telecom + Plataforma de Agentes · <code>https://app.voiphash.com.br</code>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
