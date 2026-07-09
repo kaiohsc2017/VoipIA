@@ -5,6 +5,7 @@ import com.asteriskia.config.RateLimitFilter;
 import com.asteriskia.domain.audit.AuditService;
 import com.asteriskia.domain.masterdata.BusinessUnit;
 import com.asteriskia.domain.masterdata.BusinessUnitRepository;
+import com.asteriskia.domain.masterdata.Operadora;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -69,6 +70,10 @@ class CadastroControllerTest {
         return BusinessUnit.builder().id(id).name("BU " + id).isActive(true).build();
     }
 
+    private static Operadora operadora(String nome) {
+        return Operadora.builder().id(1).nome(nome).isActive(true).build();
+    }
+
     // =========================================================================
     // Números 0800 — CRUD básico
     // =========================================================================
@@ -79,8 +84,8 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(roles = "ADMIN")
         void list_deveRetornarTodosOsNumeros() throws Exception {
-            Numero0800 n1 = Numero0800.builder().id(1).operadora("Vivo").numero("0800111").build();
-            Numero0800 n2 = Numero0800.builder().id(2).operadora("Claro").numero("0800222").build();
+            Numero0800 n1 = Numero0800.builder().id(1).operadora(operadora("Vivo")).numero("0800111").build();
+            Numero0800 n2 = Numero0800.builder().id(2).operadora(operadora("Claro")).numero("0800222").build();
             when(numero0800Repo.findAll()).thenReturn(List.of(n1, n2));
 
             mockMvc.perform(get("/api/v1/numeros-0800"))
@@ -91,8 +96,8 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(roles = "ADMIN")
         void create_deveRetornar201ComEntidadeSalva() throws Exception {
-            Numero0800 payload = Numero0800.builder().operadora("Vivo").numero("0800111").build();
-            Numero0800 saved = Numero0800.builder().id(1).operadora("Vivo").numero("0800111").build();
+            Numero0800 payload = Numero0800.builder().operadora(operadora("Vivo")).numero("0800111").build();
+            Numero0800 saved = Numero0800.builder().id(1).operadora(operadora("Vivo")).numero("0800111").build();
             when(numero0800Repo.save(any(Numero0800.class))).thenReturn(saved);
             doNothing().when(auditService).log(any(), any(), any(), anyBoolean());
 
@@ -101,7 +106,7 @@ class CadastroControllerTest {
                             .content(objectMapper.writeValueAsString(payload)))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.id").value(1))
-                    .andExpect(jsonPath("$.operadora").value("Vivo"));
+                    .andExpect(jsonPath("$.operadora.nome").value("Vivo"));
 
             verify(numero0800Repo).save(any(Numero0800.class));
         }
@@ -109,8 +114,8 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(roles = "ADMIN")
         void update_deveRetornar200ComEntidadeAtualizada() throws Exception {
-            Numero0800 payload = Numero0800.builder().operadora("Vivo Atualizado").numero("0800111").build();
-            Numero0800 saved = Numero0800.builder().id(1).operadora("Vivo Atualizado").numero("0800111").build();
+            Numero0800 payload = Numero0800.builder().operadora(operadora("Vivo Atualizado")).numero("0800111").build();
+            Numero0800 saved = Numero0800.builder().id(1).operadora(operadora("Vivo Atualizado")).numero("0800111").build();
             when(numero0800Repo.save(any(Numero0800.class))).thenReturn(saved);
             doNothing().when(auditService).log(any(), any(), any(), anyBoolean());
 
@@ -118,7 +123,7 @@ class CadastroControllerTest {
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(payload)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.operadora").value("Vivo Atualizado"));
+                    .andExpect(jsonPath("$.operadora.nome").value("Vivo Atualizado"));
 
             verify(numero0800Repo).save(argThat(n -> n.getId().equals(1)));
         }
@@ -145,8 +150,8 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(roles = "ADMIN")
         void list_deveRetornarTodasAsLinhas() throws Exception {
-            Linha l1 = Linha.builder().id(1).operadora("Vivo").build();
-            Linha l2 = Linha.builder().id(2).operadora("Claro").build();
+            Linha l1 = Linha.builder().id(1).operadora(operadora("Vivo")).build();
+            Linha l2 = Linha.builder().id(2).operadora(operadora("Claro")).build();
             when(linhaRepo.findAll()).thenReturn(List.of(l1, l2));
 
             mockMvc.perform(get("/api/v1/linhas"))
@@ -157,8 +162,8 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(roles = "ADMIN")
         void create_deveRetornar201ComEntidadeSalva() throws Exception {
-            Linha payload = Linha.builder().operadora("Vivo").build();
-            Linha saved = Linha.builder().id(1).operadora("Vivo").build();
+            Linha payload = Linha.builder().operadora(operadora("Vivo")).build();
+            Linha saved = Linha.builder().id(1).operadora(operadora("Vivo")).build();
             when(linhaRepo.save(any(Linha.class))).thenReturn(saved);
             doNothing().when(auditService).log(any(), any(), any(), anyBoolean());
 
@@ -167,7 +172,7 @@ class CadastroControllerTest {
                             .content(objectMapper.writeValueAsString(payload)))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.id").value(1))
-                    .andExpect(jsonPath("$.operadora").value("Vivo"));
+                    .andExpect(jsonPath("$.operadora.nome").value("Vivo"));
 
             verify(linhaRepo).save(any(Linha.class));
         }
@@ -175,8 +180,8 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(roles = "ADMIN")
         void update_deveRetornar200ComEntidadeAtualizada() throws Exception {
-            Linha payload = Linha.builder().operadora("Vivo Atualizada").build();
-            Linha saved = Linha.builder().id(1).operadora("Vivo Atualizada").build();
+            Linha payload = Linha.builder().operadora(operadora("Vivo Atualizada")).build();
+            Linha saved = Linha.builder().id(1).operadora(operadora("Vivo Atualizada")).build();
             when(linhaRepo.save(any(Linha.class))).thenReturn(saved);
             doNothing().when(auditService).log(any(), any(), any(), anyBoolean());
 
@@ -184,7 +189,7 @@ class CadastroControllerTest {
                             .contentType("application/json")
                             .content(objectMapper.writeValueAsString(payload)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.operadora").value("Vivo Atualizada"));
+                    .andExpect(jsonPath("$.operadora.nome").value("Vivo Atualizada"));
 
             verify(linhaRepo).save(argThat(l -> l.getId().equals(1)));
         }
@@ -212,11 +217,11 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(username = "restrito", authorities = {"BU_5"})
         void listNumeros0800_usuarioRestrito_veApenasSuaBuOuSemBu() throws Exception {
-            Numero0800 daSuaBu = Numero0800.builder().id(1).operadora("Vivo").numero("0800111")
+            Numero0800 daSuaBu = Numero0800.builder().id(1).operadora(operadora("Vivo")).numero("0800111")
                     .businessUnits(Set.of(bu(5))).build();
-            Numero0800 deOutraBu = Numero0800.builder().id(2).operadora("Claro").numero("0800222")
+            Numero0800 deOutraBu = Numero0800.builder().id(2).operadora(operadora("Claro")).numero("0800222")
                     .businessUnits(Set.of(bu(9))).build();
-            Numero0800 semBu = Numero0800.builder().id(3).operadora("Tim").numero("0800333")
+            Numero0800 semBu = Numero0800.builder().id(3).operadora(operadora("Tim")).numero("0800333")
                     .businessUnits(Set.of()).build();
             when(numero0800Repo.findAll()).thenReturn(List.of(daSuaBu, deOutraBu, semBu));
 
@@ -231,9 +236,9 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(roles = "ADMIN")
         void listNumeros0800_admin_veTudoSemFiltro() throws Exception {
-            Numero0800 daBu5 = Numero0800.builder().id(1).operadora("Vivo").numero("0800111")
+            Numero0800 daBu5 = Numero0800.builder().id(1).operadora(operadora("Vivo")).numero("0800111")
                     .businessUnits(Set.of(bu(5))).build();
-            Numero0800 daBu9 = Numero0800.builder().id(2).operadora("Claro").numero("0800222")
+            Numero0800 daBu9 = Numero0800.builder().id(2).operadora(operadora("Claro")).numero("0800222")
                     .businessUnits(Set.of(bu(9))).build();
             when(numero0800Repo.findAll()).thenReturn(List.of(daBu5, daBu9));
 
@@ -245,9 +250,9 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(username = "restrito", authorities = {"BU_5"})
         void listLinhas_usuarioRestrito_veApenasSuaBuOuSemBu() throws Exception {
-            Linha daSuaBu = Linha.builder().id(1).operadora("Vivo").businessUnits(Set.of(bu(5))).build();
-            Linha deOutraBu = Linha.builder().id(2).operadora("Claro").businessUnits(Set.of(bu(9))).build();
-            Linha semBu = Linha.builder().id(3).operadora("Tim").businessUnits(Set.of()).build();
+            Linha daSuaBu = Linha.builder().id(1).operadora(operadora("Vivo")).businessUnits(Set.of(bu(5))).build();
+            Linha deOutraBu = Linha.builder().id(2).operadora(operadora("Claro")).businessUnits(Set.of(bu(9))).build();
+            Linha semBu = Linha.builder().id(3).operadora(operadora("Tim")).businessUnits(Set.of()).build();
             when(linhaRepo.findAll()).thenReturn(List.of(daSuaBu, deOutraBu, semBu));
 
             mockMvc.perform(get("/api/v1/linhas"))
@@ -261,8 +266,8 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(roles = "ADMIN")
         void listLinhas_admin_veTudoSemFiltro() throws Exception {
-            Linha daBu5 = Linha.builder().id(1).operadora("Vivo").businessUnits(Set.of(bu(5))).build();
-            Linha daBu9 = Linha.builder().id(2).operadora("Claro").businessUnits(Set.of(bu(9))).build();
+            Linha daBu5 = Linha.builder().id(1).operadora(operadora("Vivo")).businessUnits(Set.of(bu(5))).build();
+            Linha daBu9 = Linha.builder().id(2).operadora(operadora("Claro")).businessUnits(Set.of(bu(9))).build();
             when(linhaRepo.findAll()).thenReturn(List.of(daBu5, daBu9));
 
             mockMvc.perform(get("/api/v1/linhas"))
@@ -294,7 +299,7 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(roles = "ADMIN")
         void syncNumero0800BusinessUnits_buIdInexistente_deveRetornar400() throws Exception {
-            Numero0800 existente = Numero0800.builder().id(1).operadora("Vivo").numero("0800111").build();
+            Numero0800 existente = Numero0800.builder().id(1).operadora(operadora("Vivo")).numero("0800111").build();
             when(numero0800Repo.findById(1)).thenReturn(Optional.of(existente));
             when(buRepo.findAllById(anyList())).thenReturn(List.of(bu(5))); // só 1 de 2 ids existe
 
@@ -309,8 +314,8 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(roles = "ADMIN")
         void syncNumero0800BusinessUnits_sucesso_deveRetornar200ComEntidadeAtualizada() throws Exception {
-            Numero0800 existente = Numero0800.builder().id(1).operadora("Vivo").numero("0800111").build();
-            Numero0800 salvo = Numero0800.builder().id(1).operadora("Vivo").numero("0800111")
+            Numero0800 existente = Numero0800.builder().id(1).operadora(operadora("Vivo")).numero("0800111").build();
+            Numero0800 salvo = Numero0800.builder().id(1).operadora(operadora("Vivo")).numero("0800111")
                     .businessUnits(Set.of(bu(5), bu(7))).build();
             when(numero0800Repo.findById(1)).thenReturn(Optional.of(existente));
             when(buRepo.findAllById(anyList())).thenReturn(List.of(bu(5), bu(7)));
@@ -340,7 +345,7 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(roles = "ADMIN")
         void syncLinhaBusinessUnits_buIdInexistente_deveRetornar400() throws Exception {
-            Linha existente = Linha.builder().id(1).operadora("Vivo").build();
+            Linha existente = Linha.builder().id(1).operadora(operadora("Vivo")).build();
             when(linhaRepo.findById(1)).thenReturn(Optional.of(existente));
             when(buRepo.findAllById(anyList())).thenReturn(List.of(bu(5)));
 
@@ -355,8 +360,8 @@ class CadastroControllerTest {
         @Test
         @WithMockUser(roles = "ADMIN")
         void syncLinhaBusinessUnits_sucesso_deveRetornar200ComEntidadeAtualizada() throws Exception {
-            Linha existente = Linha.builder().id(1).operadora("Vivo").build();
-            Linha salva = Linha.builder().id(1).operadora("Vivo").businessUnits(Set.of(bu(5), bu(7))).build();
+            Linha existente = Linha.builder().id(1).operadora(operadora("Vivo")).build();
+            Linha salva = Linha.builder().id(1).operadora(operadora("Vivo")).businessUnits(Set.of(bu(5), bu(7))).build();
             when(linhaRepo.findById(1)).thenReturn(Optional.of(existente));
             when(buRepo.findAllById(anyList())).thenReturn(List.of(bu(5), bu(7)));
             when(linhaRepo.save(any(Linha.class))).thenReturn(salva);
@@ -379,8 +384,8 @@ class CadastroControllerTest {
 
         @Test
         @WithMockUser(roles = "ADMIN")
-        void createNumero0800_operadoraEmBranco_deveRetornar400() throws Exception {
-            Numero0800 payload = Numero0800.builder().operadora("   ").numero("0800111").build();
+        void createNumero0800_operadoraNula_deveRetornar400() throws Exception {
+            Numero0800 payload = Numero0800.builder().numero("0800111").build();
 
             mockMvc.perform(post("/api/v1/numeros-0800")
                             .contentType("application/json")
@@ -392,8 +397,8 @@ class CadastroControllerTest {
 
         @Test
         @WithMockUser(roles = "ADMIN")
-        void createLinha_operadoraEmBranco_deveRetornar400() throws Exception {
-            Linha payload = Linha.builder().operadora("").build();
+        void createLinha_operadoraNula_deveRetornar400() throws Exception {
+            Linha payload = Linha.builder().build();
 
             mockMvc.perform(post("/api/v1/linhas")
                             .contentType("application/json")
@@ -414,7 +419,7 @@ class CadastroControllerTest {
                     Numero0800Regenerado.builder().ordem(5).build(),
                     Numero0800Regenerado.builder().ordem(1).build()
             );
-            Numero0800 payload = Numero0800.builder().operadora("Vivo").numero("0800111")
+            Numero0800 payload = Numero0800.builder().operadora(operadora("Vivo")).numero("0800111")
                     .regenerados(seis).build();
 
             mockMvc.perform(post("/api/v1/numeros-0800")
@@ -435,9 +440,9 @@ class CadastroControllerTest {
                     Numero0800Regenerado.builder().ordem(4).build(),
                     Numero0800Regenerado.builder().ordem(5).build()
             );
-            Numero0800 payload = Numero0800.builder().operadora("Vivo").numero("0800111")
+            Numero0800 payload = Numero0800.builder().operadora(operadora("Vivo")).numero("0800111")
                     .regenerados(cinco).build();
-            Numero0800 saved = Numero0800.builder().id(1).operadora("Vivo").numero("0800111")
+            Numero0800 saved = Numero0800.builder().id(1).operadora(operadora("Vivo")).numero("0800111")
                     .regenerados(cinco).build();
             when(numero0800Repo.save(any(Numero0800.class))).thenReturn(saved);
             doNothing().when(auditService).log(any(), any(), any(), anyBoolean());

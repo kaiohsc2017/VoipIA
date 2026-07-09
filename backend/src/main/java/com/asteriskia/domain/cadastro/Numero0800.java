@@ -2,9 +2,11 @@ package com.asteriskia.domain.cadastro;
 
 import com.asteriskia.domain.masterdata.BusinessUnit;
 import com.asteriskia.domain.masterdata.Client;
+import com.asteriskia.domain.masterdata.Operadora;
 import jakarta.persistence.*;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -28,9 +30,10 @@ public class Numero0800 {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @NotBlank
-    @Column(nullable = false, length = 200)
-    private String operadora;
+    @NotNull
+    @ManyToOne
+    @JoinColumn(name = "operadora_id", nullable = false)
+    private Operadora operadora;
 
     @NotBlank
     @Column(nullable = false, length = 40)

@@ -3,14 +3,14 @@ import { useState } from 'react';
 import {
   LayoutDashboard, Headset, PhoneCall, AlertTriangle, Bot, Users, UsersRound,
   Settings, Terminal, ShieldCheck, KeyRound, ClipboardList,
-  LogOut, ExternalLink, BookOpen, Tag, Phone, Cable,
+  LogOut, ExternalLink, BookOpen, Tag, Phone, Cable, Building2,
 } from 'lucide-react';
 import { canRead } from '../api/client';
 import { RELEASES } from '../data/releases';
 
 const CURRENT_VERSION = RELEASES[RELEASES.length - 1].version;
 
-type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'cadastro0800' | 'linhas' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs' | 'release';
+type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'operadoras' | 'cadastro0800' | 'linhas' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs' | 'release';
 
 interface SidebarProps {
   currentPage: Page;
@@ -35,6 +35,7 @@ const NAV_ITEMS: { page: Page; icon: ComponentType<{ size?: number; strokeWidth?
   { page: 'agents',     icon: Bot,             label: 'Agentes',            section: 'MÓDULOS',   resource: 'telecom.agents_link', external: '/agents/' },
   { page: 'masterdata', icon: Users,           label: 'Clientes',           section: 'CADASTROS', resource: 'telecom.masterdata'   },
   { page: 'users',      icon: UsersRound,      label: 'Usuários e Ramais',  section: 'CADASTROS', resource: 'telecom.users'        },
+  { page: 'operadoras', icon: Building2,       label: 'Operadoras',         section: 'CADASTROS', resource: 'telecom.operadoras'   },
   { page: 'cadastro0800', icon: Phone,         label: '0800',               section: 'CADASTROS', resource: 'telecom.0800'         },
   { page: 'linhas',     icon: Cable,           label: 'Linhas',             section: 'CADASTROS', resource: 'telecom.linhas'       },
   { page: 'settings',   icon: Settings,        label: 'Configurações',      section: 'SISTEMA',   resource: 'telecom.settings'     },

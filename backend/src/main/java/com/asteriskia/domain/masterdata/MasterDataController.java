@@ -47,6 +47,7 @@ public class MasterDataController {
     private final SegmentRepository      segRepo;
     private final ClientRepository       clientRepo;
     private final OperationRepository    opRepo;
+    private final OperadoraRepository    operadoraRepo;
     private final AuditService           auditService;
     private final NumberTestRepository   numberTestRepo;
 
@@ -122,6 +123,42 @@ public class MasterDataController {
         public ResponseEntity<Void> deleteSegment(@PathVariable Integer id, HttpServletRequest req) {
         auditService.log(req, "MASTERDATA_DELETE", "Segmento removido (id=" + id + ")", true);
         segRepo.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // -----------------------------------------------------------------------
+    // Operadoras (referenciadas por Números 0800 e Linhas — bloco Cadastros)
+    // -----------------------------------------------------------------------
+
+    @GetMapping("/operadoras")
+        public ResponseEntity<List<Operadora>> listOperadoras(@RequestParam(required = false) Boolean active) {
+        List<Operadora> result = active != null
+                ? operadoraRepo.findByIsActive(active)
+                : operadoraRepo.findAll();
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/operadoras")
+        public ResponseEntity<Operadora> createOperadora(@Valid @RequestBody Operadora operadora, HttpServletRequest req) {
+        operadora.setId(null); // client-supplied id faria merge sobre um registro existente em vez de criar um novo
+        Operadora saved = operadoraRepo.save(operadora);
+        auditService.log(req, "MASTERDATA_CREATE", "Operadora criada: '" + saved.getNome() + "' (id=" + saved.getId() + ")", true);
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+    }
+
+    @PutMapping("/operadoras/{id}")
+        public ResponseEntity<Operadora> updateOperadora(@PathVariable Integer id, @Valid @RequestBody Operadora operadora,
+                                                  HttpServletRequest req) {
+        operadora.setId(id);
+        Operadora saved = operadoraRepo.save(operadora);
+        auditService.log(req, "MASTERDATA_UPDATE", "Operadora atualizada: '" + saved.getNome() + "' (id=" + id + ")", true);
+        return ResponseEntity.ok(saved);
+    }
+
+    @DeleteMapping("/operadoras/{id}")
+        public ResponseEntity<Void> deleteOperadora(@PathVariable Integer id, HttpServletRequest req) {
+        auditService.log(req, "MASTERDATA_DELETE", "Operadora removida (id=" + id + ")", true);
+        operadoraRepo.deleteById(id);
         return ResponseEntity.noContent().build();
     }
 

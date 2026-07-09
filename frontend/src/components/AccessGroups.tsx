@@ -11,6 +11,7 @@ const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agent
   { key: 'telecom.modulo3',      label: 'Monitoramento',          system: 'Telecom' },
   { key: 'telecom.agents_link',  label: 'Agentes (link de nav)',  system: 'Telecom' },
   { key: 'telecom.masterdata',   label: 'Clientes',               system: 'Telecom' },
+  { key: 'telecom.operadoras',   label: 'Operadoras',             system: 'Telecom' },
   { key: 'telecom.0800',         label: '0800',                   system: 'Telecom' },
   { key: 'telecom.linhas',       label: 'Linhas',                 system: 'Telecom' },
   { key: 'telecom.users',        label: 'Usuários e Ramais',      system: 'Telecom' },

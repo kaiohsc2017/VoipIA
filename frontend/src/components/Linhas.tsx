@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import api, { canWrite, getPermissionsFromToken, getRoleFromToken } from '../api/client';
-import type { BusinessUnit, Linha, Operation } from '../api/types';
+import type { BusinessUnit, Linha, Operadora, Operation } from '../api/types';
 
-/** Payload enviado para POST/PUT /linhas — operation nulo remove o vínculo. */
+/** Payload enviado para POST/PUT /linhas — operation/operadora nulos removem o vínculo. */
 interface LinhaPayload {
-  operadora: string;
+  operadora: { id: number } | null;
   operation: { id: number } | null;
   chave: string;
   ipOperadora: string;
@@ -14,7 +14,7 @@ interface LinhaPayload {
 }
 
 const EMPTY_FORM: LinhaPayload = {
-  operadora: '', operation: null, chave: '', ipOperadora: '', ipAutoglass: '',
+  operadora: null, operation: null, chave: '', ipOperadora: '', ipAutoglass: '',
   observacao: '', isActive: true,
 };
 
@@ -63,6 +63,7 @@ export default function Linhas() {
   const [loading, setLoading] = useState(true);
   const [buOptions, setBuOptions] = useState<BusinessUnit[]>([]);
   const [operationOptions, setOperationOptions] = useState<Operation[]>([]);
+  const [operadoraOptions, setOperadoraOptions] = useState<Operadora[]>([]);
   const [filterBu, setFilterBu] = useState('');
 
   const [showModal, setShowModal] = useState(false);
@@ -70,6 +71,10 @@ export default function Linhas() {
   const [form, setForm] = useState<LinhaPayload>({ ...EMPTY_FORM });
   const [selectedBuIds, setSelectedBuIds] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
+  // Operadora inativa já vinculada a este item — precisa aparecer no
+  // <select> de edição mesmo fora do filtro active=true, senão o campo
+  // aparece em branco apesar do vínculo continuar válido.
+  const [operadoraFallback, setOperadoraFallback] = useState<Operadora | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -84,9 +89,11 @@ export default function Linhas() {
     Promise.all([
       api.get<BusinessUnit[]>('/business-units?active=true'),
       api.get<Operation[]>('/operations?active=true'),
-    ]).then(([b, o]) => {
+      api.get<Operadora[]>('/operadoras?active=true'),
+    ]).then(([b, o, op]) => {
       setBuOptions(b.data ?? []);
       setOperationOptions(o.data ?? []);
+      setOperadoraOptions(op.data ?? []);
     }).catch(err => console.error('Erro ao carregar dados mestres para Linhas:', err));
   }, []);
 
@@ -94,13 +101,15 @@ export default function Linhas() {
     setEditId(null);
     setForm({ ...EMPTY_FORM });
     setSelectedBuIds([]);
+    setOperadoraFallback(null);
     setShowModal(true);
   };
 
   const openEdit = (item: Linha) => {
     setEditId(item.id);
+    setOperadoraFallback(item.operadora ? { id: item.operadora.id, nome: item.operadora.nome ?? `#${item.operadora.id}`, isActive: false } : null);
     setForm({
-      operadora: item.operadora,
+      operadora: item.operadora ? { id: item.operadora.id } : null,
       operation: item.operation ? { id: item.operation.id } : null,
       chave: item.chave ?? '',
       ipOperadora: item.ipOperadora ?? '',
@@ -113,7 +122,7 @@ export default function Linhas() {
   };
 
   const save = async () => {
-    if (!form.operadora.trim()) return;
+    if (!form.operadora) return;
     setSaving(true);
     try {
       const res = editId
@@ -134,7 +143,7 @@ export default function Linhas() {
   const toggleActive = async (item: Linha) => {
     try {
       await api.put(`/linhas/${item.id}`, {
-        operadora: item.operadora,
+        operadora: item.operadora ? { id: item.operadora.id } : null,
         operation: item.operation ? { id: item.operation.id } : null,
         chave: item.chave ?? '',
         ipOperadora: item.ipOperadora ?? '',
@@ -150,7 +159,7 @@ export default function Linhas() {
   };
 
   const remove = async (item: Linha) => {
-    if (!confirm(`Remover a linha "${item.operadora}"? Esta ação não pode ser desfeita.`)) return;
+    if (!confirm(`Remover a linha "${item.operadora?.nome}"? Esta ação não pode ser desfeita.`)) return;
     try {
       await api.delete(`/linhas/${item.id}`);
       load();
@@ -164,6 +173,10 @@ export default function Linhas() {
     : items;
 
   const activeCount = filteredItems.filter(i => i.isActive).length;
+
+  const operadoraSelectOptions = operadoraFallback && !operadoraOptions.some(o => o.id === operadoraFallback.id)
+    ? [...operadoraOptions, operadoraFallback]
+    : operadoraOptions;
 
   return (
     <>
@@ -228,7 +241,7 @@ export default function Linhas() {
                 ) : filteredItems.map(item => (
                   <tr key={item.id}>
                     <td className="td-muted">{item.id}</td>
-                    <td style={{ fontWeight: 500 }}>{item.operadora}</td>
+                    <td style={{ fontWeight: 500 }}>{item.operadora?.nome ?? '—'}</td>
                     <td>{item.operation?.name ?? '—'}</td>
                     <td className="td-muted">{item.chave || '—'}</td>
                     <td className="mono td-muted">{item.ipOperadora || '—'}</td>
@@ -279,14 +292,18 @@ export default function Linhas() {
             <div className="modal-body">
               <div className="form-group">
                 <label className="form-label">Operadora *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Nome da operadora"
-                  value={form.operadora}
-                  onChange={e => setForm(f => ({ ...f, operadora: e.target.value }))}
+                <select
+                  className="form-select"
+                  value={form.operadora?.id ?? 0}
+                  onChange={e => {
+                    const id = +e.target.value;
+                    setForm(f => ({ ...f, operadora: id ? { id } : null }));
+                  }}
                   autoFocus
-                />
+                >
+                  <option value={0}>Selecione…</option>
+                  {operadoraSelectOptions.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Operação</label>
@@ -361,7 +378,7 @@ export default function Linhas() {
             </div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={save} disabled={saving || !form.operadora.trim()}>
+              <button className="btn btn-primary" onClick={save} disabled={saving || !form.operadora}>
                 {saving ? 'Salvando…' : editId ? 'Salvar Alterações' : 'Criar'}
               </button>
             </div>

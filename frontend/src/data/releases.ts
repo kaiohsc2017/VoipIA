@@ -43,4 +43,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Correção: criar um número 0800 com grupo de regeneração não retorna mais erro interno do servidor.',
     ],
   },
+  {
+    version: 'v1.03',
+    date: '2026-07-08',
+    changes: [
+      'Novo Cadastro de Operadoras (bloco Cadastros).',
+      'Números 0800, seus grupos de regeneração e Linhas passam a selecionar a operadora a partir desse cadastro, em vez de texto livre.',
+    ],
+  },
 ];

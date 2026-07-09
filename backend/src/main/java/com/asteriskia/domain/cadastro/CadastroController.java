@@ -54,7 +54,7 @@ public class CadastroController {
     @PostMapping("/numeros-0800")
     public ResponseEntity<Numero0800> createNumero0800(@Valid @RequestBody Numero0800 numero0800, HttpServletRequest req) {
         Numero0800 saved = numero0800Repo.save(numero0800);
-        auditService.log(req, "CADASTRO_CREATE", "Número 0800 criado: '" + saved.getOperadora() + " " + saved.getNumero() + "' (id=" + saved.getId() + ")", true);
+        auditService.log(req, "CADASTRO_CREATE", "Número 0800 criado: '" + saved.getOperadora().getNome() + " " + saved.getNumero() + "' (id=" + saved.getId() + ")", true);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
@@ -63,7 +63,7 @@ public class CadastroController {
                                                          HttpServletRequest req) {
         numero0800.setId(id);
         Numero0800 saved = numero0800Repo.save(numero0800);
-        auditService.log(req, "CADASTRO_UPDATE", "Número 0800 atualizado: '" + saved.getOperadora() + " " + saved.getNumero() + "' (id=" + id + ")", true);
+        auditService.log(req, "CADASTRO_UPDATE", "Número 0800 atualizado: '" + saved.getOperadora().getNome() + " " + saved.getNumero() + "' (id=" + id + ")", true);
         return ResponseEntity.ok(saved);
     }
 
@@ -95,7 +95,7 @@ public class CadastroController {
         numero0800.setBusinessUnits(resolved.get());
         Numero0800 saved = numero0800Repo.save(numero0800);
         auditService.log(req, "CADASTRO_UPDATE",
-                "BUs do número 0800 '" + saved.getOperadora() + " " + saved.getNumero() + "' atualizadas (id=" + id + ")", true);
+                "BUs do número 0800 '" + saved.getOperadora().getNome() + " " + saved.getNumero() + "' atualizadas (id=" + id + ")", true);
         return ResponseEntity.ok(saved);
     }
 
@@ -114,7 +114,7 @@ public class CadastroController {
     @PostMapping("/linhas")
     public ResponseEntity<Linha> createLinha(@Valid @RequestBody Linha linha, HttpServletRequest req) {
         Linha saved = linhaRepo.save(linha);
-        auditService.log(req, "CADASTRO_CREATE", "Linha criada: operadora '" + saved.getOperadora() + "' (id=" + saved.getId() + ")", true);
+        auditService.log(req, "CADASTRO_CREATE", "Linha criada: operadora '" + saved.getOperadora().getNome() + "' (id=" + saved.getId() + ")", true);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
@@ -123,7 +123,7 @@ public class CadastroController {
                                               HttpServletRequest req) {
         linha.setId(id);
         Linha saved = linhaRepo.save(linha);
-        auditService.log(req, "CADASTRO_UPDATE", "Linha atualizada: operadora '" + saved.getOperadora() + "' (id=" + id + ")", true);
+        auditService.log(req, "CADASTRO_UPDATE", "Linha atualizada: operadora '" + saved.getOperadora().getNome() + "' (id=" + id + ")", true);
         return ResponseEntity.ok(saved);
     }
 
@@ -155,7 +155,7 @@ public class CadastroController {
         linha.setBusinessUnits(resolved.get());
         Linha saved = linhaRepo.save(linha);
         auditService.log(req, "CADASTRO_UPDATE",
-                "BUs da linha '" + saved.getOperadora() + "' atualizadas (id=" + id + ")", true);
+                "BUs da linha '" + saved.getOperadora().getNome() + "' atualizadas (id=" + id + ")", true);
         return ResponseEntity.ok(saved);
     }
 

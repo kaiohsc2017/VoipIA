@@ -1,9 +1,11 @@
 package com.asteriskia.domain.cadastro;
 
 import com.asteriskia.domain.masterdata.BusinessUnit;
+import com.asteriskia.domain.masterdata.Operadora;
 import com.asteriskia.domain.masterdata.Operation;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -24,9 +26,10 @@ public class Linha {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @NotBlank
-    @Column(nullable = false, length = 200)
-    private String operadora;
+    @NotNull
+    @ManyToOne
+    @JoinColumn(name = "operadora_id", nullable = false)
+    private Operadora operadora;
 
     @ManyToOne
     @JoinColumn(name = "operation_id")

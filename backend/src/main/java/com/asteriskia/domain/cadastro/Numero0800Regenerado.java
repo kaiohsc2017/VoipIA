@@ -1,5 +1,6 @@
 package com.asteriskia.domain.cadastro;
 
+import com.asteriskia.domain.masterdata.Operadora;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Max;
@@ -45,6 +46,7 @@ public class Numero0800Regenerado {
     @Column(length = 100)
     private String vetor;
 
-    @Column(length = 100)
-    private String operadora;
+    @ManyToOne
+    @JoinColumn(name = "operadora_id")
+    private Operadora operadora;
 }

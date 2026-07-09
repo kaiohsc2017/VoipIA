@@ -22,6 +22,7 @@ public final class ResourceCatalog {
             "telecom.masterdata",
             "telecom.0800",
             "telecom.linhas",
+            "telecom.operadoras",
             "telecom.users",
             "telecom.settings",
             "telecom.logs",

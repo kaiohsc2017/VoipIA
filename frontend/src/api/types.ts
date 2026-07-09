@@ -122,19 +122,25 @@ export interface Operation {
   isActive: boolean;
 }
 
-// ---- Cadastros: 0800 e Linhas ----
+// ---- Cadastros: Operadoras, 0800 e Linhas ----
+export interface Operadora {
+  id: number;
+  nome: string;
+  isActive: boolean;
+}
+
 export interface Numero0800Regenerado {
   id?: number;
   ordem: number;
   numeroRegenerado?: string;
   vdn?: string;
   vetor?: string;
-  operadora?: string;
+  operadora?: { id: number; nome?: string } | null;
 }
 
 export interface Numero0800 {
   id: number;
-  operadora: string;
+  operadora: { id: number; nome?: string };
   numero: string;
   client?: { id: number; name?: string } | null;
   observacao?: string;
@@ -145,7 +151,7 @@ export interface Numero0800 {
 
 export interface Linha {
   id: number;
-  operadora: string;
+  operadora: { id: number; nome?: string };
   operation?: { id: number; name?: string } | null;
   chave?: string;
   ipOperadora?: string;

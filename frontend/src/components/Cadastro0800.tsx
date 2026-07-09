@@ -1,35 +1,36 @@
 import { useEffect, useState } from 'react';
 import api, { canWrite, getPermissionsFromToken, getRoleFromToken } from '../api/client';
-import type { BusinessUnit, Client, Numero0800 } from '../api/types';
+import type { BusinessUnit, Client, Numero0800, Operadora } from '../api/types';
 
 const MAX_REGENERADOS = 5;
 
-/** Estado de um grupo "Regenerado" no formulário — campos sempre string (nunca undefined) para inputs controlados. */
+/** Estado de um grupo "Regenerado" no formulário — campos de texto sempre string (nunca undefined) para inputs controlados. */
 interface RegeneradoForm {
   id?: number;
   ordem: number;
   numeroRegenerado: string;
   vdn: string;
   vetor: string;
-  operadora: string;
+  operadoraId: number | null;
 }
 
-/** Payload enviado para POST/PUT /numeros-0800 — client nulo remove o vínculo. */
+/** Payload enviado para POST/PUT /numeros-0800 — client/operadora nulos removem o vínculo. */
 interface Numero0800Payload {
-  operadora: string;
+  operadora: { id: number } | null;
   numero: string;
   client: { id: number } | null;
   observacao: string;
   isActive: boolean;
-  regenerados: RegeneradoForm[];
+  regenerados: Array<{ id?: number; ordem: number; numeroRegenerado: string; vdn: string; vetor: string; operadora: { id: number } | null }>;
 }
 
 const EMPTY_REGENERADO = (ordem: number): RegeneradoForm => ({
-  ordem, numeroRegenerado: '', vdn: '', vetor: '', operadora: '',
+  ordem, numeroRegenerado: '', vdn: '', vetor: '', operadoraId: null,
 });
 
-const EMPTY_FORM: Numero0800Payload = {
-  operadora: '', numero: '', client: null, observacao: '', isActive: true, regenerados: [],
+const EMPTY_FORM = {
+  operadora: null as { id: number } | null, numero: '', client: null as { id: number } | null,
+  observacao: '', isActive: true, regenerados: [] as RegeneradoForm[],
 };
 
 /** Lista de chips clicáveis (checkbox) para seleção múltipla opcional de BU — mesmo padrão de MasterData.tsx/Linhas.tsx. */
@@ -68,10 +69,12 @@ function MultiSelectChecklist({ options, selectedIds, onChange, emptyMessage }: 
 }
 
 /** Um grupo "Regenerado N" — card com os 4 campos e botão de remover. */
-function RegeneradoCard({ index, value, onChange, onRemove }: {
+function RegeneradoCard({ index, value, operadoraOptions, onChangeText, onChangeOperadora, onRemove }: {
   index: number;
   value: RegeneradoForm;
-  onChange: (field: keyof RegeneradoForm, val: string) => void;
+  operadoraOptions: Operadora[];
+  onChangeText: (field: 'numeroRegenerado' | 'vdn' | 'vetor', val: string) => void;
+  onChangeOperadora: (operadoraId: number | null) => void;
   onRemove: () => void;
 }) {
   return (
@@ -92,7 +95,7 @@ function RegeneradoCard({ index, value, onChange, onRemove }: {
             type="text"
             className="form-input"
             value={value.numeroRegenerado}
-            onChange={e => onChange('numeroRegenerado', e.target.value)}
+            onChange={e => onChangeText('numeroRegenerado', e.target.value)}
           />
         </div>
         <div className="form-group">
@@ -101,7 +104,7 @@ function RegeneradoCard({ index, value, onChange, onRemove }: {
             type="text"
             className="form-input"
             value={value.vdn}
-            onChange={e => onChange('vdn', e.target.value)}
+            onChange={e => onChangeText('vdn', e.target.value)}
           />
         </div>
         <div className="form-group">
@@ -110,30 +113,35 @@ function RegeneradoCard({ index, value, onChange, onRemove }: {
             type="text"
             className="form-input"
             value={value.vetor}
-            onChange={e => onChange('vetor', e.target.value)}
+            onChange={e => onChangeText('vetor', e.target.value)}
           />
         </div>
         <div className="form-group">
           <label className="form-label">Operadora</label>
-          <input
-            type="text"
-            className="form-input"
-            value={value.operadora}
-            onChange={e => onChange('operadora', e.target.value)}
-          />
+          <select
+            className="form-select"
+            value={value.operadoraId ?? 0}
+            onChange={e => {
+              const id = +e.target.value;
+              onChangeOperadora(id ? id : null);
+            }}
+          >
+            <option value={0}>Nenhuma</option>
+            {operadoraOptions.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+          </select>
         </div>
       </div>
     </div>
   );
 }
 
-/** true se os 4 campos do grupo estiverem vazios — usado para descartar grupos não preenchidos ao salvar. */
+/** true se os 3 campos de texto estiverem vazios e nenhuma operadora selecionada — usado para descartar grupos não preenchidos ao salvar. */
 function isRegeneradoEmpty(r: RegeneradoForm): boolean {
-  return !r.numeroRegenerado.trim() && !r.vdn.trim() && !r.vetor.trim() && !r.operadora.trim();
+  return !r.numeroRegenerado.trim() && !r.vdn.trim() && !r.vetor.trim() && r.operadoraId == null;
 }
 
 /** Monta a lista de regenerados a enviar à API: descarta grupos totalmente vazios e renumera `ordem` 1..N. */
-function buildRegeneradosPayload(regenerados: RegeneradoForm[]): RegeneradoForm[] {
+function buildRegeneradosPayload(regenerados: RegeneradoForm[]): Numero0800Payload['regenerados'] {
   return regenerados
     .filter(r => !isRegeneradoEmpty(r))
     .map((r, i) => ({
@@ -142,7 +150,7 @@ function buildRegeneradosPayload(regenerados: RegeneradoForm[]): RegeneradoForm[
       numeroRegenerado: r.numeroRegenerado.trim(),
       vdn: r.vdn.trim(),
       vetor: r.vetor.trim(),
-      operadora: r.operadora.trim(),
+      operadora: r.operadoraId != null ? { id: r.operadoraId } : null,
     }));
 }
 
@@ -156,7 +164,7 @@ function toRegeneradoForm(item: Numero0800): RegeneradoForm[] {
       numeroRegenerado: r.numeroRegenerado ?? '',
       vdn: r.vdn ?? '',
       vetor: r.vetor ?? '',
-      operadora: r.operadora ?? '',
+      operadoraId: r.operadora?.id ?? null,
     }));
 }
 
@@ -170,13 +178,19 @@ export default function Cadastro0800() {
   const [loading, setLoading] = useState(true);
   const [buOptions, setBuOptions] = useState<BusinessUnit[]>([]);
   const [clientOptions, setClientOptions] = useState<Client[]>([]);
+  const [operadoraOptions, setOperadoraOptions] = useState<Operadora[]>([]);
   const [filterBu, setFilterBu] = useState('');
 
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
-  const [form, setForm] = useState<Numero0800Payload>({ ...EMPTY_FORM });
+  const [form, setForm] = useState({ ...EMPTY_FORM });
   const [selectedBuIds, setSelectedBuIds] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
+  // Operadoras inativas já vinculadas a este item (top-level ou em algum
+  // regenerado) — precisam aparecer no <select> de edição mesmo fora do
+  // filtro active=true, senão o campo aparece em branco apesar do vínculo
+  // continuar válido.
+  const [operadoraFallbacks, setOperadoraFallbacks] = useState<Operadora[]>([]);
 
   const load = () => {
     setLoading(true);
@@ -191,9 +205,11 @@ export default function Cadastro0800() {
     Promise.all([
       api.get<BusinessUnit[]>('/business-units?active=true'),
       api.get<Client[]>('/clients?active=true'),
-    ]).then(([b, c]) => {
+      api.get<Operadora[]>('/operadoras?active=true'),
+    ]).then(([b, c, o]) => {
       setBuOptions(b.data ?? []);
       setClientOptions(c.data ?? []);
+      setOperadoraOptions(o.data ?? []);
     }).catch(err => console.error('Erro ao carregar dados mestres para Números 0800:', err));
   }, []);
 
@@ -201,13 +217,14 @@ export default function Cadastro0800() {
     setEditId(null);
     setForm({ ...EMPTY_FORM, regenerados: [] });
     setSelectedBuIds([]);
+    setOperadoraFallbacks([]);
     setShowModal(true);
   };
 
   const openEdit = (item: Numero0800) => {
     setEditId(item.id);
     setForm({
-      operadora: item.operadora,
+      operadora: item.operadora ? { id: item.operadora.id } : null,
       numero: item.numero,
       client: item.client ? { id: item.client.id } : null,
       observacao: item.observacao ?? '',
@@ -215,6 +232,12 @@ export default function Cadastro0800() {
       regenerados: toRegeneradoForm(item),
     });
     setSelectedBuIds(item.businessUnits?.map(bu => bu.id) ?? []);
+    const fallbacks: Operadora[] = [];
+    if (item.operadora) fallbacks.push({ id: item.operadora.id, nome: item.operadora.nome ?? `#${item.operadora.id}`, isActive: false });
+    item.regenerados.forEach(r => {
+      if (r.operadora) fallbacks.push({ id: r.operadora.id, nome: r.operadora.nome ?? `#${r.operadora.id}`, isActive: false });
+    });
+    setOperadoraFallbacks(fallbacks);
     setShowModal(true);
   };
 
@@ -231,15 +254,22 @@ export default function Cadastro0800() {
     }));
   };
 
-  const updateRegeneradoField = (index: number, field: keyof RegeneradoForm, value: string) => {
+  const updateRegeneradoText = (index: number, field: 'numeroRegenerado' | 'vdn' | 'vetor', value: string) => {
     setForm(f => ({
       ...f,
       regenerados: f.regenerados.map((r, i) => i === index ? { ...r, [field]: value } : r),
     }));
   };
 
+  const updateRegeneradoOperadora = (index: number, operadoraId: number | null) => {
+    setForm(f => ({
+      ...f,
+      regenerados: f.regenerados.map((r, i) => i === index ? { ...r, operadoraId } : r),
+    }));
+  };
+
   const save = async () => {
-    if (!form.operadora.trim() || !form.numero.trim()) return;
+    if (!form.operadora || !form.numero.trim()) return;
     setSaving(true);
     try {
       const payload: Numero0800Payload = {
@@ -268,12 +298,12 @@ export default function Cadastro0800() {
   const toggleActive = async (item: Numero0800) => {
     try {
       await api.put(`/numeros-0800/${item.id}`, {
-        operadora: item.operadora,
+        operadora: item.operadora ? { id: item.operadora.id } : null,
         numero: item.numero,
         client: item.client ? { id: item.client.id } : null,
         observacao: item.observacao ?? '',
         isActive: !item.isActive,
-        regenerados: toRegeneradoForm(item),
+        regenerados: buildRegeneradosPayload(toRegeneradoForm(item)),
       });
       await api.put(`/numeros-0800/${item.id}/business-units`, item.businessUnits?.map(bu => bu.id) ?? []);
       load();
@@ -297,6 +327,11 @@ export default function Cadastro0800() {
     : items;
 
   const activeCount = filteredItems.filter(i => i.isActive).length;
+
+  const operadoraSelectOptions = [
+    ...operadoraOptions,
+    ...operadoraFallbacks.filter(f => !operadoraOptions.some(o => o.id === f.id)),
+  ];
 
   return (
     <>
@@ -360,7 +395,7 @@ export default function Cadastro0800() {
                 ) : filteredItems.map(item => (
                   <tr key={item.id}>
                     <td className="td-muted">{item.id}</td>
-                    <td style={{ fontWeight: 500 }}>{item.operadora}</td>
+                    <td style={{ fontWeight: 500 }}>{item.operadora?.nome ?? '—'}</td>
                     <td className="mono">{item.numero}</td>
                     <td>{item.client?.name ?? '—'}</td>
                     <td className="td-muted">{item.observacao || '—'}</td>
@@ -415,14 +450,18 @@ export default function Cadastro0800() {
               <div className="form-grid">
                 <div className="form-group">
                   <label className="form-label">Operadora *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="Nome da operadora"
-                    value={form.operadora}
-                    onChange={e => setForm(f => ({ ...f, operadora: e.target.value }))}
+                  <select
+                    className="form-select"
+                    value={form.operadora?.id ?? 0}
+                    onChange={e => {
+                      const id = +e.target.value;
+                      setForm(f => ({ ...f, operadora: id ? { id } : null }));
+                    }}
                     autoFocus
-                  />
+                  >
+                    <option value={0}>Selecione…</option>
+                    {operadoraSelectOptions.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                  </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Número *</label>
@@ -491,7 +530,9 @@ export default function Cadastro0800() {
                     key={i}
                     index={i}
                     value={r}
-                    onChange={(field, value) => updateRegeneradoField(i, field, value)}
+                    operadoraOptions={operadoraSelectOptions}
+                    onChangeText={(field, value) => updateRegeneradoText(i, field, value)}
+                    onChangeOperadora={id => updateRegeneradoOperadora(i, id)}
                     onRemove={() => removeRegenerado(i)}
                   />
                 ))}
@@ -510,7 +551,7 @@ export default function Cadastro0800() {
               <button
                 className="btn btn-primary"
                 onClick={save}
-                disabled={saving || !form.operadora.trim() || !form.numero.trim()}
+                disabled={saving || !form.operadora || !form.numero.trim()}
               >
                 {saving ? 'Salvando…' : editId ? 'Salvar Alterações' : 'Criar'}
               </button>

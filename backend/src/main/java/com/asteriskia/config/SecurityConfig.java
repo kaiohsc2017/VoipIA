@@ -110,6 +110,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.0800")
                         .requestMatchers(HttpMethod.GET, "/api/v1/linhas/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.linhas")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/operadoras/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.operadoras")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da
@@ -130,6 +132,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.0800")
                         .requestMatchers("/api/v1/linhas/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.linhas")
+                        .requestMatchers("/api/v1/operadoras/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.operadoras")
 
                         // Todos os demais endpoints exigem apenas autenticação (JWT ou InternalKey)
                         .anyRequest().authenticated()
