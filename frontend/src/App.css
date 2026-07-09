@@ -155,7 +155,7 @@
   padding: 11px;
 }
 .sidebar.collapsed .logo-mark { justify-content: center; }
-.sidebar.collapsed .logo-icon { margin: 0; }
+.sidebar.collapsed .logo-svg-icon { margin: 0; }
 .sidebar.collapsed .nav-icon  { margin: 0; }
 .sidebar.collapsed .user-info { justify-content: center; padding: 8px; }
 .sidebar.collapsed .user-avatar { margin: 0; }
@@ -186,18 +186,16 @@
   margin-bottom: 4px;
 }
 
-.logo-icon {
-  width: 40px;
-  height: 40px;
-  background: var(--gradient-brand);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  font-weight: 800;
-  color: #ffffff;
+/* Ícone SVG equalizer — substitui o quadrado de texto "A★" */
+.logo-svg-icon {
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
+  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.4));
+  transition: filter 0.2s ease;
+}
+.sidebar-logo:hover .logo-svg-icon {
+  filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.7));
 }
 
 .logo-text {
@@ -782,17 +780,11 @@ tbody td {
   justify-content: center;
 }
 
+/* Ícone SVG equalizer na tela de login */
 .login-logo-icon {
-  width: 52px;
-  height: 52px;
-  background: var(--gradient-brand);
-  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.4rem;
-  font-weight: 800;
-  color: #ffffff;
 }
 
 .login-logo-text {

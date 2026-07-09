@@ -68,10 +68,24 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
       {/* Logo — clique colapsa/expande o menu */}
       <div className="sidebar-logo" onClick={onToggleCollapse} style={{ cursor: 'pointer' }}>
         <div className="logo-mark">
-          <div className="logo-icon">A★</div>
-          <span className="logo-text">AsteriskIA</span>
+          {/* Ícone equalizer — SVG inline para não depender de arquivo de imagem */}
+          <svg className="logo-svg-icon" width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="lgIcon" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#818cf8"/>
+                <stop offset="100%" stopColor="#6366f1"/>
+              </linearGradient>
+            </defs>
+            {/* Barras do equalizer com alturas variadas */}
+            <rect x="2"  y="14" width="4" height="12" rx="2" fill="url(#lgIcon)" opacity="0.7"/>
+            <rect x="8"  y="8"  width="4" height="18" rx="2" fill="url(#lgIcon)"/>
+            <rect x="14" y="4"  width="4" height="22" rx="2" fill="url(#lgIcon)"/>
+            <rect x="20" y="10" width="4" height="16" rx="2" fill="url(#lgIcon)" opacity="0.9"/>
+            <rect x="26" y="16" width="4" height="10" rx="2" fill="url(#lgIcon)" opacity="0.6"/>
+          </svg>
+          {!collapsed && <span className="logo-text">AsteriskIA</span>}
         </div>
-        <div className="logo-version">{CURRENT_VERSION} — Painel de Controle</div>
+        {!collapsed && <div className="logo-version">{CURRENT_VERSION} — Painel de Controle</div>}
       </div>
 
       {/* Nav */}
