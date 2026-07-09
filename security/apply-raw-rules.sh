@@ -19,7 +19,7 @@ BRIDGE="br-${NETWORK_ID}"
 echo "$LOG_PREFIX Bridge detectada: $BRIDGE"
 
 # IPs fixos dos containers (definidos no docker-compose.yml)
-CONTAINER_IPS="172.16.7.10 172.16.7.11 172.16.7.12 172.16.7.13 172.16.7.14 172.16.7.15 172.16.7.16"
+CONTAINER_IPS="172.16.7.10 172.16.7.11 172.16.7.12 172.16.7.13 172.16.7.14 172.16.7.15 172.16.7.16 172.16.7.17"
 
 echo "$LOG_PREFIX Aplicando regras raw PREROUTING..."
 nft flush chain ip raw PREROUTING 2>/dev/null || true

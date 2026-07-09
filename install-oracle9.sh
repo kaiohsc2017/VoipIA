@@ -1,29 +1,37 @@
 #!/usr/bin/env bash
 # =============================================================================
-# install.sh — AsteriskIA v3.2 · Instalação Automatizada
+# install-oracle9.sh — AsteriskIA v3.2 · Instalação Automatizada (Oracle Linux 9)
 # =============================================================================
 # Compatível com:
-#   • Ubuntu 22.04 LTS
-#   • Ubuntu 24.04 LTS
+#   • Oracle Linux 9 (ID=ol, VERSION_ID=9.x)
+#   • Aceita também RHEL/Rocky/AlmaLinux 9 (mesma base ABI), com aviso.
 #
-# Para Oracle Linux 9 (RHEL family), use install-oracle9.sh — os dois scripts
-# provisionam o mesmo stack, mas o gerenciamento de pacotes/firewall/SELinux
-# diverge o suficiente entre apt/ufw e dnf/firewalld para justificar scripts
-# separados em vez de um único script com ramificações por toda parte.
+# Este script é o equivalente ao install.sh (Ubuntu), adaptado para a família
+# dnf/firewalld/SELinux do RHEL 9. Não é uma versão "genérica multi-OS": as
+# diferenças de gerenciador de pacotes, firewall e MAC (SELinux) são grandes
+# o suficiente para que manter os dois scripts separados seja mais simples e
+# mais seguro do que um único script cheio de `if [ "$DISTRO" = ... ]`.
+#
+# Diferenças relevantes de execução em relação ao install.sh:
+#   • dnf em vez de apt-get; docker-ce vem do repositório oficial da Docker
+#     para a família centos/rhel (compatível com Oracle Linux 9).
+#   • firewalld em vez de ufw (Oracle Linux 9 não tem ufw disponível).
+#   • SELinux: por padrão o OL9 vem "Enforcing". Bind mounts de host para
+#     container (env/.env, asterisk/config, security/state etc.) são negados
+#     pelo SELinux sem relabeling. Para uma instalação limpa e não travar em
+#     "Permission Denied" dentro dos containers, este script coloca o SELinux
+#     em modo "Permissive" (persistido em /etc/selinux/config) — é o mesmo
+#     trade-off comum em hosts Docker RHEL-family quando não há tempo de
+#     escrever políticas SELinux dedicadas. Para reforçar depois, a alternativa
+#     é adicionar sufixo ":z" em cada bind mount do docker-compose.yml e voltar
+#     o SELinux para Enforcing — não fizemos isso aqui por não querer alterar
+#     um arquivo compartilhado com o ambiente Ubuntu de produção.
+#   • Pacotes que conflitam com docker-ce (podman/buildah/runc do módulo
+#     container-tools) são removidos antes da instalação, para não travar o
+#     dnf em conflito de pacotes.
 #
 # Uso:
-#   curl -fsSL https://raw.githubusercontent.com/kaiohsc2017/AsteriskIA/main/install.sh | bash
-#   -- ou --
-#   bash install.sh [--update]
-#
-# Stack instalado:
-#   Docker Engine + Compose v2 · Caddy 2 (TLS automático, no compose)
-#   Asterisk 21 LTS · Spring Boot 3.3 · React 18 + TypeScript
-#   Python 3.12 asyncio (ai-agent + agents-platform) · PostgreSQL 16 · Flyway migrations
-#   coturn (relay TURN/TURNS para WebRTC) · docker-helper (único ponto com acesso
-#   ao docker.sock — F-CRIT-10) · fail2ban + nftables (lockdown SIP, no compose e no host)
-#   RBAC granular por grupos de acesso + controle de acesso por Business Unit
-#   Multi-provider AI: Gemini, Anthropic, OpenAI, ElevenLabs, Grok, Perplexity, Ollama
+#   bash install-oracle9.sh [--update]
 # =============================================================================
 
 set -euo pipefail
@@ -51,16 +59,22 @@ detect_os() {
     fi
 
     case "$OS_ID" in
+        ol)
+            [ "${VERSION_ID%%.*}" = "9" ] || log_err "Este script é para Oracle Linux 9.x. Detectado: $OS_NAME $OS_VER."
+            ;;
+        rhel|rocky|almalinux)
+            [ "${VERSION_ID%%.*}" = "9" ] || log_err "Este script é para a família RHEL 9.x. Detectado: $OS_NAME $OS_VER."
+            log_warn "Script escrito e testado para Oracle Linux 9 — $OS_NAME é ABI-compatível, mas não é o alvo oficial."
+            ;;
         ubuntu)
-            PKG_MANAGER="apt-get"
-            PKG_UPDATE="apt-get update -qq"
-            PKG_INSTALL="apt-get install -y -qq"
-            DISTRO="ubuntu"
+            log_err "Este é o script para Oracle Linux 9. Para Ubuntu, use install.sh."
             ;;
         *)
-            log_err "OS não suportado: $OS_NAME. Suportado: Ubuntu 22.04/24.04 LTS. Para Oracle Linux 9, use install-oracle9.sh."
+            log_err "OS não suportado: $OS_NAME. Suportado: Oracle Linux 9 (e família RHEL 9)."
             ;;
     esac
+    PKG_MANAGER="dnf"
+    DISTRO="rhel9"
     log_ok "Sistema detectado: $OS_NAME $OS_VER"
 }
 
@@ -80,7 +94,7 @@ cat << 'BANNER'
  / ___ |(__  ) /_/  __/ /  / (__  ) ,<  _/ /   / ___/
 /_/  |_/____/\__/\___/_/  /_/____/_/|_|/___/   /_/
 
-  Plataforma VoIP + IA · v3.1
+  Plataforma VoIP + IA · v3.2 · Oracle Linux 9
 BANNER
 echo -e "${NC}"
 
@@ -116,7 +130,7 @@ fi
 log_step "1. Verificações do sistema"
 detect_os
 
-[ "$(id -u)" -eq 0 ] || log_err "Execute como root: sudo bash install.sh"
+[ "$(id -u)" -eq 0 ] || log_err "Execute como root: sudo bash install-oracle9.sh"
 
 PUBLIC_IP=$(curl -sf --max-time 5 https://api.ipify.org 2>/dev/null || \
             curl -sf --max-time 5 https://ifconfig.me 2>/dev/null || \
@@ -127,45 +141,127 @@ TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
 [ "$TOTAL_RAM" -ge 3500 ] || log_warn "RAM disponível: ${TOTAL_RAM}MB. Recomendado: 4GB+"
 log_ok "RAM: ${TOTAL_RAM}MB"
 
-# ── Pacotes base ──────────────────────────────────────────────────────────────
-log_step "2. Instalação de dependências"
-log_info "Atualizando índice de pacotes..."
-$PKG_UPDATE
+# ── Pacotes que conflitam com docker-ce ──────────────────────────────────────
+log_step "2. Removendo pacotes conflitantes (podman/buildah/runc do container-tools)"
+# Instalação padrão do Oracle Linux 9 pode trazer o módulo container-tools
+# (podman/buildah/runc/containerd) — instalar docker-ce por cima sem remover
+# esses pacotes é a causa mais comum de "transaction check error" no dnf.
+# --noautoremove evita levar dependências que não são exclusivas desses pacotes.
+dnf remove -y --noautoremove podman podman-docker buildah runc containerd 2>/dev/null \
+    && log_ok "Pacotes conflitantes removidos" \
+    || log_info "Nenhum pacote conflitante encontrado"
 
-$PKG_INSTALL \
+# ── Pacotes base ──────────────────────────────────────────────────────────────
+log_step "3. Instalação de dependências"
+log_info "Atualizando metadados de pacotes (sem dar upgrade no sistema)..."
+dnf makecache -y -q
+
+log_info "Instalando dnf-plugins-core (necessário para 'dnf config-manager')..."
+dnf install -y -q dnf-plugins-core
+
+# EPEL — necessário para fail2ban. Pacote oficial da Oracle (evita usar o
+# epel-release genérico do Fedora, que não é totalmente suportado no OL9).
+if ! dnf repolist 2>/dev/null | grep -qi epel; then
+    log_info "Habilitando repositório EPEL da Oracle..."
+    dnf install -y -q oracle-epel-release-el9 2>/dev/null \
+        || dnf install -y -q epel-release 2>/dev/null \
+        || log_warn "Não foi possível habilitar EPEL automaticamente — fail2ban pode falhar ao instalar."
+fi
+
+# Pacotes-base bem estabelecidos no repositório padrão do OL9 — falha aqui
+# deve interromper o script (algo mais grave está errado no host/mirror).
+dnf install -y -q \
     curl wget git unzip jq \
-    ca-certificates gnupg lsb-release \
-    ufw fail2ban \
-    gettext-base 2>/dev/null
-log_ok "Dependências instaladas"
+    ca-certificates gnupg2 \
+    firewalld nftables \
+    fail2ban \
+    gettext \
+    policycoreutils-python-utils
+log_ok "Dependências base instaladas"
+
+# iptables-nft e container-selinux: nomes de pacote podem variar entre
+# mirrors/point-releases do OL9. Best-effort — não abortam a instalação, só
+# avisam, pois o restante do script (Docker + firewalld) funciona sem eles
+# na grande maioria dos casos (Docker já traz seu próprio caminho de nftables
+# via containerd; container-selinux só importa se você reforçar SELinux depois).
+dnf install -y -q iptables-nft 2>/dev/null \
+    && log_ok "iptables-nft instalado" \
+    || log_warn "iptables-nft não instalado (pacote pode ter outro nome neste mirror) — Docker deve funcionar mesmo assim via containerd/nftables nativo."
+dnf install -y -q container-selinux 2>/dev/null \
+    && log_ok "container-selinux instalado" \
+    || log_warn "container-selinux não instalado — só relevante se você reforçar SELinux para Enforcing depois."
+
+# ── SELinux ───────────────────────────────────────────────────────────────────
+log_step "4. SELinux"
+if command -v getenforce &>/dev/null; then
+    CURRENT_SELINUX=$(getenforce)
+    if [ "$CURRENT_SELINUX" = "Enforcing" ]; then
+        log_warn "SELinux está Enforcing — os bind mounts do docker-compose.yml"
+        log_warn "(env/.env, asterisk/config, security/state, etc.) seriam negados"
+        log_warn "sem relabeling dedicado. Ajustando para Permissive para uma"
+        log_warn "instalação limpa (trade-off documentado no topo deste script)."
+        setenforce 0
+        if [ -f /etc/selinux/config ]; then
+            sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+        fi
+        log_ok "SELinux definido como Permissive (persistido em /etc/selinux/config)"
+    else
+        log_ok "SELinux já está em modo $CURRENT_SELINUX — nada a fazer"
+    fi
+else
+    log_info "SELinux não detectado neste host — pulando"
+fi
 
 # ── Docker ────────────────────────────────────────────────────────────────────
-log_step "3. Docker Engine"
+log_step "5. Docker Engine"
 if command -v docker &>/dev/null && docker compose version &>/dev/null 2>&1; then
     DOCKER_VER=$(docker --version | awk '{print $3}' | tr -d ',')
     log_ok "Docker já instalado: v$DOCKER_VER"
 else
+    log_info "Adicionando repositório oficial da Docker (compatível com RHEL/Oracle Linux)..."
+    dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
     log_info "Instalando Docker Engine..."
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    chmod a+r /etc/apt/keyrings/docker.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
-        > /etc/apt/sources.list.d/docker.list
-    apt-get update -qq
-    apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    systemctl enable --now docker
-    log_ok "Docker instalado"
+    dnf install -y -q docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    log_ok "Docker instalado (ainda não iniciado — firewalld precisa ser configurado antes)"
 fi
+
+# ── Firewall (firewalld) ──────────────────────────────────────────────────────
+# Configurado ANTES de iniciar o Docker: reiniciar firewalld depois que o
+# Docker já criou suas chains de NAT/FORWARD apaga essas regras — a ordem
+# aqui evita esse problema clássico de "containers sem rede depois do boot".
+log_step "6. Configuração do Firewall (firewalld)"
+systemctl enable --now firewalld > /dev/null 2>&1
+FW="firewall-cmd --permanent"
+$FW --add-service=ssh > /dev/null 2>&1
+$FW --add-port=80/tcp > /dev/null 2>&1        # HTTP (redirect Caddy)
+$FW --add-port=443/tcp > /dev/null 2>&1       # HTTPS
+$FW --add-port=443/udp > /dev/null 2>&1       # HTTP/3 QUIC
+$FW --add-port=5060/udp > /dev/null 2>&1      # SIP UDP
+$FW --add-port=5060/tcp > /dev/null 2>&1      # SIP TCP
+$FW --add-port=8088/tcp > /dev/null 2>&1      # WebRTC WS (Asterisk)
+$FW --add-port=15000-15500/udp > /dev/null 2>&1  # RTP media
+$FW --add-port=3478/udp > /dev/null 2>&1      # TURN (coturn) — controle
+$FW --add-port=3478/tcp > /dev/null 2>&1      # TURN (coturn) — controle
+$FW --add-port=5349/tcp > /dev/null 2>&1      # TURNS (TLS)
+$FW --add-port=5349/udp > /dev/null 2>&1      # TURNS (TLS)
+$FW --add-port=49152-49652/udp > /dev/null 2>&1  # TURN — relay (coturn/turnserver.conf)
+# Masquerade na zona pública — Docker depende de NAT de saída para os
+# containers acessarem a internet (build de imagens, APIs de IA, etc.).
+$FW --add-masquerade > /dev/null 2>&1
+firewall-cmd --reload > /dev/null 2>&1
+log_ok "firewalld configurado"
+
+# ── Iniciar Docker (depois do firewall já configurado) ───────────────────────
+systemctl enable --now docker > /dev/null 2>&1
+log_ok "Docker Engine ativo"
 
 # ── Caddy ─────────────────────────────────────────────────────────────────────
 # Caddy faz parte do docker compose — não é necessário iniciar manualmente.
-log_step "4. Caddy (proxy reverso HTTPS)"
+log_step "7. Caddy (proxy reverso HTTPS)"
 log_info "Caddy sobe junto com o stack via docker compose (próximo passo)"
 
 # ── Repositório ───────────────────────────────────────────────────────────────
-log_step "5. Repositório AsteriskIA"
+log_step "8. Repositório AsteriskIA"
 if [ -d "$INSTALL_DIR/.git" ]; then
     log_info "Atualizando repositório existente..."
     cd "$INSTALL_DIR" && git pull origin main
@@ -177,7 +273,7 @@ else
 fi
 
 # ── Diretórios ────────────────────────────────────────────────────────────────
-log_step "6. Estrutura de diretórios"
+log_step "9. Estrutura de diretórios"
 mkdir -p "$ENV_DIR"
 mkdir -p "$INSTALL_DIR/asterisk/sounds"
 # 700 (não 750): o diretório carrega BACKEND_JWT_SECRET, senhas de ramal SIP e
@@ -188,7 +284,7 @@ chmod 700 "$ENV_DIR"
 log_ok "Diretórios criados"
 
 # ── Arquivo .env ──────────────────────────────────────────────────────────────
-log_step "7. Configuração do ambiente (.env)"
+log_step "10. Configuração do ambiente (.env)"
 
 gen_secret() { openssl rand -base64 32 | tr -d '/+=' | head -c 32; }
 gen_pass()   { openssl rand -base64 16 | tr -d '/+=' | head -c 16; }
@@ -223,7 +319,7 @@ ADMIN_PASSWORD=${ADMIN_PASS}
 # ── JWT ───────────────────────────────────────────────────────────────────────
 BACKEND_JWT_SECRET=${JWT_SECRET}
 
-# ── Chave interna (ai-agent ↔ backend) ───────────────────────────────────────
+# ── Chave interna (ai-agent ↔ backend ↔ docker-helper) ───────────────────────
 INTERNAL_API_KEY=${INTERNAL_KEY}
 
 # ── PostgreSQL ────────────────────────────────────────────────────────────────
@@ -324,29 +420,8 @@ EOF
     echo -e "  Guarde essas credenciais em local seguro!"
 fi
 
-# ── Firewall ──────────────────────────────────────────────────────────────────
-log_step "8. Configuração do Firewall"
-ufw --force reset > /dev/null 2>&1
-ufw default deny incoming > /dev/null 2>&1
-ufw default allow outgoing > /dev/null 2>&1
-ufw allow ssh > /dev/null 2>&1
-ufw allow 80/tcp > /dev/null 2>&1       # HTTP (redirect Caddy)
-ufw allow 443/tcp > /dev/null 2>&1      # HTTPS
-ufw allow 443/udp > /dev/null 2>&1      # HTTP/3 QUIC
-ufw allow 5060/udp > /dev/null 2>&1     # SIP UDP
-ufw allow 5060/tcp > /dev/null 2>&1     # SIP TCP
-ufw allow 8088/tcp > /dev/null 2>&1     # WebRTC WS (Asterisk)
-ufw allow 15000:15500/udp > /dev/null 2>&1  # RTP media
-ufw allow 3478/udp > /dev/null 2>&1     # TURN (coturn) — controle
-ufw allow 3478/tcp > /dev/null 2>&1     # TURN (coturn) — controle
-ufw allow 5349/tcp > /dev/null 2>&1     # TURNS (TLS)
-ufw allow 5349/udp > /dev/null 2>&1     # TURNS (TLS)
-ufw allow 49152:49652/udp > /dev/null 2>&1  # TURN — relay (coturn/turnserver.conf)
-ufw --force enable > /dev/null 2>&1
-log_ok "UFW configurado"
-
 # ── Lockdown SIP (systemd watcher no host) ────────────────────────────────────
-log_step "8.1 Serviço de lockdown SIP"
+log_step "11. Serviço de lockdown SIP"
 if [ -f "$INSTALL_DIR/security/asteriskia-lockdown.service" ]; then
     cp "$INSTALL_DIR/security/asteriskia-lockdown.service" /etc/systemd/system/
     chmod +x "$INSTALL_DIR/security/lockdown-watcher.sh"
@@ -359,7 +434,10 @@ else
 fi
 
 # ── Regras nftables (isolamento de containers) ───────────────────────────────
-log_step "8.2 Regras nftables para isolamento de containers"
+# firewalld no OL9 também usa nftables como backend (tabelas próprias,
+# nomeadas "firewalld") — as regras abaixo vivem em tabelas separadas
+# ("ip raw"/"ip filter") e coexistem sem conflito.
+log_step "12. Regras nftables para isolamento de containers"
 if [ -f "$INSTALL_DIR/security/apply-raw-rules.sh" ]; then
     chmod +x "$INSTALL_DIR/security/apply-raw-rules.sh"
     bash "$INSTALL_DIR/security/apply-raw-rules.sh" \
@@ -370,7 +448,7 @@ else
 fi
 
 # ── Build e subida ────────────────────────────────────────────────────────────
-log_step "9. Build e inicialização dos containers"
+log_step "13. Build e inicialização dos containers"
 cd "$INSTALL_DIR"
 
 # O docker compose lê o .env da raiz do projeto, mas o arquivo real fica em
@@ -566,7 +644,7 @@ build_with_ai
 
 # ── Verificação do Caddy ───────────────────────────────────────────────────────
 # O Caddy faz parte do compose — sobe junto e carrega o Caddyfile automaticamente.
-log_step "10. Verificação do Caddy (HTTPS)"
+log_step "14. Verificação do Caddy (HTTPS)"
 if docker inspect --format='{{.State.Status}}' asteriskia-caddy 2>/dev/null | grep -q running; then
     log_ok "Caddy rodando — HTTPS ativo em https://app.voiphash.com.br"
 else
@@ -574,11 +652,7 @@ else
 fi
 
 # ── coturn (TURNS/TLS) — depende do certificado que o Caddy acabou de emitir ──
-# O coturn monta o certificado Let's Encrypt do Caddy (ver docker-compose.yml).
-# Numa instalação nova, o caminho não existe até o Caddy concluir o primeiro
-# ACME issuance — se o coturn subiu primeiro, o bind mount fica com um
-# diretório vazio e o container nunca ganha o certificado até reiniciar.
-log_step "10.1 Verificação do coturn (relay TURN/TURNS)"
+log_step "14.1 Verificação do coturn (relay TURN/TURNS)"
 CERT_DIR="/var/lib/docker/volumes/asteriskia_caddy_data/_data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/app.voiphash.com.br"
 CERT_WAIT=0
 while [ ! -d "$CERT_DIR" ] && [ "$CERT_WAIT" -lt 60 ]; do
@@ -597,7 +671,7 @@ else
 fi
 
 # ── Verificação ───────────────────────────────────────────────────────────────
-log_step "11. Verificação da instalação"
+log_step "15. Verificação da instalação"
 sleep 10
 
 check_container() {
@@ -629,7 +703,7 @@ else
 fi
 
 # ── Ramal 9002 ────────────────────────────────────────────────────────────────
-log_step "12. Configurando ramal SIP físico (9002)"
+log_step "16. Configurando ramal SIP físico (9002)"
 log_info "Aguardando Asterisk carregar..."
 sleep 5
 docker exec asteriskia-asterisk asterisk -rx "module reload res_pjsip.so" 2>/dev/null && \
@@ -655,6 +729,12 @@ echo -e "${BOLD}Softphone físico (ramal 9002):${NC}"
 echo -e "  Servidor: ${CYAN}${PUBLIC_IP}${NC}  Porta: ${CYAN}5060 UDP${NC}"
 echo -e "  Usuário:  ${CYAN}9002${NC}  Senha: ${CYAN}${RAMAL_9002_PASS_SHOW}${NC}"
 echo -e "  Codecs:   ${CYAN}G.729 / G.711a / G.711u${NC}"
+echo ""
+echo -e "${BOLD}${YELLOW}Notas específicas do Oracle Linux 9:${NC}"
+echo -e "   ${YELLOW}•${NC} SELinux foi colocado em ${CYAN}Permissive${NC} — ver comentário no topo deste"
+echo -e "     script para o trade-off e como reforçar depois (labels ':z' + Enforcing)."
+echo -e "   ${YELLOW}•${NC} O firewall é gerenciado por ${CYAN}firewalld${NC}, não ufw. Para abrir uma porta"
+echo -e "     nova: ${CYAN}firewall-cmd --permanent --add-port=PORTA/PROTO && firewall-cmd --reload${NC}"
 echo ""
 echo -e "${BOLD}${YELLOW}Próximos passos obrigatórios:${NC}"
 echo -e "   ${RED}1.${NC} Configure a IA:"
