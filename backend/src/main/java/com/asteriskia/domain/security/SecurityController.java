@@ -8,23 +8,20 @@ import java.util.regex.*;
 import java.util.stream.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * SecurityController — endpoints REST de segurança (fail2ban, ACL, lockdown de rede, teste de regex
  * de log). A comunicação com fail2ban vive em {@link FailToBanClient}, a leitura/escrita de
- * asterisk.conf/filter.d em {@link JailConfigRepository}, a gestão de ACL/lockdown de rede em
+ * asterisk.conf/filter.d em {@link JailConfigRepository}, a orquestração de jails (config + status
+ * combinados, toggle, sincronismo de ignoreip) em {@link SecurityJailService}, a busca do log do
+ * Asterisk via docker-helper em {@link AsteriskLogClient}, a gestão de ACL/lockdown de rede em
  * {@link AsteriskAclService}, a persistência de bans manuais/whitelist em {@link
  * SecurityListsRepository} e o teste de regex com timeout em {@link RegexTester} — extraídos deste
  * controller (achado de auditoria: arquivo > 800 linhas; SecurityListsRepository/RegexTester na
- * fase 7 da refatoração) sem mudança de comportamento nem de rota.
+ * fase 7, SecurityJailService/AsteriskLogClient na fase 11) sem mudança de comportamento nem de
+ * rota.
  */
 @Slf4j
 @RestController
@@ -33,22 +30,12 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class SecurityController {
 
     private final AuditService auditService;
-    private final RestTemplate restTemplate;
     private final FailToBanClient f2b;
     private final JailConfigRepository jailConfigRepo;
     private final AsteriskAclService aclService;
     private final SecurityListsRepository listsRepo;
-
-    // Docker Helper — único container com acesso ao docker.sock (F-CRIT-10).
-    // Este controller não roda mais 'docker exec' via ProcessBuilder.
-    @Value("${app.docker-helper.url}")
-    private String dockerHelperUrl;
-
-    @Value("${app.internal-api-key}")
-    private String internalApiKey;
-
-    private static final List<String> MANAGED_JAILS =
-            List.of("asterisk-auth", "asterisk-scan", "asterisk-flood");
+    private final SecurityJailService jailService;
+    private final AsteriskLogClient logClient;
 
     /**
      * Achado de segurança: banaction era gravado sem validação nenhuma em asterisk.conf. Allowlist
@@ -69,14 +56,12 @@ public class SecurityController {
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> status() {
         Map<String, Object> result = new LinkedHashMap<>();
-        boolean f2bRunning = f2b.isRunning();
+        boolean f2bRunning = jailService.isFail2banRunning();
         result.put("fail2banRunning", f2bRunning);
 
         int totalBanned = 0, activeJails = 0;
-        List<Map<String, Object>> jails = new ArrayList<>();
-        for (String jail : MANAGED_JAILS) {
-            Map<String, Object> info = getJailInfo(jail, f2bRunning);
-            jails.add(info);
+        List<Map<String, Object>> jails = jailService.allJailInfo(f2bRunning);
+        for (Map<String, Object> info : jails) {
             if (Boolean.TRUE.equals(info.get("enabled"))) activeJails++;
             Object b = info.get("currentlyBanned");
             if (b instanceof Integer) totalBanned += (Integer) b;
@@ -92,19 +77,15 @@ public class SecurityController {
 
     @GetMapping("/jails")
     public ResponseEntity<List<Map<String, Object>>> jails() {
-        boolean f2bRunning = f2b.isRunning();
-        return ResponseEntity.ok(
-                MANAGED_JAILS.stream()
-                        .map(j -> getJailInfo(j, f2bRunning))
-                        .collect(Collectors.toList()));
+        return ResponseEntity.ok(jailService.allJailInfo(jailService.isFail2banRunning()));
     }
 
     @GetMapping("/jails/{jail}")
     public ResponseEntity<Map<String, Object>> jailDetail(@PathVariable String jail) {
-        if (!MANAGED_JAILS.contains(jail))
+        if (!jailService.isManaged(jail))
             return ResponseEntity.badRequest()
                     .body(Map.of("message", "Jail desconhecido: " + jail));
-        Map<String, Object> info = getJailInfo(jail, f2b.isRunning());
+        Map<String, Object> info = jailService.jailInfo(jail, jailService.isFail2banRunning());
         info.put("filterRegex", jailConfigRepo.readFilterRegex(jail));
         info.put("jailConfig", jailConfigRepo.readJailConfig(jail));
         return ResponseEntity.ok(info);
@@ -116,7 +97,7 @@ public class SecurityController {
             @RequestBody Map<String, Object> body,
             HttpServletRequest request) {
 
-        if (!MANAGED_JAILS.contains(jail))
+        if (!jailService.isManaged(jail))
             return ResponseEntity.badRequest()
                     .body(Map.of("message", "Jail desconhecido: " + jail));
         if (body.containsKey("banaction")
@@ -173,7 +154,7 @@ public class SecurityController {
     @GetMapping("/banned")
     public ResponseEntity<List<Map<String, String>>> banned() {
         List<Map<String, String>> all = new ArrayList<>();
-        for (String jail : MANAGED_JAILS) {
+        for (String jail : SecurityJailService.MANAGED_JAILS) {
             for (String ip : f2b.parseBannedIps(f2b.exec("status", jail))) {
                 all.add(mapOf("ip", ip, "jail", jail, "origin", "fail2ban"));
             }
@@ -211,7 +192,8 @@ public class SecurityController {
             @RequestParam(defaultValue = "") String jail,
             HttpServletRequest request) {
         try {
-            List<String> jailsToUnban = jail.isBlank() ? MANAGED_JAILS : List.of(jail);
+            List<String> jailsToUnban =
+                    jail.isBlank() ? SecurityJailService.MANAGED_JAILS : List.of(jail);
             List<String> results =
                     jailsToUnban.stream()
                             .map(j -> j + ": " + f2b.exec("set", j, "unbanip", ip))
@@ -245,7 +227,7 @@ public class SecurityController {
             if (!list.contains(ip)) {
                 list.add(ip);
                 listsRepo.writeWhitelist(list);
-                updateIgnoreIp(list);
+                jailService.updateIgnoreIp(list);
                 f2b.exec("reload");
             }
             aclService.reapplyLockdownIfActive(list);
@@ -264,7 +246,7 @@ public class SecurityController {
             List<String> list = listsRepo.readWhitelist();
             list.remove(ip);
             listsRepo.writeWhitelist(list);
-            updateIgnoreIp(list);
+            jailService.updateIgnoreIp(list);
             f2b.exec("reload");
             aclService.reapplyLockdownIfActive(list);
             auditService.log(request, "SECURITY_WHITELIST_REMOVE", ip, true);
@@ -342,7 +324,7 @@ public class SecurityController {
         if (regex == null || regex.isBlank())
             return ResponseEntity.badRequest().body(Map.of("message", "Regex obrigatória."));
         try {
-            List<String> log = tailAsteriskLog(lines);
+            List<String> log = logClient.tail(lines);
             Pattern p = Pattern.compile(regex);
             List<String> matches = RegexTester.runWithTimeout(p, log);
             return ResponseEntity.ok(
@@ -363,37 +345,15 @@ public class SecurityController {
     }
 
     // =========================================================================
-    // Privado — orquestração de jail (usa FailToBanClient + JailConfigRepository)
+    // Privado — orquestração de jail (delega a SecurityJailService)
     // =========================================================================
-
-    private Map<String, Object> getJailInfo(String jail, boolean f2bRunning) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("name", jail);
-        Map<String, String> cfg = jailConfigRepo.parseJailConfig(jail);
-        m.put("enabled", "true".equals(cfg.getOrDefault("enabled", "false")));
-        m.put("maxretry", SecurityFileUtils.parseInt(cfg.getOrDefault("maxretry", "5")));
-        m.put("findtime", SecurityFileUtils.parseInt(cfg.getOrDefault("findtime", "30")));
-        m.put("bantime", SecurityFileUtils.parseInt(cfg.getOrDefault("bantime", "86400")));
-        m.put("banaction", cfg.getOrDefault("banaction", "iptables-multiport"));
-        m.put("port", cfg.getOrDefault("port", "5060,5061,8088"));
-        if (f2bRunning) {
-            String status = f2b.exec("status", jail);
-            m.put("currentlyBanned", f2b.parseBannedCount(status));
-            m.put("totalFailed", f2b.parseTotalFailed(status));
-        } else {
-            m.put("currentlyBanned", 0);
-            m.put("totalFailed", 0);
-        }
-        return m;
-    }
 
     private ResponseEntity<Map<String, Object>> toggleJail(
             String jail, boolean enable, HttpServletRequest req) {
-        if (!MANAGED_JAILS.contains(jail))
+        if (!jailService.isManaged(jail))
             return ResponseEntity.badRequest().body(Map.of("message", "Jail desconhecido."));
         try {
-            jailConfigRepo.updateJailParam(jail, "enabled", enable ? "true" : "false");
-            String reload = f2b.exec("reload", jail);
+            String reload = jailService.toggleJail(jail, enable);
             auditService.log(
                     req,
                     "SECURITY_JAIL_TOGGLE",
@@ -413,33 +373,8 @@ public class SecurityController {
     }
 
     // =========================================================================
-    // Privado — whitelist aplicada nos jails (ignoreip)
-    // =========================================================================
-
-    private void updateIgnoreIp(List<String> whitelist) throws IOException {
-        String ignoreIp = String.join(" ", whitelist);
-        for (String jail : MANAGED_JAILS)
-            jailConfigRepo.updateJailParam(jail, "ignoreip", ignoreIp);
-    }
-
-    // =========================================================================
     // Privado — helpers diversos
     // =========================================================================
-
-    /** Chama o docker-helper (GET /asterisk/log) — antigo docker exec asteriskia-asterisk tail. */
-    @SuppressWarnings("unchecked")
-    private List<String> tailAsteriskLog(int lines) {
-        String url =
-                UriComponentsBuilder.fromHttpUrl(dockerHelperUrl + "/asterisk/log")
-                        .queryParam("lines", lines)
-                        .toUriString();
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("X-Internal-Key", internalApiKey);
-        ResponseEntity<Map> resp =
-                restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
-        Map<String, Object> body = resp.getBody();
-        return body != null ? (List<String>) body.getOrDefault("lines", List.of()) : List.of();
-    }
 
     private boolean isValidIp(String ip) {
         if (ip == null || ip.isBlank()) return false;

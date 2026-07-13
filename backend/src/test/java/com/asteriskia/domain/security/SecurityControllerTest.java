@@ -36,7 +36,7 @@ import org.springframework.web.client.RestTemplate;
  * "ideal" — só garante que a refatoração não o altera silenciosamente.
  */
 @WebMvcTest(SecurityController.class)
-@Import(SecurityListsRepository.class)
+@Import({SecurityListsRepository.class, SecurityJailService.class, AsteriskLogClient.class})
 class SecurityControllerTest {
 
     @Autowired private MockMvc mockMvc;
