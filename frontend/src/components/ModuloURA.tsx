@@ -757,11 +757,11 @@ export default function ModuloURA() {
           <button className={`btn ${tab === 'dashboard' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('dashboard')}>
             📊 Dashboard
           </button>
-          <button className={`btn ${tab === 'ranking'   ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('ranking')}>
-            🏆 Ranking de Atendimentos
-          </button>
           <button className={`btn ${tab === 'calls'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('calls')}>
             📋 Chamadas
+          </button>
+          <button className={`btn ${tab === 'ranking'   ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('ranking')}>
+            🏆 Ranking de Atendimentos
           </button>
         </div>
 
