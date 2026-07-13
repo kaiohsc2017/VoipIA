@@ -7,8 +7,6 @@ import com.asteriskia.domain.call.CallRecordRepository;
 import com.asteriskia.domain.connectivity.ConnectivityReportRepository;
 import com.asteriskia.domain.connectivity.TestResult;
 import com.asteriskia.domain.masterdata.BusinessUnitContext;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -18,12 +16,12 @@ import java.util.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * ReportController — Fase 11: Exportação de relatórios em CSV.
+ * ReportController — Fase 11: Exportação de relatórios em CSV. A montagem/escaping dos CSVs e o
+ * envelope de download HTTP vivem em {@link ReportCsvBuilder} (extraído na fase 13 da refatoração).
  *
  * <p>GET /api/v1/reports/connectivity → CSV com resultados de testes de conectividade
  * ?month=YYYY-MM (opcional) ?dateFrom=...&dateTo=... (opcional, sobrescreve month)
@@ -45,8 +43,6 @@ public class ReportController {
     private final CallRecordRepository callRecordRepository;
     private final StatsCallRepository statsCallRepository;
 
-    private static final DateTimeFormatter CSV_DT =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
     private static final DateTimeFormatter FILE_DT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
     // -------------------------------------------------------------------------
@@ -87,10 +83,10 @@ public class ReportController {
                 connectivityReportRepository.findForExport(
                         status, dateFrom, dateTo, businessUnitId, clientId, operationId, segmentId);
 
-        String csv = buildConnectivityCsv(results);
+        String csv = ReportCsvBuilder.buildConnectivityCsv(results);
         String filename = "conectividade_" + LocalDateTime.now().format(FILE_DT) + ".csv";
 
-        return csvResponse(csv, filename);
+        return ReportCsvBuilder.csvResponse(csv, filename);
     }
 
     // -------------------------------------------------------------------------
@@ -168,10 +164,10 @@ public class ReportController {
                                 dateFrom, dateTo)
                         : callRecordRepository.findAllByOrderByCallDateDesc();
 
-        String csv = buildUraCsv(calls);
+        String csv = ReportCsvBuilder.buildUraCsv(calls);
         String filename = "chamadas_ura_" + LocalDateTime.now().format(FILE_DT) + ".csv";
 
-        return csvResponse(csv, filename);
+        return ReportCsvBuilder.csvResponse(csv, filename);
     }
 
     // -------------------------------------------------------------------------
@@ -250,115 +246,9 @@ public class ReportController {
             }
         }
 
-        String csv = buildLabelValueCsv(header, rows);
+        String csv = ReportCsvBuilder.buildLabelValueCsv(header, rows);
         String filename = "ranking_" + section + "_" + LocalDateTime.now().format(FILE_DT) + ".csv";
-        return csvResponse(csv, filename);
-    }
-
-    private String buildLabelValueCsv(String header, List<Object[]> rows) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-
-        pw.print("\uFEFF");
-        pw.println(header);
-        for (Object[] row : rows) {
-            // Arredonda valores decimais (ex: AVG de dura\u00E7\u00E3o) para 1 casa \u2014 evita
-            // precis\u00E3o de ponto flutuante bruta (ex: "94.3333333333333333") no CSV.
-            Object value =
-                    row[1] instanceof Number n && !(n instanceof Long || n instanceof Integer)
-                            ? Math.round(n.doubleValue() * 10.0) / 10.0
-                            : row[1];
-            pw.printf("%s,%s%n", esc(String.valueOf(row[0])), String.valueOf(value));
-        }
-        pw.flush();
-        return sw.toString();
-    }
-
-    // -------------------------------------------------------------------------
-    // Builders CSV
-    // -------------------------------------------------------------------------
-
-    private String buildConnectivityCsv(List<TestResult> results) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-
-        // BOM UTF-8 para compatibilidade com Excel
-        pw.print("\uFEFF");
-        pw.println("ID,Data/Hora,Número,BU,Cliente,Operação,Segmento,Status,Código SIP,Motivo SIP");
-
-        for (TestResult r : results) {
-            var nt = r.getNumberTest();
-            pw.printf(
-                    "%d,%s,%s,%s,%s,%s,%s,%s,%s,%s%n",
-                    r.getId(),
-                    r.getExecutedAt() != null ? r.getExecutedAt().format(CSV_DT) : "",
-                    esc(nt != null ? nt.getPhoneNumber() : ""),
-                    esc(
-                            nt != null && nt.getBusinessUnit() != null
-                                    ? nt.getBusinessUnit().getName()
-                                    : ""),
-                    esc(nt != null && nt.getClient() != null ? nt.getClient().getName() : ""),
-                    esc(nt != null && nt.getOperation() != null ? nt.getOperation().getName() : ""),
-                    esc(nt != null && nt.getSegment() != null ? nt.getSegment().getName() : ""),
-                    esc(r.getStatus()),
-                    r.getSipResponseCode() != null ? r.getSipResponseCode().toString() : "",
-                    esc(r.getSipResponseReason()));
-        }
-
-        pw.flush();
-        return sw.toString();
-    }
-
-    private String buildUraCsv(List<CallRecord> calls) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-
-        pw.print("\uFEFF");
-        pw.println("ID,Data/Hora,Número,Cliente,Chamado Jira,Status Jira,Duração (s),Transcrição");
-
-        for (CallRecord c : calls) {
-            pw.printf(
-                    "%d,%s,%s,%s,%s,%s,%d,%s%n",
-                    c.getId(),
-                    c.getCallDate() != null ? c.getCallDate().format(CSV_DT) : "",
-                    esc(c.getCallerNumber()),
-                    esc(c.getClientName()),
-                    esc(c.getJiraIssueKey()),
-                    esc(c.getJiraIssueStatus()),
-                    c.getCallDurationSecs() != null ? c.getCallDurationSecs() : 0,
-                    esc(c.getTranscription()));
-        }
-
-        pw.flush();
-        return sw.toString();
-    }
-
-    /** Escapa campo CSV (entre aspas se contiver vírgula, aspas ou quebra de linha). */
-    /**
-     * Achado de segurança (CSV/fórmula injection): campos como transcrição de chamada são
-     * influenciáveis por quem liga — um valor começando com =/+/-/@ vira fórmula executada ao abrir
-     * no Excel/LibreOffice. Prefixa com apóstrofo antes de aplicar o escaping de CSV padrão.
-     */
-    private String esc(String value) {
-        if (value == null) return "";
-        if (!value.isEmpty() && "=+-@".indexOf(value.charAt(0)) >= 0) {
-            value = "'" + value;
-        }
-        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
-        }
-        return value;
-    }
-
-    private ResponseEntity<byte[]> csvResponse(String csv, String filename) {
-        byte[] bytes = csv.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        return ResponseEntity.ok()
-                .header(
-                        HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + filename + "\"")
-                .header(HttpHeaders.CONTENT_TYPE, "text/csv; charset=UTF-8")
-                .header(HttpHeaders.CACHE_CONTROL, "no-cache")
-                .body(bytes);
+        return ReportCsvBuilder.csvResponse(csv, filename);
     }
 
     // -------------------------------------------------------------------------
