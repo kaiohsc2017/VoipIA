@@ -60,7 +60,8 @@ public class CallRecordService {
             String audioFilePath,
             String transcription,
             String callerNumber,
-            Integer callDurationSecs) {
+            Integer callDurationSecs,
+            String subjectTag) {
 
         int resolvedUraId = uraId != null ? uraId : DEFAULT_URA_ID;
         log.info("Registrando chamada UUID={} uraId={}", callUuid, resolvedUraId);
@@ -123,6 +124,7 @@ public class CallRecordService {
                 .reportedRamal(reportedRamal)
                 .priority(priority)
                 .callDurationSecs(callDurationSecs != null ? callDurationSecs : 0)
+                .subjectTag(truncate(subjectTag, 100))
                 .build();
 
         // Primeiro salva para garantir persistência mesmo que o Jira falhe

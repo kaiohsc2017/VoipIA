@@ -510,13 +510,57 @@ class JiraCallFlow:
             logger.error("[%s] Erro STT: %s", self.call_uuid, e)
             return None
 
+    # Perguntas com expected_values configurado (ex: "tipo de atendimento") têm até
+    # essas tentativas para cair em uma opção válida — evita que ruído de STT vire
+    # uma categoria "suja" nos indicadores (Ranking de Atendimentos agrupa por essa
+    # resposta) quando o cliente falou algo fora do esperado.
+    _MAX_TENTATIVAS_RESPOSTA_VALIDA = 2
+
+    @staticmethod
+    def _matches_expected(text: str, expected_values: str) -> bool:
+        """True se `text` corresponde a uma das opções de expected_values (case-insensitive)."""
+        vals = [v.strip().lower() for v in expected_values.split(",") if v.strip()]
+        return text.strip().lower() in vals
+
     async def _ask_question(self, question_text: str, field_key: str = "", expected_values: str = "") -> str | None:
-        """Reproduz a pergunta (do cache) e captura/transcreve a resposta do cliente."""
+        """
+        Reproduz a pergunta (do cache) e captura/transcreve a resposta do cliente.
+
+        Quando a pergunta tem expected_values configurado, uma resposta que não bate
+        com nenhuma opção é tratada como não reconhecida: repergunta até
+        _MAX_TENTATIVAS_RESPOSTA_VALIDA vezes e, se ainda assim não validar, descarta
+        a resposta (retorna None) em vez de gravar texto livre/ruído como se fosse
+        uma categoria válida.
+        """
+        hint = self._build_stt_hint(question_text, field_key, expected_values)
+
         ok = await self._play_cached(question_text)
         if not ok:
             return None
-        hint = self._build_stt_hint(question_text, field_key, expected_values)
-        return await self._listen_and_transcribe(hint=hint, field_key=field_key, expected_values=expected_values)
+        answer = await self._listen_and_transcribe(hint=hint, field_key=field_key, expected_values=expected_values)
+
+        if not expected_values:
+            return answer
+
+        tentativas = 1
+        while (not answer or not self._matches_expected(answer, expected_values)) \
+                and tentativas < self._MAX_TENTATIVAS_RESPOSTA_VALIDA:
+            logger.info("[%s] Resposta '%s' fora das opções esperadas (%s) — repergunta (%d/%d)",
+                        self.call_uuid, answer, expected_values, tentativas + 1, self._MAX_TENTATIVAS_RESPOSTA_VALIDA)
+            ok = await self._play_cached(
+                f"Não entendi. Por favor, responda com uma destas opções: {expected_values}."
+            )
+            if not ok:
+                return None
+            answer = await self._listen_and_transcribe(hint=hint, field_key=field_key, expected_values=expected_values)
+            tentativas += 1
+
+        if answer and self._matches_expected(answer, expected_values):
+            return answer
+
+        logger.warning("[%s] Nenhuma resposta válida para '%s' após %d tentativa(s) — descartando (era: %r)",
+                        self.call_uuid, question_text, tentativas, answer)
+        return None
 
     async def _capture_audio(
         self,
@@ -620,6 +664,8 @@ class JiraCallFlow:
             if self.caller_number and self.caller_number != "desconhecido":
                 self.collected_answers.setdefault("customfield_telefone", self.caller_number)
 
+            subject_tag = await self._classify_subject(full_transcription)
+
             payload = {
                 "callUuid":         self.call_uuid,
                 "uraId":            self.ura_id,
@@ -628,11 +674,60 @@ class JiraCallFlow:
                 "transcription":    full_transcription,
                 "callerNumber":     self.caller_number,
                 "callDurationSecs": duration_secs,
+                "subjectTag":       subject_tag,
             }
             data = await bc.post("/api/v1/calls/register", json=payload)
             return data.get("jiraIssueKey")
         except Exception as e:
             logger.error("[%s] Erro ao registrar chamado: %s", self.call_uuid, e)
+            return None
+
+    def _guess_call_type(self) -> str | None:
+        """Mesma heurística usada no Java (CallRecordService) para achar o campo de
+        'tipo de atendimento' entre as respostas coletadas — usada aqui só para buscar
+        o vocabulário de assuntos já classificados daquele tipo, nunca persistida."""
+        for key, value in self.collected_answers.items():
+            lowered = key.lower()
+            if "tipo" in lowered or "issuetype" in lowered or "type" in lowered:
+                return value
+        return None
+
+    async def _classify_subject(self, full_transcription: str) -> str | None:
+        """
+        Classifica o assunto da chamada (ex: "Reset de senha", "Lentidão de sistema")
+        via LLM, best-effort — nunca bloqueia nem derruba o registro da chamada se falhar.
+        Reaproveita rótulos já usados para o mesmo tipo de chamada (busca no backend)
+        para evitar sinônimos duplicados se acumulando ao longo do tempo.
+        """
+        if not full_transcription or not full_transcription.strip():
+            return None
+        try:
+            call_type = self._guess_call_type()
+            existing_tags: list[str] = []
+            if call_type:
+                existing_tags = await bc.get(
+                    "/api/v1/internal/calls/subject-tags", params={"callType": call_type}
+                )
+
+            vocab_hint = (
+                f"Rótulos já usados para este tipo de chamada: {', '.join(existing_tags)}. "
+                "Reaproveite um deles se fizer sentido; só crie um novo se nenhum se aplicar."
+                if existing_tags else
+                "Ainda não há rótulos cadastrados para este tipo — crie um novo."
+            )
+
+            prompt = (
+                "Classifique o assunto principal desta chamada de atendimento em uma "
+                "etiqueta curta (2 a 4 palavras, em português, sem pontuação final). "
+                f"{vocab_hint}\n\n"
+                "Responda APENAS com a etiqueta, nada mais.\n\n"
+                f"Transcrição:\n{full_transcription}"
+            )
+            raw = await self.ai.generate_response(prompt)
+            tag = raw.strip().strip('"').strip("'").splitlines()[0].strip()
+            return tag[:100] if tag else None
+        except Exception as e:
+            logger.warning("[%s] Falha ao classificar assunto da chamada (best-effort): %s", self.call_uuid, e)
             return None
 
     @staticmethod

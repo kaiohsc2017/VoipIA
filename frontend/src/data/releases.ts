@@ -81,4 +81,63 @@ export const RELEASES: ReleaseEntry[] = [
       'Documentação: correção da arquitetura da Plataforma de Agentes (banco e frontend unificados com o Telecom, não mais containers próprios) e adição do controle de acesso por Unidade de Negócio (BU).',
     ],
   },
+  {
+    version: 'v1.07',
+    date: '2026-07-10',
+    changes: [
+      'Tela de URA: nova aba "Ranking de Atendimentos", com clientes que mais ligam, distribuição por tipo (Incidente/Requisição) e soluções mais aplicadas nos chamados do Jira.',
+      'Novo job de sincronização periódica com o Jira: status e resolução dos chamados abertos pela URA passam a ser atualizados automaticamente (antes eram gravados uma única vez na criação e nunca mais atualizados).',
+      'Ranking de Atendimentos aplica o mesmo controle de acesso por permissão e por Unidade de Negócio (BU) já usado na tela de Chamadas.',
+    ],
+  },
+  {
+    version: 'v1.08',
+    date: '2026-07-12',
+    changes: [
+      'Ranking de Atendimentos: novo período "Todo o período", usado como padrão ao abrir a aba — antes ela abria em "Esta semana" e ficava vazia sempre que não havia chamada nos últimos dias, mesmo com histórico já registrado na base.',
+    ],
+  },
+  {
+    version: 'v1.09',
+    date: '2026-07-13',
+    changes: [
+      'Ranking de Atendimentos: novo indicador "Mais pedido" por tipo de chamada, classificado por IA a partir da transcrição de cada atendimento ao final da ligação.',
+      'Nova coluna de assunto (subject_tag) em Chamadas, preenchida de forma automática e best-effort — nunca bloqueia nem atrasa o registro da chamada se a classificação falhar.',
+      'Classificação reaproveita rótulos já usados para o mesmo tipo de chamada, evitando sinônimos duplicados se acumulando ao longo do tempo.',
+      'URA: a pergunta "tipo de atendimento" agora valida a resposta do cliente contra as opções esperadas (Incidente/Requisição) e repergunta se não reconhecer — evita que ruído de transcrição vire uma categoria "suja" nos indicadores de Chamadas e Ranking de Atendimentos.',
+    ],
+  },
+  {
+    version: 'v1.10',
+    date: '2026-07-13',
+    changes: [
+      'Ranking de Atendimentos: novo indicador de duração média de chamada por tipo (Incidente/Requisição).',
+      'Ranking de Atendimentos: botão para exportar cada indicador em CSV (clientes, tipo, soluções Jira, assuntos e duração média).',
+    ],
+  },
+  {
+    version: 'v1.11',
+    date: '2026-07-13',
+    changes: [
+      'Ranking de Atendimentos: filtro por URA, igual ao já existente na aba Chamadas.',
+      'Ranking de Atendimentos: clicar em qualquer barra/linha de um indicador leva direto à aba Chamadas já filtrada por aquele valor (cliente, tipo, assunto ou solução do Jira).',
+      'Chamadas: novos filtros avançados por assunto (classificado por IA) e por solução do Jira.',
+    ],
+  },
+  {
+    version: 'v1.12',
+    date: '2026-07-13',
+    changes: [
+      'Ranking de Atendimentos: seletor de intervalo de datas customizado, além dos períodos prontos (hoje/semana/mês/todo o período).',
+      'Ranking de Atendimentos: indicador de tendência (▲/▼) em cada card, comparando o período atual com o período imediatamente anterior de mesma duração.',
+    ],
+  },
+  {
+    version: 'v1.13',
+    date: '2026-07-13',
+    changes: [
+      'Ranking de Atendimentos: cada card agora carrega de forma independente (com placeholder próprio), em vez de um único carregamento substituir a tela inteira.',
+      'Ranking de Atendimentos: ícone de informação em "Soluções mais aplicadas (Jira)" explicando por que o card pode ficar vazio (depende do chamado ter sido aberto no Jira e do sync periódico).',
+    ],
+  },
 ];

@@ -54,6 +54,15 @@ public class CallRecord {
     @Builder.Default
     private String jiraIssueStatus = "Aberto";
 
+    @Column(name = "jira_resolution", length = 100)
+    private String jiraResolution;
+
+    @Column(name = "jira_last_synced_at")
+    private LocalDateTime jiraLastSyncedAt;
+
+    @Column(name = "subject_tag", length = 100)
+    private String subjectTag;
+
     @Column(name = "audio_file_path", length = 500)
     private String audioFilePath;
 

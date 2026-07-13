@@ -112,6 +112,11 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.linhas")
                         .requestMatchers(HttpMethod.GET, "/api/v1/operadoras/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.operadoras")
+                        // Ranking de Atendimentos — único endpoint de /stats/** que expõe nomes
+                        // individuais de cliente (topClients), não só contagens agregadas; os
+                        // demais /stats/** seguem no anyRequest().authenticated() genérico abaixo.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/stats/calls/ranking")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.modulo1")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da

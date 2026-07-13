@@ -3,6 +3,7 @@ package com.asteriskia.domain;
 import com.asteriskia.domain.alert.AlertCall;
 import com.asteriskia.domain.call.CallRecord;
 import com.asteriskia.domain.connectivity.TestResult;
+import com.asteriskia.domain.masterdata.BusinessUnitContext;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Repository;
 import org.springframework.web.bind.annotation.*;
@@ -18,7 +20,9 @@ import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
@@ -156,6 +160,138 @@ public class StatsController {
     }
 
     // -----------------------------------------------------------------------
+    // Módulo 1 — URA Ranking de Atendimentos (clientes, tipo, soluções Jira)
+    // -----------------------------------------------------------------------
+
+    @GetMapping("/calls/ranking")
+    public ResponseEntity<Map<String, Object>> callsRanking(
+            @RequestParam(defaultValue = "week") String period,
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(required = false) Integer uraId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+
+        // Limita o top-N a uma faixa razoável — evita query sem cap por má configuração do client.
+        int safeLimit = Math.min(Math.max(limit, 1), 50);
+
+        // Intervalo customizado (dateFrom/dateTo) tem prioridade sobre o período nomeado
+        // (today/week/month/all) — mesmo padrão de ReportController (month vs dateFrom/dateTo).
+        LocalDateTime[] range = (dateFrom != null && dateTo != null)
+                ? new LocalDateTime[]{LocalDateTime.of(dateFrom, LocalTime.MIN), LocalDateTime.of(dateTo, LocalTime.MAX)}
+                : getRange(period);
+        LocalDateTime from = range[0], to = range[1];
+
+        // Escopo por BU — mesmo padrão de CallRecordSpecifications.restrictedToBusinessUnits.
+        // Sentinela {-1} evita IN () vazio quando o usuário é restrito mas não tem BU nenhuma.
+        boolean restricted = BusinessUnitContext.isRestricted();
+        Set<Integer> buIds = BusinessUnitContext.currentBusinessUnitIds();
+        Set<Integer> safeBuIds = buIds.isEmpty() ? Set.of(-1) : buIds;
+
+        List<Map<String, Object>> topClients = toRankingList(callRepo.topClients(from, to, safeLimit, restricted, safeBuIds, uraId));
+        List<Map<String, Object>> byType = toRankingList(callRepo.byCallType(from, to, restricted, safeBuIds, uraId));
+        List<Map<String, Object>> topResolutions = toRankingList(callRepo.topResolutions(from, to, safeLimit, restricted, safeBuIds, uraId));
+
+        // Assunto mais pedido por tipo de chamada (subject_tag, classificado por IA) —
+        // um card por tipo real observado no período, não uma lista fixa Incidente/Requisição,
+        // já que o "tipo" hoje vem de texto livre da URA (ver call_type).
+        Map<String, List<Map<String, Object>>> topSubjectsByType = new LinkedHashMap<>();
+        for (Map<String, Object> typeEntry : byType) {
+            String callType = String.valueOf(typeEntry.get("label"));
+            topSubjectsByType.put(callType,
+                    toRankingList(callRepo.topSubjectsByCallType(from, to, callType, safeLimit, restricted, safeBuIds, uraId)));
+        }
+
+        List<Map<String, Object>> avgDurationByType = toAvgDurationList(callRepo.avgDurationByCallType(from, to, restricted, safeBuIds, uraId));
+
+        Map<String, Object> trend = buildRankingTrend(range, safeLimit, restricted, safeBuIds, uraId,
+                topClients, byType, topResolutions, topSubjectsByType, avgDurationByType);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("period", period);
+        result.put("topClients", topClients);
+        result.put("byType", byType);
+        result.put("topResolutions", topResolutions);
+        result.put("topSubjectsByType", topSubjectsByType);
+        result.put("avgDurationByType", avgDurationByType);
+        result.put("trend", trend);
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Tendência período-a-período: reexecuta as mesmas queries na janela imediatamente
+     * anterior (mesma duração de [from,to]) e devolve só os totais agregados — o
+     * suficiente para o frontend mostrar "▲/▼ X% vs. período anterior" em cada card,
+     * sem duplicar a lógica de limites de período no cliente.
+     */
+    private Map<String, Object> buildRankingTrend(
+            LocalDateTime[] range, int safeLimit, boolean restricted, Set<Integer> safeBuIds, Integer uraId,
+            List<Map<String, Object>> topClients, List<Map<String, Object>> byType,
+            List<Map<String, Object>> topResolutions, Map<String, List<Map<String, Object>>> topSubjectsByType,
+            List<Map<String, Object>> avgDurationByType) {
+
+        LocalDateTime[] prevRange = PeriodRangeResolver.previous(range);
+        LocalDateTime prevFrom = prevRange[0], prevTo = prevRange[1];
+
+        List<Map<String, Object>> prevTopClients = toRankingList(callRepo.topClients(prevFrom, prevTo, safeLimit, restricted, safeBuIds, uraId));
+        List<Map<String, Object>> prevByType = toRankingList(callRepo.byCallType(prevFrom, prevTo, restricted, safeBuIds, uraId));
+        List<Map<String, Object>> prevTopResolutions = toRankingList(callRepo.topResolutions(prevFrom, prevTo, safeLimit, restricted, safeBuIds, uraId));
+        List<Map<String, Object>> prevAvgDurationByType = toAvgDurationList(callRepo.avgDurationByCallType(prevFrom, prevTo, restricted, safeBuIds, uraId));
+
+        Map<String, Long> subjectsTotalByType = new LinkedHashMap<>();
+        Map<String, Long> subjectsPrevTotalByType = new LinkedHashMap<>();
+        for (String callType : topSubjectsByType.keySet()) {
+            subjectsTotalByType.put(callType, sumTotal(topSubjectsByType.get(callType)));
+            subjectsPrevTotalByType.put(callType,
+                    sumTotal(toRankingList(callRepo.topSubjectsByCallType(prevFrom, prevTo, callType, safeLimit, restricted, safeBuIds, uraId))));
+        }
+
+        Map<String, Object> trend = new HashMap<>();
+        trend.put("topClientsTotal", sumTotal(topClients));
+        trend.put("topClientsPrevTotal", sumTotal(prevTopClients));
+        trend.put("byTypeTotal", sumTotal(byType));
+        trend.put("byTypePrevTotal", sumTotal(prevByType));
+        trend.put("topResolutionsTotal", sumTotal(topResolutions));
+        trend.put("topResolutionsPrevTotal", sumTotal(prevTopResolutions));
+        trend.put("avgDurationSecs", avgOfAvgDurations(avgDurationByType));
+        trend.put("avgDurationPrevSecs", avgOfAvgDurations(prevAvgDurationByType));
+        trend.put("subjectsTotalByType", subjectsTotalByType);
+        trend.put("subjectsPrevTotalByType", subjectsPrevTotalByType);
+        return trend;
+    }
+
+    private long sumTotal(List<Map<String, Object>> items) {
+        return items.stream().mapToLong(i -> ((Number) i.get("total")).longValue()).sum();
+    }
+
+    private double avgOfAvgDurations(List<Map<String, Object>> items) {
+        return items.stream().mapToDouble(i -> ((Number) i.get("avgDurationSecs")).doubleValue())
+                .average().orElse(0.0);
+    }
+
+    private List<Map<String, Object>> toRankingList(List<Object[]> rows) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Object[] row : rows) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("label", row[0]);
+            item.put("total", ((Number) row[1]).longValue());
+            result.add(item);
+        }
+        return result;
+    }
+
+    private List<Map<String, Object>> toAvgDurationList(List<Object[]> rows) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Object[] row : rows) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("label", row[0]);
+            item.put("avgDurationSecs", Math.round(((Number) row[1]).doubleValue() * 10.0) / 10.0);
+            result.add(item);
+        }
+        return result;
+    }
+
+    // -----------------------------------------------------------------------
     // Módulo 3 — Alertas Zabbix
     // -----------------------------------------------------------------------
 
@@ -268,12 +404,6 @@ public class StatsController {
     // -----------------------------------------------------------------------
 
     private LocalDateTime[] getRange(String period) {
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime from = switch (period) {
-            case "week" -> now.truncatedTo(ChronoUnit.DAYS).minusDays(now.getDayOfWeek().getValue() - 1);
-            case "month" -> now.withDayOfMonth(1).truncatedTo(ChronoUnit.DAYS);
-            default -> now.truncatedTo(ChronoUnit.DAYS); // today
-        };
-        return new LocalDateTime[]{from, now};
+        return PeriodRangeResolver.resolve(period);
     }
 }

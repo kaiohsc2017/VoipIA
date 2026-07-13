@@ -100,6 +100,317 @@ function DashboardTab() {
   );
 }
 
+// ─── Ranking de Atendimentos ─────────────────────────────────────────────────
+
+interface RankingItem { label: string; total: number; }
+interface AvgDurationItem { label: string; avgDurationSecs: number; }
+interface RankingTrend {
+  topClientsTotal: number; topClientsPrevTotal: number;
+  byTypeTotal: number; byTypePrevTotal: number;
+  topResolutionsTotal: number; topResolutionsPrevTotal: number;
+  avgDurationSecs: number; avgDurationPrevSecs: number;
+  subjectsTotalByType: Record<string, number>;
+  subjectsPrevTotalByType: Record<string, number>;
+}
+interface RankingData {
+  topClients: RankingItem[];
+  byType: RankingItem[];
+  topResolutions: RankingItem[];
+  topSubjectsByType: Record<string, RankingItem[]>;
+  avgDurationByType: AvgDurationItem[];
+  trend: RankingTrend;
+}
+
+function formatDuration(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = Math.round(secs % 60);
+  return `${m}m ${s}s`;
+}
+
+/** "▲12% vs. período anterior" — omitido quando não há como comparar (período "Todo o período"). */
+function TrendBadge({ current, previous }: { current: number; previous: number }) {
+  if (previous === 0 && current === 0) return null;
+  if (previous === 0) {
+    return <span style={{ fontSize: '.72rem', color: '#34c759' }}>▲ novo neste período</span>;
+  }
+  const pct = Math.round(((current - previous) / previous) * 100);
+  if (pct === 0) {
+    return <span style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>— igual ao período anterior</span>;
+  }
+  const up = pct > 0;
+  return (
+    <span style={{ fontSize: '.72rem', color: up ? '#34c759' : '#ff3b30' }}>
+      {up ? '▲' : '▼'} {Math.abs(pct)}% vs. período anterior
+    </span>
+  );
+}
+
+interface RankingDrillDownFilters {
+  clientName?: string; callType?: string; subjectTag?: string; jiraResolution?: string;
+}
+
+interface RankingQueryParams { period: string; uraId: string; dateFrom: string; dateTo: string; }
+
+function buildRankingParams({ period, uraId, dateFrom, dateTo }: RankingQueryParams): Record<string, string> {
+  const params: Record<string, string> = (dateFrom && dateTo) ? { dateFrom, dateTo } : { period };
+  if (uraId) params.uraId = uraId;
+  return params;
+}
+
+/** Baixa o CSV de um indicador da aba Ranking (GET /reports/ranking). */
+async function exportRankingCsv(section: string, query: RankingQueryParams, callType?: string) {
+  try {
+    const params: Record<string, string> = { section, ...buildRankingParams(query) };
+    if (callType) params.callType = callType;
+    const response = await api.get('/reports/ranking', { params, responseType: 'blob' });
+    const url = URL.createObjectURL(new Blob([response.data], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `ranking_${section}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    alert('Erro ao exportar CSV. Tente novamente.');
+  }
+}
+
+/** Placeholder de carregamento por card — evita substituir a tela inteira por um spinner único. */
+function CardSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="skeleton-bar" style={{
+          height: 16, borderRadius: 4, width: `${85 - i * 12}%`,
+          background: 'linear-gradient(90deg, rgba(148,163,184,0.10), rgba(148,163,184,0.2), rgba(148,163,184,0.10))',
+          backgroundSize: '200% 100%', animation: 'ranking-skeleton-pulse 1.4s ease-in-out infinite',
+        }} />
+      ))}
+      <style>{`@keyframes ranking-skeleton-pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
+    </div>
+  );
+}
+
+function RankingCard({ title, icon, items, emptyMessage, color, onExport, onBarClick, trend, loading, infoTooltip }: {
+  title: string; icon: string; items: RankingItem[]; emptyMessage: string; color: string;
+  onExport?: () => void; onBarClick?: (label: string) => void; trend?: { current: number; previous: number };
+  loading?: boolean; infoTooltip?: string;
+}) {
+  return (
+    <div className="card">
+      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h3 className="card-title">
+            {icon} {title}
+            {infoTooltip && <span title={infoTooltip} style={{ marginLeft: 6, cursor: 'help', color: 'var(--text-muted)' }}>ℹ️</span>}
+          </h3>
+          {trend && <TrendBadge current={trend.current} previous={trend.previous} />}
+        </div>
+        {onExport && (
+          <button className="btn btn-ghost btn-sm" onClick={onExport} title="Exportar CSV">📤</button>
+        )}
+      </div>
+      <div className="card-body">
+        {loading ? (
+          <CardSkeleton />
+        ) : items.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: '.85rem' }}>
+            {emptyMessage}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(120, items.length * 42)}>
+            <BarChart data={items} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+              <XAxis type="number" allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+              <YAxis type="category" dataKey="label" width={140} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+              <Tooltip
+                contentStyle={{ background: '#1e293b', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 8 }}
+                labelStyle={{ color: '#e2e8f0' }}
+              />
+              <Bar
+                dataKey="total" name="Chamadas" fill={color} radius={[0, 4, 4, 0]}
+                cursor={onBarClick ? 'pointer' : undefined}
+                onClick={onBarClick ? (entry: unknown) => {
+                  const item = entry as { label?: string; payload?: { label?: string } };
+                  const label = item.payload?.label ?? item.label;
+                  if (label) onBarClick(label);
+                } : undefined}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AvgDurationCard({ items, onExport, onRowClick, trend, loading }: {
+  items: AvgDurationItem[]; onExport: () => void; onRowClick: (label: string) => void;
+  trend?: { current: number; previous: number }; loading?: boolean;
+}) {
+  return (
+    <div className="card">
+      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h3 className="card-title">⏱️ Duração média por tipo</h3>
+          {trend && <TrendBadge current={trend.current} previous={trend.previous} />}
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={onExport} title="Exportar CSV">📤</button>
+      </div>
+      <div className="card-body">
+        {loading ? (
+          <CardSkeleton rows={2} />
+        ) : items.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: '.85rem' }}>
+            Nenhuma chamada classificada no período
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {items.map(item => (
+              <div key={item.label}
+                onClick={() => onRowClick(item.label)}
+                style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.9rem', cursor: 'pointer' }}
+                title="Ver chamadas deste tipo"
+              >
+                <span style={{ color: 'var(--text-muted)' }}>{item.label}</span>
+                <strong>{formatDuration(item.avgDurationSecs)}</strong>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RankingTab({ uras, onDrillDown }: { uras: Ura[]; onDrillDown: (filters: RankingDrillDownFilters) => void }) {
+  const [data, setData] = useState<RankingData | null>(null);
+  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'all'>('all');
+  const [uraFilter, setUraFilter] = useState('');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback((query: RankingQueryParams) => {
+    setLoading(true);
+    const params = new URLSearchParams(buildRankingParams(query));
+    api.get<RankingData>(`/stats/calls/ranking?${params}`)
+      .then(r => setData(r.data))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const query: RankingQueryParams = { period, uraId: uraFilter, dateFrom: customFrom, dateTo: customTo };
+  const hasCustomRange = !!(customFrom && customTo);
+  // Sem "período anterior" bem definido para "Todo o período" — evita comparação sem sentido.
+  const showTrend = hasCustomRange || period !== 'all';
+
+  // Padrão "Todo o período" — garante que a aba já abra com o histórico existente,
+  // em vez de "Esta semana" (que fica vazia sempre que não há chamada nos últimos dias).
+  useEffect(() => { load({ period: 'all', uraId: '', dateFrom: '', dateTo: '' }); }, [load]);
+
+  const selectPeriod = (p: typeof period) => {
+    setPeriod(p); setCustomFrom(''); setCustomTo('');
+    load({ period: p, uraId: uraFilter, dateFrom: '', dateTo: '' });
+  };
+  const applyCustomRange = () => {
+    if (!customFrom || !customTo) return;
+    load({ period, uraId: uraFilter, dateFrom: customFrom, dateTo: customTo });
+  };
+  const changeUra = (ura: string) => {
+    setUraFilter(ura);
+    load({ ...query, uraId: ura });
+  };
+
+  const trend = data?.trend;
+
+  return (
+    <div>
+      <div className="flex gap-1" style={{ marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        {(['today', 'week', 'month', 'all'] as const).map(p => (
+          <button key={p}
+            className={`btn btn-sm ${period === p && !hasCustomRange ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => selectPeriod(p)}>
+            {p === 'today' ? 'Hoje' : p === 'week' ? 'Esta semana' : p === 'month' ? 'Este mês' : 'Todo o período'}
+          </button>
+        ))}
+        <span style={{ color: 'var(--text-muted)', fontSize: '.8rem', margin: '0 4px' }}>ou período customizado:</span>
+        <input type="date" className="form-input" style={{ maxWidth: 150 }} value={customFrom}
+          onChange={e => setCustomFrom(e.target.value)} />
+        <input type="date" className="form-input" style={{ maxWidth: 150 }} value={customTo}
+          onChange={e => setCustomTo(e.target.value)} />
+        <button className={`btn btn-sm ${hasCustomRange ? 'btn-primary' : 'btn-ghost'}`}
+          onClick={applyCustomRange} disabled={!customFrom || !customTo}>
+          Aplicar
+        </button>
+        <select
+          className="form-select" style={{ maxWidth: 220, marginLeft: 8 }}
+          value={uraFilter}
+          onChange={e => changeUra(e.target.value)}
+        >
+          <option value="">Todas as URAs</option>
+          {uras.map(u => (
+            <option key={u.id} value={u.id}>{u.name} (ramal {u.extension})</option>
+          ))}
+        </select>
+      </div>
+      {/* Grade sempre renderizada — cada card mostra seu próprio skeleton enquanto
+          carrega, em vez de trocar a tela inteira por um spinner único. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+        <RankingCard
+          title="Clientes que mais ligam" icon="👤"
+          items={data?.topClients ?? []} color="#007aff"
+          emptyMessage="Nenhuma chamada com cliente identificado no período"
+          onExport={() => exportRankingCsv('topClients', query)}
+          onBarClick={label => onDrillDown({ clientName: label })}
+          trend={showTrend && trend ? { current: trend.topClientsTotal, previous: trend.topClientsPrevTotal } : undefined}
+          loading={loading}
+        />
+        <RankingCard
+          title="Distribuição por tipo" icon="🏷️"
+          items={data?.byType ?? []} color="#3b82f6"
+          emptyMessage="Nenhuma chamada classificada no período"
+          onExport={() => exportRankingCsv('byType', query)}
+          onBarClick={label => onDrillDown({ callType: label })}
+          trend={showTrend && trend ? { current: trend.byTypeTotal, previous: trend.byTypePrevTotal } : undefined}
+          loading={loading}
+        />
+        <RankingCard
+          title="Soluções mais aplicadas (Jira)" icon="✅"
+          items={data?.topResolutions ?? []} color="#34c759"
+          emptyMessage="Nenhuma solução sincronizada ainda — o sync com o Jira roda periodicamente"
+          onExport={() => exportRankingCsv('topResolutions', query)}
+          onBarClick={label => onDrillDown({ jiraResolution: label })}
+          trend={showTrend && trend ? { current: trend.topResolutionsTotal, previous: trend.topResolutionsPrevTotal } : undefined}
+          loading={loading}
+          infoTooltip="Só aparece aqui a chamada que abriu um chamado no Jira — o status/resolução é sincronizado a cada 15 minutos pelo JiraSyncScheduler, olhando só os últimos 90 dias. Chamadas sem chamado Jira aberto (integração desativada na URA, ou falha ao criar o issue) nunca vão aparecer neste card."
+        />
+        <AvgDurationCard
+          items={data?.avgDurationByType ?? []}
+          onExport={() => exportRankingCsv('avgDurationByType', query)}
+          onRowClick={label => onDrillDown({ callType: label })}
+          trend={showTrend && trend ? { current: trend.avgDurationSecs, previous: trend.avgDurationPrevSecs } : undefined}
+          loading={loading}
+        />
+        {Object.entries(data?.topSubjectsByType ?? {}).map(([callType, items]) => (
+          <RankingCard
+            key={callType}
+            title={`Mais pedido em "${callType}"`} icon="🎯"
+            items={items} color="#ff9f0a"
+            emptyMessage="Nenhum assunto classificado ainda no período — a classificação por IA roda ao fim de cada chamada"
+            onExport={() => exportRankingCsv('topSubjectsByType', query, callType)}
+            onBarClick={label => onDrillDown({ callType, subjectTag: label })}
+            trend={showTrend && trend ? {
+              current: trend.subjectsTotalByType[callType] ?? 0,
+              previous: trend.subjectsPrevTotalByType[callType] ?? 0,
+            } : undefined}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── KPI cards ───────────────────────────────────────────────────────────────
 
 interface CallStats {
@@ -186,7 +497,7 @@ function AudioPlayer({ callId }: { callId: number }) {
 // ─── Módulo URA principal ────────────────────────────────────────────────────
 
 export default function ModuloURA() {
-  const [tab, setTab] = useState<'calls' | 'dashboard' | 'uras'>('calls');
+  const [tab, setTab] = useState<'calls' | 'dashboard' | 'uras' | 'ranking'>('calls');
   const [uras, setUras] = useState<Ura[]>([]);
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -207,9 +518,12 @@ export default function ModuloURA() {
   const [transcriptionFilter, setTranscriptionFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [uraFilter, setUraFilter] = useState('');
+  const [subjectTagFilter, setSubjectTagFilter] = useState('');
+  const [jiraResolutionFilter, setJiraResolutionFilter] = useState('');
 
   const hasActiveFilters = !!(dateFrom || dateTo || clientNameFilter || ramalFilter
-    || callTypeFilter || jiraKeyFilter || transcriptionFilter || priorityFilter || uraFilter);
+    || callTypeFilter || jiraKeyFilter || transcriptionFilter || priorityFilter || uraFilter
+    || subjectTagFilter || jiraResolutionFilter);
 
   const loadCalls = (p = 0) => {
     setLoading(true);
@@ -224,6 +538,8 @@ export default function ModuloURA() {
     if (transcriptionFilter) params.set('transcriptionText', transcriptionFilter);
     if (priorityFilter) params.set('priority', priorityFilter);
     if (uraFilter) params.set('uraId', uraFilter);
+    if (subjectTagFilter) params.set('subjectTag', subjectTagFilter);
+    if (jiraResolutionFilter) params.set('jiraResolution', jiraResolutionFilter);
     api.get<PageResponse<CallRecord>>(`/calls?${params}`)
       .then(r => {
         setCalls(r.data.content ?? []);
@@ -247,8 +563,27 @@ export default function ModuloURA() {
   const clearFilters = () => {
     setDateFrom(''); setDateTo(''); setClientNameFilter(''); setRamalFilter('');
     setCallTypeFilter(''); setJiraKeyFilter(''); setTranscriptionFilter(''); setPriorityFilter(''); setUraFilter('');
+    setSubjectTagFilter(''); setJiraResolutionFilter('');
     // Recarrega já sem os filtros — precisa esperar o próximo tick para os estados aplicarem
     setTimeout(() => loadCalls(0), 0);
+  };
+
+  /**
+   * Drill-down vindo da aba Ranking de Atendimentos: troca para a aba Chamadas
+   * já com o filtro correspondente à barra/linha clicada — os demais filtros
+   * avançados são limpos para não combinar com um recorte anterior sem o usuário perceber.
+   */
+  const handleDrillDown = (filters: {
+    clientName?: string; callType?: string; subjectTag?: string; jiraResolution?: string;
+  }) => {
+    setDateFrom(''); setDateTo(''); setRamalFilter(''); setJiraKeyFilter('');
+    setTranscriptionFilter(''); setPriorityFilter(''); setUraFilter('');
+    setClientNameFilter(filters.clientName ?? '');
+    setCallTypeFilter(filters.callType ?? '');
+    setSubjectTagFilter(filters.subjectTag ?? '');
+    setJiraResolutionFilter(filters.jiraResolution ?? '');
+    setFiltersOpen(true);
+    setTab('calls');
   };
 
   const priorityBadge = (value?: string) => {
@@ -295,6 +630,9 @@ export default function ModuloURA() {
           </button>
           <button className={`btn ${tab === 'dashboard' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('dashboard')}>
             📊 Dashboard
+          </button>
+          <button className={`btn ${tab === 'ranking'   ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('ranking')}>
+            🏆 Ranking de Atendimentos
           </button>
           <button className={`btn ${tab === 'calls'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('calls')}>
             📋 Chamadas
@@ -510,6 +848,14 @@ export default function ModuloURA() {
                   <label className="form-label">Texto na transcrição</label>
                   <input className="form-input" placeholder="ex: computador reiniciando" value={transcriptionFilter} onChange={e => setTranscriptionFilter(e.target.value)} />
                 </div>
+                <div>
+                  <label className="form-label">Assunto (IA)</label>
+                  <input className="form-input" placeholder="ex: Reset de senha" value={subjectTagFilter} onChange={e => setSubjectTagFilter(e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label">Solução (Jira)</label>
+                  <input className="form-input" placeholder="ex: Resolvido" value={jiraResolutionFilter} onChange={e => setJiraResolutionFilter(e.target.value)} />
+                </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
                   <button className="btn btn-primary btn-sm" onClick={() => loadCalls(0)}>Aplicar filtros</button>
                   <button className="btn btn-ghost btn-sm" onClick={clearFilters} disabled={!hasActiveFilters}>Limpar</button>
@@ -596,6 +942,9 @@ export default function ModuloURA() {
 
         {/* ---- DASHBOARD TAB ---- */}
         {tab === 'dashboard' && <DashboardTab />}
+
+        {/* ---- RANKING TAB ---- */}
+        {tab === 'ranking' && <RankingTab uras={uras} onDrillDown={handleDrillDown} />}
 
         {/* ---- URAs TAB ---- */}
         {tab === 'uras' && <UraManagementTab />}

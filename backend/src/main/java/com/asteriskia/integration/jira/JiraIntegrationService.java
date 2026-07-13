@@ -16,6 +16,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * JiraIntegrationService — Integração com Jira Cloud REST API v3.
@@ -138,6 +139,69 @@ public class JiraIntegrationService {
         }
         return (String) resp.get("displayName");
     }
+
+    /**
+     * Busca status e resolução atuais de uma issue já criada — usado pelo
+     * JiraSyncScheduler para manter jira_issue_status/jira_resolution em dia.
+     * Fail soft: retorna Optional vazio em qualquer erro (não configurado,
+     * timeout, HTTP de erro), nunca lança para o chamador.
+     */
+    public Optional<JiraStatusInfo> fetchIssueStatus(String issueKey) {
+        String baseUrl   = config.get("JIRA_BASE_URL");
+        String userEmail = config.get("JIRA_USER_EMAIL");
+        String apiToken  = config.get("JIRA_API_TOKEN");
+
+        if (baseUrl.isBlank() || userEmail.isBlank() || apiToken.isBlank()) {
+            return Optional.empty();
+        }
+
+        try {
+            String endpoint = normalizeBaseUrl(baseUrl)
+                + "/rest/api/3/issue/" + issueKey + "?fields=status,resolution";
+
+            Map<?, ?> resp = webClientBuilder.build()
+                    .get()
+                    .uri(endpoint)
+                    .header(HttpHeaders.AUTHORIZATION, buildAuthHeader(userEmail, apiToken))
+                    .header(HttpHeaders.ACCEPT,         MediaType.APPLICATION_JSON_VALUE)
+                    .header("X-Atlassian-Token",        "no-check")
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, clientResponse ->
+                        clientResponse.bodyToMono(String.class)
+                            .flatMap(errorBody -> {
+                                log.warn("Jira fetchIssueStatus {} erro {}: {}", issueKey, clientResponse.statusCode(), errorBody);
+                                return Mono.error(new RuntimeException(
+                                    "Jira HTTP " + clientResponse.statusCode() + ": " + errorBody));
+                            })
+                    )
+                    .bodyToMono(Map.class)
+                    .timeout(JIRA_TIMEOUT)
+                    .onErrorResume(e -> {
+                        log.warn("Erro ao consultar status da issue {} no Jira: {}", issueKey, e.getMessage());
+                        return Mono.empty();
+                    })
+                    .block();
+
+            if (resp == null) return Optional.empty();
+
+            Map<?, ?> fields = (Map<?, ?>) resp.get("fields");
+            if (fields == null) return Optional.empty();
+
+            Map<?, ?> status     = (Map<?, ?>) fields.get("status");
+            Map<?, ?> resolution = (Map<?, ?>) fields.get("resolution");
+
+            String statusName     = status != null ? (String) status.get("name") : null;
+            String resolutionName = resolution != null ? (String) resolution.get("name") : null;
+
+            return Optional.of(new JiraStatusInfo(statusName, resolutionName));
+        } catch (Exception e) {
+            log.warn("Erro inesperado ao consultar status da issue {} no Jira: {}", issueKey, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /** Status + resolução de uma issue Jira. resolutionName é null enquanto não resolvida. */
+    public record JiraStatusInfo(String statusName, String resolutionName) {}
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 

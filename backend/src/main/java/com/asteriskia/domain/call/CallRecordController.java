@@ -62,7 +62,8 @@ public class CallRecordController {
                 request.audioFilePath(),
                 request.transcription(),
                 request.callerNumber(),
-                request.callDurationSecs()
+                request.callDurationSecs(),
+                request.subjectTag()
         );
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -82,19 +83,22 @@ public class CallRecordController {
             @RequestParam(required = false) String transcriptionText,
             @RequestParam(required = false) String priority,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
+            @RequestParam(required = false) String subjectTag,
+            @RequestParam(required = false) String jiraResolution) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "callDate"));
 
         boolean hasAdvancedFilter = uraId != null || clientName != null || ramal != null || callType != null
                 || jiraIssueKey != null || transcriptionText != null || priority != null
-                || dateFrom != null || dateTo != null;
+                || dateFrom != null || dateTo != null || subjectTag != null || jiraResolution != null;
 
         Page<CallRecord> result;
         if (hasAdvancedFilter) {
             CallRecordFilter filter = new CallRecordFilter(
                     uraId, callerNumber, clientName, ramal, callType, jiraIssueKey, transcriptionText, priority,
                     dateFrom != null ? LocalDateTime.of(dateFrom, LocalTime.MIN) : null,
-                    dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null
+                    dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null,
+                    subjectTag, jiraResolution
             );
             result = service.findByFilters(filter, pageable);
         } else if (callerNumber != null) {
@@ -199,7 +203,8 @@ public class CallRecordController {
             String audioFilePath,     // caminho do .wav gravado pelo agente Python
             String transcription,     // transcrição completa consolidada
             String callerNumber,      // número do chamador (CALLERID do Asterisk)
-            Integer callDurationSecs  // duração total da chamada em segundos
+            Integer callDurationSecs, // duração total da chamada em segundos
+            String subjectTag         // assunto classificado por IA (best-effort, pode vir null)
     ) {}
 
     /** Resposta com o ID interno e a chave do issue Jira. */

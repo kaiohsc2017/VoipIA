@@ -65,6 +65,12 @@ public final class CallRecordSpecifications {
             if (filter.dateTo() != null) {
                 predicates = cb.and(predicates, cb.lessThanOrEqualTo(root.get("callDate"), filter.dateTo()));
             }
+            if (hasText(filter.subjectTag())) {
+                predicates = cb.and(predicates, cb.equal(cb.lower(root.get("subjectTag")), filter.subjectTag().toLowerCase()));
+            }
+            if (hasText(filter.jiraResolution())) {
+                predicates = cb.and(predicates, cb.equal(cb.lower(root.get("jiraResolution")), filter.jiraResolution().toLowerCase()));
+            }
 
             return predicates;
         };

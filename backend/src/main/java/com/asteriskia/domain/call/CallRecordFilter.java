@@ -16,5 +16,7 @@ public record CallRecordFilter(
         String transcriptionText,
         String priority,
         LocalDateTime dateFrom,
-        LocalDateTime dateTo
+        LocalDateTime dateTo,
+        String subjectTag,
+        String jiraResolution
 ) {}
