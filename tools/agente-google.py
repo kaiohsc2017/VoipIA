@@ -57,7 +57,7 @@ except ImportError:
 # ─── Config ───────────────────────────────────────────────────────────────────
 
 PROJECT_DIR = Path(os.environ.get("ASTERISKIA_DIR", "/opt/AsteriskIA"))
-MODEL       = "gemini-3.5-flash"
+MODEL       = os.environ.get("GEMINI_MODEL_LLM", "gemini-2.5-flash")
 MEMORY_TOP  = 6       # máximo de memórias injetadas por consulta
 SESSION_ID  = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
