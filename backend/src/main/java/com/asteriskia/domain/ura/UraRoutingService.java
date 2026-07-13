@@ -1,21 +1,19 @@
 package com.asteriskia.domain.ura;
 
+import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 /**
- * UraRoutingService — Correlaciona o UUID de uma chamada (AudioSocket, que só
- * transmite um UUID binário) com a URA que a originou.
+ * UraRoutingService — Correlaciona o UUID de uma chamada (AudioSocket, que só transmite um UUID
+ * binário) com a URA que a originou.
  *
- * O dialplan do Asterisk registra essa correlação (via CURL) logo após gerar
- * o UUID e antes de conectar ao AudioSocket; o ai-agent consulta em seguida.
- * Armazenamento em memória — é uma correlação de vida curta (duração do setup
- * da chamada), não precisa de persistência em banco.
+ * <p>O dialplan do Asterisk registra essa correlação (via CURL) logo após gerar o UUID e antes de
+ * conectar ao AudioSocket; o ai-agent consulta em seguida. Armazenamento em memória — é uma
+ * correlação de vida curta (duração do setup da chamada), não precisa de persistência em banco.
  */
 @Slf4j
 @Service
@@ -33,7 +31,10 @@ public class UraRoutingService {
         cleanupStale();
         Ura ura = uraRepository.findByExtension(extension).orElse(null);
         if (ura == null) {
-            log.warn("Nenhuma URA cadastrada para o ramal {} (uuid={}) — chamada usará a URA padrão", extension, callUuid);
+            log.warn(
+                    "Nenhuma URA cadastrada para o ramal {} (uuid={}) — chamada usará a URA padrão",
+                    extension,
+                    callUuid);
             return;
         }
         uuidToUra.put(callUuid, new Entry(ura.getId(), Instant.now()));

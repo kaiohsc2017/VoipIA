@@ -1,22 +1,21 @@
 package com.asteriskia.config;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
-    
+
     @Value("${app.jwt.refresh-expiration-days:7}")
     private int refreshExpirationDays;
 
@@ -26,20 +25,22 @@ public class RefreshTokenService {
 
     @Transactional
     public String generateRefreshToken(String username) {
-        // Exclui os tokens antigos do usuário (opcional, pode manter se quiser sessões simultâneas limitadas)
-        // refreshTokenRepository.deleteByUsername(username); 
+        // Exclui os tokens antigos do usuário (opcional, pode manter se quiser sessões simultâneas
+        // limitadas)
+        // refreshTokenRepository.deleteByUsername(username);
 
         // Gera token limpo (seguro aleatório)
         String rawToken = UUID.randomUUID().toString() + "-" + UUID.randomUUID().toString();
-        
+
         // Hash do token
         String tokenHash = hashToken(rawToken);
 
-        RefreshToken refreshToken = RefreshToken.builder()
-                .username(username)
-                .tokenHash(tokenHash)
-                .expiresAt(LocalDateTime.now().plusDays(refreshExpirationDays))
-                .build();
+        RefreshToken refreshToken =
+                RefreshToken.builder()
+                        .username(username)
+                        .tokenHash(tokenHash)
+                        .expiresAt(LocalDateTime.now().plusDays(refreshExpirationDays))
+                        .build();
 
         refreshTokenRepository.save(refreshToken);
 
@@ -64,10 +65,13 @@ public class RefreshTokenService {
     @Transactional
     public void revokeRefreshToken(String rawToken) {
         String tokenHash = hashToken(rawToken);
-        refreshTokenRepository.findByTokenHash(tokenHash).ifPresent(token -> {
-            token.setRevoked(true);
-            refreshTokenRepository.save(token);
-        });
+        refreshTokenRepository
+                .findByTokenHash(tokenHash)
+                .ifPresent(
+                        token -> {
+                            token.setRevoked(true);
+                            refreshTokenRepository.save(token);
+                        });
     }
 
     private String hashToken(String rawToken) {

@@ -1,28 +1,24 @@
 package com.asteriskia.domain.connectivity;
 
 import com.asteriskia.integration.ami.AmiOriginateService;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 /**
  * ConnectivityScheduler — Testes periódicos de conectividade (Módulo 2).
  *
- * Substitui o container Python 'scheduler' — mesma lógica, integrada ao backend Spring Boot.
+ * <p>Substitui o container Python 'scheduler' — mesma lógica, integrada ao backend Spring Boot.
  *
- * Fluxo:
- *   1. A cada poll-interval-secs, busca NumberTests ativos
- *   2. Para cada teste, verifica janela de horário e intervalo
- *   3. Origina chamada via AMI (AmiOriginateService)
- *   4. Registra resultado no banco (TestResult)
+ * <p>Fluxo: 1. A cada poll-interval-secs, busca NumberTests ativos 2. Para cada teste, verifica
+ * janela de horário e intervalo 3. Origina chamada via AMI (AmiOriginateService) 4. Registra
+ * resultado no banco (TestResult)
  */
 @Slf4j
 @Component
@@ -31,7 +27,7 @@ public class ConnectivityScheduler {
 
     private final NumberTestRepository numberTestRepo;
     private final TestResultRepository testResultRepo;
-    private final AmiOriginateService  amiService;
+    private final AmiOriginateService amiService;
 
     // Estado em memória: testId → {count, lastCall, lastDate}
     private final Map<Long, TestState> testStates = new ConcurrentHashMap<>();
@@ -79,15 +75,21 @@ public class ConnectivityScheduler {
 
         // Executa
         int executionOrder = state.count + 1;
-        log.info("Teste {} → {} (execução {}/{})", testId, test.getPhoneNumber(), executionOrder, quantity);
+        log.info(
+                "Teste {} → {} (execução {}/{})",
+                testId,
+                test.getPhoneNumber(),
+                executionOrder,
+                quantity);
 
         // Cria TestResult pendente para passar o ID ao AMI
-        TestResult pending = TestResult.builder()
-                .numberTest(test)
-                .executedAt(now)
-                .status("EXECUTANDO")
-                .executionOrder(executionOrder)
-                .build();
+        TestResult pending =
+                TestResult.builder()
+                        .numberTest(test)
+                        .executedAt(now)
+                        .status("EXECUTANDO")
+                        .executionOrder(executionOrder)
+                        .build();
         pending = testResultRepo.save(pending);
 
         boolean success = false;
@@ -109,7 +111,7 @@ public class ConnectivityScheduler {
     }
 
     private static class TestState {
-        int       count    = 0;
+        int count = 0;
         LocalDateTime lastCall = null;
         LocalDate lastDate = null;
     }

@@ -4,22 +4,22 @@ import com.asteriskia.domain.masterdata.BusinessUnit;
 import com.asteriskia.domain.masterdata.Operadora;
 import com.asteriskia.domain.masterdata.Operation;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
-
-/**
- * Linha — linha de operadora cadastrada (bloco Cadastros).
- */
+/** Linha — linha de operadora cadastrada (bloco Cadastros). */
 @Entity
 @Table(name = "linhas")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Linha {
 
     @Id
@@ -52,17 +52,15 @@ public class Linha {
     private Boolean isActive = true;
 
     /**
-     * Unidades de Negócio (BU) às quais a linha pode ser associada — opcional,
-     * múltiplo. EAGER (não LAZY): serializado direto pelo Jackson e
-     * spring.jpa.open-in-view=false neste projeto — LAZY aqui vira
-     * LazyInitializationException fora de transação.
+     * Unidades de Negócio (BU) às quais a linha pode ser associada — opcional, múltiplo. EAGER (não
+     * LAZY): serializado direto pelo Jackson e spring.jpa.open-in-view=false neste projeto — LAZY
+     * aqui vira LazyInitializationException fora de transação.
      */
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "linhas_business_units",
             joinColumns = @JoinColumn(name = "linha_id"),
-            inverseJoinColumns = @JoinColumn(name = "business_unit_id")
-    )
+            inverseJoinColumns = @JoinColumn(name = "business_unit_id"))
     @Builder.Default
     private Set<BusinessUnit> businessUnits = new HashSet<>();
 

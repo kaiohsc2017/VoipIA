@@ -153,8 +153,8 @@
             </plugin>
 
             <!-- Spotless: formatação automática (google-java-format) — `mvn spotless:check` valida,
-                 `mvn spotless:apply` corrige. Ainda não vinculado a nenhuma fase do build (fase 0 da
-                 refatoração: medir o tamanho do desvio atual antes de decidir se falha o build). -->
+                 `mvn spotless:apply` corrige. Fase 1 da refatoração: desvio zerado (mvn spotless:apply
+                 rodado nos arquivos com violação) e checagem vinculada à fase `verify` do build. -->
             <plugin>
                 <groupId>com.diffplug.spotless</groupId>
                 <artifactId>spotless-maven-plugin</artifactId>
@@ -171,11 +171,20 @@
                         <removeUnusedImports/>
                     </java>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>spotless-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
-            <!-- Checkstyle: regras de estilo (google_checks.xml, bundled). Mesmo racional do
-                 Spotless acima: `mvn checkstyle:check` roda sob demanda, ainda sem falhar o build,
-                 até levantarmos o volume real de violações no código existente. -->
+            <!-- Checkstyle: regras de estilo próprias (checkstyle.xml). Fase 1 da refatoração:
+                 desvio zerado (183 violações corrigidas) e failOnViolation=true, vinculado à fase
+                 `verify` do build — qualquer violação nova quebra o build a partir de agora. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
@@ -184,8 +193,17 @@
                     <configLocation>checkstyle.xml</configLocation>
                     <consoleOutput>true</consoleOutput>
                     <violationSeverity>warning</violationSeverity>
-                    <failOnViolation>false</failOnViolation>
+                    <failOnViolation>true</failOnViolation>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>checkstyle-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
         </plugins>

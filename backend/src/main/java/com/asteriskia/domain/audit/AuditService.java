@@ -2,26 +2,26 @@ package com.asteriskia.domain.audit;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 /**
  * AuditService — Ponto de entrada da auditoria de eventos do sistema (Fase 13).
  *
- * Uso:
- *   auditService.log(request, "LOGIN", "Usuário kaio autenticado", true);
- *   auditService.log(request, "SETTINGS_CHANGE", "JIRA_BASE_URL alterado", true);
+ * <p>Uso: auditService.log(request, "LOGIN", "Usuário kaio autenticado", true);
+ * auditService.log(request, "SETTINGS_CHANGE", "JIRA_BASE_URL alterado", true);
  *
- * O username é lido automaticamente do SecurityContext quando disponível.
- * Para o login, passe o username explicitamente via logAs().
+ * <p>O username é lido automaticamente do SecurityContext quando disponível. Para o login, passe o
+ * username explicitamente via logAs().
  *
- * IP/User-Agent são extraídos do HttpServletRequest aqui, síncrono, na
- * própria thread da requisição — nunca passar o HttpServletRequest para a
- * escrita assíncrona (AuditWriter): por essa altura a resposta já pode ter
- * sido enviada e o Tomcat reciclado o objeto da requisição.
+ * <p>IP/User-Agent são extraídos do HttpServletRequest aqui, síncrono, na própria thread da
+ * requisição — nunca passar o HttpServletRequest para a escrita assíncrona (AuditWriter): por essa
+ * altura a resposta já pode ter sido enviada e o Tomcat reciclado o objeto da requisição.
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuditService {
 
     private final AuditWriter writer;
@@ -29,19 +29,35 @@ public class AuditService {
 
     /** Loga ação do usuário autenticado no contexto de segurança atual. */
     public void log(HttpServletRequest request, String action, String details, boolean success) {
-        writer.write(resolveUsername(), resolveIp(request), resolveUserAgent(request),
-                action, truncate(details, MAX_DETAILS_LENGTH), success);
+        writer.write(
+                resolveUsername(),
+                resolveIp(request),
+                resolveUserAgent(request),
+                action,
+                truncate(details, MAX_DETAILS_LENGTH),
+                success);
     }
 
     /** Loga ação com username explícito (para login/logout antes de ter contexto). */
-    public void logAs(HttpServletRequest request, String username, String action, String details, boolean success) {
-        writer.write(username, resolveIp(request), resolveUserAgent(request),
-                action, truncate(details, MAX_DETAILS_LENGTH), success);
+    public void logAs(
+            HttpServletRequest request,
+            String username,
+            String action,
+            String details,
+            boolean success) {
+        writer.write(
+                username,
+                resolveIp(request),
+                resolveUserAgent(request),
+                action,
+                truncate(details, MAX_DETAILS_LENGTH),
+                success);
     }
 
     /** Loga sem request (para jobs agendados ou serviços internos). */
     public void logSystem(String username, String action, String details, boolean success) {
-        writer.write(username, "system", null, action, truncate(details, MAX_DETAILS_LENGTH), success);
+        writer.write(
+                username, "system", null, action, truncate(details, MAX_DETAILS_LENGTH), success);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -49,10 +65,14 @@ public class AuditService {
     private String resolveUsername() {
         try {
             var auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            if (auth != null
+                    && auth.isAuthenticated()
+                    && !"anonymousUser".equals(auth.getPrincipal())) {
                 return auth.getName();
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ex) {
+            log.debug("Não foi possível resolver o usuário autenticado atual", ex);
+        }
         return null;
     }
 
