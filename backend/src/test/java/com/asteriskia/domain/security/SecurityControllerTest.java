@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -28,13 +29,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestTemplate;
 
 /**
- * SecurityControllerTest — testes de caracterização (fase 0 da refatoração).
+ * SecurityControllerTest — testes de caracterização (fase 0/7 da refatoração).
  *
  * <p>Objetivo: travar o comportamento ATUAL do controller (validações, mensagens de erro, chamadas
  * aos colaboradores) antes de extrair/mover código na fase 1. Não avalia se o comportamento é
  * "ideal" — só garante que a refatoração não o altera silenciosamente.
  */
 @WebMvcTest(SecurityController.class)
+@Import(SecurityListsRepository.class)
 class SecurityControllerTest {
 
     @Autowired private MockMvc mockMvc;
