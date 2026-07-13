@@ -147,4 +147,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Classificação por IA rodada em lote para as chamadas já registradas antes da funcionalidade existir — o indicador "Mais pedido" do Ranking de Atendimentos já nasce com dados reais.',
     ],
   },
+  {
+    version: 'v1.15',
+    date: '2026-07-13',
+    changes: [
+      'Ranking de Atendimentos: os cards agora podem ser arrastados para reorganizar a ordem de exibição, conforme a preferência de cada usuário — salvo no navegador, com botão para restaurar a ordem padrão.',
+    ],
+  },
 ];

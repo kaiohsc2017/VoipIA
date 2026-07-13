@@ -284,6 +284,55 @@ function AvgDurationCard({ items, onExport, onRowClick, trend, loading }: {
   );
 }
 
+// Ordem dos cards do Ranking é uma preferência pessoal — persistida no navegador
+// do usuário, não no backend (não é um dado do negócio, é só layout).
+const RANKING_CARD_ORDER_KEY = 'asteriskia.ranking.cardOrder';
+
+function loadCardOrder(): string[] {
+  try {
+    const raw = localStorage.getItem(RANKING_CARD_ORDER_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCardOrder(order: string[]) {
+  try {
+    localStorage.setItem(RANKING_CARD_ORDER_KEY, JSON.stringify(order));
+  } catch {
+    // localStorage indisponível (modo privado/quota) — ordem só não persiste entre sessões
+  }
+}
+
+/** Wrapper arrastável — cada card do Ranking vira um item reordenável pelo usuário. */
+function DraggableCard({ id, isDragging, onDragStart, onDragOver, onDrop, onDragEnd, children }: {
+  id: string; isDragging: boolean;
+  onDragStart: (id: string) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: (id: string) => void;
+  onDragEnd: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      draggable
+      onDragStart={() => onDragStart(id)}
+      onDragOver={onDragOver}
+      onDrop={() => onDrop(id)}
+      onDragEnd={onDragEnd}
+      style={{ opacity: isDragging ? 0.4 : 1, cursor: 'grab', position: 'relative' }}
+      title="Arraste para reorganizar os cards"
+    >
+      <span style={{
+        position: 'absolute', top: 10, right: 44, fontSize: '.9rem',
+        color: 'var(--text-muted)', pointerEvents: 'none', zIndex: 1,
+      }}>⠿</span>
+      {children}
+    </div>
+  );
+}
+
 function RankingTab({ uras, onDrillDown }: { uras: Ura[]; onDrillDown: (filters: RankingDrillDownFilters) => void }) {
   const [data, setData] = useState<RankingData | null>(null);
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'all'>('all');
@@ -291,6 +340,8 @@ function RankingTab({ uras, onDrillDown }: { uras: Ura[]; onDrillDown: (filters:
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [loading, setLoading] = useState(true);
+  const [cardOrder, setCardOrder] = useState<string[]>(loadCardOrder);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
 
   const load = useCallback((query: RankingQueryParams) => {
     setLoading(true);
@@ -324,6 +375,111 @@ function RankingTab({ uras, onDrillDown }: { uras: Ura[]; onDrillDown: (filters:
 
   const trend = data?.trend;
 
+  // Definições de card com id estável — a ordem aqui é só o fallback "padrão de
+  // fábrica"; a ordem efetivamente exibida vem de cardOrder (arrastar-e-soltar,
+  // persistido por navegador). Cards dinâmicos (um por call_type real observado)
+  // usam id `subject:<callType>` para sobreviver entre reloads mesmo que os tipos
+  // observados mudem de um período para outro.
+  const cardDefs: { id: string; node: React.ReactNode }[] = [
+    {
+      id: 'topClients',
+      node: (
+        <RankingCard
+          title="Clientes que mais ligam" icon="👤"
+          items={data?.topClients ?? []} color="#007aff"
+          emptyMessage="Nenhuma chamada com cliente identificado no período"
+          onExport={() => exportRankingCsv('topClients', query)}
+          onBarClick={label => onDrillDown({ clientName: label })}
+          trend={showTrend && trend ? { current: trend.topClientsTotal, previous: trend.topClientsPrevTotal } : undefined}
+          loading={loading}
+        />
+      ),
+    },
+    {
+      id: 'byType',
+      node: (
+        <RankingCard
+          title="Distribuição por tipo" icon="🏷️"
+          items={data?.byType ?? []} color="#3b82f6"
+          emptyMessage="Nenhuma chamada classificada no período"
+          onExport={() => exportRankingCsv('byType', query)}
+          onBarClick={label => onDrillDown({ callType: label })}
+          trend={showTrend && trend ? { current: trend.byTypeTotal, previous: trend.byTypePrevTotal } : undefined}
+          loading={loading}
+        />
+      ),
+    },
+    {
+      id: 'topResolutions',
+      node: (
+        <RankingCard
+          title="Soluções mais aplicadas (Jira)" icon="✅"
+          items={data?.topResolutions ?? []} color="#34c759"
+          emptyMessage="Nenhuma solução sincronizada ainda — o sync com o Jira roda periodicamente"
+          onExport={() => exportRankingCsv('topResolutions', query)}
+          onBarClick={label => onDrillDown({ jiraResolution: label })}
+          trend={showTrend && trend ? { current: trend.topResolutionsTotal, previous: trend.topResolutionsPrevTotal } : undefined}
+          loading={loading}
+          infoTooltip="Só aparece aqui a chamada que abriu um chamado no Jira — o status/resolução é sincronizado a cada 15 minutos pelo JiraSyncScheduler, olhando só os últimos 90 dias. Chamadas sem chamado Jira aberto (integração desativada na URA, ou falha ao criar o issue) nunca vão aparecer neste card."
+        />
+      ),
+    },
+    {
+      id: 'avgDuration',
+      node: (
+        <AvgDurationCard
+          items={data?.avgDurationByType ?? []}
+          onExport={() => exportRankingCsv('avgDurationByType', query)}
+          onRowClick={label => onDrillDown({ callType: label })}
+          trend={showTrend && trend ? { current: trend.avgDurationSecs, previous: trend.avgDurationPrevSecs } : undefined}
+          loading={loading}
+        />
+      ),
+    },
+    ...Object.entries(data?.topSubjectsByType ?? {}).map(([callType, items]) => ({
+      id: `subject:${callType}`,
+      node: (
+        <RankingCard
+          title={`Mais pedido em "${callType}"`} icon="🎯"
+          items={items} color="#ff9f0a"
+          emptyMessage="Nenhum assunto classificado ainda no período — a classificação por IA roda ao fim de cada chamada"
+          onExport={() => exportRankingCsv('topSubjectsByType', query, callType)}
+          onBarClick={label => onDrillDown({ callType, subjectTag: label })}
+          trend={showTrend && trend ? {
+            current: trend.subjectsTotalByType[callType] ?? 0,
+            previous: trend.subjectsPrevTotalByType[callType] ?? 0,
+          } : undefined}
+        />
+      ),
+    })),
+  ];
+
+  // Aplica a ordem salva (cards conhecidos primeiro, na ordem arrastada) e anexa
+  // no fim qualquer card novo que o usuário ainda não viu/reordenou.
+  const knownIds = new Set(cardDefs.map(c => c.id));
+  const orderedIds = [
+    ...cardOrder.filter(id => knownIds.has(id)),
+    ...cardDefs.map(c => c.id).filter(id => !cardOrder.includes(id)),
+  ];
+  const cardById = new Map(cardDefs.map(c => [c.id, c]));
+
+  const handleDragStart = (id: string) => setDraggedId(id);
+  const handleDragOver = (e: React.DragEvent) => e.preventDefault();
+  const handleDragEnd = () => setDraggedId(null);
+  const handleDrop = (targetId: string) => {
+    if (!draggedId || draggedId === targetId) return;
+    const next = [...orderedIds];
+    const from = next.indexOf(draggedId);
+    const to = next.indexOf(targetId);
+    if (from === -1 || to === -1) return;
+    next.splice(from, 1);
+    next.splice(to, 0, draggedId);
+    setCardOrder(next);
+    saveCardOrder(next);
+    setDraggedId(null);
+  };
+  const resetCardOrder = () => { setCardOrder([]); saveCardOrder([]); };
+
   return (
     <div>
       <div className="flex gap-1" style={{ marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -353,59 +509,29 @@ function RankingTab({ uras, onDrillDown }: { uras: Ura[]; onDrillDown: (filters:
             <option key={u.id} value={u.id}>{u.name} (ramal {u.extension})</option>
           ))}
         </select>
+        {cardOrder.length > 0 && (
+          <button className="btn btn-ghost btn-sm" onClick={resetCardOrder} title="Restaurar a ordem padrão dos cards">
+            ↺ Restaurar ordem
+          </button>
+        )}
       </div>
       {/* Grade sempre renderizada — cada card mostra seu próprio skeleton enquanto
-          carrega, em vez de trocar a tela inteira por um spinner único. */}
+          carrega, em vez de trocar a tela inteira por um spinner único. Cada card é
+          arrastável — a ordem escolhida pelo usuário é salva no navegador. */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-        <RankingCard
-          title="Clientes que mais ligam" icon="👤"
-          items={data?.topClients ?? []} color="#007aff"
-          emptyMessage="Nenhuma chamada com cliente identificado no período"
-          onExport={() => exportRankingCsv('topClients', query)}
-          onBarClick={label => onDrillDown({ clientName: label })}
-          trend={showTrend && trend ? { current: trend.topClientsTotal, previous: trend.topClientsPrevTotal } : undefined}
-          loading={loading}
-        />
-        <RankingCard
-          title="Distribuição por tipo" icon="🏷️"
-          items={data?.byType ?? []} color="#3b82f6"
-          emptyMessage="Nenhuma chamada classificada no período"
-          onExport={() => exportRankingCsv('byType', query)}
-          onBarClick={label => onDrillDown({ callType: label })}
-          trend={showTrend && trend ? { current: trend.byTypeTotal, previous: trend.byTypePrevTotal } : undefined}
-          loading={loading}
-        />
-        <RankingCard
-          title="Soluções mais aplicadas (Jira)" icon="✅"
-          items={data?.topResolutions ?? []} color="#34c759"
-          emptyMessage="Nenhuma solução sincronizada ainda — o sync com o Jira roda periodicamente"
-          onExport={() => exportRankingCsv('topResolutions', query)}
-          onBarClick={label => onDrillDown({ jiraResolution: label })}
-          trend={showTrend && trend ? { current: trend.topResolutionsTotal, previous: trend.topResolutionsPrevTotal } : undefined}
-          loading={loading}
-          infoTooltip="Só aparece aqui a chamada que abriu um chamado no Jira — o status/resolução é sincronizado a cada 15 minutos pelo JiraSyncScheduler, olhando só os últimos 90 dias. Chamadas sem chamado Jira aberto (integração desativada na URA, ou falha ao criar o issue) nunca vão aparecer neste card."
-        />
-        <AvgDurationCard
-          items={data?.avgDurationByType ?? []}
-          onExport={() => exportRankingCsv('avgDurationByType', query)}
-          onRowClick={label => onDrillDown({ callType: label })}
-          trend={showTrend && trend ? { current: trend.avgDurationSecs, previous: trend.avgDurationPrevSecs } : undefined}
-          loading={loading}
-        />
-        {Object.entries(data?.topSubjectsByType ?? {}).map(([callType, items]) => (
-          <RankingCard
-            key={callType}
-            title={`Mais pedido em "${callType}"`} icon="🎯"
-            items={items} color="#ff9f0a"
-            emptyMessage="Nenhum assunto classificado ainda no período — a classificação por IA roda ao fim de cada chamada"
-            onExport={() => exportRankingCsv('topSubjectsByType', query, callType)}
-            onBarClick={label => onDrillDown({ callType, subjectTag: label })}
-            trend={showTrend && trend ? {
-              current: trend.subjectsTotalByType[callType] ?? 0,
-              previous: trend.subjectsPrevTotalByType[callType] ?? 0,
-            } : undefined}
-          />
-        ))}
+        {orderedIds.map(id => {
+          const def = cardById.get(id);
+          if (!def) return null;
+          return (
+            <DraggableCard
+              key={id} id={id} isDragging={draggedId === id}
+              onDragStart={handleDragStart} onDragOver={handleDragOver}
+              onDrop={handleDrop} onDragEnd={handleDragEnd}
+            >
+              {def.node}
+            </DraggableCard>
+          );
+        })}
       </div>
     </div>
   );
