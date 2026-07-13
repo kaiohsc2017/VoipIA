@@ -19,31 +19,49 @@ function formatDate(iso: string) {
 
 interface TimePoint { date: string; total: number; jiraOpened: number; avgDuration: number; }
 
+interface DashboardQuery { period: 'week' | 'month'; dateFrom: string; dateTo: string; }
+
 function DashboardTab() {
   const [series, setSeries] = useState<TimePoint[]>([]);
   const [period, setPeriod] = useState<'week' | 'month'>('week');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback((p: 'week' | 'month') => {
+  const hasCustomRange = !!(customFrom && customTo);
+
+  const load = useCallback((q: DashboardQuery) => {
     setLoading(true);
-    api.get<TimePoint[]>(`/stats/calls/timeseries?period=${p}`)
+    const params = (q.dateFrom && q.dateTo)
+      ? new URLSearchParams({ dateFrom: q.dateFrom, dateTo: q.dateTo })
+      : new URLSearchParams({ period: q.period });
+    api.get<TimePoint[]>(`/stats/calls/timeseries?${params}`)
       .then(r => setSeries(r.data))
       .finally(() => setLoading(false));
   }, []);
 
-  // Ref sempre atualizado com o período atual — evita stale closure no callback do WebSocket
-  const periodRef = useRef(period);
-  useEffect(() => { periodRef.current = period; }, [period]);
+  // Ref sempre atualizado com a consulta atual — evita stale closure no callback do WebSocket
+  const queryRef = useRef<DashboardQuery>({ period, dateFrom: customFrom, dateTo: customTo });
+  useEffect(() => { queryRef.current = { period, dateFrom: customFrom, dateTo: customTo }; }, [period, customFrom, customTo]);
 
   // Carrega na montagem e se inscreve no WebSocket para atualizar em tempo real
   useEffect(() => {
-    load('week');
+    load({ period: 'week', dateFrom: '', dateTo: '' });
     const unsub = subscribe('/topic/calls', () => {
-      // Nova chamada registrada — recarrega o gráfico sem trocar o período
-      load(periodRef.current);
+      // Nova chamada registrada — recarrega o gráfico sem trocar o filtro atual
+      load(queryRef.current);
     });
     return () => unsub?.();
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectPeriod = (p: 'week' | 'month') => {
+    setPeriod(p); setCustomFrom(''); setCustomTo('');
+    load({ period: p, dateFrom: '', dateTo: '' });
+  };
+  const applyCustomRange = () => {
+    if (!customFrom || !customTo) return;
+    load({ period, dateFrom: customFrom, dateTo: customTo });
+  };
 
   const formatDateLocal = (d: string) => {
     if (!d) return '';
@@ -60,14 +78,23 @@ function DashboardTab() {
 
   return (
     <div>
-      <div className="flex gap-1" style={{ marginBottom: 16 }}>
+      <div className="flex gap-1" style={{ marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         {(['week', 'month'] as const).map(p => (
           <button key={p}
-            className={`btn btn-sm ${period === p ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => { setPeriod(p); load(p); }}>
+            className={`btn btn-sm ${period === p && !hasCustomRange ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => selectPeriod(p)}>
             {p === 'week' ? 'Últimos 7 dias' : 'Últimos 30 dias'}
           </button>
         ))}
+        <span style={{ color: 'var(--text-muted)', fontSize: '.8rem', margin: '0 4px' }}>ou período customizado:</span>
+        <input type="date" className="form-input" style={{ maxWidth: 150 }} value={customFrom}
+          onChange={e => setCustomFrom(e.target.value)} />
+        <input type="date" className="form-input" style={{ maxWidth: 150 }} value={customTo}
+          onChange={e => setCustomTo(e.target.value)} />
+        <button className={`btn btn-sm ${hasCustomRange ? 'btn-primary' : 'btn-ghost'}`}
+          onClick={applyCustomRange} disabled={!customFrom || !customTo}>
+          Aplicar
+        </button>
       </div>
       {loading ? (
         <div className="loading-state"><div className="spinner" />Carregando gráfico…</div>

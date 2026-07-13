@@ -139,11 +139,21 @@ public class StatsController {
 
     @GetMapping("/calls/timeseries")
     public ResponseEntity<List<Map<String, Object>>> callsTimeseries(
-            @RequestParam(defaultValue = "week") String period) {
+            @RequestParam(defaultValue = "week") String period,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
 
-        int days = "month".equals(period) ? 30 : 7;
-        LocalDateTime end = LocalDateTime.now();
-        LocalDateTime start = end.minusDays(days).truncatedTo(ChronoUnit.DAYS);
+        // Intervalo customizado tem prioridade sobre o período nomeado (week/month) —
+        // mesmo padrão já usado em /calls/ranking.
+        LocalDateTime start, end;
+        if (dateFrom != null && dateTo != null) {
+            start = LocalDateTime.of(dateFrom, LocalTime.MIN);
+            end = LocalDateTime.of(dateTo, LocalTime.MAX);
+        } else {
+            int days = "month".equals(period) ? 30 : 7;
+            end = LocalDateTime.now();
+            start = end.minusDays(days).truncatedTo(ChronoUnit.DAYS);
+        }
 
         List<Object[]> raw = callRepo.countByDay(start, end);
         List<Map<String, Object>> result = new ArrayList<>();

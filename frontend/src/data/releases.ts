@@ -161,4 +161,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Tela de URA: reordenação das abas para URA, Dashboard, Chamadas, Ranking de Atendimentos.',
     ],
   },
+  {
+    version: 'v1.17',
+    date: '2026-07-13',
+    changes: [
+      'Dashboard (Módulo URA): seletor de intervalo de datas customizado, além dos períodos prontos (últimos 7/30 dias).',
+    ],
+  },
 ];
