@@ -1,10 +1,6 @@
 package com.asteriskia.domain;
 
 import com.asteriskia.domain.masterdata.BusinessUnitContext;
-import java.io.*;
-import java.net.Socket;
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -12,7 +8,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -30,24 +25,11 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class StatsController {
 
-    @Value("${app.asterisk.ami.host:asterisk}")
-    private String amiHost;
-
-    @Value("${app.asterisk.ami.port:5038}")
-    private int amiPort;
-
-    @Value("${app.asterisk.ami.user:asteriskia}")
-    private String amiUser;
-
-    @Value("${app.asterisk.ami.password}")
-    private String amiPassword;
-
-    private static final int AMI_TIMEOUT_MS = 8_000;
-
     private final StatsCallRepository callRepo;
     private final StatsTestResultRepository testResultRepo;
     private final StatsAlertCallRepository alertCallRepo;
     private final StatsNumberTestRepository numberTestRepo;
+    private final StatsTrunkAmiClient trunkAmiClient;
 
     // -----------------------------------------------------------------------
     // Módulo 2 — Conectividade (7 KPIs)
@@ -209,12 +191,13 @@ public class StatsController {
         Set<Integer> safeBuIds = buIds.isEmpty() ? Set.of(-1) : buIds;
 
         List<Map<String, Object>> topClients =
-                toRankingList(
+                StatsRankingAssembler.toRankingList(
                         callRepo.topClients(from, to, safeLimit, restricted, safeBuIds, uraId));
         List<Map<String, Object>> byType =
-                toRankingList(callRepo.byCallType(from, to, restricted, safeBuIds, uraId));
+                StatsRankingAssembler.toRankingList(
+                        callRepo.byCallType(from, to, restricted, safeBuIds, uraId));
         List<Map<String, Object>> topResolutions =
-                toRankingList(
+                StatsRankingAssembler.toRankingList(
                         callRepo.topResolutions(from, to, safeLimit, restricted, safeBuIds, uraId));
 
         // Assunto mais pedido por tipo de chamada (subject_tag, classificado por IA) —
@@ -225,13 +208,13 @@ public class StatsController {
             String callType = String.valueOf(typeEntry.get("label"));
             topSubjectsByType.put(
                     callType,
-                    toRankingList(
+                    StatsRankingAssembler.toRankingList(
                             callRepo.topSubjectsByCallType(
                                     from, to, callType, safeLimit, restricted, safeBuIds, uraId)));
         }
 
         List<Map<String, Object>> avgDurationByType =
-                toAvgDurationList(
+                StatsRankingAssembler.toAvgDurationList(
                         callRepo.avgDurationByCallType(from, to, restricted, safeBuIds, uraId));
 
         Map<String, Object> trend =
@@ -281,28 +264,30 @@ public class StatsController {
         LocalDateTime prevFrom = prevRange[0], prevTo = prevRange[1];
 
         List<Map<String, Object>> prevTopClients =
-                toRankingList(
+                StatsRankingAssembler.toRankingList(
                         callRepo.topClients(
                                 prevFrom, prevTo, safeLimit, restricted, safeBuIds, uraId));
         List<Map<String, Object>> prevByType =
-                toRankingList(callRepo.byCallType(prevFrom, prevTo, restricted, safeBuIds, uraId));
+                StatsRankingAssembler.toRankingList(
+                        callRepo.byCallType(prevFrom, prevTo, restricted, safeBuIds, uraId));
         List<Map<String, Object>> prevTopResolutions =
-                toRankingList(
+                StatsRankingAssembler.toRankingList(
                         callRepo.topResolutions(
                                 prevFrom, prevTo, safeLimit, restricted, safeBuIds, uraId));
         List<Map<String, Object>> prevAvgDurationByType =
-                toAvgDurationList(
+                StatsRankingAssembler.toAvgDurationList(
                         callRepo.avgDurationByCallType(
                                 prevFrom, prevTo, restricted, safeBuIds, uraId));
 
         Map<String, Long> subjectsTotalByType = new LinkedHashMap<>();
         Map<String, Long> subjectsPrevTotalByType = new LinkedHashMap<>();
         for (String callType : topSubjectsByType.keySet()) {
-            subjectsTotalByType.put(callType, sumTotal(topSubjectsByType.get(callType)));
+            subjectsTotalByType.put(
+                    callType, StatsRankingAssembler.sumTotal(topSubjectsByType.get(callType)));
             subjectsPrevTotalByType.put(
                     callType,
-                    sumTotal(
-                            toRankingList(
+                    StatsRankingAssembler.sumTotal(
+                            StatsRankingAssembler.toRankingList(
                                     callRepo.topSubjectsByCallType(
                                             prevFrom,
                                             prevTo,
@@ -314,50 +299,19 @@ public class StatsController {
         }
 
         Map<String, Object> trend = new HashMap<>();
-        trend.put("topClientsTotal", sumTotal(topClients));
-        trend.put("topClientsPrevTotal", sumTotal(prevTopClients));
-        trend.put("byTypeTotal", sumTotal(byType));
-        trend.put("byTypePrevTotal", sumTotal(prevByType));
-        trend.put("topResolutionsTotal", sumTotal(topResolutions));
-        trend.put("topResolutionsPrevTotal", sumTotal(prevTopResolutions));
-        trend.put("avgDurationSecs", avgOfAvgDurations(avgDurationByType));
-        trend.put("avgDurationPrevSecs", avgOfAvgDurations(prevAvgDurationByType));
+        trend.put("topClientsTotal", StatsRankingAssembler.sumTotal(topClients));
+        trend.put("topClientsPrevTotal", StatsRankingAssembler.sumTotal(prevTopClients));
+        trend.put("byTypeTotal", StatsRankingAssembler.sumTotal(byType));
+        trend.put("byTypePrevTotal", StatsRankingAssembler.sumTotal(prevByType));
+        trend.put("topResolutionsTotal", StatsRankingAssembler.sumTotal(topResolutions));
+        trend.put("topResolutionsPrevTotal", StatsRankingAssembler.sumTotal(prevTopResolutions));
+        trend.put("avgDurationSecs", StatsRankingAssembler.avgOfAvgDurations(avgDurationByType));
+        trend.put(
+                "avgDurationPrevSecs",
+                StatsRankingAssembler.avgOfAvgDurations(prevAvgDurationByType));
         trend.put("subjectsTotalByType", subjectsTotalByType);
         trend.put("subjectsPrevTotalByType", subjectsPrevTotalByType);
         return trend;
-    }
-
-    private long sumTotal(List<Map<String, Object>> items) {
-        return items.stream().mapToLong(i -> ((Number) i.get("total")).longValue()).sum();
-    }
-
-    private double avgOfAvgDurations(List<Map<String, Object>> items) {
-        return items.stream()
-                .mapToDouble(i -> ((Number) i.get("avgDurationSecs")).doubleValue())
-                .average()
-                .orElse(0.0);
-    }
-
-    private List<Map<String, Object>> toRankingList(List<Object[]> rows) {
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (Object[] row : rows) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("label", row[0]);
-            item.put("total", ((Number) row[1]).longValue());
-            result.add(item);
-        }
-        return result;
-    }
-
-    private List<Map<String, Object>> toAvgDurationList(List<Object[]> rows) {
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (Object[] row : rows) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("label", row[0]);
-            item.put("avgDurationSecs", Math.round(((Number) row[1]).doubleValue() * 10.0) / 10.0);
-            result.add(item);
-        }
-        return result;
     }
 
     // -----------------------------------------------------------------------
@@ -403,93 +357,7 @@ public class StatsController {
 
     @GetMapping("/trunk-status")
     public ResponseEntity<Map<String, Object>> trunkStatus() {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("checkedAt", Instant.now().toString());
-        try (Socket s = new Socket(amiHost, amiPort)) {
-            s.setSoTimeout(AMI_TIMEOUT_MS);
-            BufferedReader r =
-                    new BufferedReader(
-                            new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
-            PrintWriter w =
-                    new PrintWriter(
-                            new OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8),
-                            true);
-            r.readLine(); // banner
-
-            sendAmiBlock(w, "Action", "Login", "Username", amiUser, "Secret", amiPassword);
-            if (!readAmiBlock(r).contains("Success")) {
-                result.put("status", "UNKNOWN");
-                result.put("rttMs", -1);
-                result.put("error", "ami_auth");
-                return ResponseEntity.ok(result);
-            }
-
-            sendAmiBlock(w, "Action", "Command", "Command", "pjsip show contacts");
-            // O AMI envia Command em dois blocos: cabeçalho "Response: Success" + linhas "Output:".
-            // Lemos diretamente até encontrar a linha terminadora do pjsip show contacts.
-            String contacts = readCommandOutput(r);
-            sendAmiBlock(w, "Action", "Logoff");
-
-            result.put("status", "UNKNOWN");
-            result.put("rttMs", -1);
-            for (String line : contacts.split("\n")) {
-                if (!line.contains("tronco-sip")) continue;
-                if (line.contains("Avail") && !line.contains("Unavail")) {
-                    result.put("status", "ONLINE");
-                    result.put("rttMs", parseRttMs(line));
-                } else {
-                    result.put("status", "OFFLINE");
-                    result.put("rttMs", -1);
-                }
-                break;
-            }
-        } catch (Exception e) {
-            log.warn("trunk-status AMI error: {}", e.getMessage());
-            result.put("status", "UNKNOWN");
-            result.put("rttMs", -1);
-            result.put("error", e.getMessage());
-        }
-        return ResponseEntity.ok(result);
-    }
-
-    private int parseRttMs(String line) {
-        String[] parts = line.trim().split("\\s+");
-        try {
-            return (int) Double.parseDouble(parts[parts.length - 1]);
-        } catch (NumberFormatException e) {
-            return -1;
-        }
-    }
-
-    private void sendAmiBlock(PrintWriter w, String... kv) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < kv.length - 1; i += 2)
-            sb.append(kv[i]).append(": ").append(kv[i + 1]).append("\r\n");
-        sb.append("\r\n");
-        w.print(sb);
-        w.flush();
-    }
-
-    private String readAmiBlock(BufferedReader r) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = r.readLine()) != null) {
-            if (line.isEmpty()) break;
-            sb.append(line).append("\n");
-        }
-        return sb.toString();
-    }
-
-    /** Lê linhas do AMI até encontrar a sentinela de fim do 'pjsip show contacts'. */
-    private String readCommandOutput(BufferedReader r) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = r.readLine()) != null) {
-            sb.append(line).append("\n");
-            if (line.startsWith("Output: Objects found:") || line.contains("--END COMMAND--"))
-                break;
-        }
-        return sb.toString();
+        return ResponseEntity.ok(trunkAmiClient.queryTrunkStatus());
     }
 
     // -----------------------------------------------------------------------
