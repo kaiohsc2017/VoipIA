@@ -21,7 +21,7 @@ interface TimePoint { date: string; total: number; jiraOpened: number; avgDurati
 
 interface DashboardQuery { period: 'week' | 'month'; dateFrom: string; dateTo: string; }
 
-function DashboardTab() {
+function DashboardTab({ onDrillDown }: { onDrillDown: (filters: RankingDrillDownFilters) => void }) {
   const [series, setSeries] = useState<TimePoint[]>([]);
   const [period, setPeriod] = useState<'week' | 'month'>('week');
   const [customFrom, setCustomFrom] = useState('');
@@ -71,10 +71,17 @@ function DashboardTab() {
 
   const chartData = series.map(p => ({
     ...p,
+    rawDate: p.date,
     date: formatDateLocal(p.date),
     Chamadas: p.total,
     'Jira Abertas': p.jiraOpened,
   }));
+
+  const drillDownToDay = (entry: unknown) => {
+    const item = entry as { rawDate?: string; payload?: { rawDate?: string } };
+    const rawDate = item.payload?.rawDate ?? item.rawDate;
+    if (rawDate) onDrillDown({ dateFrom: rawDate, dateTo: rawDate });
+  };
 
   return (
     <div>
@@ -117,10 +124,13 @@ function DashboardTab() {
                 labelStyle={{ color: '#e2e8f0' }}
               />
               <Legend wrapperStyle={{ fontSize: 12, color: '#94a3b8' }} />
-              <Bar dataKey="Chamadas" fill="#007aff" radius={[4,4,0,0]} />
-              <Bar dataKey="Jira Abertas" fill="#3b82f6" radius={[4,4,0,0]} />
+              <Bar dataKey="Chamadas" fill="#007aff" radius={[4,4,0,0]} cursor="pointer" onClick={drillDownToDay} />
+              <Bar dataKey="Jira Abertas" fill="#3b82f6" radius={[4,4,0,0]} cursor="pointer" onClick={drillDownToDay} />
             </BarChart>
           </ResponsiveContainer>
+          <div style={{ marginTop: 8, fontSize: '.75rem', color: 'var(--text-muted)' }}>
+            Clique numa barra para ver as chamadas daquele dia
+          </div>
         </div>
       )}
     </div>
@@ -174,6 +184,7 @@ function TrendBadge({ current, previous }: { current: number; previous: number }
 
 interface RankingDrillDownFilters {
   clientName?: string; callType?: string; subjectTag?: string; jiraResolution?: string;
+  dateFrom?: string; dateTo?: string;
 }
 
 interface RankingQueryParams { period: string; uraId: string; dateFrom: string; dateTo: string; }
@@ -722,19 +733,20 @@ export default function ModuloURA() {
   };
 
   /**
-   * Drill-down vindo da aba Ranking de Atendimentos: troca para a aba Chamadas
-   * já com o filtro correspondente à barra/linha clicada — os demais filtros
-   * avançados são limpos para não combinar com um recorte anterior sem o usuário perceber.
+   * Drill-down vindo do Ranking de Atendimentos ou do Dashboard: troca para a aba
+   * Chamadas já com o filtro correspondente ao ponto clicado (barra/linha do
+   * Ranking, ou dia do gráfico do Dashboard) — os demais filtros avançados são
+   * limpos para não combinar com um recorte anterior sem o usuário perceber.
    */
-  const handleDrillDown = (filters: {
-    clientName?: string; callType?: string; subjectTag?: string; jiraResolution?: string;
-  }) => {
-    setDateFrom(''); setDateTo(''); setRamalFilter(''); setJiraKeyFilter('');
+  const handleDrillDown = (filters: RankingDrillDownFilters) => {
+    setRamalFilter(''); setJiraKeyFilter('');
     setTranscriptionFilter(''); setPriorityFilter(''); setUraFilter('');
     setClientNameFilter(filters.clientName ?? '');
     setCallTypeFilter(filters.callType ?? '');
     setSubjectTagFilter(filters.subjectTag ?? '');
     setJiraResolutionFilter(filters.jiraResolution ?? '');
+    setDateFrom(filters.dateFrom ?? '');
+    setDateTo(filters.dateTo ?? '');
     setFiltersOpen(true);
     setTab('calls');
   };
@@ -1094,7 +1106,7 @@ export default function ModuloURA() {
         )}
 
         {/* ---- DASHBOARD TAB ---- */}
-        {tab === 'dashboard' && <DashboardTab />}
+        {tab === 'dashboard' && <DashboardTab onDrillDown={handleDrillDown} />}
 
         {/* ---- RANKING TAB ---- */}
         {tab === 'ranking' && <RankingTab uras={uras} onDrillDown={handleDrillDown} />}

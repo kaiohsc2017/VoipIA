@@ -168,4 +168,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Dashboard (Módulo URA): seletor de intervalo de datas customizado, além dos períodos prontos (últimos 7/30 dias).',
     ],
   },
+  {
+    version: 'v1.18',
+    date: '2026-07-13',
+    changes: [
+      'Dashboard (Módulo URA): clicar numa barra do gráfico leva direto à aba Chamadas já filtrada pelo dia clicado — mesmo drill-down já existente no Ranking de Atendimentos.',
+    ],
+  },
 ];
