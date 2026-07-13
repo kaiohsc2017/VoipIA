@@ -61,7 +61,7 @@ recordings/
 
 # --- Logs ---
 *.log
-logs/
+/logs/
 
 # --- Backups e arquivos temporários locais ---
 *.bak*
