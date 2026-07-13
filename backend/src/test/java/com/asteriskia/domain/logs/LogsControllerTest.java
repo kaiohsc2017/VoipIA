@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -26,7 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestTemplate;
 
 /**
- * LogsControllerTest — testes de caracterização (fase 0 da refatoração).
+ * LogsControllerTest — testes de caracterização (fase 0/4 da refatoração).
  *
  * <p>Cobre os endpoints síncronos e determinísticos (docker snapshot/history/download, asterisk
  * snapshot/download/status). Os endpoints SSE (/docker/stream, /asterisk/stream) usam threads
@@ -34,6 +35,7 @@ import org.springframework.web.client.RestTemplate;
  * caracterização; ficam para uma verificação manual/E2E quando o controller for de fato refatorado.
  */
 @WebMvcTest(LogsController.class)
+@Import({DockerHelperClient.class, AsteriskAmiClient.class})
 class LogsControllerTest {
 
     @Autowired private MockMvc mockMvc;
