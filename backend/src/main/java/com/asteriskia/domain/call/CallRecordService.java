@@ -178,6 +178,20 @@ public class CallRecordService {
         return record;
     }
 
+    /**
+     * Atualiza o assunto classificado por IA (subject_tag) de um chamado já registrado —
+     * usado pelo backfill em lote do ai-agent para classificar chamadas antigas que
+     * foram registradas antes da funcionalidade existir (nunca passaram pelo fluxo
+     * em tempo real de {@link #registerCall}).
+     */
+    @Transactional
+    public void updateSubjectTag(Long id, String subjectTag) {
+        CallRecord record = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("CallRecord não encontrado: " + id));
+        record.setSubjectTag(truncate(subjectTag, 100));
+        repository.save(record);
+    }
+
     @Transactional(readOnly = true)
     public Page<CallRecord> findByCallerNumber(String number, Pageable pageable) {
         Specification<CallRecord> spec = (root, query, cb) ->

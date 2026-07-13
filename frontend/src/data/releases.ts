@@ -140,4 +140,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Ranking de Atendimentos: ícone de informação em "Soluções mais aplicadas (Jira)" explicando por que o card pode ficar vazio (depende do chamado ter sido aberto no Jira e do sync periódico).',
     ],
   },
+  {
+    version: 'v1.14',
+    date: '2026-07-13',
+    changes: [
+      'Classificação por IA rodada em lote para as chamadas já registradas antes da funcionalidade existir — o indicador "Mais pedido" do Ranking de Atendimentos já nasce com dados reais.',
+    ],
+  },
 ];
