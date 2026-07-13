@@ -152,6 +152,42 @@
                 </configuration>
             </plugin>
 
+            <!-- Spotless: formatação automática (google-java-format) — `mvn spotless:check` valida,
+                 `mvn spotless:apply` corrige. Ainda não vinculado a nenhuma fase do build (fase 0 da
+                 refatoração: medir o tamanho do desvio atual antes de decidir se falha o build). -->
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>2.43.0</version>
+                <configuration>
+                    <!-- Só valida/formata arquivos alterados desde a origin/main — nunca
+                         reformata código histórico não tocado pela refatoração em curso. -->
+                    <ratchetFrom>origin/main</ratchetFrom>
+                    <java>
+                        <googleJavaFormat>
+                            <version>1.19.2</version>
+                            <style>AOSP</style>
+                        </googleJavaFormat>
+                        <removeUnusedImports/>
+                    </java>
+                </configuration>
+            </plugin>
+
+            <!-- Checkstyle: regras de estilo (google_checks.xml, bundled). Mesmo racional do
+                 Spotless acima: `mvn checkstyle:check` roda sob demanda, ainda sem falhar o build,
+                 até levantarmos o volume real de violações no código existente. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <configLocation>checkstyle.xml</configLocation>
+                    <consoleOutput>true</consoleOutput>
+                    <violationSeverity>warning</violationSeverity>
+                    <failOnViolation>false</failOnViolation>
+                </configuration>
+            </plugin>
+
         </plugins>
     </build>
 
