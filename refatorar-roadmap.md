@@ -120,7 +120,9 @@ Quebrar criação legítima por ADMIN (mitigado por teste explícito) · front d
 
 ---
 
-## Plano detalhado — ONDA 3 (aguardando aprovação)
+## Plano detalhado — ONDA 3 (aprovado em 2026-07-14, aguardando execução)
+
+**Decisões tomadas** (respondem as 4 perguntas no fim desta seção): (1) `SettingsTestController.TestResult` renomeia para `SettingsCheckResult` ao extrair; (2) a race do VAD singleton em `jira_call_flow.py` é corrigida junto da O3.3 (instanciar por chamada, em vez de singleton de módulo); (3) `executor.py` vira shim fino reexportando `run_agent`/`_build_ssh_kwargs` após a O3.4; (4) escopo da O3.5 confirmado só nos itens 1-6 (baixo/médio risco) — aba "Chamadas" do ModuloURA, bloco "config" do Settings e `Softphone.tsx` ficam de fora desta onda.
 
 Gerado em 2026-07-14 por 5 pesquisas paralelas (uma por item), leitura completa dos arquivos envolvidos. Maior esforço/risco que ONDA 0-2 — decomposição de God classes/God objects/God files em 4 módulos. Cada item é um commit isolado; ordem sugerida vai do menor pro maior risco dentro de cada módulo.
 
@@ -140,7 +142,7 @@ Gerado em 2026-07-14 por 5 pesquisas paralelas (uma por item), leitura completa 
 | `domain.alert.AlertController` | `UpdateStatusRequest` | Sem particularidade |
 | `domain.pedido.SuporteController` | `AbrirProtocoloRequest` | Sem particularidade |
 | `domain.settings.SettingsController` | `SuccessResponse`, `ErrorResponse`, `ApplyStartResponse`, `ApplyStatusResponse`, `HistoryEntryDTO` | Sem particularidade |
-| `domain.settings.SettingsTestController` | `TestResult` (record local: `boolean success, String message`) | **Armadilha de nome**: já existe entidade JPA `domain.connectivity.TestResult` (Módulo 2, usada em 10 arquivos). Pacotes diferentes, não colide em compilação, mas nome duplicado confunde. **Decisão a tomar**: manter `TestResult` (menor diff) ou renomear para `SettingsCheckResult` ao extrair (mais claro) — ver pergunta ao usuário abaixo |
+| `domain.settings.SettingsTestController` | `TestResult` (record local: `boolean success, String message`) → **renomear para `SettingsCheckResult`** ao extrair | Já existe entidade JPA `domain.connectivity.TestResult` (Módulo 2, usada em 10 arquivos) — pacotes diferentes, não colide em compilação, mas nome duplicado confunde. **Decisão tomada**: renomear. Precisa atualizar todos os usos do tipo dentro do próprio `SettingsTestController.java` (retorno de método, variável local) — o nome só é referenciado ali, sem impacto em outros arquivos |
 | `domain.report.ReportController` | `ConnectivitySummaryDTO` | É `static class` (não record), campos públicos mutáveis, **construtor package-private** (sem modificador) — preservar essa visibilidade exata ao mover, não promover a `public` sem necessidade |
 | `domain.call.CallRecordController` | `RegisterCallRequest`, `RegisterCallResponse` | Sem particularidade |
 | `domain.config.SystemConfigController` | `ConfigDTO` | Sem particularidade |
@@ -150,7 +152,7 @@ Gerado em 2026-07-14 por 5 pesquisas paralelas (uma por item), leitura completa 
 
 **Lotes de execução (compilar a cada lote com `mvnw compile` via container Maven):**
 1. `config` (AuthController — 4 DTOs)
-2. `domain.settings` (SettingsController + SettingsTestController juntos — 6 DTOs; decisão de nome do `TestResult` resolvida antes deste lote)
+2. `domain.settings` (SettingsController + SettingsTestController juntos — 6 DTOs; `TestResult` extraído já como `SettingsCheckResult.java`)
 3. `domain.user` (UserController — 5 DTOs, atenção ao import de `BusinessUnit`)
 4. `domain.accessgroup` (AccessGroupController — 4 DTOs)
 5. `domain.call` (CallRecordController — 2 DTOs)
@@ -199,11 +201,11 @@ Controller fica só com: os 4 `@*Mapping`, `try/catch(IOException)` + `auditServ
 
 `zabbix_alert_flow.py` (116 linhas) não precisa da mesma decomposição — é um flow de 1 passo, consistente com só `jira_call_flow.py` estar no roadmap.
 
-**Achado colateral fora do escopo original do item, mas relevante para decidir agora:** `_vad = webrtcvad.Vad(...)` é um **singleton de módulo** mutado via `_vad.set_mode()` a cada chamada, com o valor configurável por URA. Duas ligações simultâneas fazem `set_mode()` de uma pisar no modo da outra — **race condition pré-existente**, não introduzida por este refactor. Ver pergunta ao usuário abaixo sobre corrigir junto ou aceitar como débito.
+**Achado colateral, corrigido junto por decisão do usuário:** `_vad = webrtcvad.Vad(...)` é um **singleton de módulo** mutado via `_vad.set_mode()` a cada chamada, com o valor configurável por URA. Duas ligações simultâneas fazem `set_mode()` de uma pisar no modo da outra — **race condition pré-existente**, não introduzida por este refactor. **Decisão tomada**: instanciar `webrtcvad.Vad()` por chamada (dentro de `AudioCapture`, um por instância) em vez de singleton de módulo, eliminando a race enquanto o arquivo já está sendo mexido.
 
 **Mudanças propostas:** criar `flows/speech_field_formatter.py`, `flows/audio_capture.py`, `flows/call_recorder.py` (ou módulo único `flows/jira_call_flow_helpers.py` se preferir menos arquivos — decisão de granularidade, baixo risco); `jira_call_flow.py` vira o orquestrador fino compondo as 3 classes via injeção no `__init__`.
 
-**Riscos concretos:** (a) qualquer mudança na ordem de `await` dentro de `execute()`/`_ask_question()` quebra o timing real de voz (já teve bugs de `CancelledError`/task ref); (b) `self._recorded_audio` é lista mutável compartilhada — as classes extraídas precisam receber a mesma referência (composição, não cópia), senão o WAV final fica incompleto; (c) a race do VAD singleton pode ficar mais visível ao mexer no arquivo, mesmo sem ser o objetivo do refactor.
+**Riscos concretos:** (a) qualquer mudança na ordem de `await` dentro de `execute()`/`_ask_question()` quebra o timing real de voz (já teve bugs de `CancelledError`/task ref); (b) `self._recorded_audio` é lista mutável compartilhada — as classes extraídas precisam receber a mesma referência (composição, não cópia), senão o WAV final fica incompleto; (c) trocar o VAD de singleton pra instância por chamada precisa confirmar que `webrtcvad.Vad()` não tem custo de inicialização caro (é so um wrapper C leve, risco baixo) e que `set_mode()` continua chamado no momento certo do fluxo.
 
 **Testes de aceitação:** `py_compile` de todos os arquivos novos; chamada de teste real fim-a-fim (boas-vindas → pergunta com campo de ramal/telefone via STT+normalização → confirmação → grava WAV → abre chamado Jira) via `docker exec`/ligação real; conferir que o WAV final contém a voz da URA e do cliente na ordem certa.
 
@@ -231,7 +233,7 @@ executors/
 orchestrator.py         # _spawn_background_task, _send_all_alerts, _apply_retention,
                          # _calc_next_run, run_agent, _running_agents, _background_tasks, EXECUTORS
 ```
-`executor.py` vira shim fino (`from orchestrator import run_agent; from executors import _build_ssh_kwargs`) reexportando os 3 símbolos usados externamente — evita tocar `scheduler.py`/`routers/servers.py`/`routers/system.py`. **Decisão a tomar**: manter o shim (menor diff, 3 import sites preservados) ou apagar `executor.py` e atualizar os 3 import sites diretamente (mais limpo, mais arquivos tocados) — ver pergunta ao usuário abaixo.
+`executor.py` vira shim fino (`from orchestrator import run_agent; from executors import _build_ssh_kwargs`) reexportando os 3 símbolos usados externamente — evita tocar `scheduler.py`/`routers/servers.py`/`routers/system.py`. **Decisão tomada**: manter o shim fino (menor diff, os 3 import sites não precisam mudar).
 
 **Riscos concretos:** (1) `_running_agents`/`_background_tasks` são estado de módulo — precisa haver **uma única fonte** desse estado (em `orchestrator.py`), nunca duplicado; (2) `DatabaseExecutor` tem tratamento de exceção sensível a segurança (regex de redação de DSN) — preservar exatamente; (3) `run_agent` roda SSH/queries/HTTP reais contra servidores monitorados — erro de import só aparece em runtime na primeira execução pós-deploy, não em `py_compile`; (4) cada `executors/*.py` deve importar só o que usa (evitar `import asyncssh` desnecessário em `database_executor.py`, por exemplo).
 
@@ -255,15 +257,15 @@ orchestrator.py         # _spawn_background_task, _send_all_alerts, _apply_reten
 5. Modal "novo/editar teste" (de `ModuloConectividade.tsx`) — precisa de props/handlers (acoplado a `form`/`showModal` do pai)
 6. Modais de `Users.tsx` (Criar/Editar/Gerenciar 2FA) — sem pré-decomposição existente; precisa de hook `useUserModals` ou prop-drilling extenso (`form`, `editingUser`, `saving`, `totpModalUser`, `qrCode`, `secret`)
 
-**Fora de escopo recomendado nesta rodada** (risco desproporcional ao ganho, sem suíte de testes E2E para cobrir regressão): aba "Chamadas" de `ModuloURA.tsx` (12+ estados de filtro entrelaçados — exigiria hook `useCallsFilters`, não um componente simples), bloco `activeTab === 'config'` de `Settings.tsx` (dezenas de variáveis de estado do pai), e `Softphone.tsx` inteiro (máquina de estado WebRTC/JsSIP, fluxo crítico validado ao vivo em produção — quase todo o arquivo é lógica de sessão SIP interdependente, pouco JSX presentational solto pra extrair com segurança). Ver pergunta ao usuário abaixo sobre confirmar esse corte de escopo.
+**Fora de escopo nesta onda (confirmado pelo usuário)**: aba "Chamadas" de `ModuloURA.tsx` (12+ estados de filtro entrelaçados — exigiria hook `useCallsFilters`, não um componente simples), bloco `activeTab === 'config'` de `Settings.tsx` (dezenas de variáveis de estado do pai), e `Softphone.tsx` inteiro (máquina de estado WebRTC/JsSIP, fluxo crítico validado ao vivo em produção — quase todo o arquivo é lógica de sessão SIP interdependente, pouco JSX presentational solto pra extrair com segurança). Fica pra uma rodada futura, quando fizer mais sentido (ex: com testes E2E cobrindo antes).
 
 **Testes de aceitação:** `tsc -b && vite build` limpo a cada commit; smoke test manual da aba/seção afetada (visualmente, já que não há Playwright configurado neste projeto); para os itens 5 e 6 (que envolvem modais com submit), testar o fluxo de criar/editar completo antes de considerar concluído.
 
 ---
 
-### Perguntas em aberto antes de aprovar o plano final da ONDA 3
+### Decisões registradas (todas as 4 perguntas do plano, respondidas pelo usuário em 2026-07-14)
 
-1. **O3.1** — `SettingsTestController.TestResult` colide de nome (não de compilação) com a entidade `domain.connectivity.TestResult`. Manter o nome `TestResult` ao extrair (menor diff) ou renomear para `SettingsCheckResult` (mais claro, evita confusão futura)?
-2. **O3.3** — a pesquisa encontrou uma race condition pré-existente e não relacionada ao roadmap: o VAD (`webrtcvad.Vad`) é um singleton de módulo mutado por `set_mode()` a cada ligação — duas chamadas simultâneas pisam uma na configuração da outra. Corrigir isso junto da decomposição (instanciar VAD por chamada) ou deixar como débito aceito e só documentar?
-3. **O3.4** — depois de extrair `executors/*.py` + `orchestrator.py`, manter `executor.py` como shim fino (reexporta os 3 símbolos usados externamente, menor diff) ou apagá-lo e atualizar os 3 import sites (`scheduler.py`, `routers/servers.py`, `routers/system.py`) diretamente (mais limpo)?
-4. **O3.5** — confirmar o corte de escopo: extrair só os itens 1-6 (baixo/médio risco) e deixar aba "Chamadas" do ModuloURA, bloco "config" do Settings e Softphone.tsx inteiro de fora desta onda (proposta da pesquisa) — ou incluir algum desses itens de risco maior mesmo assim?
+1. **O3.1** — `SettingsTestController.TestResult` renomeia para `SettingsCheckResult` ao extrair.
+2. **O3.3** — a race do VAD singleton é corrigida junto (instanciar `webrtcvad.Vad()` por chamada).
+3. **O3.4** — `executor.py` vira shim fino reexportando os 3 símbolos usados externamente.
+4. **O3.5** — escopo confirmado só nos itens 1-6; aba "Chamadas"/bloco "config"/`Softphone.tsx` ficam fora desta onda.
