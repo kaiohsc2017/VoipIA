@@ -3,6 +3,7 @@ executors/web_executor.py — WebMonitorExecutor (fase 23, O3.4 da refatoração
 extraído de executor.py): monitora URLs HTTP/HTTPS.
 """
 import asyncio
+import json
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -34,7 +35,13 @@ class WebMonitorExecutor:
         self.eid       = execution_id
         self.agent_id  = UUID(str(agent["id"]))
         self.broadcast = broadcast
-        self.rules     = agent.get("rules") or {}
+        rules = agent.get("rules") or {}
+        # rules pode chegar como string JSON crua do banco (asyncpg não decodifica
+        # jsonb automaticamente sem um codec registrado) — mesmo achado emergente
+        # já corrigido em DatabaseExecutor e no cálculo de no_targets em run_agent.
+        if isinstance(rules, str):
+            rules = json.loads(rules)
+        self.rules     = rules
         self.checks    = self.rules.get("checks", [
             {"url": u, "expect_status": 200} for u in (agent.get("target_urls") or [])
         ])

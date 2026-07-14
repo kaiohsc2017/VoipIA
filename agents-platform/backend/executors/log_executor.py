@@ -3,6 +3,7 @@ executors/log_executor.py — LogMonitorExecutor (fase 23, O3.4 da refatoração
 extraído de executor.py): monitora arquivos de log via SSH em servidores remotos.
 """
 import asyncio
+import json
 import shlex
 from datetime import datetime, timezone
 from uuid import UUID
@@ -54,7 +55,13 @@ class LogMonitorExecutor:
         self.eid       = execution_id
         self.agent_id  = UUID(str(agent["id"]))
         self.broadcast = broadcast
-        self.rules     = agent.get("rules") or {}
+        rules = agent.get("rules") or {}
+        # rules pode chegar como string JSON crua do banco (asyncpg não decodifica
+        # jsonb automaticamente sem um codec registrado) — mesmo achado emergente
+        # já corrigido em DatabaseExecutor e no cálculo de no_targets em run_agent.
+        if isinstance(rules, str):
+            rules = json.loads(rules)
+        self.rules     = rules
         self.checks    = self.rules.get("log_checks", [])
         self.timeout   = self.rules.get("timeout_per_check", 30)
         self.use_ai    = self.rules.get("use_ai_on_failure", False) and llm_enabled()
