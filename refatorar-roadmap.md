@@ -117,3 +117,153 @@ Quebrar criação legítima por ADMIN (mitigado por teste explícito) · front d
 - [ ] `py_compile` limpo, container `agents-api` healthy
 - [ ] Entrada em `frontend/src/data/releases.ts`
 - [ ] Marcar O0.1/O0.2 como `[x]` nas Ondas de execução acima
+
+---
+
+## Plano detalhado — ONDA 3 (aguardando aprovação)
+
+Gerado em 2026-07-14 por 5 pesquisas paralelas (uma por item), leitura completa dos arquivos envolvidos. Maior esforço/risco que ONDA 0-2 — decomposição de God classes/God objects/God files em 4 módulos. Cada item é um commit isolado; ordem sugerida vai do menor pro maior risco dentro de cada módulo.
+
+**Convenção de grupos** (paralelizável entre módulos, sequencial dentro de cada um): Grupo Java (O3.1 → O3.2), Grupo ai-agent (O3.3), Grupo FastAPI (O3.4), Grupo React (O3.5).
+
+### O3.1 — DTOs em 11 controllers Java
+
+**Módulo:** `backend` (Java) · **Commit:** `telecom:`
+
+**Diagnóstico confirmado:** 11 controllers declaram DTOs (`record`/`static class`) aninhados, todos `public`, nenhum usado fora do próprio controller (confirmado por grep). Nenhuma pasta `dto/` existe hoje em nenhum pacote — convenção do repo é arquivo irmão flat no mesmo pacote, sem subpasta.
+
+| Controller (pacote) | DTOs (nome) | Observação |
+|---|---|---|
+| `config.AuthController` | `LoginRequest`, `LoginResponse`, `ErrorResponse`, `StreamingTokenResponse` | Sem particularidade |
+| `domain.ura.UraQuestionController` | `UraQuestionResponse` | Tem factory estático `from(UraQuestion)` |
+| `domain.accessgroup.AccessGroupController` | `GroupRequest`, `PermissionEntry`, `GroupResponse`, `ErrorResponse` | `GroupRequest`/`GroupResponse` referenciam `PermissionEntry` — ok, mesmo pacote |
+| `domain.alert.AlertController` | `UpdateStatusRequest` | Sem particularidade |
+| `domain.pedido.SuporteController` | `AbrirProtocoloRequest` | Sem particularidade |
+| `domain.settings.SettingsController` | `SuccessResponse`, `ErrorResponse`, `ApplyStartResponse`, `ApplyStatusResponse`, `HistoryEntryDTO` | Sem particularidade |
+| `domain.settings.SettingsTestController` | `TestResult` (record local: `boolean success, String message`) | **Armadilha de nome**: já existe entidade JPA `domain.connectivity.TestResult` (Módulo 2, usada em 10 arquivos). Pacotes diferentes, não colide em compilação, mas nome duplicado confunde. **Decisão a tomar**: manter `TestResult` (menor diff) ou renomear para `SettingsCheckResult` ao extrair (mais claro) — ver pergunta ao usuário abaixo |
+| `domain.report.ReportController` | `ConnectivitySummaryDTO` | É `static class` (não record), campos públicos mutáveis, **construtor package-private** (sem modificador) — preservar essa visibilidade exata ao mover, não promover a `public` sem necessidade |
+| `domain.call.CallRecordController` | `RegisterCallRequest`, `RegisterCallResponse` | Sem particularidade |
+| `domain.config.SystemConfigController` | `ConfigDTO` | Sem particularidade |
+| `domain.user.UserController` | `CreateUserRequest`, `UpdateUserRequest`, `UserResponse` (factory `from(AppUser)`, referencia `BusinessUnit`), `ErrorResponse`, `ExtensionPasswordResponse` | `UserResponse.java` precisa do import `com.asteriskia.domain.masterdata.BusinessUnit` |
+
+**Mudanças propostas:** extrair cada DTO para um arquivo próprio no mesmo pacote do controller de origem (sem subpasta `dto/`, seguindo a convenção atual do repo). `ErrorResponse` aparece em 4 pacotes diferentes (Auth/AccessGroup/Settings/User) — cada um vira um top-level distinto no seu próprio pacote, sem colisão.
+
+**Lotes de execução (compilar a cada lote com `mvnw compile` via container Maven):**
+1. `config` (AuthController — 4 DTOs)
+2. `domain.settings` (SettingsController + SettingsTestController juntos — 6 DTOs; decisão de nome do `TestResult` resolvida antes deste lote)
+3. `domain.user` (UserController — 5 DTOs, atenção ao import de `BusinessUnit`)
+4. `domain.accessgroup` (AccessGroupController — 4 DTOs)
+5. `domain.call` (CallRecordController — 2 DTOs)
+6. `domain.report` (ReportController — 1 classe, preservar construtor package-private)
+7. `domain.ura` (UraQuestionController — 1 DTO com factory method)
+8. Lote final "resto": `domain.config` + `domain.alert` + `domain.pedido` (1 DTO cada)
+
+**Testes de aceitação:** `mvnw compile` limpo a cada lote (via `docker run --rm -v /opt/AsteriskIA:/app -v $HOME/.m2:/root/.m2 -w /app/backend maven:3.9-eclipse-temurin-21 mvn -q -o compile`); checkstyle+spotless limpos; smoke test com JWT forjado em pelo menos 1 endpoint por controller tocado (login, criar URA question, criar grupo de acesso, atualizar status de alerta, etc) para confirmar que o (de)serialization JSON continua idêntico.
+
+**Riscos:** baixo em quase todos — extração mecânica, sem mudança de lógica. Único ponto de atenção real: preservar a visibilidade exata do construtor de `ConnectivitySummaryDTO` (package-private) e os imports de factory methods (`UraQuestionResponse.from`, `UserResponse.from`).
+
+---
+
+### O3.2 — `AsteriskConfigController` → `AsteriskConfigService`
+
+**Módulo:** `backend` (Java) · **Commit:** `telecom:` · **Depende de:** O2.2 (concluída, fase 18)
+
+**Diagnóstico confirmado:** o controller (290 linhas) mistura 5 responsabilidades: endpoints REST, parsing/regex de seção pjsip (`extractSection`/`replaceSection`), I/O de arquivo com escrita atômica (`readFile`/`writeFile`), mapeamento pjsip→env (`extractEnvFromPjsip`), protocolo AMI via `AmiSession` (`amiReload`, já usa a classe da O2.2). Nenhum outro arquivo referencia a classe além do wiring do Spring. Sem testes automatizados existentes (validação será manual via curl, como na fase 18).
+
+**Precedente direto no projeto:** `SecurityController` (908→390 linhas) já foi extraído em `AsteriskAclService`/`FailToBanClient`/`JailConfigRepository`/`SecurityFileUtils` — os `@Service` extraídos usam `@Value` próprio, **não recebem `HttpServletRequest`**, e lançam `IOException` normalmente; o controller mantém `Authentication`/`HttpServletRequest`/`auditService.log(...)`. Seguir o mesmo padrão aqui.
+
+**Mudanças propostas:** novo `AsteriskConfigService` (mesmo pacote `domain.settings`), `@Service`, com `@Value` próprios (`configDir`, `amiHost/Port/User/Password`):
+- `String readTroncoBlock()` — `readFile`+`extractSection`
+- `Map<String,String> saveTronco(String block)` — `readFile`+`replaceSection`+`writeFile`+`extractEnvFromPjsip`, retorna `envUpdates` (controller decide se chama `settingsService.writeSettings`, que precisa de `auth`/IP da request)
+- `String reloadPjsip()` / `String reloadDialplan()` (ou manter `amiReload(String command)` genérico — decisão de nome, baixo risco)
+- `String readRotas()` / `void saveRotas(String content)`
+- privados: `extractSection`, `replaceSection`, `extractEnvFromPjsip`, `readFile`, `writeFile`
+
+Controller fica só com: os 4 `@*Mapping`, `try/catch(IOException)` + `auditService.log(...)` + `settingsService.writeSettings(...)` + `extractIp` (helper de request). **Assinaturas públicas dos endpoints não mudam.**
+
+**Testes de aceitação:** `GET/POST /api/v1/asterisk-config/{tronco,rotas}` continuam com o mesmo shape de JSON; `POST /tronco` continua atualizando `.env` e disparando `module reload res_pjsip`; `POST /rotas` continua disparando `dialplan reload`; escrita atômica (`.tmp`+`ATOMIC_MOVE`) preservada; `mvnw compile` limpo. **Atenção**: `POST /tronco` e `POST /rotas` disparam reload real via AMI em produção — mesmo cuidado da fase 18 (testar só os GETs livremente; os POSTs exigem confirmação antes de rodar em produção, já que reescrevem config real e podem bater no tronco/dialplan ao vivo).
+
+**Riscos:** baixo — extração mecânica sem mudança de lógica. Nenhum import circular esperado (o novo service não depende de `SettingsService`/`AuditService`).
+
+---
+
+### O3.3 — Decomposição de `jira_call_flow.py`
+
+**Módulo:** `ai-agent` (Python) · **Commit:** `agents:` · **Depende de:** O1.3, O2.1, O2.3, O2.4 (concluídas, fases 16-17)
+
+**Diagnóstico confirmado:** arquivo real tem 667 linhas (era 708 antes das fases 16/17). Estrutura:
+- **`SpeechFieldFormatter`** (baixo risco — tudo `@staticmethod`, sem estado, sem I/O): `_NOISE_PATTERNS`, `_NUMBER_WORDS`, `_build_stt_hint()`, `_normalize_transcription()`, `_matches_expected()`. Sem dependências externas — migração trivial.
+- **`AudioCapture`** (risco médio — hot-path de voz): `_is_speech_frame()`, `_resolve_vad_aggressiveness()`, `_trim_silence()` (funções de módulo) + `_capture_audio()`/`_listen_and_transcribe()` (métodos de instância). Dependências: `self.reader`, `self.ai` (STT), `self.call_uuid`, `self._recorded_audio` (acumula pra WAV — precisa ser injetado/retornado por referência, não copiado).
+- **`CallRecorder`** (risco médio — toca Jira/backend/disco): `_write_wav()`, `_create_jira_issue()`, `_guess_call_type()`, `_classify_subject()`, `_format_issue_key()`. Dependências: `self.ai`, `self.call_uuid`, `self.collected_answers`, `self._transcriptions`, `self.caller_number`, `self.ura_id`.
+- **Orquestrador fino remanescente**: `__init__`, `execute()`, `_speak()`/`_play_cached()` (TTS/cache playback — ficam no orquestrador, dependem de `self.writer`/`self.reader`/`self.ai` diretamente), `_ask_question()` (orquestra formatter+capture), `_fetch_settings()`/`_fetch_questions()` (wrappers finos de `bc.get()`, não encaixam em nenhuma das 3 classes acima).
+
+`zabbix_alert_flow.py` (116 linhas) não precisa da mesma decomposição — é um flow de 1 passo, consistente com só `jira_call_flow.py` estar no roadmap.
+
+**Achado colateral fora do escopo original do item, mas relevante para decidir agora:** `_vad = webrtcvad.Vad(...)` é um **singleton de módulo** mutado via `_vad.set_mode()` a cada chamada, com o valor configurável por URA. Duas ligações simultâneas fazem `set_mode()` de uma pisar no modo da outra — **race condition pré-existente**, não introduzida por este refactor. Ver pergunta ao usuário abaixo sobre corrigir junto ou aceitar como débito.
+
+**Mudanças propostas:** criar `flows/speech_field_formatter.py`, `flows/audio_capture.py`, `flows/call_recorder.py` (ou módulo único `flows/jira_call_flow_helpers.py` se preferir menos arquivos — decisão de granularidade, baixo risco); `jira_call_flow.py` vira o orquestrador fino compondo as 3 classes via injeção no `__init__`.
+
+**Riscos concretos:** (a) qualquer mudança na ordem de `await` dentro de `execute()`/`_ask_question()` quebra o timing real de voz (já teve bugs de `CancelledError`/task ref); (b) `self._recorded_audio` é lista mutável compartilhada — as classes extraídas precisam receber a mesma referência (composição, não cópia), senão o WAV final fica incompleto; (c) a race do VAD singleton pode ficar mais visível ao mexer no arquivo, mesmo sem ser o objetivo do refactor.
+
+**Testes de aceitação:** `py_compile` de todos os arquivos novos; chamada de teste real fim-a-fim (boas-vindas → pergunta com campo de ramal/telefone via STT+normalização → confirmação → grava WAV → abre chamado Jira) via `docker exec`/ligação real; conferir que o WAV final contém a voz da URA e do cliente na ordem certa.
+
+---
+
+### O3.4 — Decomposição de `executor.py`
+
+**Módulo:** `agents-platform/backend` (FastAPI) · **Commit:** `agents:` · **Depende de:** O1.5 (concluída, fase 16), ONDA 0 (concluída, fase 15)
+
+**Diagnóstico confirmado:** arquivo real tem 1000 linhas. Estrutura: helpers de módulo compartilhados (`_build_ssh_kwargs`, `log`, `memory_recall`, `memory_save`, `ai_fallback`) + **4 executors** (`SSHTestExecutor`, `WebMonitorExecutor`, `LogMonitorExecutor`, `DatabaseExecutor` — a docstring do módulo está desatualizada e só lista 3) + dispatcher `EXECUTORS` + estado global (`_running_agents`, `_background_tasks`, corrigido na fase 16/O1.3) + orquestração (`_spawn_background_task`, `_send_all_alerts`, `_apply_retention`, `_calc_next_run`, `run_agent`).
+
+**Import surface real** (grep no repo inteiro): só 3 símbolos são importados de fora — `scheduler.py` usa `run_agent`; `routers/servers.py` usa `_build_ssh_kwargs`; `routers/system.py` usa `_apply_retention` (import local). Nenhum router importa as classes `*Executor` ou `EXECUTORS` diretamente.
+
+**O gate de segurança da ONDA 0 mora em `routers/agents.py`, não em `executor.py`** — a decomposição não toca nesse gate, só precisa preservar o formato `rules.checks[].dsn/query` que o `DatabaseExecutor` consome (o gate depende desse mesmo shape).
+
+**Mudanças propostas:**
+```
+executors/
+  __init__.py          # reexporta EXECUTORS, _build_ssh_kwargs (mantém import externo idêntico)
+  common.py            # _build_ssh_kwargs, log, memory_recall, memory_save, ai_fallback
+  ssh_executor.py       # SSHTestExecutor
+  web_executor.py       # WebMonitorExecutor
+  log_executor.py       # LogMonitorExecutor
+  database_executor.py  # DatabaseExecutor
+orchestrator.py         # _spawn_background_task, _send_all_alerts, _apply_retention,
+                         # _calc_next_run, run_agent, _running_agents, _background_tasks, EXECUTORS
+```
+`executor.py` vira shim fino (`from orchestrator import run_agent; from executors import _build_ssh_kwargs`) reexportando os 3 símbolos usados externamente — evita tocar `scheduler.py`/`routers/servers.py`/`routers/system.py`. **Decisão a tomar**: manter o shim (menor diff, 3 import sites preservados) ou apagar `executor.py` e atualizar os 3 import sites diretamente (mais limpo, mais arquivos tocados) — ver pergunta ao usuário abaixo.
+
+**Riscos concretos:** (1) `_running_agents`/`_background_tasks` são estado de módulo — precisa haver **uma única fonte** desse estado (em `orchestrator.py`), nunca duplicado; (2) `DatabaseExecutor` tem tratamento de exceção sensível a segurança (regex de redação de DSN) — preservar exatamente; (3) `run_agent` roda SSH/queries/HTTP reais contra servidores monitorados — erro de import só aparece em runtime na primeira execução pós-deploy, não em `py_compile`; (4) cada `executors/*.py` deve importar só o que usa (evitar `import asyncssh` desnecessário em `database_executor.py`, por exemplo).
+
+**Testes de aceitação:** criar/rodar via API um agente de cada tipo (`ssh_test`, `web_monitor`, `log_monitor`, `database`) e conferir execução+relatório; testar auto-fix com 2+ servidores (revalida O1.5); testar agente `type=database` como não-ADMIN (revalida gate da ONDA 0, mesmo não estando neste arquivo); `python -m py_compile` em todos os arquivos novos.
+
+---
+
+### O3.5 — Extração de sub-componentes React
+
+**Módulo:** `frontend` (React) · **Commit:** `telecom:` · **1 componente por commit, conforme pede o item do roadmap**
+
+**Diagnóstico confirmado** (linhas reais via `wc -l`, roadmap desatualizado): `ModuloURA.tsx` 1133, `ModuloConectividade.tsx` 1075, `Settings.tsx` 955, `Users.tsx` 818, `Softphone.tsx` 576.
+
+**Achado principal**: 3 dos 5 arquivos já estão logicamente decompostos, só não fisicamente — `ModuloURA.tsx`, `ModuloConectividade.tsx` e `Settings.tsx` já declaram funções de componente top-level separadas dentro do mesmo arquivo, com props próprias, sem prop-drilling do pai (o padrão de `AuthedAudio.tsx`, só que ainda no mesmo arquivo). Mover cada uma pro próprio arquivo é mecânico e de baixo risco.
+
+**Ordem sugerida (menor → maior risco), 1 componente por commit:**
+1. `AudioPlayer.tsx`, `KpiBar.tsx` (de `ModuloURA.tsx`) — isolados, sem estado externo
+2. `HistoricoModal.tsx`, `DashboardKPIs.tsx` (de `ModuloConectividade.tsx`) — isolados
+3. `AsteriskFilePanel.tsx` (de `Settings.tsx`) — isolado
+4. `DashboardTab.tsx`, `RankingTab.tsx` + cluster de cards (`CardSkeleton`, `RankingCard`, `AvgDurationCard`, `DraggableCard`) (de `ModuloURA.tsx`) — isolados mas maiores
+5. Modal "novo/editar teste" (de `ModuloConectividade.tsx`) — precisa de props/handlers (acoplado a `form`/`showModal` do pai)
+6. Modais de `Users.tsx` (Criar/Editar/Gerenciar 2FA) — sem pré-decomposição existente; precisa de hook `useUserModals` ou prop-drilling extenso (`form`, `editingUser`, `saving`, `totpModalUser`, `qrCode`, `secret`)
+
+**Fora de escopo recomendado nesta rodada** (risco desproporcional ao ganho, sem suíte de testes E2E para cobrir regressão): aba "Chamadas" de `ModuloURA.tsx` (12+ estados de filtro entrelaçados — exigiria hook `useCallsFilters`, não um componente simples), bloco `activeTab === 'config'` de `Settings.tsx` (dezenas de variáveis de estado do pai), e `Softphone.tsx` inteiro (máquina de estado WebRTC/JsSIP, fluxo crítico validado ao vivo em produção — quase todo o arquivo é lógica de sessão SIP interdependente, pouco JSX presentational solto pra extrair com segurança). Ver pergunta ao usuário abaixo sobre confirmar esse corte de escopo.
+
+**Testes de aceitação:** `tsc -b && vite build` limpo a cada commit; smoke test manual da aba/seção afetada (visualmente, já que não há Playwright configurado neste projeto); para os itens 5 e 6 (que envolvem modais com submit), testar o fluxo de criar/editar completo antes de considerar concluído.
+
+---
+
+### Perguntas em aberto antes de aprovar o plano final da ONDA 3
+
+1. **O3.1** — `SettingsTestController.TestResult` colide de nome (não de compilação) com a entidade `domain.connectivity.TestResult`. Manter o nome `TestResult` ao extrair (menor diff) ou renomear para `SettingsCheckResult` (mais claro, evita confusão futura)?
+2. **O3.3** — a pesquisa encontrou uma race condition pré-existente e não relacionada ao roadmap: o VAD (`webrtcvad.Vad`) é um singleton de módulo mutado por `set_mode()` a cada ligação — duas chamadas simultâneas pisam uma na configuração da outra. Corrigir isso junto da decomposição (instanciar VAD por chamada) ou deixar como débito aceito e só documentar?
+3. **O3.4** — depois de extrair `executors/*.py` + `orchestrator.py`, manter `executor.py` como shim fino (reexporta os 3 símbolos usados externamente, menor diff) ou apagá-lo e atualizar os 3 import sites (`scheduler.py`, `routers/servers.py`, `routers/system.py`) diretamente (mais limpo)?
+4. **O3.5** — confirmar o corte de escopo: extrair só os itens 1-6 (baixo/médio risco) e deixar aba "Chamadas" do ModuloURA, bloco "config" do Settings e Softphone.tsx inteiro de fora desta onda (proposta da pesquisa) — ou incluir algum desses itens de risco maior mesmo assim?
