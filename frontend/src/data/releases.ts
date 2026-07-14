@@ -175,4 +175,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Dashboard (Módulo URA): clicar numa barra do gráfico leva direto à aba Chamadas já filtrada pelo dia clicado — mesmo drill-down já existente no Ranking de Atendimentos.',
     ],
   },
+  {
+    version: 'v1.19',
+    date: '2026-07-13',
+    changes: [
+      'Plataforma de Agentes: fechado bypass que permitia a um usuário sem privilégio de administrador executar consultas SQL arbitrárias contra qualquer banco de dados alcançável, via um agente do tipo "banco de dados".',
+      'Plataforma de Agentes: documentação Swagger/OpenAPI deixou de ficar acessível publicamente sem login.',
+    ],
+  },
 ];
