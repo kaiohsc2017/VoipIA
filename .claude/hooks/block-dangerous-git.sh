@@ -12,60 +12,101 @@ if [ -z "$COMMAND" ]; then
   exit 0
 fi
 
-# Remove o CORPO de heredocs (ex.: mensagens de commit via "cat <<'EOF' ... EOF")
-# antes de checar padrões perigosos — senão texto de prosa dentro da mensagem
-# (ex.: alguém escrevendo "docker compose down" na descrição do commit) dispara
-# um falso positivo. Só o comando real é avaliado, não o conteúdo que ele carrega.
-SCAN=$(echo "$COMMAND" | awk '
-  BEGIN { skip = 0 }
-  {
-    if (skip) {
-      line = $0
-      sub(/^[ \t]+/, "", line)
-      if (line == delim) { skip = 0 }
-      next
-    }
-    if (match($0, /<<-?[ \t]*['\''"]?[A-Za-z_][A-Za-z0-9_]*['\''"]?/)) {
-      tok = substr($0, RSTART, RLENGTH)
-      gsub(/<<-?[ \t]*/, "", tok)
-      gsub(/['\''"]/, "", tok)
-      delim = tok
-      skip = 1
-    }
-    print $0
-  }
-')
+# Pré-processamento em Python (mais confiável que awk/sed para isso):
+# 1) Remove o CORPO de heredocs (ex.: mensagem de commit via "cat <<'EOF' ... EOF")
+#    — é dado consumido por `cat`, não comando executado.
+# 2) Mascara o conteúdo dentro de aspas simples — em bash, aspas simples são
+#    SEMPRE literais (nunca executadas), então texto de prosa entre elas
+#    (ex.: `git commit -m 'menciona docker compose down'`) não deve casar.
+# Sem isso, qualquer prosa que cite os nomes desses comandos dispara falso positivo.
+export HOOK_SCAN_COMMAND="$COMMAND"
+SCAN=$(python3 - <<'PYEOF'
+import os, re, sys
+
+# Lido via variável de ambiente, não stdin: o heredoc acima já ocupa o stdin
+# do processo Python como código-fonte do script (python3 -), então um pipe
+# concorrente de dados pelo stdin nunca chegaria a ser lido.
+s = os.environ.get("HOOK_SCAN_COMMAND", "")
+
+# --- 1) remove corpo de heredocs ---
+lines = s.split("\n")
+heredoc_re = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+out = []
+i = 0
+while i < len(lines):
+    line = lines[i]
+    out.append(line)
+    m = heredoc_re.search(line)
+    if m:
+        delim = m.group(2)
+        i += 1
+        while i < len(lines) and lines[i].strip() != delim:
+            i += 1
+        i += 1  # pula a linha do delimitador também
+        continue
+    i += 1
+s = "\n".join(out)
+
+# --- 2) mascara conteúdo entre aspas simples (sempre literal em bash) ---
+masked = []
+in_squote = False
+for c in s:
+    if in_squote:
+        if c == "'":
+            in_squote = False
+            masked.append(c)
+        else:
+            masked.append(" ")
+        continue
+    if c == "'":
+        in_squote = True
+        masked.append(c)
+        continue
+    masked.append(c)
+
+sys.stdout.write("".join(masked))
+PYEOF
+)
+
+# Achata quebras de linha para permitir casar padrões que atravessam continuações
+# de linha (ex.: "git \\\n  push --force").
+FLAT=$(printf '%s' "$SCAN" | tr '\n' ' ')
 
 block() {
   echo "BLOCKED: '$COMMAND' — $1. O usuário não autorizou este comando; peça confirmação explícita antes de prosseguir." >&2
   exit 2
 }
 
+# Flags globais conhecidas do git que podem aparecer ANTES do subcomando
+# (ex.: "git -C /opt/AsteriskIA branch -D x") — sem isso, um simples "-C <path>"
+# bypassa a checagem por quebrar a adjacência "git <subcomando>".
+GITPFX='git(\s+(-C\s+\S+|-c\s+\S+|--git-dir=\S+|--work-tree=\S+|-P|--no-pager|--no-replace-objects))*'
+
 # --- Git destrutivo -----------------------------------------------------
-echo "$SCAN" | grep -qE '(^|[;&|]|\s)git\s+push\b.*(--force\b|-f\b)' && \
+echo "$FLAT" | grep -qE "$GITPFX\s+push\b.*(--force\b|-f\b)" && \
   block "force-push reescreve o histórico remoto e pode sobrescrever trabalho de outra pessoa"
 
-echo "$SCAN" | grep -qE '(^|[;&|]|\s)git\s+reset\s+--hard\b' && \
+echo "$FLAT" | grep -qE "$GITPFX\s+reset\s+--hard\b" && \
   block "reset --hard descarta permanentemente alterações locais não commitadas"
 
-echo "$SCAN" | grep -qE '(^|[;&|]|\s)git\s+clean\s+.*-[a-zA-Z]*f' && \
+echo "$FLAT" | grep -qE "$GITPFX\s+clean\s+.*-[a-zA-Z]*f" && \
   block "git clean -f remove arquivos não versionados sem chance de recuperação"
 
-echo "$SCAN" | grep -qE '(^|[;&|]|\s)git\s+branch\s+-D\b' && \
+echo "$FLAT" | grep -qE "$GITPFX\s+branch\s+.*-D\b" && \
   block "branch -D força a remoção de uma branch mesmo com commits não mesclados"
 
-echo "$SCAN" | grep -qE '(^|[;&|]|\s)git\s+(checkout|restore)\s+\.\s*($|[;&|])' && \
+echo "$FLAT" | grep -qE "$GITPFX\s+(checkout|restore)\s+(--\s+)?\.(\s|\$)" && \
   block "descarta TODAS as alterações não commitadas no working tree"
 
 # --- Regras específicas de produção do AsteriskIA ------------------------
 # "Nunca fazer docker compose down sem docker compose up imediato" (CLAUDE.md).
-if echo "$SCAN" | grep -qE '(^|[;&|]|\s)docker\s+compose\s+down\b'; then
-  echo "$SCAN" | grep -qE '\bdocker\s+compose\s+up\b' || \
+if echo "$FLAT" | grep -qE '(^|[;&|]|\s)docker\s+compose\s+down\b'; then
+  echo "$FLAT" | grep -qE '\bdocker\s+compose\s+up\b' || \
     block "docker compose down sem 'up' na mesma chamada derruba o Caddy e tira o sistema do ar (regra do CLAUDE.md)"
 fi
 
 # "Nunca remover o symlink /opt/AsteriskIA/.env" e nunca apagar env/.env sem backup.
-echo "$SCAN" | grep -qE '(^|[;&|]|\s)(rm|unlink)\b.*(/opt/AsteriskIA/\.env\b|/opt/AsteriskIA/env/\.env\b|/opt/AsteriskIA/env\b)' && \
+echo "$FLAT" | grep -qE '(^|[;&|]|\s)(rm|unlink)\b.*(/opt/AsteriskIA/\.env\b|/opt/AsteriskIA/env/\.env\b|/opt/AsteriskIA/env\b)' && \
   block "remove o .env real, o symlink ou o diretório env/ — regra inegociável do CLAUDE.md (sempre fazer backup antes e nunca remover o symlink)"
 
 exit 0
