@@ -1,9 +1,21 @@
 """routers/system.py — health check, retenção de dados, secrets por agente"""
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from uuid import UUID
 from database import DB
 from auth import require_admin, require_permission
 import asyncio, logging
+
+
+class RetentionConfigRequest(BaseModel):
+    executions_days: int = 90
+    logs_days: int = 30
+    alerts_days: int = 180
+
+
+class SecretRequest(BaseModel):
+    key: str
+    value: str
 
 logger = logging.getLogger("asteriskia.system")
 
@@ -58,10 +70,10 @@ async def get_retention():
         return dict(row) if row else {}
 
 @router.put("/retention", dependencies=_ADMIN)
-async def update_retention(body: dict):
-    exec_days  = int(body.get("executions_days", 90))
-    logs_days  = int(body.get("logs_days", 30))
-    alert_days = int(body.get("alerts_days", 180))
+async def update_retention(body: RetentionConfigRequest):
+    exec_days  = body.executions_days
+    logs_days  = body.logs_days
+    alert_days = body.alerts_days
 
     if any(d < 1 for d in [exec_days, logs_days, alert_days]):
         raise HTTPException(400, "Dias devem ser >= 1")
@@ -94,9 +106,9 @@ async def list_secrets(agent_id: UUID):
         return [dict(r) for r in rows]  # value nunca retornado na listagem
 
 @router.post("/agents/{agent_id}/secrets", dependencies=_SECRETS_WRITE)
-async def upsert_secret(agent_id: UUID, body: dict):
-    key   = str(body.get("key", "")).strip()
-    value = str(body.get("value", "")).strip()
+async def upsert_secret(agent_id: UUID, body: SecretRequest):
+    key   = body.key.strip()
+    value = body.value.strip()
     if not key or not value:
         raise HTTPException(400, "key e value são obrigatórios")
     async with DB() as db:

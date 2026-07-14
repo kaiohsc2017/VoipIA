@@ -185,15 +185,16 @@ async def migrate_db():
     finally:
         await conn.close()
 
-async def get_db() -> asyncpg.Connection:
-    """Descontinuado — use `async with DB() as db:` para evitar connection leaks."""
-    import warnings
-    warnings.warn("get_db() está descontinuado; use `async with DB() as db:`", DeprecationWarning, stacklevel=2)
-    return await _pool.acquire()
-
-async def release_db(conn):
-    """Descontinuado — use `async with DB() as db:` para evitar connection leaks."""
-    await _pool.release(conn)
+async def fetch_recent_alerts(limit: int):
+    """Alertas recentes com nome do agente — query compartilhada entre routers/executions.py
+    (subconjunto de colunas, usado pelo frontend) e routers/reports.py (al.* completo)."""
+    async with DB() as db:
+        rows = await db.fetch("""
+            SELECT al.*, a.name as agent_name
+            FROM alerts al JOIN agents a ON a.id=al.agent_id
+            ORDER BY al.sent_at DESC LIMIT $1
+        """, limit)
+        return [dict(r) for r in rows]
 
 class DB:
     """Context manager para conexão do pool."""

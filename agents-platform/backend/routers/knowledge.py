@@ -59,7 +59,7 @@ async def delete_doc(doc_id: uuid.UUID):
         return {"ok": True}
 
 @router.get("/search")
-async def search_knowledge(q: str, limit: int = 5):
+async def search_knowledge(q: str, limit: int = Query(default=5, le=50)):
     async with DB() as db:
         rows = await db.fetch("""
             SELECT id, filename, title, tags,

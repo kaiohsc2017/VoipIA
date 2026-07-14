@@ -1,7 +1,7 @@
 """routers/executions.py"""
 from fastapi import APIRouter, Depends, Query
 from uuid import UUID
-from database import DB
+from database import DB, fetch_recent_alerts
 from auth import require_admin
 
 router = APIRouter()
@@ -93,15 +93,19 @@ async def dashboard_period(period: str = "day"):
 @router.get("/alerts")
 async def list_alerts(limit: int = Query(default=100, le=500)):
     """Histórico de alertas para a página Alertas/Relatórios."""
-    async with DB() as db:
-        rows = await db.fetch("""
-            SELECT al.id, a.name AS agent_name, al.level, al.channel,
-                   al.message, al.sent_at, al.delivered
-            FROM alerts al
-            JOIN agents a ON a.id = al.agent_id
-            ORDER BY al.sent_at DESC LIMIT $1
-        """, limit)
-        return [dict(r) for r in rows]
+    rows = await fetch_recent_alerts(limit)
+    return [
+        {
+            "id": r["id"],
+            "agent_name": r["agent_name"],
+            "level": r["level"],
+            "channel": r["channel"],
+            "message": r["message"],
+            "sent_at": r["sent_at"],
+            "delivered": r["delivered"],
+        }
+        for r in rows
+    ]
 
 @router.get("/{execution_id}", dependencies=_ADMIN)
 async def get_execution(execution_id: UUID):
