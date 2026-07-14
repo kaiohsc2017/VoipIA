@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import JsSIP from 'jssip';
+import { decodeTokenPayload } from '../api/client';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 // Em produção o Nginx faz proxy /asterisk-ws → asterisk:8088/ws
@@ -24,7 +25,7 @@ const getUserExtension = (): string => {
   try {
     const token = localStorage.getItem('asteriskia_token');
     if (!token) return '9001';
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    const payload = decodeTokenPayload(token);
     return payload.extension ? String(payload.extension) : '9001';
   } catch { return '9001'; }
 };

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import api, { canWrite, getPermissionsFromToken, getRoleFromToken } from '../api/client';
+import api from '../api/client';
+import { useAuthSession } from '../hooks/useAuthSession';
 import type { BusinessUnit, Linha, Operadora, Operation } from '../api/types';
 import ImportModal, { triggerDownload } from './shared/ImportModal';
 
@@ -55,10 +56,8 @@ function MultiSelectChecklist({ options, selectedIds, onChange, emptyMessage }: 
 }
 
 export default function Linhas() {
-  const token = localStorage.getItem('asteriskia_token');
-  const role = getRoleFromToken(token);
-  const perms = getPermissionsFromToken(token);
-  const hasWrite = canWrite(role, perms, 'telecom.linhas');
+  const { hasWrite: sessionHasWrite } = useAuthSession();
+  const hasWrite = sessionHasWrite('telecom.linhas');
 
   const [items, setItems] = useState<Linha[]>([]);
   const [loading, setLoading] = useState(true);

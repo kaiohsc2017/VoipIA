@@ -210,4 +210,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Manutenção interna do backend: consolidadas as consultas de Ranking de Atendimentos que compartilhavam a mesma lógica de filtro — sem mudança perceptível de comportamento.',
     ],
   },
+  {
+    version: 'v1.23',
+    date: '2026-07-14',
+    changes: [
+      'Manutenção interna do frontend: consolidada em um único ponto a lógica de permissões repetida em várias telas (Operadoras, Números 0800, Linhas, Softphone) — sem mudança perceptível de comportamento.',
+    ],
+  },
 ];

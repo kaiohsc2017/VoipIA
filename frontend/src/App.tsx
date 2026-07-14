@@ -4,7 +4,8 @@ import Login from './components/Login';
 import Sidebar, { type Page } from './components/Sidebar';
 import ModuloLogs from './components/ModuloLogs';
 import ModuloSeguranca from './components/ModuloSeguranca';
-import { revokeSession, getRoleFromToken, getPermissionsFromToken, canRead } from './api/client';
+import { revokeSession } from './api/client';
+import { authSessionFromToken } from './hooks/useAuthSession';
 
 // ─── Lazy imports — cada módulo vira um chunk separado ───────────────────────
 // O React cria um chunk JS separado para cada componente lazy.
@@ -113,8 +114,8 @@ const PAGE_RESOURCE: Partial<Record<Page, string>> = {
 export default function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('asteriskia_token'));
   const [username, setUsername] = useState<string>(() => localStorage.getItem('asteriskia_user') ?? '');
-  const [role, setRole] = useState<'ADMIN' | 'USER'>(() => getRoleFromToken(localStorage.getItem('asteriskia_token')));
-  const [perms, setPerms] = useState<Record<string, string>>(() => getPermissionsFromToken(localStorage.getItem('asteriskia_token')));
+  const [role, setRole] = useState<'ADMIN' | 'USER'>(() => authSessionFromToken(localStorage.getItem('asteriskia_token')).role);
+  const [perms, setPerms] = useState<Record<string, string>>(() => authSessionFromToken(localStorage.getItem('asteriskia_token')).perms);
   const pageFromHash = (): Page => {
     const hash = window.location.hash.replace('#', '').trim() as Page;
     const valid: Page[] = ['dashboard','modulo1','modulo2','modulo3','masterdata','users','operadoras','cadastro0800','linhas','settings','audit','logs','security','accessGroups','docs','release','agents'];
@@ -122,15 +123,13 @@ export default function App() {
     // Acesso direto via hash (digitado/favoritado) a uma página sem permissão de
     // leitura: volta pro dashboard. O botão de nav já fica escondido (ver
     // Sidebar.tsx), isso cobre quem navega direto pela URL.
-    const currentToken = localStorage.getItem('asteriskia_token');
-    const currentRole = getRoleFromToken(currentToken);
-    const currentPerms = getPermissionsFromToken(currentToken);
+    const session = authSessionFromToken(localStorage.getItem('asteriskia_token'));
     // Grupos de acesso não têm resource_key próprio — o backend (AccessGroupController)
     // exige ROLE_ADMIN puro (evita o ovo-e-galinha de um grupo customizado
     // precisar de si mesmo pra existir), então a checagem aqui é direto por role.
-    if (hash === 'accessGroups') return currentRole === 'ADMIN' ? hash : 'dashboard';
+    if (hash === 'accessGroups') return session.role === 'ADMIN' ? hash : 'dashboard';
     const resource = PAGE_RESOURCE[hash];
-    if (resource && !canRead(currentRole, currentPerms, resource)) return 'dashboard';
+    if (resource && !session.hasRead(resource)) return 'dashboard';
     return hash;
   };
   const [page, setPage] = useState<Page>(pageFromHash);
@@ -153,8 +152,9 @@ export default function App() {
   const handleLogin = (t: string, user: string) => {
     setToken(t);
     setUsername(user);
-    setRole(getRoleFromToken(t));
-    setPerms(getPermissionsFromToken(t));
+    const session = authSessionFromToken(t);
+    setRole(session.role);
+    setPerms(session.perms);
     setPage(pageFromHash());
   };
 

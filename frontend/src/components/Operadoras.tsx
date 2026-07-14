@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import api, { canWrite, getPermissionsFromToken, getRoleFromToken } from '../api/client';
+import api from '../api/client';
+import { useAuthSession } from '../hooks/useAuthSession';
 import type { Operadora } from '../api/types';
 
 interface OperadoraPayload {
@@ -10,10 +11,8 @@ interface OperadoraPayload {
 const EMPTY_FORM: OperadoraPayload = { nome: '', isActive: true };
 
 export default function Operadoras() {
-  const token = localStorage.getItem('asteriskia_token');
-  const role = getRoleFromToken(token);
-  const perms = getPermissionsFromToken(token);
-  const hasWrite = canWrite(role, perms, 'telecom.operadoras');
+  const { hasWrite: sessionHasWrite } = useAuthSession();
+  const hasWrite = sessionHasWrite('telecom.operadoras');
 
   const [items, setItems] = useState<Operadora[]>([]);
   const [loading, setLoading] = useState(true);

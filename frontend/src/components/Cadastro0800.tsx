@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import api, { canWrite, getPermissionsFromToken, getRoleFromToken } from '../api/client';
+import api from '../api/client';
+import { useAuthSession } from '../hooks/useAuthSession';
 import type { BusinessUnit, Client, Numero0800, Operadora } from '../api/types';
 import ImportModal, { triggerDownload } from './shared/ImportModal';
 
@@ -170,10 +171,8 @@ function toRegeneradoForm(item: Numero0800): RegeneradoForm[] {
 }
 
 export default function Cadastro0800() {
-  const token = localStorage.getItem('asteriskia_token');
-  const role = getRoleFromToken(token);
-  const perms = getPermissionsFromToken(token);
-  const hasWrite = canWrite(role, perms, 'telecom.0800');
+  const { hasWrite: sessionHasWrite } = useAuthSession();
+  const hasWrite = sessionHasWrite('telecom.0800');
 
   const [items, setItems] = useState<Numero0800[]>([]);
   const [loading, setLoading] = useState(true);

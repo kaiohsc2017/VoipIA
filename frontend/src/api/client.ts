@@ -113,7 +113,7 @@ function logout() {
  * (esconder nav/rotas admin), a autorização real continua sendo aplicada
  * pelo backend em toda requisição.
  */
-function decodeTokenPayload(token: string): Record<string, unknown> {
+export function decodeTokenPayload(token: string): Record<string, unknown> {
   const payload = token.split('.')[1];
   const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
   const json = decodeURIComponent(
