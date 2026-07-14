@@ -68,6 +68,40 @@ public class CallRecordService {
         // cedo) pode chegar sem nenhum field — nunca deixar isso abortar o registro.
         if (fields == null) fields = Map.of();
 
+        CallRecord record =
+                buildCallRecord(
+                        callUuid,
+                        resolvedUraId,
+                        fields,
+                        audioFilePath,
+                        transcription,
+                        callerNumber,
+                        callDurationSecs,
+                        subjectTag);
+
+        // Primeiro salva para garantir persistência mesmo que o Jira falhe
+        record = repository.save(record);
+
+        // Salva uma resposta por pergunta configurada — nunca exige alterar o schema
+        saveAnswers(record.getId(), resolvedUraId, fields);
+
+        record = applyJiraIntegration(record, resolvedUraId, fields);
+        notifyNewCall(record);
+
+        return record;
+    }
+
+    /** Monta o CallRecord a partir dos campos coletados pela URA — sem persistir. */
+    private CallRecord buildCallRecord(
+            String callUuid,
+            int resolvedUraId,
+            Map<String, String> fields,
+            String audioFilePath,
+            String transcription,
+            String callerNumber,
+            Integer callDurationSecs,
+            String subjectTag) {
+
         // Número do chamador — usa o valor explícito se for real (não "desconhecido"),
         // caso contrário cai no ramal informado pelo usuário durante a URA.
         String callerPhone =
@@ -97,65 +131,56 @@ public class CallRecordService {
         // Extrai tipo de atendimento das respostas da URA
         String callType =
                 truncate(
-                        fields.entrySet().stream()
-                                .filter(
-                                        e ->
-                                                e.getKey().toLowerCase().contains("tipo")
-                                                        || e.getKey()
-                                                                .toLowerCase()
-                                                                .contains("issuetype")
-                                                        || e.getKey()
-                                                                .toLowerCase()
-                                                                .contains("type"))
-                                .map(java.util.Map.Entry::getValue)
-                                .findFirst()
-                                .orElse(null),
-                        255);
+                        firstFieldValueMatching(fields, "tipo", "issuetype", "type"), 255);
 
         // Extrai impacto/prioridade das respostas da URA (chave configurável na tela de Fluxo URA)
         String priority =
                 truncate(
-                        fields.entrySet().stream()
-                                .filter(
-                                        e ->
-                                                e.getKey().toLowerCase().contains("priority")
-                                                        || e.getKey()
-                                                                .toLowerCase()
-                                                                .contains("prioridade")
-                                                        || e.getKey()
-                                                                .toLowerCase()
-                                                                .contains("impacto"))
-                                .map(java.util.Map.Entry::getValue)
-                                .findFirst()
-                                .orElse(null),
-                        255);
+                        firstFieldValueMatching(fields, "priority", "prioridade", "impacto"), 255);
 
         // Ramal/telefone que o cliente informou por voz na URA (distinto do callerNumber real)
         String reportedRamal = truncate(fields.getOrDefault("customfield_telefone", null), 255);
 
-        CallRecord record =
-                CallRecord.builder()
-                        .uraId(resolvedUraId)
-                        .callUuid(uuid)
-                        .callDate(LocalDateTime.now(java.time.ZoneId.systemDefault()))
-                        .callerNumber(callerPhone)
-                        .clientName(clientName)
-                        .transcription(fullTranscription)
-                        .audioFilePath(audioFilePath)
-                        .callType(callType)
-                        .reportedRamal(reportedRamal)
-                        .priority(priority)
-                        .callDurationSecs(callDurationSecs != null ? callDurationSecs : 0)
-                        .subjectTag(truncate(subjectTag, 100))
-                        .build();
+        return CallRecord.builder()
+                .uraId(resolvedUraId)
+                .callUuid(uuid)
+                .callDate(LocalDateTime.now(java.time.ZoneId.systemDefault()))
+                .callerNumber(callerPhone)
+                .clientName(clientName)
+                .transcription(fullTranscription)
+                .audioFilePath(audioFilePath)
+                .callType(callType)
+                .reportedRamal(reportedRamal)
+                .priority(priority)
+                .callDurationSecs(callDurationSecs != null ? callDurationSecs : 0)
+                .subjectTag(truncate(subjectTag, 100))
+                .build();
+    }
 
-        // Primeiro salva para garantir persistência mesmo que o Jira falhe
-        record = repository.save(record);
+    /** Primeiro valor de `fields` cuja chave (case-insensitive) contém algum dos termos dados. */
+    private static String firstFieldValueMatching(Map<String, String> fields, String... terms) {
+        return fields.entrySet().stream()
+                .filter(
+                        e -> {
+                            String key = e.getKey().toLowerCase();
+                            for (String term : terms) {
+                                if (key.contains(term)) return true;
+                            }
+                            return false;
+                        })
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(null);
+    }
 
-        // Salva uma resposta por pergunta configurada — nunca exige alterar o schema
-        saveAnswers(record.getId(), resolvedUraId, fields);
-
-        // Chama Jira Cloud para criar o issue, se a URA tiver a integração ativada
+    /**
+     * Cria o issue no Jira se a URA tiver a integração ativada, atualizando e salvando o record com
+     * a chave/status resultantes. Falhas na integração são logadas, nunca propagadas — a chamada já
+     * está persistida e não pode ser perdida por um problema no Jira.
+     */
+    private CallRecord applyJiraIntegration(
+            CallRecord record, int resolvedUraId, Map<String, String> fields) {
+        String callUuid = record.getCallUuid().toString();
         Ura ura = uraRepository.findById(resolvedUraId).orElse(null);
         boolean jiraEnabled = ura == null || Boolean.TRUE.equals(ura.getJiraIntegrationEnabled());
         if (!jiraEnabled) {
@@ -163,31 +188,32 @@ public class CallRecordService {
                     "Chamada {} — URA {} está com integração Jira desativada, pulando abertura de chamado",
                     callUuid,
                     resolvedUraId);
-        } else {
-            try {
-                String issueKey = jiraService.createIssue(fields);
-                if (issueKey != null) {
-                    record.setJiraIssueKey(issueKey);
-                    record.setJiraIssueStatus("Aberto");
-                    record = repository.save(record);
-                    log.info("Chamada {} vinculada ao Jira issue {}", callUuid, issueKey);
-                } else {
-                    log.warn(
-                            "Chamada {} registrada sem issue Jira (falha na integração)", callUuid);
-                }
-            } catch (Exception e) {
-                log.error("Erro na integração Jira para chamada {}: {}", callUuid, e.getMessage());
-            }
+            return record;
         }
 
-        // Envia notificação WebSocket em tempo real para o Frontend
+        try {
+            String issueKey = jiraService.createIssue(fields);
+            if (issueKey != null) {
+                record.setJiraIssueKey(issueKey);
+                record.setJiraIssueStatus("Aberto");
+                record = repository.save(record);
+                log.info("Chamada {} vinculada ao Jira issue {}", callUuid, issueKey);
+            } else {
+                log.warn("Chamada {} registrada sem issue Jira (falha na integração)", callUuid);
+            }
+        } catch (Exception e) {
+            log.error("Erro na integração Jira para chamada {}: {}", callUuid, e.getMessage());
+        }
+        return record;
+    }
+
+    /** Notifica o Frontend em tempo real via WebSocket — falha aqui não afeta o registro. */
+    private void notifyNewCall(CallRecord record) {
         try {
             messagingTemplate.convertAndSend("/topic/calls", record);
         } catch (Exception e) {
             log.warn("Erro ao enviar WebSocket de nova chamada: {}", e.getMessage());
         }
-
-        return record;
     }
 
     @Transactional(readOnly = true)

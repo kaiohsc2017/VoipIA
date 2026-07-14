@@ -219,16 +219,13 @@ public class StatsController {
 
         Map<String, Object> trend =
                 buildRankingTrend(
-                        range,
-                        safeLimit,
-                        restricted,
-                        safeBuIds,
-                        uraId,
-                        topClients,
-                        byType,
-                        topResolutions,
-                        topSubjectsByType,
-                        avgDurationByType);
+                        new RankingQueryContext(range, safeLimit, restricted, safeBuIds, uraId),
+                        new RankingCurrentResults(
+                                topClients,
+                                byType,
+                                topResolutions,
+                                topSubjectsByType,
+                                avgDurationByType));
 
         Map<String, Object> result = new HashMap<>();
         result.put("period", period);
@@ -243,24 +240,33 @@ public class StatsController {
     }
 
     /**
+     * Contexto de escopo/período reusado entre as queries do ranking atual e da tendência
+     * período-a-período (evita repassar os mesmos 5 parâmetros em cada chamada).
+     */
+    private record RankingQueryContext(
+            LocalDateTime[] range, int safeLimit, boolean restricted, Set<Integer> safeBuIds, Integer uraId) {}
+
+    /** Resultados já montados do período atual, reusados para somar os totais da tendência. */
+    private record RankingCurrentResults(
+            List<Map<String, Object>> topClients,
+            List<Map<String, Object>> byType,
+            List<Map<String, Object>> topResolutions,
+            Map<String, List<Map<String, Object>>> topSubjectsByType,
+            List<Map<String, Object>> avgDurationByType) {}
+
+    /**
      * Tendência período-a-período: reexecuta as mesmas queries na janela imediatamente anterior
      * (mesma duração de [from,to]) e devolve só os totais agregados — o suficiente para o frontend
      * mostrar "▲/▼ X% vs. período anterior" em cada card, sem duplicar a lógica de limites de
      * período no cliente.
      */
-    private Map<String, Object> buildRankingTrend(
-            LocalDateTime[] range,
-            int safeLimit,
-            boolean restricted,
-            Set<Integer> safeBuIds,
-            Integer uraId,
-            List<Map<String, Object>> topClients,
-            List<Map<String, Object>> byType,
-            List<Map<String, Object>> topResolutions,
-            Map<String, List<Map<String, Object>>> topSubjectsByType,
-            List<Map<String, Object>> avgDurationByType) {
+    private Map<String, Object> buildRankingTrend(RankingQueryContext ctx, RankingCurrentResults current) {
+        int safeLimit = ctx.safeLimit();
+        boolean restricted = ctx.restricted();
+        Set<Integer> safeBuIds = ctx.safeBuIds();
+        Integer uraId = ctx.uraId();
 
-        LocalDateTime[] prevRange = PeriodRangeResolver.previous(range);
+        LocalDateTime[] prevRange = PeriodRangeResolver.previous(ctx.range());
         LocalDateTime prevFrom = prevRange[0], prevTo = prevRange[1];
 
         List<Map<String, Object>> prevTopClients =
@@ -281,9 +287,10 @@ public class StatsController {
 
         Map<String, Long> subjectsTotalByType = new LinkedHashMap<>();
         Map<String, Long> subjectsPrevTotalByType = new LinkedHashMap<>();
-        for (String callType : topSubjectsByType.keySet()) {
+        for (String callType : current.topSubjectsByType().keySet()) {
             subjectsTotalByType.put(
-                    callType, StatsRankingAssembler.sumTotal(topSubjectsByType.get(callType)));
+                    callType,
+                    StatsRankingAssembler.sumTotal(current.topSubjectsByType().get(callType)));
             subjectsPrevTotalByType.put(
                     callType,
                     StatsRankingAssembler.sumTotal(
@@ -299,13 +306,16 @@ public class StatsController {
         }
 
         Map<String, Object> trend = new HashMap<>();
-        trend.put("topClientsTotal", StatsRankingAssembler.sumTotal(topClients));
+        trend.put("topClientsTotal", StatsRankingAssembler.sumTotal(current.topClients()));
         trend.put("topClientsPrevTotal", StatsRankingAssembler.sumTotal(prevTopClients));
-        trend.put("byTypeTotal", StatsRankingAssembler.sumTotal(byType));
+        trend.put("byTypeTotal", StatsRankingAssembler.sumTotal(current.byType()));
         trend.put("byTypePrevTotal", StatsRankingAssembler.sumTotal(prevByType));
-        trend.put("topResolutionsTotal", StatsRankingAssembler.sumTotal(topResolutions));
+        trend.put(
+                "topResolutionsTotal", StatsRankingAssembler.sumTotal(current.topResolutions()));
         trend.put("topResolutionsPrevTotal", StatsRankingAssembler.sumTotal(prevTopResolutions));
-        trend.put("avgDurationSecs", StatsRankingAssembler.avgOfAvgDurations(avgDurationByType));
+        trend.put(
+                "avgDurationSecs",
+                StatsRankingAssembler.avgOfAvgDurations(current.avgDurationByType()));
         trend.put(
                 "avgDurationPrevSecs",
                 StatsRankingAssembler.avgOfAvgDurations(prevAvgDurationByType));
