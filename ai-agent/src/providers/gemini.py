@@ -7,9 +7,7 @@ Cada capability (STT, LLM, TTS) tem seu próprio model_id vindo do banco.
 from __future__ import annotations
 
 import asyncio
-import io
 import logging
-import wave
 
 from src.providers.base import BaseAIProvider, ProviderError
 
@@ -17,8 +15,8 @@ logger = logging.getLogger("asteriskia.provider.gemini")
 
 
 def _client():
-    from src.services.gemini_service import _get_global_client
-    return _get_global_client()
+    from src.providers.gemini_shared import get_global_client
+    return get_global_client()
 
 
 def _clean_for_tts(text: str) -> str:
@@ -70,11 +68,9 @@ class GeminiProvider(BaseAIProvider):
 
     def _transcribe_sync(self, pcm_data: bytes, hint: str = "") -> str:
         from google.genai import types as t
+        from src.providers.audio_utils import pcm_to_wav
 
-        buf = io.BytesIO()
-        with wave.open(buf, "wb") as wf:
-            wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(8000)
-            wf.writeframes(pcm_data)
+        wav_bytes = pcm_to_wav(pcm_data, rate=8000)
 
         if hint:
             prompt = hint
@@ -88,7 +84,7 @@ class GeminiProvider(BaseAIProvider):
             model=self._model_id,
             contents=[t.Content(parts=[
                 t.Part(text=prompt),
-                t.Part(inline_data=t.Blob(mime_type="audio/wav", data=buf.getvalue())),
+                t.Part(inline_data=t.Blob(mime_type="audio/wav", data=wav_bytes)),
             ])],
         )
         return resp.text or ""
@@ -101,7 +97,7 @@ class GeminiProvider(BaseAIProvider):
         history: list[dict],
     ) -> str:
         # Achado de segurança/correção (bug garantido de TypeError se exercitado):
-        # _execute_tool exige (tool_name, args, loop) — faltava o loop, capturado
+        # execute_tool exige (tool_name, args, loop) — faltava o loop, capturado
         # aqui antes de despachar pra thread (asyncio.get_running_loop() dentro da
         # thread de _llm_sync levantaria RuntimeError por não haver loop rodando).
         loop = asyncio.get_running_loop()
@@ -115,16 +111,16 @@ class GeminiProvider(BaseAIProvider):
     def _llm_sync(self, system_instruction: str, history: list[dict],
                   loop: asyncio.AbstractEventLoop) -> str:
         from google.genai import types as t
-        from src.services.gemini_service import _execute_tool, _TOOLS
+        from src.providers.gemini_shared import execute_tool, TOOLS
 
-        # Reusa a mesma declaração de tool de gemini_service.py — schema próprio
+        # Reusa a mesma declaração de tool de gemini_shared.py — schema próprio
         # aqui (nome "create_jira_issue", args summary/description/priority)
-        # divergia do que _execute_tool realmente espera ("abrir_protocolo_suporte",
+        # divergia do que execute_tool realmente espera ("abrir_protocolo_suporte",
         # args descricao/prioridade), quebrando com TypeError/KeyError se o Gemini
         # chegasse a chamar a função.
         config = t.GenerateContentConfig(
             system_instruction=system_instruction,
-            tools=[_TOOLS],
+            tools=[TOOLS],
         )
 
         contents = [
@@ -146,7 +142,7 @@ class GeminiProvider(BaseAIProvider):
             if not (hasattr(part, "function_call") and part.function_call):
                 break
             fc = part.function_call
-            result = _execute_tool(fc.name, dict(fc.args), loop)
+            result = execute_tool(fc.name, dict(fc.args), loop)
             contents += [
                 resp.candidates[0].content,
                 t.Content(role="user", parts=[t.Part(
@@ -267,7 +263,7 @@ class GeminiProvider(BaseAIProvider):
 
     def _tts_sync(self, text: str) -> bytes:
         from google.genai import types as t
-        from src.services.gemini_service import _resample_pcm
+        from src.providers.audio_utils import resample_pcm
 
         chunks: list[bytes] = []
         for chunk in _client().models.generate_content_stream(
@@ -291,4 +287,4 @@ class GeminiProvider(BaseAIProvider):
 
         if not chunks:
             return b""
-        return _resample_pcm(b"".join(chunks), from_hz=24000, to_hz=8000)
+        return resample_pcm(b"".join(chunks), from_hz=24000, to_hz=8000)

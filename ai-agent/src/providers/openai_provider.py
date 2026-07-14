@@ -11,8 +11,8 @@ import asyncio
 import io
 import logging
 import struct
-import wave
 
+from src.providers.audio_utils import pcm_to_wav, resample_pcm
 from src.providers.base import BaseAIProvider, ProviderError
 from src.protocol import write_audio
 
@@ -38,28 +38,6 @@ def _get_openai(api_key: str):
     return _openai_client
 
 
-def _pcm_to_wav(pcm: bytes, rate: int = 8000) -> bytes:
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(rate)
-        wf.writeframes(pcm)
-    return buf.getvalue()
-
-
-def _resample(pcm: bytes, from_hz: int, to_hz: int) -> bytes:
-    import numpy as np
-    samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
-    n_new   = int(len(samples) * to_hz / from_hz)
-    resampled = np.interp(
-        np.linspace(0, len(samples) - 1, n_new),
-        np.arange(len(samples)),
-        samples,
-    )
-    return resampled.astype(np.int16).tobytes()
-
-
 class OpenAIProvider(BaseAIProvider):
 
     def __init__(self, model_id: str, api_key: str, capability: str):
@@ -83,7 +61,7 @@ class OpenAIProvider(BaseAIProvider):
                 ValueError(f"Modelo {self._model_id} não é STT"))
         try:
             client  = _get_openai(self._api_key)
-            wav     = _pcm_to_wav(pcm_data, SAMPLE_RATE)
+            wav     = pcm_to_wav(pcm_data, SAMPLE_RATE)
             wav_buf = io.BytesIO(wav)
             wav_buf.name = "audio.wav"
 
@@ -143,7 +121,7 @@ class OpenAIProvider(BaseAIProvider):
                 ) as resp:
                     for chunk in resp.iter_bytes(chunk_size=FRAME_BYTES * 4):
                         if chunk:
-                            yield _resample(chunk, OPENAI_RATE, SAMPLE_RATE)
+                            yield resample_pcm(chunk, OPENAI_RATE, SAMPLE_RATE)
 
             chunks = await asyncio.to_thread(lambda: list(_iter_chunks()))
             total_bytes = 0
@@ -167,7 +145,7 @@ class OpenAIProvider(BaseAIProvider):
                     input=text,
                     response_format="pcm",
                 )
-                return _resample(resp.content, OPENAI_RATE, SAMPLE_RATE)
+                return resample_pcm(resp.content, OPENAI_RATE, SAMPLE_RATE)
 
             return await asyncio.to_thread(_call)
         except Exception as e:

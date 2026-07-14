@@ -13,6 +13,7 @@ Tipos de mensagem:
   0xFF = Erro
 """
 
+import logging
 import struct
 import asyncio
 from src.config import (
@@ -22,6 +23,8 @@ from src.config import (
     MSG_TYPE_HANGUP,
     MSG_TYPE_ERROR,
 )
+
+logger = logging.getLogger("asteriskia.protocol")
 
 
 class AudiosocketFrame:
@@ -218,3 +221,57 @@ async def write_audio(writer: asyncio.StreamWriter, pcm_data: bytes, record: lis
         return True
     except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError):
         return False
+
+
+async def drain_reader(reader: asyncio.StreamReader, call_uuid: str = "") -> bool:
+    """
+    Descarta frames acumulados no reader durante geração/reprodução do TTS.
+
+    O Asterisk envia áudio do microfone continuamente — mesmo quando o
+    cliente está escutando a URA. Esses frames precisam ser descartados
+    antes de iniciar a captura real para que o STT não transcreva ruído
+    de fundo capturado durante a fala da URA como resposta do cliente.
+
+    Timeout 5ms: esvazia o buffer já acumulado (leituras de buffer são
+    instantâneas), e é MENOR que o intervalo entre frames do Asterisk
+    (~20ms). Após o buffer esvaziar, o próximo frame leva ~20ms para
+    chegar — como 20ms > 5ms, o timeout é acionado e o loop sai.
+
+    Usar 50ms causava loop infinito: Asterisk envia 1 frame a cada 20ms,
+    e 20ms < 50ms → novo frame sempre chegava antes do timeout → trava.
+
+    Retorna True se detectou hangup durante a drenagem.
+    """
+    drained = 0
+    try:
+        while True:
+            frame = await asyncio.wait_for(read_frame(reader), timeout=0.005)
+            if frame is None or frame.is_hangup:
+                return True  # hangup detectado
+            drained += 1
+    except asyncio.TimeoutError:
+        pass
+    if drained:
+        logger.debug("[%s] Drenados %d frames stale pós-TTS", call_uuid, drained)
+    return False
+
+
+async def wait_playback_and_drain(
+    reader: asyncio.StreamReader,
+    duration: float,
+    elapsed: float,
+    buffer_secs: float = 0.8,
+    call_uuid: str = "",
+) -> bool:
+    """
+    Aguarda o áudio residual pós-reprodução (se elapsed < duration) + buffer de
+    segurança, depois drena frames stale acumulados no reader durante a fala —
+    padrão comum entre os flows (URA e alertas) para não dessincronizar o STT
+    seguinte nem confundir hangup com ruído acumulado.
+
+    Retorna False se a chamada foi encerrada (hangup) durante a drenagem.
+    """
+    remaining = max(0.0, duration - elapsed) + buffer_secs
+    await asyncio.sleep(remaining)
+    hangup = await drain_reader(reader, call_uuid)
+    return not hangup

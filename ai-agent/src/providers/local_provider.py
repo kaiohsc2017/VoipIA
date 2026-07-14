@@ -13,26 +13,16 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
-import wave
 
 import httpx
 
+from src.providers.audio_utils import pcm_to_wav
 from src.providers.base import BaseAIProvider, ProviderError
 
 logger = logging.getLogger("asteriskia.provider.local")
 
 OLLAMA_BASE_URL = "http://host.docker.internal:11434"  # acessa o host a partir do container
 SAMPLE_RATE     = 8000
-
-
-def _pcm_to_wav(pcm: bytes, rate: int = SAMPLE_RATE) -> bytes:
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(rate)
-        wf.writeframes(pcm)
-    return buf.getvalue()
 
 
 class LocalProvider(BaseAIProvider):
@@ -66,7 +56,7 @@ class LocalProvider(BaseAIProvider):
             raise ProviderError("local", self._model_id, e) from e
 
     def _transcribe_sync(self, pcm_data: bytes) -> str:
-        wav_bytes = _pcm_to_wav(pcm_data)
+        wav_bytes = pcm_to_wav(pcm_data)
 
         # Tenta faster-whisper (preferido — menor latência)
         try:

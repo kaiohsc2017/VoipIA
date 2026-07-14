@@ -16,7 +16,7 @@ import struct
 import time
 import wave
 import webrtcvad
-from src.protocol import read_frame, write_audio_paced
+from src.protocol import read_frame, write_audio_paced, wait_playback_and_drain
 from src.services.ai_service import AIService
 from src.services.audio_cache import audio_cache as _audio_cache
 from src.services import backend_client as bc
@@ -245,19 +245,13 @@ class JiraCallFlow:
                 return False
 
             # Com pacing real-time, elapsed ≈ TTFT + duration.
-            # Aguarda somente o áudio residual (se elapsed < duration) + buffer.
-            remaining = max(0.0, duration - elapsed) + _POST_SPEAK_BUFFER_SECS
             logger.debug(
-                "[%s] Áudio: %.1fs | elapsed: %.1fs | aguardando: %.1fs",
-                self.call_uuid, duration, elapsed, remaining,
+                "[%s] Áudio: %.1fs | elapsed: %.1fs",
+                self.call_uuid, duration, elapsed,
             )
-            await asyncio.sleep(remaining)
-
-            # Drena frames acumulados durante TTS para evitar dessincronismo
-            hangup = await self._drain_reader()
-            if hangup:
-                return False
-            return True
+            return await wait_playback_and_drain(
+                self.reader, duration, elapsed, _POST_SPEAK_BUFFER_SECS, self.call_uuid
+            )
         except (BrokenPipeError, ConnectionResetError):
             logger.warning("[%s] Pipe quebrado durante TTS", self.call_uuid)
             return False
@@ -299,49 +293,15 @@ class JiraCallFlow:
                 logger.warning("[%s] Conexão encerrada durante reprodução do cache", self.call_uuid)
                 return False
 
-            remaining = max(0.0, duration - elapsed) + _POST_SPEAK_BUFFER_SECS
-            await asyncio.sleep(remaining)
-
-            hangup = await self._drain_reader()
-            return not hangup
+            return await wait_playback_and_drain(
+                self.reader, duration, elapsed, _POST_SPEAK_BUFFER_SECS, self.call_uuid
+            )
         except (BrokenPipeError, ConnectionResetError):
             logger.warning("[%s] Pipe quebrado durante reprodução do cache", self.call_uuid)
             return False
         except Exception as e:
             logger.error("[%s] Erro na reprodução do cache: %s — usando TTS em tempo real", self.call_uuid, e)
             return await self._speak(text)
-
-    async def _drain_reader(self) -> bool:
-        """
-        Descarta frames acumulados no reader durante geração/reprodução do TTS.
-
-        O Asterisk envia áudio do microfone continuamente — mesmo quando o
-        cliente está escutando a URA. Esses frames precisam ser descartados
-        antes de iniciar a captura real para que o STT não transcreva ruído
-        de fundo capturado durante a fala da URA como resposta do cliente.
-
-        Timeout 5ms: esvazia o buffer já acumulado (leituras de buffer são
-        instantâneas), e é MENOR que o intervalo entre frames do Asterisk
-        (~20ms). Após o buffer esvaziar, o próximo frame leva ~20ms para
-        chegar — como 20ms > 5ms, o timeout é acionado e o loop sai.
-
-        Usar 50ms causava loop infinito: Asterisk envia 1 frame a cada 20ms,
-        e 20ms < 50ms → novo frame sempre chegava antes do timeout → trava.
-
-        Retorna True se detectou hangup durante a drenagem.
-        """
-        drained = 0
-        try:
-            while True:
-                frame = await asyncio.wait_for(read_frame(self.reader), timeout=0.005)
-                if frame is None or frame.is_hangup:
-                    return True  # hangup detectado
-                drained += 1
-        except asyncio.TimeoutError:
-            pass
-        if drained:
-            logger.debug("[%s] Drenados %d frames stale pós-TTS", self.call_uuid, drained)
-        return False
 
     # Padrões que indicam que o STT captou ruído/TTS em vez de voz humana real
     _NOISE_PATTERNS = (

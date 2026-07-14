@@ -194,4 +194,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Plataforma de Agentes: corrigidos dois erros que impediam a execução de agentes sem servidor/URL configurado (ex: tipo "banco de dados") e a geração do relatório de qualquer execução.',
     ],
   },
+  {
+    version: 'v1.21',
+    date: '2026-07-13',
+    changes: [
+      'Módulo de Alertas Zabbix: pequeno ajuste interno na leitura do canal de voz após o alerta ser lido, deixando o comportamento consistente com o da URA.',
+      'Manutenção interna do Agente de IA: remoção de código não utilizado e consolidação de funções de áudio duplicadas — sem mudança perceptível de comportamento.',
+    ],
+  },
 ];

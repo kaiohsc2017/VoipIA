@@ -18,8 +18,7 @@ logger = logging.getLogger("asteriskia.ai_service")
 
 class AIService:
     """
-    Substitui o GeminiService nos flows.
-    Interface idêntica — flows existentes funcionam sem alteração.
+    Interface única de IA usada pelos flows, independente do provedor ativo.
 
     Métodos públicos:
       transcribe(pcm_data)                          → str

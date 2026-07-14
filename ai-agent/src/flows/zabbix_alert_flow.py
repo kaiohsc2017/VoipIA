@@ -8,7 +8,7 @@ sintetiza em voz via TTS e reproduz para o destinatário.
 import asyncio
 import logging
 import time
-from src.protocol import read_frame, write_audio_paced
+from src.protocol import write_audio_paced, wait_playback_and_drain
 from src.services.ai_service import AIService
 from src.services import backend_client as bc
 
@@ -85,9 +85,11 @@ class ZabbixAlertFlow:
             if not ok:
                 logger.warning("[%s] Conexão encerrada durante reprodução do alerta", self.call_uuid)
             else:
-                # Aguarda somente o áudio residual (se elapsed < duration) + buffer
-                remaining = max(0.0, duration - elapsed) + _POST_SPEAK_BUFFER_SECS
-                await asyncio.sleep(remaining)
+                # Mesmo padrão de espera+drenagem do Módulo 1 (jira_call_flow) —
+                # antes só aguardava, sem drenar frames stale do reader.
+                await wait_playback_and_drain(
+                    self.reader, duration, elapsed, _POST_SPEAK_BUFFER_SECS, self.call_uuid
+                )
         except Exception as e:
             logger.error("[%s] Erro ao reproduzir alerta: %s", self.call_uuid, e)
 
