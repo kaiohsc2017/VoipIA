@@ -18,6 +18,8 @@ import asyncio
 import logging
 import time
 
+import httpx
+
 from src.flows.audio_capture import AudioCapture
 from src.flows.call_recorder import CallRecorder
 from src.flows.speech_field_formatter import build_stt_hint, matches_expected
@@ -300,6 +302,12 @@ class JiraCallFlow:
         try:
             items: list[dict] = await bc.get(f"/api/v1/uras/{self.ura_id}/settings")
             return {item["key"]: item["value"] for item in items}
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                logger.info("[%s] URA %s sem settings cadastradas", self.call_uuid, self.ura_id)
+            else:
+                logger.error("[%s] Erro HTTP ao buscar settings URA: %s", self.call_uuid, e)
+            return {}
         except Exception as e:
             logger.error("[%s] Erro ao buscar settings URA: %s", self.call_uuid, e)
             return {}
@@ -314,6 +322,12 @@ class JiraCallFlow:
                 )
                 return []
             return result
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                logger.info("[%s] URA %s sem perguntas cadastradas", self.call_uuid, self.ura_id)
+            else:
+                logger.error("[%s] Erro HTTP ao buscar perguntas URA: %s", self.call_uuid, e)
+            return []
         except Exception as e:
             logger.error("[%s] Erro ao buscar perguntas URA: %s", self.call_uuid, e)
             return []

@@ -15,6 +15,7 @@ Tipos de mensagem:
 
 import logging
 import struct
+import uuid
 import asyncio
 from src.config import (
     AUDIOSOCKET_HEADER_SIZE,
@@ -25,6 +26,12 @@ from src.config import (
 )
 
 logger = logging.getLogger("asteriskia.protocol")
+
+# Teto de sanidade para payload_length — frames reais nunca passam de 320 bytes
+# (áudio) ou 16 bytes (UUID). Um valor absurdamente maior indica dessincronia do
+# protocolo (lendo lixo como cabeçalho) — melhor descartar a conexão do que tentar
+# ler um payload gigante que nunca vai bater com o frame real.
+MAX_SANE_PAYLOAD_LENGTH = 8000
 
 
 class AudiosocketFrame:
@@ -54,9 +61,7 @@ class AudiosocketFrame:
     def call_uuid(self) -> str | None:
         """Retorna o UUID da chamada se for frame do tipo UUID."""
         if self.is_uuid and len(self.payload) == 16:
-            # Converte 16 bytes raw para string UUID formatada
-            raw = self.payload.hex()
-            return f"{raw[0:8]}-{raw[8:12]}-{raw[12:16]}-{raw[16:20]}-{raw[20:32]}"
+            return str(uuid.UUID(bytes=self.payload))
         return None
 
 
@@ -78,6 +83,13 @@ async def read_frame(reader: asyncio.StreamReader) -> AudiosocketFrame | None:
 
     msg_type = header[0]
     payload_length = struct.unpack(">H", header[1:3])[0]  # Big-endian unsigned short
+
+    if payload_length > MAX_SANE_PAYLOAD_LENGTH:
+        logger.warning(
+            "Frame com payload_length %d fora do teto de sanidade (%d) — descartando conexão",
+            payload_length, MAX_SANE_PAYLOAD_LENGTH,
+        )
+        return None
 
     # Lê payload se houver comprimento > 0
     payload = b""

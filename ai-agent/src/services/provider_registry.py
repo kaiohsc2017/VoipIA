@@ -68,22 +68,15 @@ async def get_chain(capability: str) -> list[dict]:
 
 
 async def _fetch_provider_key(provider: str) -> str:
-    """Busca a API key do provedor no backend."""
+    """Busca a API key real do provedor no backend (convenção AI_KEY_<PROVIDER> no system_config)."""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
-                f"{BACKEND_URL}/api/v1/ai/providers",
-                headers={"X-Internal-Key": INTERNAL_API_KEY},
-            )
-            # O endpoint de providers retorna a key mascarada.
-            # Para obter a key real usamos o system_config via chave padronizada.
-            # Convenção: AI_KEY_GEMINI, AI_KEY_ANTHROPIC, AI_KEY_OPENAI…
-            resp2 = await client.get(
                 f"{BACKEND_URL}/api/v1/ai/providers/{provider}/key-internal",
                 headers={"X-Internal-Key": INTERNAL_API_KEY},
             )
-            if resp2.status_code == 200:
-                return resp2.json().get("apiKey", "")
+            if resp.status_code == 200:
+                return resp.json().get("apiKey", "")
     except Exception as e:
         logger.debug("Erro ao buscar key do provedor %s: %s", provider, e)
     return ""
@@ -103,39 +96,59 @@ async def get_provider_key(provider: str) -> str:
     return key
 
 
+def _build_gemini(model_id: str, api_key: str, capability: str) -> BaseAIProvider:
+    from src.providers.gemini import GeminiProvider
+    return GeminiProvider(model_id)
+
+
+def _build_anthropic(model_id: str, api_key: str, capability: str) -> BaseAIProvider:
+    from src.providers.anthropic_provider import AnthropicProvider
+    return AnthropicProvider(model_id, api_key)
+
+
+def _build_openai(model_id: str, api_key: str, capability: str) -> BaseAIProvider:
+    from src.providers.openai_provider import OpenAIProvider
+    return OpenAIProvider(model_id, api_key, capability)
+
+
+def _build_elevenlabs(model_id: str, api_key: str, capability: str) -> BaseAIProvider:
+    from src.providers.elevenlabs_provider import ElevenLabsProvider
+    return ElevenLabsProvider(model_id, api_key)
+
+
+def _build_grok(model_id: str, api_key: str, capability: str) -> BaseAIProvider:
+    from src.providers.grok_provider import GrokProvider
+    return GrokProvider(model_id, api_key)
+
+
+def _build_perplexity(model_id: str, api_key: str, capability: str) -> BaseAIProvider:
+    from src.providers.perplexity_provider import PerplexityProvider
+    return PerplexityProvider(model_id, api_key)
+
+
+def _build_local(model_id: str, api_key: str, capability: str) -> BaseAIProvider:
+    from src.providers.local_provider import LocalProvider
+    return LocalProvider(model_id, capability)
+
+
+# Registro por provider — cada builder faz import tardio do próprio módulo (evita
+# carregar todos os SDKs de provedor de uma vez só por causa de um único usado).
+_PROVIDER_BUILDERS = {
+    "gemini": _build_gemini,
+    "anthropic": _build_anthropic,
+    "openai": _build_openai,
+    "elevenlabs": _build_elevenlabs,
+    "grok": _build_grok,
+    "perplexity": _build_perplexity,
+    "local": _build_local,
+}
+
+
 def build_provider(provider: str, model_id: str, api_key: str, capability: str) -> BaseAIProvider:
     """Instancia o provedor correto para o (provider, model_id) dado."""
-    match provider:
-        case "gemini":
-            from src.providers.gemini import GeminiProvider
-            return GeminiProvider(model_id)
-
-        case "anthropic":
-            from src.providers.anthropic_provider import AnthropicProvider
-            return AnthropicProvider(model_id, api_key)
-
-        case "openai":
-            from src.providers.openai_provider import OpenAIProvider
-            return OpenAIProvider(model_id, api_key, capability)
-
-        case "elevenlabs":
-            from src.providers.elevenlabs_provider import ElevenLabsProvider
-            return ElevenLabsProvider(model_id, api_key)
-
-        case "grok":
-            from src.providers.grok_provider import GrokProvider
-            return GrokProvider(model_id, api_key)
-
-        case "perplexity":
-            from src.providers.perplexity_provider import PerplexityProvider
-            return PerplexityProvider(model_id, api_key)
-
-        case "local":
-            from src.providers.local_provider import LocalProvider
-            return LocalProvider(model_id, capability)
-
-        case _:
-            # Provedor desconhecido — tenta Gemini como última salvaguarda
-            logger.warning("Provedor desconhecido: %s — usando Gemini", provider)
-            from src.providers.gemini import GeminiProvider
-            return GeminiProvider("gemini-2.0-flash")
+    builder = _PROVIDER_BUILDERS.get(provider)
+    if builder is None:
+        # Provedor desconhecido — tenta Gemini como última salvaguarda
+        logger.warning("Provedor desconhecido: %s — usando Gemini", provider)
+        return _build_gemini("gemini-2.0-flash", api_key, capability)
+    return builder(model_id, api_key, capability)

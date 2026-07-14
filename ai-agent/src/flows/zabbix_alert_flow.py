@@ -8,6 +8,7 @@ sintetiza em voz via TTS e reproduz para o destinatário.
 import asyncio
 import logging
 import time
+import httpx
 from src.protocol import write_audio_paced, wait_playback_and_drain
 from src.services.ai_service import AIService
 from src.services import backend_client as bc
@@ -101,6 +102,12 @@ class ZabbixAlertFlow:
         """Busca dados do alerta no backend pelo UUID da chamada (autenticado)."""
         try:
             return await bc.get(f"/api/v1/alert-calls/by-uuid/{self.backend_uuid}")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                logger.info("[%s] Alerta %s não encontrado no backend", self.call_uuid, self.backend_uuid)
+            else:
+                logger.error("[%s] Erro HTTP ao buscar dados do alerta: %s", self.call_uuid, e)
+            return None
         except Exception as e:
             logger.error("[%s] Erro ao buscar dados do alerta: %s", self.call_uuid, e)
             return None
