@@ -1,0 +1,83 @@
+Fase 1 — Prompt de auditoria (gera o roadmap, zero código)
+Aja como engenheiro de software sênior fazendo uma auditoria arquitetural
+do sistema AsteriskIA. NESTA FASE VOCÊ NÃO ESCREVE CÓDIGO — o objetivo é
+produzir um roadmap de refatoração priorizado.
+
+## Contexto do sistema
+Plataforma VoIP + IA de contact center. 8 containers Docker:
+- Asterisk 21 LTS
+- Backend: Spring Boot 3.3 / Java 21
+- Frontend: React 18 + TypeScript (build via npm)
+- Agents platform: FastAPI / Python 3.12
+- Agente IA: Python asyncio
+- PostgreSQL 16
+- Caddy (proxy, rotas /agents/*)
+- Fail2ban
+Repo: github.com/kaiohsc2017/AsteriskIA · VPS: /opt/AsteriskIA
+Deploy: git pull no main. Commits com prefixo telecom:/agents:.
+
+## O que analisar (por módulo, separadamente)
+Para CADA base de código (backend Java, frontend React, agents FastAPI,
+agente asyncio):
+1. Code smells e violações de SOLID concretas, com arquivo/linha.
+2. Acoplamento indevido e fronteiras de módulo mal definidas.
+3. Duplicação (dentro do módulo e entre módulos).
+4. Pontos de risco: tratamento de erro, concorrência (asyncio/@Scheduled),
+   validação de entrada, gestão de segredos.
+5. Dívida técnica que já causou bugs (ex: tipos públicos declarados
+   dentro de controllers, parâmetros JPQL não tipados).
+
+## Formato da saída
+Uma TABELA de achados com: módulo | problema | severidade (alta/média/baixa)
+| esforço estimado | risco de regressão | prioridade sugerida.
+Depois, um roadmap ordenado: o que refatorar primeiro e por quê, agrupando
+mudanças que fazem sentido juntas.
+
+## Restrições
+- Não proponha reescrever tudo. Priorize impacto/risco.
+- Não sugira dependências novas sem justificar o custo.
+- Sinalize claramente o que é "melhoria de estilo" vs "risco real".
+
+
+
+
+Fase 2 — Prompt de refatoração por módulo (consome o roadmap)
+Aja como engenheiro sênior refatorando UM módulo do AsteriskIA, seguindo
+o roadmap da auditoria.
+
+## Módulo alvo
+[ex: backend Spring Boot — camada de service de X]
+
+## Stack e convenções deste módulo
+[ex: Spring Boot 3.3 / Java 21 / Hibernate 6 / PostgreSQL 16]
+- Commits: prefixo telecom: ou agents:
+- JS validado com `node --check` antes de commit
+- Proibido dado mock como fallback — remover, nunca deixar
+- Deploy é git pull no main: tudo precisa ser commitado e pushado
+
+## Itens do roadmap para este módulo
+[cole as linhas da tabela da Fase 1 referentes a este módulo]
+
+## Código
+[cole o git diff ou os arquivos diretamente afetados — só eles]
+
+## Restrições (NÃO pode mudar)
+- Comportamento observável idêntico.
+- Não alterar contratos de API nem assinaturas públicas consumidas por
+  outros containers (ex: JWT HS256, rotas /agents/*, schema do Postgres).
+- Não introduzir dependência nova sem justificar.
+
+## Processo obrigatório
+1. DIAGNÓSTICO primeiro: confirme os problemas do roadmap neste código e
+   liste os que encontrar a mais. Sem escrever código ainda.
+2. Proponha a refatoração como DIFF, não reescrevendo arquivos inteiros.
+3. Explique o trade-off de cada decisão relevante.
+4. Liste os edge cases que a versão atual quebra ou ignora.
+5. Indique quais testes cobririam o comportamento preservado.
+6. Se houver tipos públicos dentro de controllers, extraia para arquivos
+   próprios (padrão recorrente de falha de build neste projeto).
+
+## Padrão de qualidade
+SOLID e clean code onde pagar o custo — sem over-engineering. Abstração
+só quando reduz acoplamento ou duplicação real.
+Aplique metodologia do sonar cube

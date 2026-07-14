@@ -65,10 +65,27 @@ def _rules_has_ssh_exec(rules: dict) -> bool:
     return False
 
 
-def _require_admin_for_ssh_exec(rules: dict, request: Request) -> None:
-    if _rules_has_ssh_exec(rules) and getattr(request.state, "role", "USER") != "ADMIN":
+def _rules_has_db_exec(rules: dict) -> bool:
+    """True se `rules.checks[]` tiver algum `dsn`/`query` — executado
+    literalmente contra um banco remoto (DatabaseExecutor, executor.py).
+    Mesmo risco do SSH: qualquer usuário com PERM_WRITE_agents.agents
+    poderia rodar SQL arbitrário contra qualquer DSN alcançável na rede."""
+    for check in (rules or {}).get("checks", []):
+        if isinstance(check, dict) and (check.get("dsn") or check.get("query")):
+            return True
+    return False
+
+
+def _require_admin_for_privileged_exec(rules: dict, request: Request) -> None:
+    is_admin = getattr(request.state, "role", "USER") == "ADMIN"
+    if is_admin:
+        return
+    if _rules_has_ssh_exec(rules):
         raise HTTPException(403,
             "Definir/editar comandos SSH (checks[].cmd/fix_cmd) exige administrador")
+    if _rules_has_db_exec(rules):
+        raise HTTPException(403,
+            "Definir/editar DSN/query de banco (checks[].dsn/query) exige administrador")
 
 
 def _sanitize_agent(agent: dict) -> dict:
@@ -100,7 +117,7 @@ async def list_agents(limit: int = Query(default=100, le=500), offset: int = 0):
 
 @router.post("/", response_model=dict, dependencies=_WRITE)
 async def create_agent(body: AgentCreate, request: Request):
-    _require_admin_for_ssh_exec(body.rules, request)
+    _require_admin_for_privileged_exec(body.rules, request)
     async with DB() as db:
         row = await db.fetchrow("""
             INSERT INTO agents (name, description, type, skill, server_ids, target_urls,
@@ -127,7 +144,7 @@ async def get_agent(agent_id: UUID):
 
 @router.put("/{agent_id}", dependencies=_WRITE)
 async def update_agent(agent_id: UUID, body: AgentCreate, request: Request):
-    _require_admin_for_ssh_exec(body.rules, request)
+    _require_admin_for_privileged_exec(body.rules, request)
     async with DB() as db:
         row = await db.fetchrow("""
             UPDATE agents SET name=$1, description=$2, type=$3, skill=$4,
