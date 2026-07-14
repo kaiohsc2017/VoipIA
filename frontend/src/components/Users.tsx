@@ -1,66 +1,10 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
-
-interface AppUser {
-  id: number;
-  username: string;
-  displayName: string;
-  extension: number;
-  isActive: boolean;
-  role: string;
-  createdAt: string;
-  businessUnitIds: number[];
-  accessExpiresAt: string | null;
-  accessIndeterminate: boolean;
-  totpEnabled: boolean;
-}
-
-interface BusinessUnitOption {
-  id: number;
-  name: string;
-}
-
-interface CreateForm {
-  username: string;
-  password: string;
-  displayName: string;
-  role: string;
-  businessUnitIds: number[];
-  accessExpiresAt: string;
-  accessIndeterminate: boolean;
-}
-
-interface EditForm {
-  displayName: string;
-  password: string;
-  isActive: boolean;
-  role: string;
-  businessUnitIds: number[];
-  accessExpiresAt: string;
-  accessIndeterminate: boolean;
-}
-
-// Regra de negócio: acesso com prazo determinado nunca passa de 60 dias (espelha o backend).
-const MAX_ACCESS_DAYS = 60;
-const maxAccessDate = () => {
-  const d = new Date();
-  d.setDate(d.getDate() + MAX_ACCESS_DAYS);
-  return d.toISOString().slice(0, 10);
-};
-
-// ─── 2FA state por usuário ────────────────────────────────────────────────────
-
-interface TotpSetup {
-  secret: string;
-  qrCodeUrl: string;
-  issuer: string;
-  account: string;
-}
-
-const EMPTY_CREATE: CreateForm = {
-  username: '', password: '', displayName: '', role: 'USER',
-  businessUnitIds: [], accessExpiresAt: maxAccessDate(), accessIndeterminate: false,
-};
+import type { AppUser, BusinessUnitOption, CreateForm, EditForm, TotpSetup } from './userModalTypes';
+import { EMPTY_CREATE, maxAccessDate } from './userModalTypes';
+import { CreateUserModal } from './CreateUserModal';
+import { EditUserModal } from './EditUserModal';
+import { TotpModal } from './TotpModal';
 
 export default function Users() {
   const [users, setUsers]         = useState<AppUser[]>([]);
@@ -115,9 +59,6 @@ export default function Users() {
       .then(r => setBusinessUnits(r.data ?? []))
       .catch(() => setBusinessUnits([]));
   }, []);
-
-  const toggleBu = (ids: number[], id: number): number[] =>
-    ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id];
 
   // ---- Criar usuário ----
   const handleCreate = async () => {
@@ -460,358 +401,35 @@ export default function Users() {
         </div>
       </div>
 
+
       {/* Modal — Criar Usuário */}
       {showCreate && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowCreate(false); }}>
-          <div className="modal modal-sm">
-            <div className="modal-header">
-              <h2>👤 Novo Usuário</h2>
-              <button className="btn-close" onClick={() => setShowCreate(false)}>×</button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label className="form-label">Username *</label>
-                <input type="text" className="form-input" autoFocus
-                  placeholder="ex: joao.silva"
-                  value={createForm.username}
-                  onChange={e => setCreateForm(f => ({ ...f, username: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Nome de exibição *</label>
-                <input type="text" className="form-input"
-                  placeholder="ex: João Silva"
-                  value={createForm.displayName}
-                  onChange={e => setCreateForm(f => ({ ...f, displayName: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Senha (mín. 6 caracteres) *</label>
-                <input type="password" className="form-input"
-                  placeholder="••••••••"
-                  value={createForm.password}
-                  onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Perfil</label>
-                <select className="form-select" value={createForm.role}
-                  onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))}>
-                  <option value="USER">👤 Usuário</option>
-                  <option value="ADMIN">🛡 Administrador</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Unidade(s) de Negócio (BU) *</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {businessUnits.map(bu => (
-                    <span key={bu.id} className="chip"
-                      style={{
-                        cursor: 'pointer',
-                        background: createForm.businessUnitIds.includes(bu.id) ? 'rgba(0,122,255,0.25)' : 'rgba(255,255,255,0.06)',
-                        color: createForm.businessUnitIds.includes(bu.id) ? '#4da8ff' : 'var(--text-muted)',
-                      }}
-                      onClick={() => setCreateForm(f => ({ ...f, businessUnitIds: toggleBu(f.businessUnitIds, bu.id) }))}
-                    >{bu.name}</span>
-                  ))}
-                  {businessUnits.length === 0 && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nenhuma BU cadastrada.</span>}
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                  O usuário só verá dados das BUs selecionadas.
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Acesso ao sistema</label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', marginBottom: 8 }}>
-                  <input type="checkbox" checked={createForm.accessIndeterminate}
-                    onChange={e => setCreateForm(f => ({ ...f, accessIndeterminate: e.target.checked }))} />
-                  Acesso por tempo indeterminado
-                </label>
-                <input type="date" className="form-input"
-                  disabled={createForm.accessIndeterminate}
-                  min={new Date().toISOString().slice(0, 10)}
-                  max={maxAccessDate()}
-                  value={createForm.accessExpiresAt}
-                  onChange={e => setCreateForm(f => ({ ...f, accessExpiresAt: e.target.value }))} />
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                  Prazo máximo: {MAX_ACCESS_DAYS} dias a partir de hoje.
-                </div>
-              </div>
-              <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(0,122,255,0.08)', borderRadius: 8, fontSize: '0.8rem', color: '#4da8ff' }}>
-                📞 Um ramal SIP WebRTC será atribuído automaticamente ao novo usuário.
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => setShowCreate(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={handleCreate} disabled={saving}>
-                {saving ? 'Criando…' : 'Criar Usuário'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <CreateUserModal
+          form={createForm} setForm={setCreateForm} businessUnits={businessUnits}
+          saving={saving} onClose={() => setShowCreate(false)} onSave={handleCreate}
+        />
       )}
 
       {/* Modal — Editar Usuário */}
       {editUser && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setEditUser(null); }}>
-          <div className="modal modal-sm">
-            <div className="modal-header">
-              <h2>✏️ Editar: {editUser.username}</h2>
-              <button className="btn-close" onClick={() => setEditUser(null)}>×</button>
-            </div>
-            <div className="modal-body">
-              <div style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(0,122,255,0.08)', borderRadius: 8, fontSize: '0.8rem', color: '#4da8ff' }}>
-                📞 Ramal fixo: <strong>{editUser.extension}</strong> — não pode ser alterado
-              </div>
-              <div className="form-group">
-                <label className="form-label">Nome de exibição *</label>
-                <input type="text" className="form-input" autoFocus
-                  value={editForm.displayName}
-                  onChange={e => setEditForm(f => ({ ...f, displayName: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Nova senha (deixe em branco para manter)</label>
-                <input type="password" className="form-input"
-                  placeholder="••••••••"
-                  value={editForm.password}
-                  onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Perfil</label>
-                <select className="form-select" value={editForm.role}
-                  onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}>
-                  <option value="USER">👤 Usuário</option>
-                  <option value="ADMIN">🛡 Administrador</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Status</label>
-                <select className="form-select" value={editForm.isActive ? 'true' : 'false'}
-                  onChange={e => setEditForm(f => ({ ...f, isActive: e.target.value === 'true' }))}>
-                  <option value="true">Ativo</option>
-                  <option value="false">Inativo</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Unidade(s) de Negócio (BU) *</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {businessUnits.map(bu => (
-                    <span key={bu.id} className="chip"
-                      style={{
-                        cursor: 'pointer',
-                        background: editForm.businessUnitIds.includes(bu.id) ? 'rgba(0,122,255,0.25)' : 'rgba(255,255,255,0.06)',
-                        color: editForm.businessUnitIds.includes(bu.id) ? '#4da8ff' : 'var(--text-muted)',
-                      }}
-                      onClick={() => setEditForm(f => ({ ...f, businessUnitIds: toggleBu(f.businessUnitIds, bu.id) }))}
-                    >{bu.name}</span>
-                  ))}
-                  {businessUnits.length === 0 && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nenhuma BU cadastrada.</span>}
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Acesso ao sistema</label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', marginBottom: 8 }}>
-                  <input type="checkbox" checked={editForm.accessIndeterminate}
-                    onChange={e => setEditForm(f => ({ ...f, accessIndeterminate: e.target.checked }))} />
-                  Acesso por tempo indeterminado
-                </label>
-                <input type="date" className="form-input"
-                  disabled={editForm.accessIndeterminate}
-                  min={new Date().toISOString().slice(0, 10)}
-                  max={maxAccessDate()}
-                  value={editForm.accessExpiresAt}
-                  onChange={e => setEditForm(f => ({ ...f, accessExpiresAt: e.target.value }))} />
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                  Prazo máximo: {MAX_ACCESS_DAYS} dias a partir de hoje.
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => setEditUser(null)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={handleEdit} disabled={saving}>
-                {saving ? 'Salvando…' : 'Salvar Alterações'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <EditUserModal
+          user={editUser} form={editForm} setForm={setEditForm} businessUnits={businessUnits}
+          saving={saving} onClose={() => setEditUser(null)} onSave={handleEdit}
+        />
       )}
 
       {/* Modal — Gerenciar 2FA (TOTP) */}
       {totpUser && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) closeTotpModal(); }}>
-          <div className="modal modal-sm">
-            <div className="modal-header">
-              <h2>🔐 2FA — {totpUser.username}</h2>
-              <button className="btn-close" onClick={closeTotpModal}>×</button>
-            </div>
-            <div className="modal-body">
-              {totpLoading ? (
-                <div className="loading-state"><div className="spinner" />Carregando…</div>
-              ) : (
-                <>
-                  {/* ── STATUS ── */}
-                  {totpStep === 'status' && (
-                    <>
-                      <div style={{
-                        textAlign: 'center', padding: '20px',
-                        background: totpStatus ? 'rgba(72,199,142,0.08)' : 'rgba(0,122,255,0.08)',
-                        borderRadius: 10, marginBottom: 16,
-                        border: `1px solid ${totpStatus ? 'rgba(72,199,142,0.3)' : 'rgba(0,122,255,0.3)'}`,
-                      }}>
-                        <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>
-                          {totpStatus ? '🛡️' : '🔓'}
-                        </div>
-                        <div style={{ fontWeight: 600, fontSize: '1rem', color: totpStatus ? '#34c759' : '#4da8ff' }}>
-                          {totpStatus ? '2FA Ativado' : '2FA Desativado'}
-                        </div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                          {totpStatus
-                            ? 'Este usuário usa verificação em 2 etapas no login.'
-                            : 'O login deste usuário usa apenas senha.'}
-                        </div>
-                      </div>
-
-                      {totpMsg && (
-                        <div style={{ padding: '8px 12px', borderRadius: 8, marginBottom: 12, fontSize: '0.85rem',
-                          background: totpMsg.startsWith('✅') ? 'rgba(72,199,142,0.1)' : 'rgba(255,107,107,0.1)',
-                          color: totpMsg.startsWith('✅') ? '#34c759' : '#ff6b6b',
-                          border: `1px solid ${totpMsg.startsWith('✅') ? 'rgba(72,199,142,0.3)' : 'rgba(255,107,107,0.3)'}`,
-                        }}>
-                          {totpMsg}
-                        </div>
-                      )}
-
-                      {!totpStatus ? (
-                        <button className="btn btn-primary" style={{ width: '100%' }} onClick={startTotpSetup}>
-                          🔐 Configurar 2FA (ativar)
-                        </button>
-                      ) : (
-                        <button
-                          className="btn btn-ghost"
-                          style={{ width: '100%', borderColor: 'rgba(255,107,107,0.4)', color: '#ff6b6b' }}
-                          onClick={() => { setTotpStep('disable'); setTotpCode(''); setTotpMsg(''); }}
-                        >
-                          🚫 Desativar 2FA
-                        </button>
-                      )}
-                    </>
-                  )}
-
-                  {/* ── SETUP: exibe QR Code ── */}
-                  {totpStep === 'setup' && totpSetup && (
-                    <>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.6 }}>
-                        <strong>1.</strong> Abra o <strong>Google Authenticator</strong> ou outro app TOTP.<br />
-                        <strong>2.</strong> Escaneie o QR Code abaixo.<br />
-                        <strong>3.</strong> Insira o código de 6 dígitos para confirmar.
-                      </div>
-
-                      <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                        <img
-                          src={totpSetup.qrCodeUrl}
-                          alt="QR Code 2FA"
-                          style={{ width: 200, height: 200, borderRadius: 8, background: '#fff', padding: 8 }}
-                        />
-                        <div style={{ marginTop: 8, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          Ou insira manualmente: <br />
-                          <code style={{ background: 'rgba(255,255,255,0.08)', padding: '2px 8px', borderRadius: 4, fontSize: '0.8rem', letterSpacing: '0.15em' }}>
-                            {totpSetup.secret}
-                          </code>
-                        </div>
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">Código do app autenticador</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9 ]*"
-                          maxLength={7}
-                          className="form-input"
-                          placeholder="000 000"
-                          autoFocus
-                          autoComplete="one-time-code"
-                          style={{ letterSpacing: '0.3em', fontSize: '1.3rem', textAlign: 'center' }}
-                          value={totpCode}
-                          onChange={e => setTotpCode(e.target.value)}
-                        />
-                      </div>
-
-                      {totpMsg && (
-                        <div style={{ padding: '8px 12px', borderRadius: 8, marginBottom: 8, fontSize: '0.85rem',
-                          background: 'rgba(255,107,107,0.1)', color: '#ff6b6b', border: '1px solid rgba(255,107,107,0.3)' }}>
-                          {totpMsg}
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {/* ── DISABLE: confirmar com código ── */}
-                  {totpStep === 'disable' && (
-                    <>
-                      <div style={{ padding: '12px 16px', borderRadius: 8, marginBottom: 14,
-                        background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.3)',
-                        fontSize: '0.85rem', color: '#ff6b6b', lineHeight: 1.6 }}>
-                        ⚠️ Para desativar o 2FA, insira o código atual do app autenticador para confirmar.
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">Código do app autenticador</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9 ]*"
-                          maxLength={7}
-                          className="form-input"
-                          placeholder="000 000"
-                          autoFocus
-                          style={{ letterSpacing: '0.3em', fontSize: '1.3rem', textAlign: 'center' }}
-                          value={totpCode}
-                          onChange={e => setTotpCode(e.target.value)}
-                        />
-                      </div>
-
-                      {totpMsg && (
-                        <div style={{ padding: '8px 12px', borderRadius: 8, marginBottom: 8, fontSize: '0.85rem',
-                          background: 'rgba(255,107,107,0.1)', color: '#ff6b6b', border: '1px solid rgba(255,107,107,0.3)' }}>
-                          {totpMsg}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className="modal-footer">
-              {totpStep === 'status' && (
-                <button className="btn btn-ghost" onClick={closeTotpModal}>Fechar</button>
-              )}
-              {totpStep === 'setup' && (
-                <>
-                  <button className="btn btn-ghost" onClick={() => { setTotpStep('status'); setTotpMsg(''); }}>← Voltar</button>
-                  <button
-                    className="btn btn-primary"
-                    onClick={confirmTotpEnable}
-                    disabled={totpLoading || totpCode.replace(/\s/g, '').length < 6}
-                  >
-                    {totpLoading ? 'Verificando…' : '✅ Ativar 2FA'}
-                  </button>
-                </>
-              )}
-              {totpStep === 'disable' && (
-                <>
-                  <button className="btn btn-ghost" onClick={() => { setTotpStep('status'); setTotpMsg(''); }}>← Voltar</button>
-                  <button
-                    className="btn btn-ghost"
-                    style={{ borderColor: 'rgba(255,107,107,0.4)', color: '#ff6b6b' }}
-                    onClick={confirmTotpDisable}
-                    disabled={totpLoading || totpCode.replace(/\s/g, '').length < 6}
-                  >
-                    {totpLoading ? 'Desativando…' : '🚫 Confirmar Desativação'}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        <TotpModal
+          user={totpUser} status={totpStatus} step={totpStep} setup={totpSetup}
+          code={totpCode} setCode={setTotpCode} msg={totpMsg} loading={totpLoading}
+          onClose={closeTotpModal}
+          onStartSetup={startTotpSetup}
+          onGoToDisableStep={() => { setTotpStep('disable'); setTotpCode(''); setTotpMsg(''); }}
+          onBackToStatus={() => { setTotpStep('status'); setTotpMsg(''); }}
+          onConfirmEnable={confirmTotpEnable}
+          onConfirmDisable={confirmTotpDisable}
+        />
       )}
     </>
   );
