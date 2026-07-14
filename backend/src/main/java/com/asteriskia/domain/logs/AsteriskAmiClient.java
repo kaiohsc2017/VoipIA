@@ -1,12 +1,6 @@
 package com.asteriskia.domain.logs;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.net.Socket;
-import java.nio.charset.StandardCharsets;
+import com.asteriskia.integration.ami.AmiSession;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,30 +35,20 @@ public class AsteriskAmiClient {
 
     public Map<String, Object> fetchStatus() {
         Map<String, Object> result = new LinkedHashMap<>();
-        try (Socket s = new Socket(amiHost, amiPort)) {
-            s.setSoTimeout(AMI_TIMEOUT);
-            BufferedReader r =
-                    new BufferedReader(
-                            new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
-            PrintWriter w =
-                    new PrintWriter(
-                            new OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8),
-                            true);
-            r.readLine();
-            sendAmi(w, mapOf("Action", "Login", "Username", amiUser, "Secret", amiPassword));
-            if (!readBlock(r).contains("Success")) return Map.of("ok", false, "error", "ami_auth");
+        try (AmiSession ami = AmiSession.connect(amiHost, amiPort, AMI_TIMEOUT)) {
+            if (!ami.login(amiUser, amiPassword)) return Map.of("ok", false, "error", "ami_auth");
 
-            sendAmi(w, mapOf("Action", "Command", "Command", "core show uptime"));
-            String uptime = readBlock(r);
-            sendAmi(w, mapOf("Action", "Command", "Command", "core show channels count"));
-            String channels = readBlock(r);
-            sendAmi(w, mapOf("Action", "Command", "Command", "core show version"));
-            String version = readBlock(r);
-            sendAmi(w, mapOf("Action", "Command", "Command", "pjsip show endpoints"));
-            String endpoints = readBlock(r);
-            sendAmi(w, mapOf("Action", "Command", "Command", "pjsip show registrations"));
-            String regs = readBlock(r);
-            sendAmi(w, mapOf("Action", "Logoff"));
+            ami.send(mapOf("Action", "Command", "Command", "core show uptime"));
+            String uptime = ami.readBlock();
+            ami.send(mapOf("Action", "Command", "Command", "core show channels count"));
+            String channels = ami.readBlock();
+            ami.send(mapOf("Action", "Command", "Command", "core show version"));
+            String version = ami.readBlock();
+            ami.send(mapOf("Action", "Command", "Command", "pjsip show endpoints"));
+            String endpoints = ami.readBlock();
+            ami.send(mapOf("Action", "Command", "Command", "pjsip show registrations"));
+            String regs = ami.readBlock();
+            ami.logoff();
 
             result.put("ok", true);
             result.put("uptime", extractValue(uptime, "System uptime:"));
@@ -78,24 +62,6 @@ public class AsteriskAmiClient {
             result.put("error", e.getMessage());
         }
         return result;
-    }
-
-    private void sendAmi(PrintWriter w, Map<String, String> fields) {
-        StringBuilder sb = new StringBuilder();
-        fields.forEach((k, v) -> sb.append(k).append(": ").append(v).append("\r\n"));
-        sb.append("\r\n");
-        w.print(sb);
-        w.flush();
-    }
-
-    private String readBlock(BufferedReader r) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = r.readLine()) != null) {
-            if (line.isEmpty()) break;
-            sb.append(line).append("\n");
-        }
-        return sb.toString();
     }
 
     private Map<String, String> mapOf(String... kv) {

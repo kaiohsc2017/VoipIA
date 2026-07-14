@@ -11,6 +11,20 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface StatsCallRepository extends JpaRepository<CallRecord, Long> {
+
+    // Fragmento repetido nas 5 queries de ranking abaixo (topClients, byCallType,
+    // topResolutions, topSubjectsByCallType, avgDurationByCallType): join com uras +
+    // filtro de período + escopo por BU (mesmo padrão de
+    // CallRecordSpecifications.restrictedToBusinessUnits) + filtro opcional por URA.
+    // Extraído como constante em vez de Criteria API — migrar a Criteria API teria risco
+    // de regressão maior sem suíte de testes de integração cobrindo essas queries.
+    String BU_URA_JOIN_PREFIX =
+            "JOIN uras u ON u.id = c.ura_id " + "WHERE c.call_date BETWEEN :from AND :to AND ";
+    String BU_URA_SCOPE_SUFFIX =
+            "AND (:restricted = false OR u.business_unit_id IS NULL "
+                    + "OR u.business_unit_id IN (:buIds)) "
+                    + "AND (:uraId IS NULL OR c.ura_id = :uraId) ";
+
     @Query("SELECT COUNT(c) FROM CallRecord c WHERE c.callDate BETWEEN :from AND :to")
     long countByPeriod(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
@@ -54,11 +68,9 @@ public interface StatsCallRepository extends JpaRepository<CallRecord, Long> {
     @Query(
             value =
                     "SELECT c.client_name AS label, COUNT(*) AS total FROM call_records c "
-                            + "JOIN uras u ON u.id = c.ura_id "
-                            + "WHERE c.call_date BETWEEN :from AND :to AND c.client_name IS NOT NULL "
-                            + "AND (:restricted = false OR u.business_unit_id IS NULL "
-                            + "OR u.business_unit_id IN (:buIds)) "
-                            + "AND (:uraId IS NULL OR c.ura_id = :uraId) "
+                            + BU_URA_JOIN_PREFIX
+                            + "c.client_name IS NOT NULL "
+                            + BU_URA_SCOPE_SUFFIX
                             + "GROUP BY c.client_name ORDER BY total DESC LIMIT :limit",
             nativeQuery = true)
     List<Object[]> topClients(
@@ -72,11 +84,9 @@ public interface StatsCallRepository extends JpaRepository<CallRecord, Long> {
     @Query(
             value =
                     "SELECT c.call_type AS label, COUNT(*) AS total FROM call_records c "
-                            + "JOIN uras u ON u.id = c.ura_id "
-                            + "WHERE c.call_date BETWEEN :from AND :to AND c.call_type IS NOT NULL "
-                            + "AND (:restricted = false OR u.business_unit_id IS NULL "
-                            + "OR u.business_unit_id IN (:buIds)) "
-                            + "AND (:uraId IS NULL OR c.ura_id = :uraId) "
+                            + BU_URA_JOIN_PREFIX
+                            + "c.call_type IS NOT NULL "
+                            + BU_URA_SCOPE_SUFFIX
                             + "GROUP BY c.call_type ORDER BY total DESC",
             nativeQuery = true)
     List<Object[]> byCallType(
@@ -89,11 +99,9 @@ public interface StatsCallRepository extends JpaRepository<CallRecord, Long> {
     @Query(
             value =
                     "SELECT c.jira_resolution AS label, COUNT(*) AS total FROM call_records c "
-                            + "JOIN uras u ON u.id = c.ura_id "
-                            + "WHERE c.call_date BETWEEN :from AND :to AND c.jira_resolution IS NOT NULL "
-                            + "AND (:restricted = false OR u.business_unit_id IS NULL "
-                            + "OR u.business_unit_id IN (:buIds)) "
-                            + "AND (:uraId IS NULL OR c.ura_id = :uraId) "
+                            + BU_URA_JOIN_PREFIX
+                            + "c.jira_resolution IS NOT NULL "
+                            + BU_URA_SCOPE_SUFFIX
                             + "GROUP BY c.jira_resolution ORDER BY total DESC LIMIT :limit",
             nativeQuery = true)
     List<Object[]> topResolutions(
@@ -110,12 +118,9 @@ public interface StatsCallRepository extends JpaRepository<CallRecord, Long> {
     @Query(
             value =
                     "SELECT c.subject_tag AS label, COUNT(*) AS total FROM call_records c "
-                            + "JOIN uras u ON u.id = c.ura_id "
-                            + "WHERE c.call_date BETWEEN :from AND :to AND c.call_type = :callType "
-                            + "AND c.subject_tag IS NOT NULL "
-                            + "AND (:restricted = false OR u.business_unit_id IS NULL "
-                            + "OR u.business_unit_id IN (:buIds)) "
-                            + "AND (:uraId IS NULL OR c.ura_id = :uraId) "
+                            + BU_URA_JOIN_PREFIX
+                            + "c.call_type = :callType AND c.subject_tag IS NOT NULL "
+                            + BU_URA_SCOPE_SUFFIX
                             + "GROUP BY c.subject_tag ORDER BY total DESC LIMIT :limit",
             nativeQuery = true)
     List<Object[]> topSubjectsByCallType(
@@ -132,11 +137,9 @@ public interface StatsCallRepository extends JpaRepository<CallRecord, Long> {
     @Query(
             value =
                     "SELECT c.call_type AS label, AVG(c.call_duration_secs) AS total FROM call_records c "
-                            + "JOIN uras u ON u.id = c.ura_id "
-                            + "WHERE c.call_date BETWEEN :from AND :to AND c.call_type IS NOT NULL "
-                            + "AND (:restricted = false OR u.business_unit_id IS NULL "
-                            + "OR u.business_unit_id IN (:buIds)) "
-                            + "AND (:uraId IS NULL OR c.ura_id = :uraId) "
+                            + BU_URA_JOIN_PREFIX
+                            + "c.call_type IS NOT NULL "
+                            + BU_URA_SCOPE_SUFFIX
                             + "GROUP BY c.call_type ORDER BY total DESC",
             nativeQuery = true)
     List<Object[]> avgDurationByCallType(

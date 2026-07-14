@@ -202,4 +202,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Manutenção interna do Agente de IA: remoção de código não utilizado e consolidação de funções de áudio duplicadas — sem mudança perceptível de comportamento.',
     ],
   },
+  {
+    version: 'v1.22',
+    date: '2026-07-14',
+    changes: [
+      'Manutenção interna do backend: unificado o protocolo de comunicação com o Asterisk (AMI), antes duplicado em 4 pontos do código — sem mudança perceptível de comportamento.',
+      'Manutenção interna do backend: consolidadas as consultas de Ranking de Atendimentos que compartilhavam a mesma lógica de filtro — sem mudança perceptível de comportamento.',
+    ],
+  },
 ];

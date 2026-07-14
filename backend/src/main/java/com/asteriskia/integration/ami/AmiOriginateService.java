@@ -1,28 +1,23 @@
 package com.asteriskia.integration.ami;
 
+import java.io.IOException;
+import java.net.SocketTimeoutException;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.*;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
-import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.UUID;
-
 /**
  * AmiOriginateService — Origina chamadas no Asterisk via AMI (Asterisk Manager Interface).
  *
- * Protocolo AMI: TCP texto, porta 5038 por padrão.
- * Cada ação é um bloco de linhas "Chave: Valor\r\n" terminado por "\r\n".
+ * <p>Protocolo AMI: TCP texto, porta 5038 por padrão. Cada ação é um bloco de linhas "Chave:
+ * Valor\r\n" terminado por "\r\n".
  *
- * Ação Originate:
- *   - Channel: tecnologia/destino (ex: PJSIP/1001 ou PJSIP/+5511999999999@trunk)
- *   - Context: contexto de destino no extensions.conf
- *   - Exten/Priority: onde cair após atender
- *   - Variable: variáveis passadas para o dialplan (consumidas pelo Agente IA)
+ * <p>Ação Originate: - Channel: tecnologia/destino (ex: PJSIP/1001 ou PJSIP/+5511999999999@trunk) -
+ * Context: contexto de destino no extensions.conf - Exten/Priority: onde cair após atender -
+ * Variable: variáveis passadas para o dialplan (consumidas pelo Agente IA)
  */
 @Slf4j
 @Service
@@ -43,13 +38,13 @@ public class AmiOriginateService {
     private static final int TIMEOUT_MS = 10_000;
 
     /**
-     * Origina uma chamada de alerta Zabbix via AMI.
-     * O canal cai no contexto 'asteriskia-alert' que conecta ao Audiosocket.
+     * Origina uma chamada de alerta Zabbix via AMI. O canal cai no contexto 'asteriskia-alert' que
+     * conecta ao Audiosocket.
      *
-     * @param phoneNumber     Número a discar (ex: +5511999999999)
-     * @param callUuid        UUID que será passado como variável e identificará a chamada no agente Python
-     * @param severity        Severidade do incidente
-     * @param host            Host afetado
+     * @param phoneNumber Número a discar (ex: +5511999999999)
+     * @param callUuid UUID que será passado como variável e identificará a chamada no agente Python
+     * @param severity Severidade do incidente
+     * @param host Host afetado
      * @param incidentSummary Descrição do incidente
      * @return true se a ação foi enviada com sucesso ao AMI
      */
@@ -63,8 +58,8 @@ public class AmiOriginateService {
         // Sanitiza tudo que vem de fora antes de colocar em campos do protocolo AMI —
         // um CRLF nesses valores quebraria o bloco e poderia injetar ações extras.
         String safePhoneNumber = sanitizeAmiField(phoneNumber);
-        String safeSeverity    = sanitizeAmiField(severity);
-        String safeHost        = sanitizeAmiField(host);
+        String safeSeverity = sanitizeAmiField(severity);
+        String safeHost = sanitizeAmiField(host);
 
         Map<String, String> action = new LinkedHashMap<>();
         action.put("Action", "Originate");
@@ -78,19 +73,24 @@ public class AmiOriginateService {
         action.put("Async", "true");
         // Prefixo "alert-" no UUID permite que o agente Python identifique
         // o flow como ZABBIX_ALERT via _detect_flow_type()
-        action.put("Variable", "CALL_UUID=alert-" + sanitizeAmiField(callUuid)
-                + ",ZABBIX_SEVERITY=" + safeSeverity
-                + ",ZABBIX_HOST=" + safeHost
-                + ",FLOW_TYPE=ZABBIX_ALERT");
+        action.put(
+                "Variable",
+                "CALL_UUID=alert-"
+                        + sanitizeAmiField(callUuid)
+                        + ",ZABBIX_SEVERITY="
+                        + safeSeverity
+                        + ",ZABBIX_HOST="
+                        + safeHost
+                        + ",FLOW_TYPE=ZABBIX_ALERT");
 
         return sendAction(action);
     }
 
     /**
-     * Origina uma chamada de teste de conectividade via AMI (Módulo 2).
-     * O canal cai no contexto 'asteriskia-test' que apenas verifica a conectividade.
+     * Origina uma chamada de teste de conectividade via AMI (Módulo 2). O canal cai no contexto
+     * 'asteriskia-test' que apenas verifica a conectividade.
      *
-     * @param phoneNumber  Número a testar
+     * @param phoneNumber Número a testar
      * @param testResultId ID do TestResult a atualizar com o resultado
      * @return true se a ação foi enviada com sucesso ao AMI
      */
@@ -122,37 +122,30 @@ public class AmiOriginateService {
      * @return true se a resposta contiver "Response: Success"
      */
     private boolean sendAction(Map<String, String> actionFields) {
-        try (Socket socket = new Socket(host, port)) {
-            socket.setSoTimeout(TIMEOUT_MS);
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-            PrintWriter writer = new PrintWriter(
-                    new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true);
-
-            // Lê banner de boas-vindas do AMI
-            readLine(reader);
-
-            // Autentica
-            sendBlock(writer, Map.of(
-                    "Action", "Login",
-                    "Username", user,
-                    "Secret", password
-            ));
-            String loginResponse = readUntilBlank(reader);
+        try (AmiSession ami = AmiSession.connect(host, port, TIMEOUT_MS)) {
+            // Autentica — não usa AmiSession.login() aqui porque o log de falha desta classe
+            // sempre incluiu o corpo da resposta do AMI, diferente dos outros 3 chamadores.
+            ami.send(
+                    Map.of(
+                            "Action", "Login",
+                            "Username", user,
+                            "Secret", password));
+            String loginResponse = ami.readBlock();
             if (!loginResponse.contains("Success")) {
                 log.error("AMI: Falha na autenticação. Resposta: {}", loginResponse);
                 return false;
             }
 
             // Envia a ação
-            sendBlock(writer, actionFields);
-            String response = readUntilBlank(reader);
+            ami.send(actionFields);
+            String response = ami.readBlock();
             log.debug("AMI Originate resposta: {}", response);
 
             // Logoff
-            sendBlock(writer, Map.of("Action", "Logoff"));
+            ami.logoff();
 
-            return response.contains("Success") || response.contains("Originate successfully queued");
+            return response.contains("Success")
+                    || response.contains("Originate successfully queued");
 
         } catch (SocketTimeoutException e) {
             log.error("AMI: Timeout de conexão com {}:{}", host, port);
@@ -163,36 +156,12 @@ public class AmiOriginateService {
     }
 
     /**
-     * Remove \r e \n de um valor antes de usá-lo em um campo AMI.
-     * O protocolo AMI é texto delimitado por linhas — um valor vindo de fora
-     * (telefone, severidade, host, resumo do incidente) com CRLF poderia
-     * quebrar o bloco da ação e injetar comandos extras na sessão autenticada.
+     * Remove \r e \n de um valor antes de usá-lo em um campo AMI. O protocolo AMI é texto
+     * delimitado por linhas — um valor vindo de fora (telefone, severidade, host, resumo do
+     * incidente) com CRLF poderia quebrar o bloco da ação e injetar comandos extras na sessão
+     * autenticada.
      */
     private String sanitizeAmiField(String value) {
         return value == null ? "" : value.replace("\r", "").replace("\n", "");
-    }
-
-    /** Envia um bloco AMI (pares chave:valor + linha em branco final). */
-    private void sendBlock(PrintWriter writer, Map<String, String> fields) {
-        StringBuilder sb = new StringBuilder();
-        fields.forEach((k, v) -> sb.append(k).append(": ").append(v).append("\r\n"));
-        sb.append("\r\n");
-        writer.print(sb);
-        writer.flush();
-    }
-
-    /** Lê linhas até encontrar linha em branco (fim de bloco AMI). */
-    private String readUntilBlank(BufferedReader reader) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = readLine(reader)) != null) {
-            if (line.isEmpty()) break;
-            sb.append(line).append("\n");
-        }
-        return sb.toString();
-    }
-
-    private String readLine(BufferedReader reader) throws IOException {
-        return reader.readLine();
     }
 }
