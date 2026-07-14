@@ -101,6 +101,20 @@ export function revokeSession() {
   return axios.post(`${BASE_URL}/auth/logout`, {}, { withCredentials: true }).catch(() => {});
 }
 
+/**
+ * Extrai a mensagem de erro de uma resposta Axios (`{error}` ou `{message}` do backend),
+ * caindo no `fallback` dado se o erro não tiver esse formato — substitui o padrão repetido
+ * `catch (err: any) { alert(err?.response?.data?.error ?? err?.response?.data?.message ?? '...') }`
+ * espalhado pelos componentes.
+ */
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as { error?: string; message?: string } | undefined;
+    return data?.error ?? data?.message ?? fallback;
+  }
+  return fallback;
+}
+
 function logout() {
   localStorage.removeItem('asteriskia_token');
   localStorage.removeItem('asteriskia_user');

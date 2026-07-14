@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api from '../api/client';
+import api, { getErrorMessage } from '../api/client';
 import type { AlertCall, AlertContact, Operation, PageResponse } from '../api/types';
 import { AuthedAudio } from './AuthedAudio';
 
@@ -199,8 +199,8 @@ export default function ModuloAlertas() {
       else { await api.post('/alert-contacts', editContact); }
       setShowModal(false);
       loadContacts();
-    } catch (err: any) {
-      alert(err?.response?.data?.message ?? 'Erro ao salvar o contato.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao salvar o contato.'));
     }
   };
 
@@ -209,8 +209,8 @@ export default function ModuloAlertas() {
     try {
       await api.delete(`/alert-contacts/${id}`);
       loadContacts();
-    } catch (err: any) {
-      alert(err?.response?.data?.message ?? 'Erro ao remover o contato.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao remover o contato.'));
     }
   };
 

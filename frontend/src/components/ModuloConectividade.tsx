@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import api from '../api/client';
+import api, { getErrorMessage } from '../api/client';
 import type {
   NumberTest, NumberTestCreate, TestResult,
   BusinessUnit, Client, Operation, Segment,
@@ -160,8 +160,8 @@ export default function ModuloConectividade() {
       else { await api.post('/number-tests', form); }
       setShowModal(false);
       loadTests();
-    } catch (err: any) {
-      alert(err?.response?.data?.message ?? 'Erro ao salvar o teste.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao salvar o teste.'));
     }
   };
 
@@ -170,8 +170,8 @@ export default function ModuloConectividade() {
     try {
       await api.patch(`/number-tests/${t.id}/active?active=${!t.isActive}`);
       loadTests();
-    } catch (err: any) {
-      alert(err?.response?.data?.message ?? 'Erro ao alterar status do teste.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao alterar status do teste.'));
     }
   };
 
@@ -180,8 +180,8 @@ export default function ModuloConectividade() {
     try {
       await api.delete(`/number-tests/${id}`);
       loadTests();
-    } catch (err: any) {
-      alert(err?.response?.data?.message ?? 'Erro ao remover o teste.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao remover o teste.'));
     }
   };
 
@@ -281,8 +281,8 @@ export default function ModuloConectividade() {
       });
       setImportResult(res.data);
       if (res.data.importados > 0) loadTests();
-    } catch (err: any) {
-      setImportResult({ importados: 0, erros: 1, detalhes: [{ linha: 0, conteudo: '', erro: err.response?.data?.error ?? 'Erro ao enviar arquivo.' }] });
+    } catch (err) {
+      setImportResult({ importados: 0, erros: 1, detalhes: [{ linha: 0, conteudo: '', erro: getErrorMessage(err, 'Erro ao enviar arquivo.') }] });
     } finally {
       setImporting(false);
       setImportFile(null);

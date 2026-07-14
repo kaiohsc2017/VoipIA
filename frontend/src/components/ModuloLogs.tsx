@@ -5,6 +5,16 @@ import api from '../api/client';
 
 interface LogEntry {
   ts: string; service?: string; level: string; category?: string; msg: string; raw?: string;
+  /** Id sintético local (não vem do backend) — só para servir de key estável do React,
+   * já que a lista trunca do início (`slice(-999)`) a cada novo evento SSE e `ts` não é
+   * garantidamente único entre linhas. */
+  _id?: number;
+}
+
+let _logIdSeq = 0;
+/** Anexa um _id sintético monotônico — usado tanto no snapshot inicial quanto no SSE. */
+function withLogId(entry: LogEntry): LogEntry {
+  return { ...entry, _id: _logIdSeq++ };
 }
 
 interface AsteriskEndpoint { name: string; status: string; }
@@ -144,7 +154,7 @@ export default function ModuloLogs() {
         params.from = dockerFrom; params.to = dockerTo;
       }
       const res = await api.get<{ entries: LogEntry[]; chart?: ChartData }>(endpoint, { params });
-      setDockerEntries(res.data.entries ?? []);
+      setDockerEntries((res.data.entries ?? []).map(withLogId));
       if (res.data.chart) setDockerChart(res.data.chart);
       scrollBottom(dockerLogRef);
     } catch { /* silencioso */ }
@@ -161,7 +171,7 @@ export default function ModuloLogs() {
         }),
         api.get<AsteriskStatus>('/logs/asterisk/status'),
       ]);
-      setAstEntries(snapRes.data.entries ?? []);
+      setAstEntries((snapRes.data.entries ?? []).map(withLogId));
       setAstChart(snapRes.data.chart);
       setAstStatus(statusRes.data);
       scrollBottom(astLogRef);
@@ -198,7 +208,7 @@ export default function ModuloLogs() {
     es.onmessage = (ev) => {
       try {
         const e: LogEntry = JSON.parse(ev.data);
-        setDockerEntries(prev => [...prev.slice(-999), e]);
+        setDockerEntries(prev => [...prev.slice(-999), withLogId(e)]);
         scrollBottom(dockerLogRef);
       } catch { /* skip */ }
     };
@@ -219,7 +229,7 @@ export default function ModuloLogs() {
     es.onmessage = (ev) => {
       try {
         const e: LogEntry = JSON.parse(ev.data);
-        setAstEntries(prev => [...prev.slice(-999), e]);
+        setAstEntries(prev => [...prev.slice(-999), withLogId(e)]);
         scrollBottom(astLogRef);
       } catch { /* skip */ }
     };
@@ -373,8 +383,8 @@ export default function ModuloLogs() {
               <div style={{ color:'var(--text-muted)', textAlign:'center', padding:32 }}>
                 {dockerLoading ? 'Carregando…' : 'Nenhum log encontrado.'}
               </div>
-            ) : filteredDocker.map((e, i) => (
-              <div key={i} style={{ display:'flex', gap:8, alignItems:'baseline', padding:'1px 0', borderBottom:'0.5px solid var(--border-glass)33' }}>
+            ) : filteredDocker.map((e) => (
+              <div key={e._id} style={{ display:'flex', gap:8, alignItems:'baseline', padding:'1px 0', borderBottom:'0.5px solid var(--border-glass)33' }}>
                 <span style={{ color:'var(--text-muted)', flexShrink:0, minWidth:58, fontSize:'0.72rem' }}>{fmtTs(e.ts)}</span>
                 <span style={{ flexShrink:0, minWidth:68 }}><Badge label={e.service ?? 'sys'} /></span>
                 <span style={{ flexShrink:0, minWidth:42 }}><Badge label={e.level} /></span>
@@ -499,8 +509,8 @@ export default function ModuloLogs() {
                 <div style={{ color:'var(--text-muted)', textAlign:'center', padding:32 }}>
                   {astLoading ? 'Carregando…' : 'Nenhum log encontrado.'}
                 </div>
-              ) : filteredAst.map((e, i) => (
-                <div key={i} style={{ display:'flex', gap:8, alignItems:'baseline', padding:'2px 0', borderBottom:'0.5px solid var(--border-glass)33' }}>
+              ) : filteredAst.map((e) => (
+                <div key={e._id} style={{ display:'flex', gap:8, alignItems:'baseline', padding:'2px 0', borderBottom:'0.5px solid var(--border-glass)33' }}>
                   <span style={{ color:'var(--text-muted)', flexShrink:0, fontSize:'0.72rem', minWidth:100 }}>{e.ts}</span>
                   <span style={{ flexShrink:0, minWidth:64 }}><Badge label={e.category ?? e.level ?? 'INFO'} /></span>
                   <span style={{ color:'var(--text-primary)', wordBreak:'break-all' }}>{e.msg}</span>

@@ -4,7 +4,7 @@
  * quando o admin está configurando uma URA.
  */
 import { useEffect, useState } from 'react';
-import api from '../api/client';
+import api, { getErrorMessage } from '../api/client';
 import type { UraQuestion } from '../api/types';
 
 interface UraSetting {
@@ -38,9 +38,8 @@ export default function FluxoURATab({ uraId }: { uraId: number }) {
       setSettings(s.data);
       setLocalValues(Object.fromEntries(s.data.map(x => [x.key, x.value])));
       setQuestions(q.data);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      setLoadError(err.response?.data?.message ?? 'Erro ao carregar o fluxo da URA. Tente novamente.');
+    } catch (err) {
+      setLoadError(getErrorMessage(err, 'Erro ao carregar o fluxo da URA. Tente novamente.'));
     } finally {
       setLoadingData(false);
     }
@@ -55,8 +54,8 @@ export default function FluxoURATab({ uraId }: { uraId: number }) {
       setSaved(key);
       setTimeout(() => setSaved(null), 2000);
       await load();
-    } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Erro ao salvar. Tente novamente.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao salvar. Tente novamente.'));
     } finally {
       setSaving(null);
     }
@@ -66,9 +65,8 @@ export default function FluxoURATab({ uraId }: { uraId: number }) {
     try {
       await api.patch(`/uras/${uraId}/questions/${q.id}/active?active=${!q.isActive}`);
       load();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Erro ao atualizar a pergunta. Tente novamente.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao atualizar a pergunta. Tente novamente.'));
     }
   };
 
@@ -86,9 +84,8 @@ export default function FluxoURATab({ uraId }: { uraId: number }) {
       else          { await api.post(`/uras/${uraId}/questions`, editQ); }
       setShowModal(false);
       load();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Erro ao salvar a pergunta. Tente novamente.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao salvar a pergunta. Tente novamente.'));
     }
   };
 
@@ -97,9 +94,8 @@ export default function FluxoURATab({ uraId }: { uraId: number }) {
     try {
       await api.delete(`/uras/${uraId}/questions/${id}`);
       load();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Erro ao remover a pergunta. Tente novamente.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao remover a pergunta. Tente novamente.'));
     }
   };
 

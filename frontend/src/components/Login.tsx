@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import api from '../api/client';
+import api, { getErrorMessage } from '../api/client';
 import type { LoginRequest, LoginResponse } from '../api/types';
 
 interface LoginProps {
@@ -53,8 +53,8 @@ export default function Login({ onLogin }: LoginProps) {
       // Login normal (sem 2FA). O refresh token vai num cookie httpOnly
       // setado pelo backend — nunca chega aqui em JS.
       finishLogin(data.token!, data.firstLoginCompleted);
-    } catch (err: any) {
-      const msg = err.response?.data?.error ?? err.response?.data?.message ?? 'Credenciais inválidas. Tente novamente.';
+    } catch (err) {
+      const msg = getErrorMessage(err, 'Credenciais inválidas. Tente novamente.');
       setError(msg);
     } finally {
       setLoading(false);
@@ -72,8 +72,8 @@ export default function Login({ onLogin }: LoginProps) {
         code: totpCode.replace(/\s/g, ''),
       });
       finishLogin(data.token, data.firstLoginCompleted);
-    } catch (err: any) {
-      const msg = err.response?.data?.error ?? 'Código inválido ou expirado.';
+    } catch (err) {
+      const msg = getErrorMessage(err, 'Código inválido ou expirado.');
       setError(msg);
       setTotpCode('');
     } finally {

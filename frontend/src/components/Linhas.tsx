@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api from '../api/client';
+import api, { getErrorMessage } from '../api/client';
 import { useAuthSession } from '../hooks/useAuthSession';
 import type { BusinessUnit, Linha, Operadora, Operation } from '../api/types';
 import ImportModal, { triggerDownload } from './shared/ImportModal';
@@ -134,8 +134,8 @@ export default function Linhas() {
 
       setShowModal(false);
       load();
-    } catch (err: any) {
-      alert(err?.response?.data?.error ?? err?.response?.data?.message ?? 'Erro ao salvar.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao salvar.'));
     } finally {
       setSaving(false);
     }
@@ -154,8 +154,8 @@ export default function Linhas() {
       });
       await api.put(`/linhas/${item.id}/business-units`, item.businessUnits?.map(bu => bu.id) ?? []);
       load();
-    } catch (err: any) {
-      alert(err?.response?.data?.error ?? err?.response?.data?.message ?? 'Erro ao alterar status.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao alterar status.'));
     }
   };
 
@@ -164,8 +164,8 @@ export default function Linhas() {
     try {
       await api.delete(`/linhas/${item.id}`);
       load();
-    } catch (err: any) {
-      alert(err?.response?.data?.error ?? err?.response?.data?.message ?? 'Erro ao remover.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao remover.'));
     }
   };
 

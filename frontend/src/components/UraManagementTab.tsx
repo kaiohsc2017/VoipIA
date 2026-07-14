@@ -3,7 +3,7 @@
  * Cada URA tem ramal próprio, perguntas próprias e integração com Jira opcional.
  */
 import { useEffect, useState } from 'react';
-import api from '../api/client';
+import api, { getErrorMessage } from '../api/client';
 import type { Ura } from '../api/types';
 import FluxoURATab from './FluxoURATab';
 
@@ -22,9 +22,8 @@ export default function UraManagementTab() {
     try {
       const r = await api.get<Ura[]>('/uras');
       setUras(r.data);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      setLoadError(err.response?.data?.message ?? 'Erro ao carregar as URAs. Tente novamente.');
+    } catch (err) {
+      setLoadError(getErrorMessage(err, 'Erro ao carregar as URAs. Tente novamente.'));
     } finally {
       setLoading(false);
     }
@@ -55,9 +54,8 @@ export default function UraManagementTab() {
       }
       setShowModal(false);
       load();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      setError(err.response?.data?.message ?? 'Erro ao salvar a URA. Tente novamente.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Erro ao salvar a URA. Tente novamente.'));
     }
   };
 
@@ -67,9 +65,8 @@ export default function UraManagementTab() {
     try {
       await api.delete(`/uras/${u.id}`);
       load();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Erro ao remover a URA. Tente novamente.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao remover a URA. Tente novamente.'));
     }
   };
 

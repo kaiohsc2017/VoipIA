@@ -7,6 +7,8 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
+import type { TooltipContentProps, PieLabelRenderProps } from 'recharts';
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import api from '../api/client';
 import { connectWebSocket, subscribe } from '../api/websocket';
 import type { CallRecord, TestResult, AlertCall, PageResponse } from '../api/types';
@@ -222,7 +224,7 @@ export default function Dashboard() {
     .map(([name, total]) => ({ name: name.length > 12 ? name.slice(0, 11) + '…' : name, total }))
     .sort((a, b) => b.total - a.total).slice(0, 6);
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: Partial<TooltipContentProps<ValueType, NameType>>) => {
     if (!active || !payload?.length) return null;
     return (
       <div style={{
@@ -230,7 +232,7 @@ export default function Dashboard() {
         borderRadius: 10, padding: '10px 14px', fontSize: '0.82rem',
       }}>
         <p style={{ color: 'var(--text-muted)', marginBottom: 6 }}>{label}</p>
-        {payload.map((p: any) => (
+        {payload.map((p) => (
           <p key={p.name} style={{ color: p.color, margin: '2px 0' }}>
             {p.name}: <strong>{p.value}</strong>
           </p>
@@ -345,8 +347,8 @@ export default function Dashboard() {
                   <PieChart>
                     <Pie data={pieData} cx="50%" cy="50%" innerRadius={52} outerRadius={80}
                       dataKey="value" nameKey="name" paddingAngle={3}
-                      label={({ name, percent }: any) =>
-                        percent != null ? `${name ?? ''} ${((percent as number) * 100).toFixed(0)}%` : (name ?? '')
+                      label={({ name, percent }: PieLabelRenderProps) =>
+                        percent != null ? `${name ?? ''} ${(Number(percent) * 100).toFixed(0)}%` : (name ?? '')
                       }
                       labelLine={false}
                     >
@@ -354,7 +356,7 @@ export default function Dashboard() {
                         <Cell key={entry.name} fill={STATUS_COLORS[entry.name] ?? PIE_COLORS[i % PIE_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: any, n: any) => [v, n]} />
+                    <Tooltip formatter={(v: ValueType | undefined, n: NameType | undefined) => [v, n]} />
                   </PieChart>
                 </ResponsiveContainer>
               )}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api from '../api/client';
+import api, { getErrorMessage } from '../api/client';
 import type { AppUser, BusinessUnitOption, CreateForm, EditForm, TotpSetup } from './userModalTypes';
 import { EMPTY_CREATE, maxAccessDate } from './userModalTypes';
 import { CreateUserModal } from './CreateUserModal';
@@ -76,9 +76,8 @@ export default function Users() {
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE);
       load();
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } } };
-      alert(err?.response?.data?.message ?? 'Erro ao criar usuário.');
+    } catch (e) {
+      alert(getErrorMessage(e, 'Erro ao criar usuário.'));
     } finally {
       setSaving(false);
     }
@@ -114,9 +113,8 @@ export default function Users() {
       });
       setEditUser(null);
       load();
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } } };
-      alert(err?.response?.data?.message ?? 'Erro ao salvar usuário.');
+    } catch (e) {
+      alert(getErrorMessage(e, 'Erro ao salvar usuário.'));
     } finally {
       setSaving(false);
     }
@@ -128,9 +126,8 @@ export default function Users() {
     try {
       await api.post(`/users/${u.id}/totp/reset`);
       load();
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } } };
-      alert(err?.response?.data?.message ?? 'Erro ao resetar MFA.');
+    } catch (e) {
+      alert(getErrorMessage(e, 'Erro ao resetar MFA.'));
     }
   };
 
@@ -140,8 +137,8 @@ export default function Users() {
     try {
       await api.delete(`/users/${u.id}`);
       load();
-    } catch (err: any) {
-      alert(err?.response?.data?.message ?? 'Erro ao desativar usuário.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao desativar usuário.'));
     }
   };
 

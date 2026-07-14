@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import api from '../../api/client';
+import api, { getErrorMessage } from '../../api/client';
 
 export interface ImportSummary {
   importados: number;
@@ -63,10 +63,10 @@ export default function ImportModal({ title, importUrl, templateUrl, templateFil
       const res = await api.post(importUrl, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       setResult(res.data);
       if (res.data.importados > 0) onImported();
-    } catch (err: any) {
+    } catch (err) {
       setResult({
         importados: 0, erros: 1,
-        detalhes: [{ linha: 0, erro: err?.response?.data?.error ?? 'Erro ao enviar arquivo.' }],
+        detalhes: [{ linha: 0, erro: getErrorMessage(err, 'Erro ao enviar arquivo.') }],
       });
     } finally {
       setImporting(false);

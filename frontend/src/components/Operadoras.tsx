@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api from '../api/client';
+import api, { getErrorMessage } from '../api/client';
 import { useAuthSession } from '../hooks/useAuthSession';
 import type { Operadora } from '../api/types';
 
@@ -55,8 +55,8 @@ export default function Operadoras() {
       }
       setShowModal(false);
       load();
-    } catch (err: any) {
-      alert(err?.response?.data?.error ?? err?.response?.data?.message ?? 'Erro ao salvar.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao salvar.'));
     } finally {
       setSaving(false);
     }
@@ -66,8 +66,8 @@ export default function Operadoras() {
     try {
       await api.put(`/operadoras/${item.id}`, { nome: item.nome, isActive: !item.isActive });
       load();
-    } catch (err: any) {
-      alert(err?.response?.data?.error ?? err?.response?.data?.message ?? 'Erro ao alterar status.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao alterar status.'));
     }
   };
 
@@ -76,8 +76,8 @@ export default function Operadoras() {
     try {
       await api.delete(`/operadoras/${item.id}`);
       load();
-    } catch (err: any) {
-      alert(err?.response?.data?.error ?? err?.response?.data?.message ?? 'Erro ao remover — verifique se ela não está em uso por algum número 0800 ou linha.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao remover — verifique se ela não está em uso por algum número 0800 ou linha.'));
     }
   };
 

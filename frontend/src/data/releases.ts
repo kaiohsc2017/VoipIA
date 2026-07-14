@@ -217,4 +217,13 @@ export const RELEASES: ReleaseEntry[] = [
       'Manutenção interna do frontend: consolidada em um único ponto a lógica de permissões repetida em várias telas (Operadoras, Números 0800, Linhas, Softphone) — sem mudança perceptível de comportamento.',
     ],
   },
+  {
+    version: 'v1.24',
+    date: '2026-07-14',
+    changes: [
+      'Manutenção interna do backend e da Plataforma de Agentes: pequenos ajustes de organização de código (limites de paginação, remoção de código morto, mensagens de erro mais claras) — sem mudança perceptível de comportamento.',
+      'Manutenção interna do Agente de IA: pequenos ajustes de robustez no protocolo de voz e nas mensagens de log — sem mudança perceptível de comportamento.',
+      'Manutenção interna do frontend: mensagens de erro padronizadas em todas as telas de cadastro e uma correção de identificação de linhas na tela de Logs — sem mudança perceptível de comportamento.',
+    ],
+  },
 ];

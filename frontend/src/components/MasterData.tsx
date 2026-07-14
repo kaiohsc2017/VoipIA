@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api from '../api/client';
+import api, { getErrorMessage } from '../api/client';
 
 type TabKey = 'bu' | 'client' | 'operation' | 'segment';
 
@@ -135,8 +135,8 @@ export default function MasterData() {
 
       setShowModal(false);
       load();
-    } catch (err: any) {
-      alert(err?.response?.data?.error ?? err?.response?.data?.message ?? 'Erro ao salvar.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao salvar.'));
     } finally {
       setSaving(false);
     }
@@ -146,8 +146,8 @@ export default function MasterData() {
     try {
       await api.put(`/${currentTab.endpoint}/${item.id}`, { ...item, isActive: !item.isActive });
       load();
-    } catch (err: any) {
-      alert(err?.response?.data?.message ?? 'Erro ao alterar status.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao alterar status.'));
     }
   };
 
@@ -156,8 +156,8 @@ export default function MasterData() {
     try {
       await api.delete(`/${currentTab.endpoint}/${item.id}`);
       load();
-    } catch (err: any) {
-      alert(err?.response?.data?.message ?? 'Erro ao remover.');
+    } catch (err) {
+      alert(getErrorMessage(err, 'Erro ao remover.'));
     }
   };
 
