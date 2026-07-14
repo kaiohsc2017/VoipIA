@@ -8,19 +8,23 @@ para abrir o chamado no Jira ao final.
 Mensagens de boas-vindas, informativa e encerramento são buscadas
 dinamicamente do backend (/api/v1/ura/settings) — configuráveis
 pela tela Fluxo URA sem necessidade de redeploy.
+
+Orquestrador fino (fase 22, O3.3 da refatoração) — a captura/transcrição de áudio
+mora em audio_capture.AudioCapture, a formatação de campos de fala em
+speech_field_formatter, e a gravação/registro do chamado em call_recorder.CallRecorder.
 """
 
 import asyncio
 import logging
-import struct
 import time
-import wave
-import webrtcvad
-from src.protocol import read_frame, write_audio_paced, wait_playback_and_drain
+
+from src.flows.audio_capture import AudioCapture
+from src.flows.call_recorder import CallRecorder
+from src.flows.speech_field_formatter import build_stt_hint, matches_expected
+from src.protocol import wait_playback_and_drain, write_audio_paced
 from src.services.ai_service import AIService
 from src.services.audio_cache import audio_cache as _audio_cache
 from src.services import backend_client as bc
-from src.services.subject_classifier import classify_subject
 
 logger = logging.getLogger("asteriskia.flow.jira")
 
@@ -37,78 +41,11 @@ _BYTES_SAMPLE = 2
 # event loop e latência de rede interna Docker.
 _POST_SPEAK_BUFFER_SECS = 0.8
 
-# Threshold RMS — usado só como fallback do VAD para frames de tamanho não-padrão.
-_SILENCE_THRESHOLD = 700
-
-# Agressividade do WebRTC VAD (0-3). Nível 3 favorece rejeitar ruído/som
-# ambiente ao redor, focando na voz de quem fala diretamente ao microfone —
-# troca-off aceitável de eventualmente cortar sílabas bem baixinhas.
-_VAD_AGGRESSIVENESS = 3
-
 # Segundos de silêncio contínuo para encerrar a captura (perguntas estruturadas)
 _SILENCE_TIMEOUT_SECS = 2.0
 
-# Timeout de silêncio para o turno livre (mais curto — o usuário pode não saber que deve falar)
-_TURNO_LIVRE_SILENCE_SECS = 3.0
-
 # Duração máxima de captura em segundos (relógio real — garante encerramento independente de frame timing)
-_MAX_CAPTURE_TURNO_LIVRE = 6.0   # turno livre: até 6s de relógio
-_MAX_CAPTURE_PERGUNTA    = 12.0  # perguntas: até 12s de relógio
-
-# Instância única do VAD — sem estado por chamada, seguro reaproveitar entre chamadas concorrentes.
-_vad = webrtcvad.Vad(_VAD_AGGRESSIVENESS)
-
-
-def _is_speech_frame(payload: bytes) -> bool:
-    """
-    Classifica um frame de 20ms como voz humana (True) ou ruído/silêncio (False).
-
-    Usa o WebRTC VAD em vez de um threshold de energia (RMS) fixo — o VAD
-    analisa características espectrais da fala e é muito mais robusto a
-    ruído ambiente, focando na voz de quem fala diretamente ao microfone em
-    vez de ser enganado por som ao redor.
-    """
-    if len(payload) != 320:  # fora do frame padrão 20ms/8kHz — fallback por energia
-        samples = struct.unpack(f"<{len(payload)//2}h", payload)
-        rms = (sum(x * x for x in samples) / len(samples)) ** 0.5
-        return rms >= _SILENCE_THRESHOLD
-    return _vad.is_speech(payload, _SAMPLE_RATE)
-
-
-def _resolve_vad_aggressiveness(raw: str | None) -> int:
-    """Converte o valor configurado na tela de Fluxo URA (0-3) para o modo do VAD, com fallback seguro."""
-    try:
-        level = int(str(raw).strip())
-    except (TypeError, ValueError):
-        return _VAD_AGGRESSIVENESS
-    return level if level in (0, 1, 2, 3) else _VAD_AGGRESSIVENESS
-
-
-def _trim_silence(pcm: bytes, frame_size: int = 320) -> bytes:
-    """
-    Remove frames de silêncio/ruído do início e fim do PCM.
-    Reduz o tamanho do áudio enviado ao STT — menos dados = resposta mais rápida.
-    """
-    frames = [pcm[i:i+frame_size] for i in range(0, len(pcm), frame_size) if len(pcm[i:i+frame_size]) == frame_size]
-    if not frames:
-        return pcm
-
-    # Encontra primeiro frame com voz — mantém 5 frames antes (100ms) para
-    # não cortar consoantes iniciais (ex: "k" de "kaio", "c" de "cinco")
-    start = 0
-    for i, f in enumerate(frames):
-        if _is_speech_frame(f):
-            start = max(0, i - 5)
-            break
-
-    # Encontra último frame com voz
-    end = len(frames)
-    for i in range(len(frames) - 1, -1, -1):
-        if _is_speech_frame(frames[i]):
-            end = min(len(frames), i + 3)  # mantém 3 frames depois
-            break
-
-    return b"".join(frames[start:end])
+_MAX_CAPTURE_PERGUNTA = 12.0  # perguntas: até 12s de relógio
 
 
 class JiraCallFlow:
@@ -124,6 +61,12 @@ class JiraCallFlow:
       6. Fala confirmação → registra chamado → fala encerramento
     """
 
+    # Perguntas com expected_values configurado (ex: "tipo de atendimento") têm até
+    # essas tentativas para cair em uma opção válida — evita que ruído de STT vire
+    # uma categoria "suja" nos indicadores (Ranking de Atendimentos agrupa por essa
+    # resposta) quando o cliente falou algo fora do esperado.
+    _MAX_TENTATIVAS_RESPOSTA_VALIDA = 2
+
     def __init__(
         self,
         call_uuid: str,
@@ -138,10 +81,10 @@ class JiraCallFlow:
         self.caller_number      = caller_number
         self.ura_id             = ura_id
         self.ai                 = AIService()
-        self.collected_answers: dict[str, str] = {}
-        self._transcriptions: list[str]        = []
-        self._recorded_audio: list[bytes]      = []   # PCM da chamada em ordem cronológica (URA + cliente) para gravação WAV
-        self._call_start_time: float           = 0.0  # início do fluxo para cálculo de duração
+        self._recorded_audio: list[bytes] = []   # PCM da chamada em ordem cronológica (URA + cliente) para gravação WAV
+        self._call_start_time: float      = 0.0  # início do fluxo para cálculo de duração
+        self.audio_capture = AudioCapture(call_uuid, reader, self.ai, self._recorded_audio)
+        self.recorder      = CallRecorder(call_uuid, self.ai, caller_number, ura_id, self._recorded_audio)
 
     async def execute(self) -> None:
         self._call_start_time = time.monotonic()
@@ -158,7 +101,7 @@ class JiraCallFlow:
         encerramento = settings.get("encerramento") or _FALLBACK_ENCERRAMENTO
 
         # Sensibilidade do VAD é configurável na tela de Fluxo URA (0-3)
-        _vad.set_mode(_resolve_vad_aggressiveness(settings.get("vad_aggressiveness")))
+        self.audio_capture.set_aggressiveness(settings.get("vad_aggressiveness"))
 
         # 2. Boas-vindas — reproduz do cache (sem latência TTS)
         ok = await self._play_cached(boas_vindas)
@@ -184,8 +127,8 @@ class JiraCallFlow:
             )
             if answer:
                 key = question.get("jiraFieldKey") or question.get("jira_field_key", "")
-                self.collected_answers[key] = answer
-                self._transcriptions.append(f"[{question['question_text']}]: {answer}")
+                self.recorder.collected_answers[key] = answer
+                self.recorder.transcriptions.append(f"[{question['question_text']}]: {answer}")
                 logger.info("[%s] %s = %r", self.call_uuid, key, answer)
 
         # 5. Confirmação — mensagem estática, serve do cache
@@ -196,18 +139,18 @@ class JiraCallFlow:
         # 6. Grava WAV com voz do chamador (MixMonitor não captura audio do AudioSocket)
         audio_path = f"/var/spool/asterisk/monitor/{self.call_uuid}.wav"
         try:
-            self._write_wav(audio_path)
+            self.recorder.write_wav(audio_path)
         except Exception as e:
             logger.warning("[%s] Erro ao salvar gravação: %s", self.call_uuid, e)
             audio_path = None
 
         # 7. Cria chamado no Jira via backend
         call_duration = int(time.monotonic() - self._call_start_time)
-        issue_key = await self._create_jira_issue(audio_path=audio_path, duration_secs=call_duration)
+        issue_key = await self.recorder.create_jira_issue(audio_path=audio_path, duration_secs=call_duration)
 
-        # 7. Encerramento
+        # 8. Encerramento
         if issue_key:
-            spoken_key = self._format_issue_key(issue_key)
+            spoken_key = CallRecorder.format_issue_key(issue_key)
             msg = encerramento.replace("{protocolo}", spoken_key)
         else:
             msg = encerramento.replace("{protocolo}", "").strip()
@@ -226,7 +169,6 @@ class JiraCallFlow:
         Com write_audio_paced, a função retorna ~junto com o fim da reprodução.
         Ao final, drena frames acumulados no reader durante o TTS.
         """
-        import time
         if self.writer.is_closing():
             return False
         # Texto vazio causaria erro 400 no Gemini TTS
@@ -266,7 +208,6 @@ class JiraCallFlow:
         Zero latência de TTS: o PCM é lido do cache local.
         Fallback automático para _speak() se o cache não estiver disponível.
         """
-        import time
         if not text or not text.strip():
             logger.warning("[%s] _play_cached ignorado — texto vazio", self.call_uuid)
             return True
@@ -303,186 +244,6 @@ class JiraCallFlow:
             logger.error("[%s] Erro na reprodução do cache: %s — usando TTS em tempo real", self.call_uuid, e)
             return await self._speak(text)
 
-    # Padrões que indicam que o STT captou ruído/TTS em vez de voz humana real
-    _NOISE_PATTERNS = (
-        '[música', '[music', '[ruído', '[noise', '[silêncio', '[silence',
-        '[sem fala', 'sem fala', 'não há fala', 'barulho de máquina',
-        'música instrumental', '[audio', '[som', 'background',
-    )
-
-    # Mapa de palavras numéricas → dígito (BR Portuguese)
-    _NUMBER_WORDS: dict[str, str] = {
-        "zero": "0", "um": "1", "uma": "1", "dois": "2", "duas": "2",
-        "três": "3", "tres": "3", "quatro": "4", "cinco": "5",
-        "seis": "6", "sete": "7", "oito": "8", "nove": "9",
-    }
-
-    @staticmethod
-    def _build_stt_hint(question_text: str, field_key: str, expected_values: str = "") -> str:
-        """
-        Monta o prompt de contexto enviado ao STT conforme o tipo de campo.
-
-        O contexto reduz ambiguidade: o modelo sabe que deve transcrever
-        um ramal (dígitos), um login (com ponto), tipo de ticket ou texto livre.
-        """
-        fk = field_key.lower()
-
-        if any(k in fk for k in ("telefone", "ramal", "phone", "fone")):
-            return (
-                f"Contexto: {question_text}\n"
-                "O usuário irá falar um número de ramal ou telefone dígito por dígito "
-                "(ex: 'cinco zero zero quatro'). "
-                "Transcreva APENAS os dígitos em algarismos, sem espaços (ex: 5004). "
-                "Ignore palavras como 'ramal' ou 'número'. "
-                "Retorne somente os dígitos."
-            )
-
-        if any(k in fk for k in ("nome", "login", "user", "email", "mail")):
-            return (
-                f"Contexto: {question_text}\n"
-                "O usuário irá falar um login de rede no formato nome.sobrenome. "
-                "Se disser 'ponto', escreva '.' (sem espaço). "
-                "Exemplo: 'kaio ponto correa' → 'kaio.correa'. "
-                "Retorne apenas o login, sem pontuação extra."
-            )
-
-        if any(k in fk for k in ("priority", "prioridade", "urgencia", "urgência")):
-            return (
-                f"Contexto: {question_text}\n"
-                "O usuário irá falar a prioridade: Baixa, Média ou Alta. "
-                "Transcreva exatamente a palavra de prioridade que foi dita. "
-                "Normalize variações: 'media' → 'Média', 'alta urgencia' → 'Alta'."
-            )
-
-        # Tipo de ticket (incidente vs. requisição) — campo type_ticket, issuetype ou similar
-        if any(k in fk for k in ("type_ticket", "issuetype", "tipo")) or (
-            "type" in fk and not any(k in fk for k in ("telefone", "ramal", "nome", "login", "priority", "prioridade"))
-        ):
-            opts = expected_values if expected_values else "Incidente, Requisição"
-            return (
-                f"Contexto: {question_text}\n"
-                f"O usuário deve escolher entre: {opts}. "
-                "Transcreva exatamente uma das opções. "
-                "Mapeie: 'problema', 'falha', 'parou', 'erro' → 'Incidente'; "
-                "'solicitação', 'nova', 'acesso', 'instalação', 'serviço' → 'Requisição'. "
-                "Retorne apenas a opção escolhida."
-            )
-
-        # Campo com valores esperados explícitos (qualquer campo configurado com expected_values)
-        if expected_values:
-            vals = [v.strip() for v in expected_values.split(",") if v.strip()]
-            if vals:
-                return (
-                    f"Contexto: {question_text}\n"
-                    f"O usuário deve responder com uma destas opções: {', '.join(vals)}. "
-                    "Transcreva exatamente uma das opções acima. "
-                    "Retorne apenas a opção escolhida."
-                )
-
-        return (
-            f"Contexto: {question_text}\n"
-            "Transcreva em português do Brasil exatamente o que foi dito. "
-            "Retorne apenas o texto transcrito."
-        )
-
-    @staticmethod
-    def _normalize_transcription(text: str, field_key: str, expected_values: str = "") -> str:
-        """
-        Normaliza a transcrição do STT para o campo específico.
-
-        Converte palavras faladas em representações canônicas:
-        - Ramais/telefones: palavras numéricas → dígitos, remove prefixo "ramal"
-        - Logins: "ponto" → ".", remove espaços entre partes do login
-        - Prioridades: normaliza capitalização
-        """
-        import re
-        fk = field_key.lower()
-
-        if any(k in fk for k in ("telefone", "ramal", "phone", "fone")):
-            # Converte palavras numéricas para dígitos
-            for word, digit in JiraCallFlow._NUMBER_WORDS.items():
-                text = re.sub(rf'\b{word}\b', digit, text, flags=re.IGNORECASE)
-            # Remove espaços entre dígitos consecutivos: "5 0 0 4" → "5004"
-            text = re.sub(r'(?<=\d)\s+(?=\d)', '', text)
-            # Remove prefixo "ramal " ou "número " se capturado
-            text = re.sub(r'^(ramal|número|numero|tel|fone)\s*', '', text, flags=re.IGNORECASE)
-            return text.strip()
-
-        if any(k in fk for k in ("nome", "login", "user", "email", "mail")):
-            # Converte "ponto" → "." (com ou sem espaços ao redor)
-            text = re.sub(r'\s*\bponto\b\s*', '.', text, flags=re.IGNORECASE)
-            # Remove espaços ao redor de pontos restantes: "kaio . correa" → "kaio.correa"
-            text = re.sub(r'\s*\.\s*', '.', text)
-            # Remove prefixo "login" ou "usuário" se capturado acidentalmente
-            text = re.sub(r'^(login|usuário|usuario|user)\s*[:;]?\s*', '', text, flags=re.IGNORECASE)
-            return text.strip()
-
-        if any(k in fk for k in ("priority", "prioridade", "urgencia", "urgência")):
-            tl = text.lower().strip()
-            if "alta" in tl or "urgente" in tl or "crítica" in tl or "critica" in tl:
-                return "Alta"
-            if "média" in tl or "media" in tl or "moderada" in tl:
-                return "Média"
-            if "baixa" in tl or "menor" in tl:
-                return "Baixa"
-            return text
-
-        # Tipo de ticket — normaliza para Incidente ou Requisição
-        if any(k in fk for k in ("type_ticket", "issuetype", "tipo")) or (
-            "type" in fk and not any(k in fk for k in ("telefone", "ramal", "nome", "login", "priority", "prioridade"))
-        ):
-            tl = text.lower().strip()
-            if any(w in tl for w in ("incidente", "incident", "problema", "bug", "erro", "falha", "parou", "quebrou", "crítico", "critico")):
-                return "Incidente"
-            if any(w in tl for w in ("solicitação", "solicitacao", "requisição", "requisicao", "request", "nova", "novo", "serviço", "servico", "acesso", "instalação", "instalacao", "abertura")):
-                return "Requisição"
-            return text
-
-        return text
-
-    async def _listen_and_transcribe(
-        self,
-        silence_timeout: float = _SILENCE_TIMEOUT_SECS,
-        max_duration: float = _MAX_CAPTURE_PERGUNTA,
-        hint: str = "",
-        field_key: str = "",
-        expected_values: str = "",
-    ) -> str | None:
-        """Captura áudio do cliente, remove silêncio e transcreve via STT."""
-        audio = await self._capture_audio(silence_timeout=silence_timeout, max_duration=max_duration)
-        if not audio:
-            return None
-        audio = _trim_silence(audio)
-        if len(audio) < 320 * 10:  # menos de 10 frames (~0.2s) → sem voz real
-            return None
-        try:
-            text = await self.ai.transcribe(audio, hint=hint)
-            if not text:
-                return None
-            # Filtra transcrições de ruído/música — o STT captou o áudio da URA
-            text_lower = text.lower().strip()
-            if any(p in text_lower for p in self._NOISE_PATTERNS):
-                logger.debug("[%s] STT filtrou ruído: %r", self.call_uuid, text)
-                return None
-            text = self._normalize_transcription(text, field_key, expected_values)
-            logger.info("[%s] STT[%s]: %r", self.call_uuid, field_key or "?", text)
-            return text
-        except Exception as e:
-            logger.error("[%s] Erro STT: %s", self.call_uuid, e)
-            return None
-
-    # Perguntas com expected_values configurado (ex: "tipo de atendimento") têm até
-    # essas tentativas para cair em uma opção válida — evita que ruído de STT vire
-    # uma categoria "suja" nos indicadores (Ranking de Atendimentos agrupa por essa
-    # resposta) quando o cliente falou algo fora do esperado.
-    _MAX_TENTATIVAS_RESPOSTA_VALIDA = 2
-
-    @staticmethod
-    def _matches_expected(text: str, expected_values: str) -> bool:
-        """True se `text` corresponde a uma das opções de expected_values (case-insensitive)."""
-        vals = [v.strip().lower() for v in expected_values.split(",") if v.strip()]
-        return text.strip().lower() in vals
-
     async def _ask_question(self, question_text: str, field_key: str = "", expected_values: str = "") -> str | None:
         """
         Reproduz a pergunta (do cache) e captura/transcreve a resposta do cliente.
@@ -493,18 +254,24 @@ class JiraCallFlow:
         a resposta (retorna None) em vez de gravar texto livre/ruído como se fosse
         uma categoria válida.
         """
-        hint = self._build_stt_hint(question_text, field_key, expected_values)
+        hint = build_stt_hint(question_text, field_key, expected_values)
 
         ok = await self._play_cached(question_text)
         if not ok:
             return None
-        answer = await self._listen_and_transcribe(hint=hint, field_key=field_key, expected_values=expected_values)
+        answer = await self.audio_capture.listen_and_transcribe(
+            silence_timeout=_SILENCE_TIMEOUT_SECS,
+            max_duration=_MAX_CAPTURE_PERGUNTA,
+            hint=hint,
+            field_key=field_key,
+            expected_values=expected_values,
+        )
 
         if not expected_values:
             return answer
 
         tentativas = 1
-        while (not answer or not self._matches_expected(answer, expected_values)) \
+        while (not answer or not matches_expected(answer, expected_values)) \
                 and tentativas < self._MAX_TENTATIVAS_RESPOSTA_VALIDA:
             logger.info("[%s] Resposta '%s' fora das opções esperadas (%s) — repergunta (%d/%d)",
                         self.call_uuid, answer, expected_values, tentativas + 1, self._MAX_TENTATIVAS_RESPOSTA_VALIDA)
@@ -513,67 +280,21 @@ class JiraCallFlow:
             )
             if not ok:
                 return None
-            answer = await self._listen_and_transcribe(hint=hint, field_key=field_key, expected_values=expected_values)
+            answer = await self.audio_capture.listen_and_transcribe(
+                silence_timeout=_SILENCE_TIMEOUT_SECS,
+                max_duration=_MAX_CAPTURE_PERGUNTA,
+                hint=hint,
+                field_key=field_key,
+                expected_values=expected_values,
+            )
             tentativas += 1
 
-        if answer and self._matches_expected(answer, expected_values):
+        if answer and matches_expected(answer, expected_values):
             return answer
 
         logger.warning("[%s] Nenhuma resposta válida para '%s' após %d tentativa(s) — descartando (era: %r)",
                         self.call_uuid, question_text, tentativas, answer)
         return None
-
-    async def _capture_audio(
-        self,
-        silence_timeout: float = _SILENCE_TIMEOUT_SECS,
-        max_duration: float = _MAX_CAPTURE_PERGUNTA,
-    ) -> bytes:
-        """
-        Captura frames de áudio até silêncio ou timeout de relógio real.
-
-        Usa time.monotonic() para garantir encerramento em max_duration segundos
-        independente de overhead do asyncio ou jitter de frames WebRTC/RTP.
-        """
-        import time
-
-        audio_chunks: list[bytes] = []
-        frame_duration = 320 / (_SAMPLE_RATE * _BYTES_SAMPLE)  # 0.02s por frame
-        silence_limit  = int(silence_timeout / frame_duration)
-
-        silence_count = 0
-        t_start = time.monotonic()
-
-        while True:
-            # Limite de tempo de relógio real — imune a jitter de frames
-            if time.monotonic() - t_start >= max_duration:
-                logger.debug("[%s] Captura encerrada por limite de %.1fs", self.call_uuid, max_duration)
-                break
-
-            try:
-                frame = await asyncio.wait_for(read_frame(self.reader), timeout=2.0)
-            except asyncio.TimeoutError:
-                logger.debug("[%s] Timeout de frame — encerrando captura", self.call_uuid)
-                break
-
-            if frame is None or frame.is_hangup:
-                break
-            if not frame.is_audio:
-                continue
-
-            payload = frame.payload
-            audio_chunks.append(payload)
-            self._recorded_audio.append(payload)  # acumula para gravação WAV
-
-            if not _is_speech_frame(payload):
-                silence_count += 1
-                if silence_count >= silence_limit:
-                    elapsed = time.monotonic() - t_start
-                    logger.debug("[%s] Silêncio detectado em %.1fs", self.call_uuid, elapsed)
-                    break
-            else:
-                silence_count = 0
-
-        return b"".join(audio_chunks)
 
     async def _fetch_settings(self) -> dict[str, str]:
         try:
@@ -596,72 +317,3 @@ class JiraCallFlow:
         except Exception as e:
             logger.error("[%s] Erro ao buscar perguntas URA: %s", self.call_uuid, e)
             return []
-
-    def _write_wav(self, path: str) -> None:
-        """
-        Escreve em disco a chamada completa (perguntas da URA + respostas do
-        cliente, na ordem em que ocorreram) como WAV 8kHz/16bit/mono.
-        """
-        if not self._recorded_audio:
-            logger.warning("[%s] Sem áudio gravado — arquivo WAV não será criado", self.call_uuid)
-            return
-        pcm = b"".join(self._recorded_audio)
-        with wave.open(path, 'wb') as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)       # 16-bit
-            wf.setframerate(_SAMPLE_RATE)
-            wf.writeframes(pcm)
-        logger.info("[%s] Gravação salva: %s (%d bytes / %.1fs)",
-                    self.call_uuid, path, len(pcm), len(pcm) / (_SAMPLE_RATE * _BYTES_SAMPLE))
-
-    async def _create_jira_issue(
-        self,
-        audio_path: str | None = None,
-        duration_secs: int = 0,
-    ) -> str | None:
-        try:
-            full_transcription = "\n".join(self._transcriptions)
-            self.collected_answers.setdefault("description", full_transcription)
-            if self.caller_number and self.caller_number != "desconhecido":
-                self.collected_answers.setdefault("customfield_telefone", self.caller_number)
-
-            subject_tag = await self._classify_subject(full_transcription)
-
-            payload = {
-                "callUuid":         self.call_uuid,
-                "uraId":            self.ura_id,
-                "fields":           self.collected_answers,
-                "audioFilePath":    audio_path or f"/var/spool/asterisk/monitor/{self.call_uuid}.wav",
-                "transcription":    full_transcription,
-                "callerNumber":     self.caller_number,
-                "callDurationSecs": duration_secs,
-                "subjectTag":       subject_tag,
-            }
-            data = await bc.post("/api/v1/calls/register", json=payload)
-            return data.get("jiraIssueKey")
-        except Exception as e:
-            logger.error("[%s] Erro ao registrar chamado: %s", self.call_uuid, e)
-            return None
-
-    def _guess_call_type(self) -> str | None:
-        """Mesma heurística usada no Java (CallRecordService) para achar o campo de
-        'tipo de atendimento' entre as respostas coletadas — usada aqui só para buscar
-        o vocabulário de assuntos já classificados daquele tipo, nunca persistida."""
-        for key, value in self.collected_answers.items():
-            lowered = key.lower()
-            if "tipo" in lowered or "issuetype" in lowered or "type" in lowered:
-                return value
-        return None
-
-    async def _classify_subject(self, full_transcription: str) -> str | None:
-        """Best-effort — nunca bloqueia nem derruba o registro da chamada se falhar.
-        Lógica de prompt/vocabulário em services/subject_classifier.py, reaproveitada
-        também pelo backfill em lote (scripts/backfill_subject_tags.py)."""
-        return await classify_subject(self.ai, full_transcription, self._guess_call_type(), log_ctx=self.call_uuid)
-
-    @staticmethod
-    def _format_issue_key(key: str) -> str:
-        parts = key.split("-")
-        if len(parts) == 2:
-            return f"{' '.join(parts[0])}, {parts[1]}"
-        return key
