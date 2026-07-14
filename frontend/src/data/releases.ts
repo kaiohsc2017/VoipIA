@@ -226,4 +226,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Manutenção interna do frontend: mensagens de erro padronizadas em todas as telas de cadastro e uma correção de identificação de linhas na tela de Logs — sem mudança perceptível de comportamento.',
     ],
   },
+  {
+    version: 'v1.25',
+    date: '2026-07-14',
+    changes: [
+      'Ranking de Atendimentos: cada indicador agora mostra no máximo 5 itens (Top 5) e todos os cards ficam com o mesmo tamanho, corrigindo o desalinhamento entre eles.',
+    ],
+  },
 ];

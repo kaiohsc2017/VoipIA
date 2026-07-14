@@ -7,6 +7,15 @@ import {
 
 interface RankingItem { label: string; total: number; }
 interface AvgDurationItem { label: string; avgDurationSecs: number; }
+
+// Teto de itens exibidos por indicador (Top 5) — garante que todo card do Ranking
+// tenha a mesma altura, independente de quantos itens o backend retorne.
+const TOP_N = 5;
+const ROW_HEIGHT = 42;
+const LIST_HEIGHT = TOP_N * ROW_HEIGHT;
+function topN<T>(items: T[]): T[] {
+  return items.slice(0, TOP_N);
+}
 interface RankingTrend {
   topClientsTotal: number; topClientsPrevTotal: number;
   byTypeTotal: number; byTypePrevTotal: number;
@@ -81,9 +90,9 @@ async function exportRankingCsv(section: string, query: RankingQueryParams, call
 }
 
 /** Placeholder de carregamento por card — evita substituir a tela inteira por um spinner único. */
-function CardSkeleton({ rows = 4 }: { rows?: number }) {
+function CardSkeleton({ rows = TOP_N }: { rows?: number }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0', minHeight: LIST_HEIGHT }}>
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="skeleton-bar" style={{
           height: 16, borderRadius: 4, width: `${85 - i * 12}%`,
@@ -103,7 +112,7 @@ function RankingCard({ title, icon, items, emptyMessage, color, onExport, onBarC
 }) {
   return (
     <div className="card">
-      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 64 }}>
         <div>
           <h3 className="card-title">
             {icon} {title}
@@ -119,11 +128,11 @@ function RankingCard({ title, icon, items, emptyMessage, color, onExport, onBarC
         {loading ? (
           <CardSkeleton />
         ) : items.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: '.85rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: LIST_HEIGHT, textAlign: 'center', color: 'var(--text-muted)', fontSize: '.85rem' }}>
             {emptyMessage}
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={Math.max(120, items.length * 42)}>
+          <ResponsiveContainer width="100%" height={LIST_HEIGHT}>
             <BarChart data={items} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
               <XAxis type="number" allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
@@ -155,7 +164,7 @@ function AvgDurationCard({ items, onExport, onRowClick, trend, loading }: {
 }) {
   return (
     <div className="card">
-      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 64 }}>
         <div>
           <h3 className="card-title">⏱️ Duração média por tipo</h3>
           {trend && <TrendBadge current={trend.current} previous={trend.previous} />}
@@ -164,17 +173,17 @@ function AvgDurationCard({ items, onExport, onRowClick, trend, loading }: {
       </div>
       <div className="card-body">
         {loading ? (
-          <CardSkeleton rows={2} />
+          <CardSkeleton />
         ) : items.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: '.85rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: LIST_HEIGHT, textAlign: 'center', color: 'var(--text-muted)', fontSize: '.85rem' }}>
             Nenhuma chamada classificada no período
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', minHeight: LIST_HEIGHT }}>
             {items.map(item => (
               <div key={item.label}
                 onClick={() => onRowClick(item.label)}
-                style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.9rem', cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: ROW_HEIGHT, fontSize: '.9rem', cursor: 'pointer' }}
                 title="Ver chamadas deste tipo"
               >
                 <span style={{ color: 'var(--text-muted)' }}>{item.label}</span>
@@ -290,7 +299,7 @@ export function RankingTab({ uras, onDrillDown }: { uras: Ura[]; onDrillDown: (f
       node: (
         <RankingCard
           title="Clientes que mais ligam" icon="👤"
-          items={data?.topClients ?? []} color="#007aff"
+          items={topN(data?.topClients ?? [])} color="#007aff"
           emptyMessage="Nenhuma chamada com cliente identificado no período"
           onExport={() => exportRankingCsv('topClients', query)}
           onBarClick={label => onDrillDown({ clientName: label })}
@@ -304,7 +313,7 @@ export function RankingTab({ uras, onDrillDown }: { uras: Ura[]; onDrillDown: (f
       node: (
         <RankingCard
           title="Distribuição por tipo" icon="🏷️"
-          items={data?.byType ?? []} color="#3b82f6"
+          items={topN(data?.byType ?? [])} color="#3b82f6"
           emptyMessage="Nenhuma chamada classificada no período"
           onExport={() => exportRankingCsv('byType', query)}
           onBarClick={label => onDrillDown({ callType: label })}
@@ -318,7 +327,7 @@ export function RankingTab({ uras, onDrillDown }: { uras: Ura[]; onDrillDown: (f
       node: (
         <RankingCard
           title="Soluções mais aplicadas (Jira)" icon="✅"
-          items={data?.topResolutions ?? []} color="#34c759"
+          items={topN(data?.topResolutions ?? [])} color="#34c759"
           emptyMessage="Nenhuma solução sincronizada ainda — o sync com o Jira roda periodicamente"
           onExport={() => exportRankingCsv('topResolutions', query)}
           onBarClick={label => onDrillDown({ jiraResolution: label })}
@@ -332,7 +341,7 @@ export function RankingTab({ uras, onDrillDown }: { uras: Ura[]; onDrillDown: (f
       id: 'avgDuration',
       node: (
         <AvgDurationCard
-          items={data?.avgDurationByType ?? []}
+          items={topN(data?.avgDurationByType ?? [])}
           onExport={() => exportRankingCsv('avgDurationByType', query)}
           onRowClick={label => onDrillDown({ callType: label })}
           trend={showTrend && trend ? { current: trend.avgDurationSecs, previous: trend.avgDurationPrevSecs } : undefined}
@@ -345,7 +354,7 @@ export function RankingTab({ uras, onDrillDown }: { uras: Ura[]; onDrillDown: (f
       node: (
         <RankingCard
           title={`Mais pedido em "${callType}"`} icon="🎯"
-          items={items} color="#ff9f0a"
+          items={topN(items)} color="#ff9f0a"
           emptyMessage="Nenhum assunto classificado ainda no período — a classificação por IA roda ao fim de cada chamada"
           onExport={() => exportRankingCsv('topSubjectsByType', query, callType)}
           onBarClick={label => onDrillDown({ callType, subjectTag: label })}
