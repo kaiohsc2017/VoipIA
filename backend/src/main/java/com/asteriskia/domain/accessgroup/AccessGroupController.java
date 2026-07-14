@@ -3,7 +3,6 @@ package com.asteriskia.domain.accessgroup;
 import com.asteriskia.domain.audit.AuditService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -156,22 +155,4 @@ public class AccessGroupController {
         return new GroupResponse(
                 group.getId(), group.getName(), group.getDescription(), group.getIsSystem(), perms);
     }
-
-    // ── DTOs ──────────────────────────────────────────────────────────────
-
-    public record GroupRequest(
-            @NotBlank(message = "Nome obrigatório") String name,
-            String description,
-            List<PermissionEntry> permissions) {}
-
-    public record PermissionEntry(String resourceKey, Boolean canRead, Boolean canWrite) {}
-
-    public record GroupResponse(
-            Integer id,
-            String name,
-            String description,
-            Boolean isSystem,
-            List<PermissionEntry> permissions) {}
-
-    public record ErrorResponse(String message) {}
 }

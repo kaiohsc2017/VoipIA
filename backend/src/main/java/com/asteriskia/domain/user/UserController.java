@@ -4,9 +4,6 @@ import com.asteriskia.domain.audit.AuditService;
 import com.asteriskia.domain.masterdata.BusinessUnit;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
@@ -245,67 +242,6 @@ public class UserController {
                         })
                 .orElse(ResponseEntity.notFound().build());
     }
-
-    // -----------------------------------------------------------------------
-    // DTOs
-    // -----------------------------------------------------------------------
-
-    public record CreateUserRequest(
-            @NotBlank(message = "Username obrigatório") String username,
-            @NotBlank(message = "Senha obrigatória")
-                    @Size(min = 6, message = "Senha mínima: 6 caracteres")
-                    String password,
-            @NotBlank(message = "Nome de exibição obrigatório") String displayName,
-            String role,
-            @NotEmpty(message = "Selecione ao menos uma Unidade de Negócio (BU)")
-                    List<Integer> businessUnitIds,
-            LocalDate accessExpiresAt,
-            Boolean accessIndeterminate) {}
-
-    public record UpdateUserRequest(
-            String displayName,
-            String password,
-            Boolean isActive,
-            String role,
-            List<Integer> businessUnitIds,
-            LocalDate accessExpiresAt,
-            Boolean accessIndeterminate) {}
-
-    public record UserResponse(
-            Integer id,
-            String username,
-            String displayName,
-            Integer extension,
-            String extensionPassword,
-            Boolean isActive,
-            String role,
-            String createdAt,
-            List<Integer> businessUnitIds,
-            String accessExpiresAt,
-            Boolean accessIndeterminate,
-            Boolean totpEnabled) {
-        static UserResponse from(AppUser u) {
-            return new UserResponse(
-                    u.getId(),
-                    u.getUsername(),
-                    u.getDisplayName(),
-                    u.getExtension(),
-                    // Achado de segurança: não gravar mais a senha em claro aqui —
-                    // só disponível sob demanda via GET /{id}/extension-password.
-                    null,
-                    u.getIsActive(),
-                    u.getRole(),
-                    u.getCreatedAt() != null ? u.getCreatedAt().toString() : null,
-                    u.getBusinessUnits().stream().map(BusinessUnit::getId).toList(),
-                    u.getAccessExpiresAt() != null ? u.getAccessExpiresAt().toString() : null,
-                    u.getAccessIndeterminate(),
-                    u.getTotpEnabled());
-        }
-    }
-
-    public record ErrorResponse(String message) {}
-
-    public record ExtensionPasswordResponse(String extensionPassword) {}
 
     private String extensionPasswordFor(AppUser u) {
         return "webrtc" + u.getExtension() + "pass";

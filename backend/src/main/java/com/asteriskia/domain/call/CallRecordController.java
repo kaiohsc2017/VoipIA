@@ -1,13 +1,11 @@
 package com.asteriskia.domain.call;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -210,23 +208,4 @@ public class CallRecordController {
         }
         return null;
     }
-
-    // ---------------------------------------------------------------------------
-    // DTOs
-    // ---------------------------------------------------------------------------
-
-    /** Request do agente Python para registrar a chamada. */
-    public record RegisterCallRequest(
-            @NotBlank String callUuid,
-            Integer uraId, // qual URA conduziu a chamada — null = URA legada (id=1)
-            Map<String, String> fields,
-            String audioFilePath, // caminho do .wav gravado pelo agente Python
-            String transcription, // transcrição completa consolidada
-            String callerNumber, // número do chamador (CALLERID do Asterisk)
-            Integer callDurationSecs, // duração total da chamada em segundos
-            String subjectTag // assunto classificado por IA (best-effort, pode vir null)
-            ) {}
-
-    /** Resposta com o ID interno e a chave do issue Jira. */
-    public record RegisterCallResponse(Long id, String jiraIssueKey) {}
 }

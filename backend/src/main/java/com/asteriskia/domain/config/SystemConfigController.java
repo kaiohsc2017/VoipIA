@@ -85,7 +85,4 @@ public class SystemConfigController {
                         "keys",
                         filtered.keySet()));
     }
-
-    public record ConfigDTO(
-            String key, String value, boolean isSecret, String description, String updatedAt) {}
 }

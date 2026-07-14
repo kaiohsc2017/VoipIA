@@ -6,7 +6,6 @@ import com.asteriskia.domain.user.AppUser;
 import com.asteriskia.domain.user.AppUserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -295,20 +294,4 @@ public class AuthController {
         String token = jwtService.generateStreamingToken(username, role, perms, businessUnitIds);
         return ResponseEntity.ok(new StreamingTokenResponse(token, 60));
     }
-
-    // ── DTOs ──────────────────────────────────────────────────────────────────
-
-    public record LoginRequest(@NotBlank String username, @NotBlank String password) {}
-
-    public record LoginResponse(
-            String token,
-            String type,
-            int expiresInHours,
-            Integer extension,
-            String displayName,
-            boolean firstLoginCompleted) {}
-
-    public record ErrorResponse(String message) {}
-
-    public record StreamingTokenResponse(String token, int expiresInSeconds) {}
 }

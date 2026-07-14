@@ -3,7 +3,6 @@ package com.asteriskia.domain.settings;
 import com.asteriskia.domain.audit.AuditService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -166,21 +165,4 @@ public class SettingsController {
         String xff = request.getHeader("X-Forwarded-For");
         return (xff != null && !xff.isBlank()) ? xff.split(",")[0].trim() : request.getRemoteAddr();
     }
-
-    public record SuccessResponse(String message) {}
-
-    public record ErrorResponse(String message) {}
-
-    public record ApplyStartResponse(String jobId, String message) {}
-
-    public record ApplyStatusResponse(String jobId, String status, String log) {}
-
-    public record HistoryEntryDTO(
-            Long id,
-            OffsetDateTime changedAt,
-            String changedBy,
-            String envKey,
-            String oldValue,
-            String newValue,
-            String ipAddress) {}
 }
