@@ -233,4 +233,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Ranking de Atendimentos: cada indicador agora mostra no máximo 5 itens (Top 5) e todos os cards ficam com o mesmo tamanho, corrigindo o desalinhamento entre eles.',
     ],
   },
+  {
+    version: 'v1.26',
+    date: '2026-07-14',
+    changes: [
+      'Tela de URA: novas abas "Custos IA" (lista de chamadas com tokens consumidos e custo estimado de STT/LLM/TTS, com filtros por URA/cliente/período) e "Dashboard de Custos" (evolução de gastos mês a mês com gráfico por etapa).',
+    ],
+  },
 ];

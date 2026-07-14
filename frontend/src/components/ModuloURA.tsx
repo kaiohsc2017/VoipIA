@@ -7,6 +7,8 @@ import { KpiBar } from './KpiBar';
 import { AudioPlayer } from './AudioPlayer';
 import { DashboardTab } from './DashboardTab';
 import { RankingTab, type RankingDrillDownFilters } from './RankingTab';
+import { CostsTab } from './CostsTab';
+import { CostsDashboardTab } from './CostsDashboardTab';
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString('pt-BR', {
@@ -18,7 +20,7 @@ function formatDate(iso: string) {
 // ─── Módulo URA principal ────────────────────────────────────────────────────
 
 export default function ModuloURA() {
-  const [tab, setTab] = useState<'calls' | 'dashboard' | 'uras' | 'ranking'>('calls');
+  const [tab, setTab] = useState<'calls' | 'dashboard' | 'uras' | 'ranking' | 'costs' | 'costsDashboard'>('calls');
   const [uras, setUras] = useState<Ura[]>([]);
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,6 +167,12 @@ export default function ModuloURA() {
           </button>
           <button className={`btn ${tab === 'ranking'   ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('ranking')}>
             🏆 Ranking de Atendimentos
+          </button>
+          <button className={`btn ${tab === 'costs'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('costs')}>
+            💰 Custos IA
+          </button>
+          <button className={`btn ${tab === 'costsDashboard' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('costsDashboard')}>
+            📈 Dashboard de Custos
           </button>
         </div>
 
@@ -477,6 +485,12 @@ export default function ModuloURA() {
 
         {/* ---- URAs TAB ---- */}
         {tab === 'uras' && <UraManagementTab />}
+
+        {/* ---- CUSTOS IA TAB ---- */}
+        {tab === 'costs' && <CostsTab uras={uras} />}
+
+        {/* ---- DASHBOARD DE CUSTOS TAB ---- */}
+        {tab === 'costsDashboard' && <CostsDashboardTab uras={uras} />}
 
       </div>
     </>

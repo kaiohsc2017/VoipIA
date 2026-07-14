@@ -81,6 +81,44 @@ export interface PageResponse<T> {
   size: number;
 }
 
+// ---- Custos de IA (Módulo 1 — aba Custos IA / Dashboard de Custos) ----
+export interface CallCostView {
+  id: number;
+  callDate: string;
+  clientName?: string;
+  uraId: number;
+  callDurationSecs: number;
+  sttTokensIn: number;
+  sttTokensOut: number;
+  sttModel?: string;
+  llmTokensIn: number;
+  llmTokensOut: number;
+  llmModel?: string;
+  ttsTokensIn: number;
+  ttsTokensOut: number;
+  ttsModel?: string;
+  totalTokens: number;
+  estimatedCostUsd: number;
+}
+
+export interface MonthlyCostSummary {
+  month: string; // "yyyy-MM"
+  sttCostUsd: number;
+  llmCostUsd: number;
+  ttsCostUsd: number;
+  totalCostUsd: number;
+  callCount: number;
+}
+
+export interface AiModelPricing {
+  modelId: string;
+  provider: string;
+  pricePerMillionInputUsd: number;
+  pricePerMillionOutputUsd: number;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
 // ---- URA Questions (Módulo 1) ----
 export interface UraQuestion {
   id: number;
