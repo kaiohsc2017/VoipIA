@@ -59,7 +59,8 @@ public class CallRecordService {
             String transcription,
             String callerNumber,
             Integer callDurationSecs,
-            String subjectTag) {
+            String subjectTag,
+            AiUsageInfo aiUsage) {
 
         int resolvedUraId = uraId != null ? uraId : DEFAULT_URA_ID;
         log.info("Registrando chamada UUID={} uraId={}", callUuid, resolvedUraId);
@@ -67,6 +68,7 @@ public class CallRecordService {
         // Uma chamada que falhou antes de coletar respostas (ex: cliente desligou
         // cedo) pode chegar sem nenhum field — nunca deixar isso abortar o registro.
         if (fields == null) fields = Map.of();
+        if (aiUsage == null) aiUsage = AiUsageInfo.empty();
 
         CallRecord record =
                 buildCallRecord(
@@ -77,7 +79,8 @@ public class CallRecordService {
                         transcription,
                         callerNumber,
                         callDurationSecs,
-                        subjectTag);
+                        subjectTag,
+                        aiUsage);
 
         // Primeiro salva para garantir persistência mesmo que o Jira falhe
         record = repository.save(record);
@@ -100,7 +103,8 @@ public class CallRecordService {
             String transcription,
             String callerNumber,
             Integer callDurationSecs,
-            String subjectTag) {
+            String subjectTag,
+            AiUsageInfo aiUsage) {
 
         // Número do chamador — usa o valor explícito se for real (não "desconhecido"),
         // caso contrário cai no ramal informado pelo usuário durante a URA.
@@ -154,6 +158,15 @@ public class CallRecordService {
                 .priority(priority)
                 .callDurationSecs(callDurationSecs != null ? callDurationSecs : 0)
                 .subjectTag(truncate(subjectTag, 100))
+                .sttTokensIn(aiUsage.sttTokensInOrZero())
+                .sttTokensOut(aiUsage.sttTokensOutOrZero())
+                .sttModel(truncate(aiUsage.sttModel(), 100))
+                .llmTokensIn(aiUsage.llmTokensInOrZero())
+                .llmTokensOut(aiUsage.llmTokensOutOrZero())
+                .llmModel(truncate(aiUsage.llmModel(), 100))
+                .ttsTokensIn(aiUsage.ttsTokensInOrZero())
+                .ttsTokensOut(aiUsage.ttsTokensOutOrZero())
+                .ttsModel(truncate(aiUsage.ttsModel(), 100))
                 .build();
     }
 

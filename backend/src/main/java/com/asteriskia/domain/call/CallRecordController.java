@@ -36,6 +36,7 @@ public class CallRecordController {
 
     private final CallRecordService service;
     private final ExcelExportService excelExportService;
+    private final CallCostService costService;
 
     @Value("${app.audio.storage-path:/var/asteriskia/recordings}")
     private String audioStoragePath;
@@ -56,7 +57,8 @@ public class CallRecordController {
                         request.transcription(),
                         request.callerNumber(),
                         request.callDurationSecs(),
-                        request.subjectTag());
+                        request.subjectTag(),
+                        request.aiUsage());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new RegisterCallResponse(record.getId(), record.getJiraIssueKey()));
     }
@@ -122,6 +124,50 @@ public class CallRecordController {
     @GetMapping("/{id}")
     public ResponseEntity<CallRecord> getCall(@PathVariable Long id) {
         return ResponseEntity.ok(service.findById(id));
+    }
+
+    /** Lista paginada de chamadas com tokens/custo estimado de IA — aba "Custos IA" (Módulo 1). */
+    @GetMapping("/costs")
+    public ResponseEntity<Page<CallCostView>> listCosts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Integer uraId,
+            @RequestParam(required = false) String clientName,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate dateTo) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "callDate"));
+        return ResponseEntity.ok(costService.findCosts(costFilter(uraId, clientName, dateFrom, dateTo), pageable));
+    }
+
+    /** Custo de IA agregado por mês — Dashboard de Custos (Módulo 1). */
+    @GetMapping("/costs/summary")
+    public ResponseEntity<java.util.List<MonthlyCostSummary>> costsSummary(
+            @RequestParam(required = false) Integer uraId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate dateTo) {
+        return ResponseEntity.ok(
+                costService.summarizeByMonth(costFilter(uraId, null, dateFrom, dateTo)));
+    }
+
+    private static CallRecordFilter costFilter(
+            Integer uraId, String clientName, LocalDate dateFrom, LocalDate dateTo) {
+        return new CallRecordFilter(
+                uraId,
+                null,
+                clientName,
+                null,
+                null,
+                null,
+                null,
+                null,
+                dateFrom != null ? LocalDateTime.of(dateFrom, LocalTime.MIN) : null,
+                dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null,
+                null,
+                null);
     }
 
     @GetMapping("/export")

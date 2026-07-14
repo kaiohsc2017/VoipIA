@@ -117,6 +117,10 @@ public class SecurityConfig {
                         // demais /stats/** seguem no anyRequest().authenticated() genérico abaixo.
                         .requestMatchers(HttpMethod.GET, "/api/v1/stats/calls/ranking")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.modulo1")
+                        // Custos de IA por chamada — expõe nome de cliente como o Ranking acima,
+                        // mesma proteção.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/calls/costs/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.modulo1")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da

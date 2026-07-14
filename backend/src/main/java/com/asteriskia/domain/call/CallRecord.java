@@ -75,6 +75,39 @@ public class CallRecord {
     @Column(name = "priority", length = 255)
     private String priority;
 
+    @Column(name = "stt_tokens_in")
+    @Builder.Default
+    private Integer sttTokensIn = 0;
+
+    @Column(name = "stt_tokens_out")
+    @Builder.Default
+    private Integer sttTokensOut = 0;
+
+    @Column(name = "stt_model", length = 100)
+    private String sttModel;
+
+    @Column(name = "llm_tokens_in")
+    @Builder.Default
+    private Integer llmTokensIn = 0;
+
+    @Column(name = "llm_tokens_out")
+    @Builder.Default
+    private Integer llmTokensOut = 0;
+
+    @Column(name = "llm_model", length = 100)
+    private String llmModel;
+
+    @Column(name = "tts_tokens_in")
+    @Builder.Default
+    private Integer ttsTokensIn = 0;
+
+    @Column(name = "tts_tokens_out")
+    @Builder.Default
+    private Integer ttsTokensOut = 0;
+
+    @Column(name = "tts_model", length = 100)
+    private String ttsModel;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
