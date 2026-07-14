@@ -10,6 +10,7 @@ import asyncio
 import logging
 
 from src.providers.base import BaseAIProvider, ProviderError
+from src.services.token_usage import TokenUsage
 
 logger = logging.getLogger("asteriskia.provider.gemini")
 
@@ -17,6 +18,18 @@ logger = logging.getLogger("asteriskia.provider.gemini")
 def _client():
     from src.providers.gemini_shared import get_global_client
     return get_global_client()
+
+
+def _extract_usage(resp) -> TokenUsage | None:
+    """Lê usage_metadata da resposta do SDK google-genai. Retorna None se ausente
+    (ex: erro parcial) — o chamador simplesmente não soma nada nesse caso."""
+    meta = getattr(resp, "usage_metadata", None)
+    if meta is None:
+        return None
+    return TokenUsage(
+        input_tokens=getattr(meta, "prompt_token_count", 0) or 0,
+        output_tokens=getattr(meta, "candidates_token_count", 0) or 0,
+    )
 
 
 def _clean_for_tts(text: str) -> str:
@@ -87,6 +100,7 @@ class GeminiProvider(BaseAIProvider):
                 t.Part(inline_data=t.Blob(mime_type="audio/wav", data=wav_bytes)),
             ])],
         )
+        self.last_usage = _extract_usage(resp)
         return resp.text or ""
 
     # ── LLM ──────────────────────────────────────────────────────────────────
@@ -136,6 +150,7 @@ class GeminiProvider(BaseAIProvider):
             contents=contents,
             config=config,
         )
+        usage = _extract_usage(resp)
 
         for _ in range(3):
             part = resp.candidates[0].content.parts[0]
@@ -154,7 +169,17 @@ class GeminiProvider(BaseAIProvider):
             resp = _client().models.generate_content(
                 model=self._model_id, contents=contents, config=config
             )
+            # Function calling pode disparar várias idas e vindas ao modelo dentro
+            # de uma única resposta ao usuário — soma os tokens de todas, não só
+            # da última chamada.
+            turn_usage = _extract_usage(resp)
+            if turn_usage:
+                if usage is None:
+                    usage = TokenUsage()
+                usage.input_tokens += turn_usage.input_tokens
+                usage.output_tokens += turn_usage.output_tokens
 
+        self.last_usage = usage
         return resp.text or ""
 
     # ── TTS ──────────────────────────────────────────────────────────────────
@@ -196,6 +221,11 @@ class GeminiProvider(BaseAIProvider):
                     contents=_clean_for_tts(str(text)),
                     config=config,
                 ):
+                    # usage_metadata do streaming vem cumulativo — o último chunk
+                    # que trouxer o campo já reflete o total da resposta inteira.
+                    chunk_usage = _extract_usage(chunk)
+                    if chunk_usage:
+                        self.last_usage = chunk_usage
                     try:
                         data = chunk.candidates[0].content.parts[0].inline_data.data
                         if data:
@@ -278,6 +308,9 @@ class GeminiProvider(BaseAIProvider):
                 ),
             ),
         ):
+            chunk_usage = _extract_usage(chunk)
+            if chunk_usage:
+                self.last_usage = chunk_usage
             try:
                 data = chunk.candidates[0].content.parts[0].inline_data.data
                 if data:

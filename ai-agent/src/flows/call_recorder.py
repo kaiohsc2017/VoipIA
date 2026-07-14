@@ -82,6 +82,7 @@ class CallRecorder:
                 "callerNumber":     self.caller_number,
                 "callDurationSecs": duration_secs,
                 "subjectTag":       subject_tag,
+                **self.ai.usage.to_payload(),
             }
             data = await bc.post("/api/v1/calls/register", json=payload)
             return data.get("jiraIssueKey")

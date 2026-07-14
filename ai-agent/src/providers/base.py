@@ -9,6 +9,8 @@ from __future__ import annotations
 import asyncio
 from abc import ABC, abstractmethod
 
+from src.services.token_usage import TokenUsage
+
 
 class BaseAIProvider(ABC):
     """
@@ -17,6 +19,12 @@ class BaseAIProvider(ABC):
     Cada método deve levantar ProviderError em caso de falha recuperável
     (quota, timeout, erro 5xx) para que o FallbackRouter tente o próximo.
     """
+
+    # Tokens da última chamada real ao modelo — provedores que reportam consumo
+    # (hoje só GeminiProvider) sobrescrevem este atributo de instância após cada
+    # chamada; AIService._run lê isso logo após invocar o método. Fica None para
+    # provedores que ainda não implementam a captura.
+    last_usage: TokenUsage | None = None
 
     @property
     @abstractmethod

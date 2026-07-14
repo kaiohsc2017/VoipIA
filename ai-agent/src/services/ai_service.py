@@ -12,6 +12,7 @@ import logging
 
 from src.providers.base import BaseAIProvider, ProviderError, ProviderUnavailableError
 from src.services import provider_registry as registry
+from src.services.token_usage import CallUsageAccumulator
 
 logger = logging.getLogger("asteriskia.ai_service")
 
@@ -26,7 +27,14 @@ class AIService:
       synthesize_speech_streaming(text, writer)     → bool
       generate_response(prompt, context)            → str
       generate_response_with_tools(system, history) → str
+
+    Uma instância de AIService é criada por chamada (ver JiraCallFlow.__init__),
+    então `self.usage` acumula o consumo de tokens da chamada inteira — usado
+    por CallRecorder para montar o payload de custo de /calls/register.
     """
+
+    def __init__(self) -> None:
+        self.usage = CallUsageAccumulator()
 
     # ── STT ──────────────────────────────────────────────────────────────────
 
@@ -82,6 +90,7 @@ class AIService:
                 provider = registry.build_provider(provider_id, model_id, api_key, capability)
                 fn       = getattr(provider, method)
                 result   = await fn(*args)
+                self.usage.add(capability, model_id, provider.last_usage)
                 if len(errors) > 0:
                     logger.info(
                         "[%s] Fallback bem-sucedido: %s/%s (após %d falha(s))",
