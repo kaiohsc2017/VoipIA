@@ -26,6 +26,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger("asteriskia.main")
 
+# Referências das tasks de background — evita que o GC colete a task antes de
+# terminar e exceções sumam em silêncio (mesmo padrão do agents-platform/executor.py).
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_background_task(coro) -> asyncio.Task:
+    """Cria uma task de background mantendo referência forte até ela terminar."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
 
 async def _sync_audio_cache() -> None:
     """
@@ -200,7 +212,7 @@ async def main() -> None:
     addr = server.sockets[0].getsockname()
     logger.info(f"=== AsteriskIA Agente de IA iniciado em {addr} ===")
 
-    asyncio.create_task(_cache_refresh_loop())  # warm-up + refresh em background
+    _spawn_background_task(_cache_refresh_loop())  # warm-up + refresh em background
 
     async with server:
         await server.serve_forever()

@@ -26,13 +26,17 @@ Correções de segurança que não podem esperar decomposição estrutural.
 ### 🩹 ONDA 1 — Risco real, baixo esforço, alto valor (correções cirúrgicas)
 Bugs funcionais e falhas silenciosas. Sem refatoração estrutural.
 
-- [ ] **O1.1** `backend/.../config/GlobalExceptionHandler.java:49-57` + `domain/call/CallRecordService.java:204,222` + `domain/masterdata/ClientController.java:96,101,120` — **[R] 🔴** `orElseThrow(RuntimeException)` → 500 em vez de 404. Criar `ResourceNotFoundException` + handler dedicado (404). [Grupo A Java] (telecom:)
-- [ ] **O1.2** Frontend promises sem `.catch` (falha silenciosa): `components/ModuloURA.tsx:592,707-717`; `Auditoria.tsx:76`; `ModuloConectividade.tsx:372-373` — **[R] 🔴/🟡**. Adicionar tratamento de erro + feedback ao usuário. [Grupo A React] (telecom:)
-- [ ] **O1.3** ai-agent hot-path de voz — **[R] 🔴/🟡**: `providers/gemini.py:244-249` engole `CancelledError` (deixar propagar); `main.py:203` task sem referência forte (guardar em set global); `services/audio_cache.py:47-51,58-59` I/O de disco bloqueante no event loop (usar `asyncio.to_thread`). [Grupo B ai-agent] (agents:)
-- [ ] **O1.4** `agents-platform/backend/routers/reports.py:37-46` — **[R] 🔴** bug funcional: falhas de agente `database` (`report["checks"]` na raiz) nunca aparecem no relatório. Corrigir extração. (agents:)
-- [ ] **O1.5** `agents-platform/backend/executor.py:916-939` — **[R] 🔴** auto-fix sempre usa `servers[0]`, pode disparar correção no host errado. Usar servidor correto por check. (agents:)
-- [ ] **O1.6** `agents-platform/backend/executor.py:963-965` — **[R] 🟡** retenção via `hash(str)%100` (não-determinístico, PYTHONHASHSEED). Trocar por job periódico no scheduler. (agents:)
-- [ ] **O1.7** `frontend .../ModuloURA.tsx:55,603,722; Softphone.tsx:248` — **[R] 🟡** `eslint-disable exhaustive-deps` sem justificativa; confirmar se `:722` mascara dependência real de filtros. (telecom:)
+- [x] **O1.1** `backend/.../config/GlobalExceptionHandler.java:49-57` + `domain/call/CallRecordService.java:204,222` + `domain/masterdata/ClientController.java:96,101,120` — **[R] 🔴** `orElseThrow(RuntimeException)` → 500 em vez de 404. Criar `ResourceNotFoundException` + handler dedicado (404). [Grupo A Java] (telecom:) — ✅ **fase 16**, testado em produção (`/calls/{id-inexistente}` e `/clients/{id-inexistente}/operations` → 404).
+- [x] **O1.2** Frontend promises sem `.catch` (falha silenciosa): `components/ModuloURA.tsx:592,707-717`; `Auditoria.tsx:76`; `ModuloConectividade.tsx:372-373` — **[R] 🔴/🟡**. Adicionar tratamento de erro + feedback ao usuário. [Grupo A React] (telecom:) — ✅ **fase 16**, `.catch` adicionado seguindo o padrão já usado no projeto (`console.error` + limpar estado).
+- [x] **O1.3** ai-agent hot-path de voz — **[R] 🔴/🟡**: `providers/gemini.py:244-249` engole `CancelledError` (deixar propagar); `main.py:203` task sem referência forte (guardar em set global); `services/audio_cache.py:47-51,58-59` I/O de disco bloqueante no event loop (usar `asyncio.to_thread`). [Grupo B ai-agent] (agents:) — ✅ **fase 16**, `py_compile` limpo, deployado; validação funcional completa (ligação real) pendente por não ser possível gerar tráfego de voz real neste teste.
+- [x] **O1.4** `agents-platform/backend/routers/reports.py:37-46` — **[R] 🔴** bug funcional: falhas de agente `database` (`report["checks"]` na raiz) nunca aparecem no relatório. Corrigir extração. (agents:) — ✅ **fase 16**, testado em produção com agente `database` real (falha de auth) — aparece corretamente em `failures[]`.
+- [x] **O1.5** `agents-platform/backend/executor.py:916-939` — **[R] 🔴** auto-fix sempre usa `servers[0]`, pode disparar correção no host errado. Usar servidor correto por check. (agents:) — ✅ **fase 16**, corrigido (resolve por nome do check no `report["servers"]`, fallback documentado para `servers[0]` se não houver match); `py_compile` limpo — **não testado ao vivo** com múltiplos servidores SSH reais (sem ambiente seguro disponível), validado por leitura de código.
+- [x] **O1.6** `agents-platform/backend/executor.py:963-965` — **[R] 🟡** retenção via `hash(str)%100` (não-determinístico, PYTHONHASHSEED). Trocar por job periódico no scheduler. (agents:) — ✅ **fase 16**, trocado para `execution_id.int % 100` (determinístico, sem depender de `PYTHONHASHSEED`); `py_compile` limpo.
+- [x] **O1.7** `frontend .../ModuloURA.tsx:55,603,722; Softphone.tsx:248` — **[R] 🟡** `eslint-disable exhaustive-deps` sem justificativa; confirmar se `:722` mascara dependência real de filtros. (telecom:) — ✅ **fase 16**, confirmado que ambos os casos são intencionais (busca sob demanda, assinatura WS só no mount) — adicionados comentários de justificativa, sem mudança de comportamento.
+
+### 🐛 Achados emergentes durante o teste da fase 16 (fora do roadmap original, corrigidos por bloquear a validação)
+- **`agents-platform/backend/executor.py:878-879`** (`run_agent`, cálculo de `no_targets`) — `rules` chega como string JSON crua do banco (asyncpg não decodifica `jsonb` automaticamente) e `scheduler.py` nunca normaliza antes de chamar `run_agent`; `.get("checks")` na string quebrava com `AttributeError` **toda execução de agente sem `server_ids`/`target_urls`** (todo agente `type=database`, entre outros). Corrigido com `json.loads` condicional. — ✅ fase 16.
+- **`agents-platform/backend/routers/reports.py:40`** (`execution_report`) — mesmo problema: `report_json` (`JSONB`) chega como string, `.get("servers")` quebrava com `AttributeError` — endpoint de relatório de execução estava **500 para qualquer execução**, não só agentes `database`. Corrigido com `json.loads` condicional (cobre também `/execution/{id}/html`, que reusa a função). — ✅ fase 16.
 
 ### 🔗 ONDA 2 — Duplicação estrutural (média alavancagem)
 Consolidar código duplicado antes de decompor God classes.
@@ -77,7 +81,8 @@ Ver transcrições dos agentes de auditoria. Resumo de contagem: Java 14 · Reac
 - Fase 1 (auditoria): ✅ concluída 2026-07-13
 - Fase 2 (execução): 🔄 em andamento
   - ✅ **Fase 15 concluída 2026-07-13** — ONDA 0 completa (O0.1 + O0.2), deployado em produção, testado com JWTs forjados (ADMIN/USER com e sem claim perm), agentes de teste removidos após validação.
-  - Próxima: ONDA 1 (fase 16+)
+  - ✅ **Fase 16 concluída 2026-07-13** — ONDA 1 completa (O1.1 a O1.7, 4 módulos), deployado em produção, testado (Java 404, agente `database` real no FastAPI); 2 bugs pré-existentes emergentes corrigidos (`no_targets`/`report_json` recebiam string JSON crua sem `json.loads`); O1.3/O1.5 validados por leitura de código + `py_compile` (sem tráfego de voz/SSH real disponível para teste ao vivo).
+  - Próxima: ONDA 2 (fase 17+)
 - Convenção de numeração: ONDA 0 = fase 15 (O0.1 + O0.2, agents-platform); próximas ondas continuam a sequência (fase 16, 17...) por commit atômico, não necessariamente 1 commit por onda inteira.
 
 ---

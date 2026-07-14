@@ -45,8 +45,8 @@ class AudioCacheService:
             return b""
 
         path = self._path(text)
-        if path.exists():
-            data = path.read_bytes()
+        if await asyncio.to_thread(path.exists):
+            data = await asyncio.to_thread(path.read_bytes)
             logger.debug("Cache hit: %s (%d bytes)", path.name, len(data))
             return data
 
@@ -55,14 +55,14 @@ class AudioCacheService:
             self._locks[lock_key] = asyncio.Lock()
 
         async with self._locks[lock_key]:
-            if path.exists():
-                return path.read_bytes()
+            if await asyncio.to_thread(path.exists):
+                return await asyncio.to_thread(path.read_bytes)
 
             logger.info("Cache miss — gerando TTS: %r", text[:80])
             try:
                 pcm = await ai_service.synthesize_speech(text)
                 if pcm:
-                    path.write_bytes(pcm)
+                    await asyncio.to_thread(path.write_bytes, pcm)
                     logger.info("Cache salvo: %s (%d bytes)", path.name, len(pcm))
                     return pcm
                 logger.warning("TTS retornou vazio para: %r", text[:80])

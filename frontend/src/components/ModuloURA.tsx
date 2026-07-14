@@ -52,6 +52,8 @@ function DashboardTab({ onDrillDown }: { onDrillDown: (filters: RankingDrillDown
       load(queryRef.current);
     });
     return () => unsub?.();
+    // Assinatura do WebSocket deve ocorrer só no mount — recriar a cada troca de
+    // filtro reconectaria à toa. queryRef acima resolve o stale closure de `load`.
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectPeriod = (p: 'week' | 'month') => {
@@ -589,7 +591,9 @@ function KpiBar() {
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
 
   const load = useCallback((p: typeof period) => {
-    api.get<CallStats>(`/stats/calls?period=${p}`).then(r => setStats(r.data));
+    api.get<CallStats>(`/stats/calls?period=${p}`)
+      .then(r => setStats(r.data))
+      .catch(err => console.error('Erro ao carregar estatísticas do KPI:', err));
   }, []);
 
   // Ref sempre atualizado com o período atual — evita stale closure no callback do WebSocket
@@ -600,6 +604,8 @@ function KpiBar() {
     load('today');
     const unsub = subscribe('/topic/calls', () => load(periodRef.current));
     return () => unsub?.();
+    // Assinatura do WebSocket deve ocorrer só no mount — recriar a cada troca de
+    // período reconectaria à toa. periodRef acima resolve o stale closure de `load`.
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!stats) return null;
@@ -710,15 +716,22 @@ export default function ModuloURA() {
         setTotalPages(r.data.totalPages);
         setPage(r.data.number);
       })
+      .catch(err => {
+        console.error('Erro ao carregar chamadas:', err);
+        setCalls([]);
+      })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    api.get<Ura[]>('/uras').then(r => setUras(r.data));
+    api.get<Ura[]>('/uras').then(r => setUras(r.data))
+      .catch(err => console.error('Erro ao carregar URAs:', err));
   }, []);
 
   useEffect(() => {
     if (tab === 'calls') loadCalls(0);
+    // Busca é sob demanda (botão "Buscar" chama loadCalls diretamente) — incluir
+    // os filtros aqui disparia uma requisição a cada tecla digitada.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 

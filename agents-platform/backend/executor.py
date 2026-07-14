@@ -875,8 +875,16 @@ async def run_agent(agent: dict, broadcast, _chain_depth: int = 0) -> dict:
         finished = datetime.now(timezone.utc)
         duration = (finished - started).total_seconds()
 
+        # rules vem como string JSON crua do banco (asyncpg não decodifica jsonb
+        # automaticamente) — scheduler.py nunca normaliza antes de chamar
+        # run_agent(). Achado emergente durante o teste de O1.4: sem isso,
+        # AttributeError em qualquer agente sem server_ids/target_urls (ex:
+        # agentes type=database, que embutem o DSN em cada check).
+        _rules_for_targets = agent.get("rules") or {}
+        if isinstance(_rules_for_targets, str):
+            _rules_for_targets = json.loads(_rules_for_targets)
         no_targets = (len(servers) == 0 and not agent.get("target_urls")
-                      and not (agent.get("rules") or {}).get("checks"))
+                      and not _rules_for_targets.get("checks"))
         if no_targets:
             status = "error"
         elif result["total"] == 0 and result["failed"] == 0:
@@ -914,13 +922,31 @@ async def run_agent(agent: dict, broadcast, _chain_depth: int = 0) -> dict:
                 await _send_all_alerts(agent, status, summary, execution_id, db, broadcast)
 
             # ── Auto-fix via SSH ─────────────────────────────────────────────
+            # Roda fix_cmd só no(s) servidor(es) onde ESSE check especificamente
+            # falhou (via result["report"]["servers"]), não sempre em servers[0] —
+            # com múltiplos servidores, o comando de correção do host errado não
+            # deveria ser disparado (achado da auditoria, executor.py O1.5).
             if status in ("error", "partial") and servers:
                 rules = agent.get("rules") or {}
                 if isinstance(rules, str): rules = json.loads(rules)
+                report_servers  = result["report"].get("servers", [])
+                servers_by_name = {s["name"]: s for s in servers}
                 for check in rules.get("checks", []):
                     fix_cmd = check.get("fix_cmd", "")
-                    if fix_cmd and check.get("auto_fix", False):
-                        srv = servers[0]
+                    if not (fix_cmd and check.get("auto_fix", False)):
+                        continue
+                    check_name = check.get("name", check.get("cmd", "check"))
+                    failed_on = [
+                        srv_rep["server"] for srv_rep in report_servers
+                        if any(c.get("name") == check_name and not c.get("ok")
+                               for c in srv_rep.get("checks", []))
+                    ]
+                    targets = [servers_by_name[n] for n in failed_on if n in servers_by_name]
+                    if not targets:
+                        # Sem match no relatório (formato inesperado) — mantém o
+                        # comportamento anterior como fallback, não trava o auto-fix.
+                        targets = [servers[0]]
+                    for srv in targets:
                         try:
                             async with await asyncssh.connect(**_build_ssh_kwargs(srv)) as conn:
                                 r = await asyncio.wait_for(conn.run(fix_cmd), timeout=30)
@@ -961,7 +987,10 @@ async def run_agent(agent: dict, broadcast, _chain_depth: int = 0) -> dict:
         })
 
         # ── Retenção (probabilística — 1% das execuções) ─────────────────────
-        if hash(str(execution_id)) % 100 == 0:
+        # execution_id.int é determinístico (não depende de PYTHONHASHSEED, que
+        # hash(str(...)) usa e varia por processo/restart) e uniformemente
+        # distribuído, já que execution_id é um uuid4() aleatório.
+        if execution_id.int % 100 == 0:
             _spawn_background_task(_apply_retention())
 
         return {"execution_id": str(execution_id), "status": status,

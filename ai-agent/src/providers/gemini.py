@@ -242,11 +242,19 @@ class GeminiProvider(BaseAIProvider):
             raise ProviderError("gemini", self._model_id, e) from e
         finally:
             stop_silence.set()
+            # CancelledError não pode ser engolido aqui — se a task pai foi
+            # cancelada (ex: hangup), o cancelamento precisa se propagar após a
+            # limpeza, não sumir em silêncio.
+            pending_cancel: asyncio.CancelledError | None = None
             try:
                 await asyncio.wait_for(asyncio.shield(silence_task), timeout=0.2)
-            except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+            except asyncio.TimeoutError:
                 pass
+            except asyncio.CancelledError as ce:
+                pending_cancel = ce
             await stream_task  # aguarda thread finalizar para evitar leak
+            if pending_cancel is not None:
+                raise pending_cancel
 
         duration = total_bytes / (8000 * 2) if total_bytes > 0 else 0.0
         return ok, duration

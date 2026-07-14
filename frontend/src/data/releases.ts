@@ -183,4 +183,15 @@ export const RELEASES: ReleaseEntry[] = [
       'Plataforma de Agentes: documentação Swagger/OpenAPI deixou de ficar acessível publicamente sem login.',
     ],
   },
+  {
+    version: 'v1.20',
+    date: '2026-07-13',
+    changes: [
+      'Chamadas/Cadastros: buscar um registro inexistente agora retorna "não encontrado" corretamente, em vez de um erro genérico de servidor.',
+      'Dashboard (Módulo URA), Auditoria e Conectividade: falha ao carregar dados agora aparece registrada em log em vez de falhar silenciosamente.',
+      'Plataforma de Agentes: relatório de execução de agentes do tipo "banco de dados" passou a mostrar corretamente as falhas ocorridas.',
+      'Plataforma de Agentes: correção de auto-correção via SSH para rodar no servidor correto quando o agente monitora mais de um servidor.',
+      'Plataforma de Agentes: corrigidos dois erros que impediam a execução de agentes sem servidor/URL configurado (ex: tipo "banco de dados") e a geração do relatório de qualquer execução.',
+    ],
+  },
 ];

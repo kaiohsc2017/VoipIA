@@ -46,6 +46,12 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", "Recurso não encontrado"));
     }
 
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleResourceNotFound(ResourceNotFoundException ex) {
+        log.debug("Recurso não encontrado: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, String>> handleRuntimeException(RuntimeException ex) {
         // Detalhe completo só no log do servidor — nunca no corpo da resposta,

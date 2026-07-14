@@ -245,6 +245,9 @@ export default function Softphone() {
       localStreamRef.current = null;
       ua.stop();
     };
+    // Registro SIP (UA) deve ocorrer só no mount/desmonte do softphone — refs
+    // (timers, stream local) são lidas via .current na limpeza, não precisam
+    // disparar re-registro a cada render.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

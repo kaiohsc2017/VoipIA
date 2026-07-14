@@ -73,7 +73,8 @@ export default function Auditoria() {
   const [actions, setActions]               = useState<string[]>([]);
 
   useEffect(() => {
-    api.get<string[]>('/audit/actions').then(r => setActions(r.data));
+    api.get<string[]>('/audit/actions').then(r => setActions(r.data))
+      .catch(err => console.error('Erro ao carregar ações de auditoria:', err));
   }, []);
 
   const load = (p = 0, username = filterUsername, action = filterAction, from = filterFrom, to = filterTo) => {

@@ -1,5 +1,6 @@
 package com.asteriskia.domain.masterdata;
 
+import com.asteriskia.config.ResourceNotFoundException;
 import com.asteriskia.domain.audit.AuditService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -93,12 +94,14 @@ public class ClientController {
                 clientRepo
                         .findById(clientId)
                         .orElseThrow(
-                                () -> new RuntimeException("Cliente não encontrado: " + clientId));
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Cliente não encontrado: " + clientId));
         Operation op =
                 opRepo.findById(operationId)
                         .orElseThrow(
                                 () ->
-                                        new RuntimeException(
+                                        new ResourceNotFoundException(
                                                 "Operação não encontrada: " + operationId));
         client.getOperations().add(op);
         clientRepo.save(client);
@@ -117,7 +120,9 @@ public class ClientController {
                 clientRepo
                         .findById(clientId)
                         .orElseThrow(
-                                () -> new RuntimeException("Cliente não encontrado: " + clientId));
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Cliente não encontrado: " + clientId));
         return ResponseEntity.ok(client.getOperations().stream().toList());
     }
 

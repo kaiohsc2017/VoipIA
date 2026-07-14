@@ -370,6 +370,10 @@ export default function ModuloConectividade() {
     setLoading(true);
     api.get<NumberTest[]>('/number-tests')
       .then(r => setTests(r.data))
+      .catch(err => {
+        console.error('Erro ao carregar testes de conectividade:', err);
+        setTests([]);
+      })
       .finally(() => setLoading(false));
   };
 

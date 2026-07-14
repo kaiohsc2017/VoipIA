@@ -1,4 +1,5 @@
 """routers/reports.py — relatório de execução e alertas"""
+import json
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 from html import escape as _esc
@@ -32,10 +33,19 @@ async def execution_report(execution_id: UUID):
         for l in log_list if l["message"].startswith("💡 IA sugere:")
     ]
 
-    # Extrai erros com fix_hint do report_json
+    # Extrai erros com fix_hint do report_json — 3 formatos possíveis:
+    # SSHTestExecutor/LogMonitorExecutor (report["servers"][].checks),
+    # WebMonitorExecutor (report["urls"]) e DatabaseExecutor (report["checks"]
+    # na raiz, sem noção de "servidor" — ver executor.py:648-705).
     failures = []
-    report   = exec_data.get("report_json") or {}
-    for srv in report.get("servers", []) + [{"checks": report.get("urls", [])}]:
+    report = exec_data.get("report_json") or {}
+    # JSONB via asyncpg sem codec chega como string crua — achado emergente
+    # durante o teste de O1.4: sem isso, este endpoint 500 para qualquer execução.
+    if isinstance(report, str):
+        report = json.loads(report) if report else {}
+    groups = report.get("servers", []) + [{"checks": report.get("urls", [])}] \
+        + [{"checks": report.get("checks", [])}]
+    for srv in groups:
         for chk in srv.get("checks", []):
             if not chk.get("ok"):
                 failures.append({

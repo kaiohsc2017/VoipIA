@@ -1,5 +1,6 @@
 package com.asteriskia.domain.call;
 
+import com.asteriskia.config.ResourceNotFoundException;
 import com.asteriskia.domain.masterdata.BusinessUnitContext;
 import com.asteriskia.domain.ura.Ura;
 import com.asteriskia.domain.ura.UraQuestion;
@@ -201,7 +202,9 @@ public class CallRecordService {
                         .findById(id)
                         .filter(this::inBusinessUnitScope)
                         .orElseThrow(
-                                () -> new RuntimeException("CallRecord não encontrado: " + id));
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "CallRecord não encontrado: " + id));
         record.setAnswers(
                 loadAnswers(java.util.List.of(record.getId()))
                         .getOrDefault(record.getId(), java.util.List.of()));
@@ -219,7 +222,9 @@ public class CallRecordService {
                 repository
                         .findById(id)
                         .orElseThrow(
-                                () -> new RuntimeException("CallRecord não encontrado: " + id));
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "CallRecord não encontrado: " + id));
         record.setSubjectTag(truncate(subjectTag, 100));
         repository.save(record);
     }
