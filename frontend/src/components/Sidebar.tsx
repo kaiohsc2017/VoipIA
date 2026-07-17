@@ -3,14 +3,14 @@ import { useState } from 'react';
 import {
   LayoutDashboard, Headset, PhoneCall, AlertTriangle, Bot, Users, UsersRound,
   Settings, Terminal, ShieldCheck, KeyRound, ClipboardList,
-  LogOut, BookOpen, Tag, Phone, Cable, Building2,
+  LogOut, BookOpen, Tag, Phone, Cable, Building2, Lightbulb,
 } from 'lucide-react';
 import { canRead } from '../api/client';
 import { RELEASES } from '../data/releases';
 
 const CURRENT_VERSION = RELEASES[RELEASES.length - 1].version;
 
-type Page = 'dashboard' | 'modulo1' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'operadoras' | 'cadastro0800' | 'linhas' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs' | 'release';
+type Page = 'dashboard' | 'modulo1' | 'insights' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'operadoras' | 'cadastro0800' | 'linhas' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs' | 'release';
 
 interface SidebarProps {
   currentPage: Page;
@@ -30,6 +30,7 @@ interface SidebarProps {
 const NAV_ITEMS: { page: Page; icon: ComponentType<{ size?: number; strokeWidth?: number }>; label: string; section: string; resource?: string; adminOnly?: boolean }[] = [
   { page: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard',          section: 'GERAL',     resource: 'telecom.dashboard'    },
   { page: 'modulo1',    icon: Headset,         label: 'URA',                section: 'MÓDULOS',   resource: 'telecom.modulo1'      },
+  { page: 'insights',   icon: Lightbulb,       label: 'Insights',           section: 'MÓDULOS',   resource: 'telecom.insights'     },
   { page: 'modulo2',    icon: PhoneCall,       label: 'Conectividade',      section: 'MÓDULOS',   resource: 'telecom.modulo2'      },
   { page: 'modulo3',    icon: AlertTriangle,   label: 'Monitoramento',      section: 'MÓDULOS',   resource: 'telecom.modulo3'      },
   { page: 'agents',     icon: Bot,             label: 'Agentes',            section: 'MÓDULOS',   resource: 'telecom.agents_link' },

@@ -50,6 +50,7 @@ Rede Docker: `asteriskia-net` — bridge `172.16.7.0/24`
 | `172.16.7.11` | `asteriskia-postgres` | `postgres:16-alpine` | Banco unificado (Telecom + Agentes) |
 | `172.16.7.12` | `asteriskia-asterisk` | build `./asterisk` | PBX — Asterisk 21 LTS |
 | `172.16.7.13` | `asteriskia-ai-agent` | build `./ai-agent` | Servidor AudioSocket Python — STT/LLM/TTS via Gemini |
+| `172.16.7.18` | `asteriskia-insights` | build `./insights` | Serviço Python (loop de polling, sem porta própria) — transcreve/analisa via Gemini as gravações do call center corporativo Verint em `/opt/audio` (módulo apartado do domínio Asterisk, tela "Insights") |
 | `172.16.7.14` | `asteriskia-backend` | build `./backend` | Spring Boot 3.3 — API REST + WebSocket STOMP |
 | `172.16.7.15` | `asteriskia-frontend` | build `./frontend` | React 18 + Nginx — serve Telecom e Agentes |
 | `172.16.7.16` | `asteriskia-agents-api` | build `./agents-platform/backend` | FastAPI — plataforma de agentes autônomos |
@@ -95,7 +96,7 @@ docker compose up -d --build frontend
 - **Migrations Telecom:** Flyway — classpath `backend/src/main/resources/db/migration/` — V1 a V21
   aplicadas em produção; **V22 (grupos de acesso) commitada, aguardando deploy do backend**
 - **Migrations Agentes:** `agents-platform/backend/migrate.py` — `CREATE TABLE IF NOT EXISTS` (idempotente)
-- **Próxima migration Flyway:** V25 — confirme sempre com `ls backend/src/main/resources/db/migration/ | sort -V | tail -1`
+- **Próxima migration Flyway:** V36 — confirme sempre com `ls backend/src/main/resources/db/migration/ | sort -V | tail -1`
 
 ```bash
 # Acesso direto (porta exposta apenas localmente)
@@ -417,6 +418,26 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > de verificação de sempre continuam válidos: `SIP_PUBLIC_IP` injetado no `pjsip.conf`,
 > `external_media_address`/`external_signaling_address` não vazios, portas RTP `15000-15500/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
+
+### ✅ Feature: tela Insights — transcrição/análise de IA do call center Verint (2026-07-17) — deployada e validada em produção
+Módulo novo e apartado do domínio Asterisk (sem FK com `call_records`/`uras`) — analisa gravações
+`.wav`+`.xml` do sistema corporativo de gravação Verint em `/opt/audio` (diretório compartilhado
+com outros serviços). Plano completo em `.claude/plans/insights-transcricao-chamadas.plan.md` e
+memória `asteriskia_insights_feature`.
+- ✅ Migration `V35__call_insights.sql` (4 tabelas, full-text `tsvector`+GIN), serviço Python
+  `insights/` (novo container `asteriskia-insights`, 172.16.7.18, sem porta própria), backend Java
+  `domain/insights/`, frontend (tela "Insights" na Sidebar entre URA e Conectividade) — tudo
+  deployado (`docker compose up -d insights backend frontend`) e validado com dados reais.
+- ✅ **Fila inicial de 42 chamadas reais processada 100%** (27 baixa / 7 alta / 4 urgente / 4 média
+  criticidade, 284 achados). Streaming de áudio confirmado tocável (`ffmpeg` transcodifica G.729A →
+  PCM no `InsightsController.getAudio`; `backend` monta `/opt/audio:ro`).
+- ✅ **2 bugs reais encontrados e corrigidos durante a validação em produção**: (1) `numeric field
+  overflow` em `call_insights.aderencia_script` — Gemini retornou valor fora de 0-1, corrigido com
+  clamp defensivo nos dois lados (Python + Java); (2) `@NotEmpty` em `IngestInsightsRequest.segments`
+  rejeitava com HTTP 400 chamadas com transcrição de 0 segmentos (áudio curto/silencioso) — sem fix
+  causaria loop infinito de reprocessamento pra chamadas genuinamente sem fala; trocado por
+  `@NotNull`. Ambos recompilados/rebuildados/redeployados na hora, sem downtime dos demais serviços.
+- Release notes `v1.27` já registrada — descrição confere com o comportamento real validado.
 
 ### ✅ Auditoria full-stack pós-RBAC (2026-07-02) — 33/33 achados corrigidos, deployado e testado
 4 agentes `security-reviewer`/`react-reviewer` em paralelo (Java fora do RBAC, Python ai-agent+agents-platform,

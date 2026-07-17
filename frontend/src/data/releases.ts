@@ -240,4 +240,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Tela de URA: novas abas "Custos IA" (lista de chamadas com tokens consumidos e custo estimado de STT/LLM/TTS, com filtros por URA/cliente/período) e "Dashboard de Custos" (evolução de gastos mês a mês com gráfico por etapa).',
     ],
   },
+  {
+    version: 'v1.27',
+    date: '2026-07-17',
+    changes: [
+      'Nova tela "Insights": transcrição e análise de IA das gravações do call center corporativo (Verint), com abas "Chamadas" (busca por data, texto livre, frase exata e tom de voz do cliente/atendente, player de áudio, transcrição diarizada por locutor e achados de melhoria/falha de processo/treinamento/tendência) e "Dashboard de Tendências". Módulo novo, apartado do domínio Asterisk já existente.',
+    ],
+  },
 ];

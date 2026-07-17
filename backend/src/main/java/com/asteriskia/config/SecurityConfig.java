@@ -121,6 +121,10 @@ public class SecurityConfig {
                         // mesma proteção.
                         .requestMatchers(HttpMethod.GET, "/api/v1/calls/costs/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.modulo1")
+                        // Tela Insights (transcrição/análise de IA de gravações do call center
+                        // Verint) — módulo apartado do domínio Asterisk, recurso próprio.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/insights/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.insights")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da
@@ -143,6 +147,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.linhas")
                         .requestMatchers("/api/v1/operadoras/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.operadoras")
+                        .requestMatchers("/api/v1/insights/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.insights")
 
                         // Todos os demais endpoints exigem apenas autenticação (JWT ou InternalKey)
                         .anyRequest().authenticated()

@@ -182,6 +182,53 @@ services:
       start_period: 30s
 
   # ---------------------------------------------------------------------------
+  # Insights — transcrição e análise de IA de gravações do call center Verint
+  # Módulo apartado do domínio Asterisk (não interage com call_records/uras) —
+  # lê /opt/audio (compartilhado com outros serviços, read-only) em busca de
+  # pares .wav+.xml novos, transcreve/analisa via Gemini e envia o resultado
+  # ao backend via /api/v1/internal/insights (INTERNAL_API_KEY). Sem porta
+  # publicada — não é um servidor, é um loop de polling em background.
+  # ---------------------------------------------------------------------------
+  insights:
+    build:
+      context: ./insights
+      dockerfile: Dockerfile
+    container_name: asteriskia-insights
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      GEMINI_API_KEY:               ${GEMINI_API_KEY}
+      GEMINI_MODEL_STT:             ${GEMINI_MODEL_STT}
+      GEMINI_MODEL_LLM:             ${GEMINI_MODEL_LLM}
+      BACKEND_URL:                  http://backend:8080
+      INTERNAL_API_KEY:             ${INTERNAL_API_KEY}
+      DOTENV_PATH:                  /opt/asteriskia/env/.env
+      INSIGHTS_AUDIO_DIR:           ${INSIGHTS_AUDIO_DIR:-/opt/audio}
+      INSIGHTS_POLL_INTERVAL_SECONDS: ${INSIGHTS_POLL_INTERVAL_SECONDS:-60}
+      INSIGHTS_MAX_CONCURRENCY:     ${INSIGHTS_MAX_CONCURRENCY:-2}
+    volumes:
+      - /opt/audio:/opt/audio:ro
+      - /opt/AsteriskIA/env:/opt/asteriskia/env:ro
+    networks:
+      asteriskia-net:
+          ipv4_address: 172.16.7.18
+    healthcheck:
+      # Sem porta própria (loop de polling, não servidor) — confirma que o
+      # processo Python ainda está de pé.
+      test: ["CMD-SHELL", "pgrep -f 'src.main' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 8s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
   # Docker Helper — único container do stack com acesso ao docker.sock (F-CRIT-10)
   # Antes, o backend montava o socket direto para rodar 'docker compose up',
   # 'docker logs' e 'docker exec' via ProcessBuilder — qualquer RCE no backend
@@ -266,6 +313,9 @@ services:
       # docker-helper (HTTP interno — backend não toca mais no docker.sock)
       SETTINGS_FILE_PATH:         /opt/asteriskia/env/.env
       DOCKER_HELPER_URL:          http://docker-helper:8090
+      # Insights — streaming de áudio (InsightsController.getAudio transcodifica
+      # via ffmpeg); módulo apartado, mesmo caminho lido pelo serviço insights.
+      INSIGHTS_AUDIO_PATH:        ${INSIGHTS_AUDIO_DIR:-/opt/audio}
     volumes:
       - asterisk_recordings:/var/spool/asterisk/monitor
       - /opt/AsteriskIA/env:/opt/asteriskia/env
@@ -273,6 +323,7 @@ services:
       - fail2ban_socket:/var/run/fail2ban
       - security_cmds:/var/run/asteriskia-security
       - /opt/AsteriskIA/security/config:/opt/asteriskia/security/config
+      - /opt/audio:/opt/audio:ro
       # Achado de segurança: montava o diretório security/ INTEIRO em RW,
       # incluindo entrypoint.sh/lockdown-watcher.sh — um RCE no backend
       # escreveria o script que o container security executa como root

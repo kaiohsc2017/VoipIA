@@ -16,6 +16,7 @@ public final class ResourceCatalog {
     public static final List<String> TELECOM = List.of(
             "telecom.dashboard",
             "telecom.modulo1",
+            "telecom.insights",
             "telecom.modulo2",
             "telecom.modulo3",
             "telecom.agents_link",

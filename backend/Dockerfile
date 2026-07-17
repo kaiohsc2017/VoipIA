@@ -24,11 +24,14 @@ FROM tomcat:11.0-jre21
 # curl: usado pelo healthcheck do docker-compose.yml.
 # fail2ban: fornece o binário fail2ban-client, usado via socket compartilhado
 # (fail2ban_socket) pelo SecurityController — não precisa do docker.sock.
+# ffmpeg: usado por InsightsController.getAudio para transcodificar o .wav
+# proprietário do Verint (codec G.729A) para PCM WAV reproduzível no navegador
+# — o arquivo original não toca em nenhum <audio> (nenhum browser suporta G.729).
 # NOTA (F-CRIT-10): este container NÃO tem mais Docker CLI nem docker.sock —
 # 'docker compose up'/'docker logs'/'docker exec' agora passam pelo serviço
 # interno docker-helper (ver docker-compose.yml e DOCKER_HELPER_URL).
 RUN apt-get update -qq && \
-    apt-get install -y --no-install-recommends curl ca-certificates fail2ban && \
+    apt-get install -y --no-install-recommends curl ca-certificates fail2ban ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 # Remove aplicações de exemplo do Tomcat
