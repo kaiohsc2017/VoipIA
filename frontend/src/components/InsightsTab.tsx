@@ -74,8 +74,14 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
   const [categoria, setCategoria] = useState('');
   const [criticidade, setCriticidade] = useState('');
   const [findingType, setFindingType] = useState('');
+  const [agentName, setAgentName] = useState('');
+  const [direction, setDirection] = useState('');
+  const [skill, setSkill] = useState('');
+  const [durationMin, setDurationMin] = useState('');
+  const [durationMax, setDurationMax] = useState('');
 
-  const hasActiveFilters = !!(dateFrom || dateTo || phrase || toneCliente || toneAtendente || categoria || criticidade || findingType);
+  const hasActiveFilters = !!(dateFrom || dateTo || phrase || toneCliente || toneAtendente || categoria
+    || criticidade || findingType || agentName || direction || skill || durationMin || durationMax);
 
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<InsightsDetailResponse | null>(null);
@@ -99,6 +105,11 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     if (effectiveCategoria) params.set('categoria', effectiveCategoria);
     if (effectiveCriticidade) params.set('criticidade', effectiveCriticidade);
     if (effectiveFindingType) params.set('findingType', effectiveFindingType);
+    if (agentName) params.set('agentName', agentName);
+    if (direction) params.set('direction', direction);
+    if (skill) params.set('skill', skill);
+    if (durationMin) params.set('durationMin', durationMin);
+    if (durationMax) params.set('durationMax', durationMax);
     api.get<PageResponse<InsightsListItem>>(`/insights/calls?${params}`)
       .then(r => {
         setItems(r.data.content ?? []);
@@ -132,6 +143,7 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     if (!pendingDrillDown) return;
     const { categoria: newCategoria, criticidade: newCriticidade, findingType: newFindingType } = pendingDrillDown.filters;
     setText(''); setDateFrom(''); setDateTo(''); setPhrase(''); setToneCliente(''); setToneAtendente('');
+    setAgentName(''); setDirection(''); setSkill(''); setDurationMin(''); setDurationMax('');
     setCategoria(newCategoria ?? '');
     setCriticidade(newCriticidade ?? '');
     setFindingType(newFindingType ?? '');
@@ -146,6 +158,7 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
   const clearFilters = () => {
     setDateFrom(''); setDateTo(''); setPhrase(''); setToneCliente(''); setToneAtendente('');
     setCategoria(''); setCriticidade(''); setFindingType('');
+    setAgentName(''); setDirection(''); setSkill(''); setDurationMin(''); setDurationMax('');
     setTimeout(() => loadCalls(0), 0);
   };
 
@@ -364,6 +377,30 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
               <option value="">Qualquer</option>
               {FINDING_TYPE_OPTIONS.map(t => <option key={t} value={t}>{FINDING_LABELS[t]}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="form-label">Atendente</label>
+            <input className="form-input" placeholder="ex: Luana Rangel" value={agentName} onChange={e => setAgentName(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Direção</label>
+            <select className="form-select" value={direction} onChange={e => setDirection(e.target.value)}>
+              <option value="">Qualquer</option>
+              <option value="inbound">Recebida</option>
+              <option value="outbound">Efetuada</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Fila/Departamento</label>
+            <input className="form-input" placeholder="ex: BPO Alfa SAC" value={skill} onChange={e => setSkill(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Duração mínima (seg)</label>
+            <input type="number" min={0} className="form-input" placeholder="ex: 60" value={durationMin} onChange={e => setDurationMin(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Duração máxima (seg)</label>
+            <input type="number" min={0} className="form-input" placeholder="ex: 600" value={durationMax} onChange={e => setDurationMax(e.target.value)} />
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
             <button className="btn btn-primary btn-sm" onClick={() => loadCalls(0)}>Aplicar filtros</button>

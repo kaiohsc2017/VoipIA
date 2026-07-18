@@ -275,4 +275,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Insights → Chamadas: novos filtros de busca por criticidade e por tipo de achado (falha/melhoria/treinamento/tendência).',
     ],
   },
+  {
+    version: 'v1.31',
+    date: '2026-07-18',
+    changes: [
+      'Insights → Chamadas: novos filtros de busca por Atendente, Direção (recebida/efetuada), Fila/Departamento e faixa de Duração (mínima/máxima em segundos).',
+    ],
+  },
 ];

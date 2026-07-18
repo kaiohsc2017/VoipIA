@@ -49,12 +49,18 @@ public class InsightsController {
             @RequestParam(required = false) String toneAtendente,
             @RequestParam(required = false) String categoria,
             @RequestParam(required = false) String criticidade,
-            @RequestParam(required = false) String findingType) {
+            @RequestParam(required = false) String findingType,
+            @RequestParam(required = false) String agentName,
+            @RequestParam(required = false) String direction,
+            @RequestParam(required = false) String skill,
+            @RequestParam(required = false) Integer durationMin,
+            @RequestParam(required = false) Integer durationMax) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "callStarttime"));
         InsightsFilter filter = new InsightsFilter(
                 dateFrom != null ? LocalDateTime.of(dateFrom, LocalTime.MIN) : null,
                 dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null,
-                text, phrase, toneCliente, toneAtendente, categoria, criticidade, findingType);
+                text, phrase, toneCliente, toneAtendente, categoria, criticidade, findingType,
+                agentName, direction, skill, durationMin, durationMax);
         return ResponseEntity.ok(queryService.search(filter, pageable));
     }
 

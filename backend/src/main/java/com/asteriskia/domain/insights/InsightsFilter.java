@@ -15,5 +15,10 @@ public record InsightsFilter(
         String toneAtendente,
         String categoria,
         String criticidade,
-        String findingType
+        String findingType,
+        String agentName,
+        String direction,
+        String skill,
+        Integer durationMin,
+        Integer durationMax
 ) {}

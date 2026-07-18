@@ -26,6 +26,23 @@ public final class InsightsSpecifications {
             if (filter.dateTo() != null) {
                 predicates = cb.and(predicates, cb.lessThanOrEqualTo(root.get("callStarttime"), filter.dateTo()));
             }
+            if (filter.agentName() != null && !filter.agentName().isBlank()) {
+                predicates = cb.and(predicates,
+                        cb.like(cb.lower(root.get("agentName")), "%" + filter.agentName().toLowerCase() + "%"));
+            }
+            if (filter.direction() != null && !filter.direction().isBlank()) {
+                predicates = cb.and(predicates, cb.equal(root.get("direction"), filter.direction()));
+            }
+            if (filter.skill() != null && !filter.skill().isBlank()) {
+                predicates = cb.and(predicates,
+                        cb.like(cb.lower(root.get("skill")), "%" + filter.skill().toLowerCase() + "%"));
+            }
+            if (filter.durationMin() != null) {
+                predicates = cb.and(predicates, cb.greaterThanOrEqualTo(root.get("durationSeconds"), filter.durationMin()));
+            }
+            if (filter.durationMax() != null) {
+                predicates = cb.and(predicates, cb.lessThanOrEqualTo(root.get("durationSeconds"), filter.durationMax()));
+            }
             if (restrictedToIds != null) {
                 predicates = cb.and(predicates, restrictedToIds.isEmpty()
                         ? cb.disjunction()
