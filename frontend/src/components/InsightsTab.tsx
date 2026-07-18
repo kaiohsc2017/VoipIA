@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../api/client';
 import type { InsightsListItem, InsightsDetailResponse, PageResponse } from '../api/types';
+import type { InsightsDrillDownFilters } from './InsightsDashboardTab';
 import { AuthedAudio } from './AuthedAudio';
 
 const TONE_OPTIONS = ['calmo', 'neutro', 'tenso', 'irritado', 'empolgado'];
+const CRITICIDADE_OPTIONS = ['baixa', 'media', 'alta', 'urgente'];
+const FINDING_TYPE_OPTIONS = ['melhoria', 'falha', 'treinamento', 'tendencia'];
 
 const FINDING_LABELS: Record<string, string> = {
   melhoria: '💡 Melhoria',
@@ -50,7 +53,12 @@ function toneBadge(label: string | undefined, tone?: string) {
   return <span className="chip" style={{ fontSize: '.68rem' }} title={label}>{tone}</span>;
 }
 
-export function InsightsTab() {
+interface InsightsTabProps {
+  pendingDrillDown?: { filters: InsightsDrillDownFilters; nonce: number } | null;
+  onDrillDownConsumed?: () => void;
+}
+
+export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsTabProps) {
   const [items, setItems] = useState<InsightsListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -64,15 +72,23 @@ export function InsightsTab() {
   const [toneCliente, setToneCliente] = useState('');
   const [toneAtendente, setToneAtendente] = useState('');
   const [categoria, setCategoria] = useState('');
+  const [criticidade, setCriticidade] = useState('');
+  const [findingType, setFindingType] = useState('');
 
-  const hasActiveFilters = !!(dateFrom || dateTo || phrase || toneCliente || toneAtendente || categoria);
+  const hasActiveFilters = !!(dateFrom || dateTo || phrase || toneCliente || toneAtendente || categoria || criticidade || findingType);
 
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<InsightsDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const loadCalls = (p = 0) => {
+  /** overrides permite disparar a busca com valores que ainda não foram aplicados
+   * ao estado local (drill-down do Dashboard de Tendências) — setState é
+   * assíncrono, então ler o estado logo após chamá-lo pegaria o valor antigo. */
+  const loadCalls = (p = 0, overrides: Partial<InsightsDrillDownFilters> = {}) => {
     setLoading(true);
+    const effectiveCategoria = overrides.categoria ?? categoria;
+    const effectiveCriticidade = overrides.criticidade ?? criticidade;
+    const effectiveFindingType = overrides.findingType ?? findingType;
     const params = new URLSearchParams({ page: String(p), size: '20' });
     if (text) params.set('text', text);
     if (dateFrom) params.set('dateFrom', dateFrom);
@@ -80,7 +96,9 @@ export function InsightsTab() {
     if (phrase) params.set('phrase', phrase);
     if (toneCliente) params.set('toneCliente', toneCliente);
     if (toneAtendente) params.set('toneAtendente', toneAtendente);
-    if (categoria) params.set('categoria', categoria);
+    if (effectiveCategoria) params.set('categoria', effectiveCategoria);
+    if (effectiveCriticidade) params.set('criticidade', effectiveCriticidade);
+    if (effectiveFindingType) params.set('findingType', effectiveFindingType);
     api.get<PageResponse<InsightsListItem>>(`/insights/calls?${params}`)
       .then(r => {
         setItems(r.data.content ?? []);
@@ -94,12 +112,40 @@ export function InsightsTab() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { loadCalls(0); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  // Captura o valor de montagem — se já chegou com um drill-down pendente, o
+  // efeito abaixo cuida da busca; sem essa checagem, os dois efeitos disparam
+  // no mesmo mount e criam duas requisições concorrentes (a sem filtro pode
+  // "vencer" a filtrada e sobrescrever a lista com o resultado errado).
+  const mountedWithDrillDown = useRef(pendingDrillDown != null);
+  useEffect(() => {
+    if (!mountedWithDrillDown.current) loadCalls(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Drill-down vindo do Dashboard de Tendências: limpa os demais filtros (para
+   * não combinar com um recorte anterior sem o usuário perceber, mesmo critério
+   * do ModuloURA.handleDrillDown), aplica o filtro do indicador clicado, já
+   * dispara a busca e avisa o pai que o drill-down foi consumido — InsightsTab
+   * desmonta/remonta a cada troca de aba, então sem isso o mesmo drill-down
+   * seria reaplicado numa volta manual pra aba Chamadas. */
+  useEffect(() => {
+    if (!pendingDrillDown) return;
+    const { categoria: newCategoria, criticidade: newCriticidade, findingType: newFindingType } = pendingDrillDown.filters;
+    setText(''); setDateFrom(''); setDateTo(''); setPhrase(''); setToneCliente(''); setToneAtendente('');
+    setCategoria(newCategoria ?? '');
+    setCriticidade(newCriticidade ?? '');
+    setFindingType(newFindingType ?? '');
+    setFiltersOpen(true);
+    loadCalls(0, { categoria: newCategoria, criticidade: newCriticidade, findingType: newFindingType });
+    onDrillDownConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingDrillDown?.nonce]);
 
   const handleSearchSubmit = (e: React.FormEvent) => { e.preventDefault(); loadCalls(0); };
 
   const clearFilters = () => {
-    setDateFrom(''); setDateTo(''); setPhrase(''); setToneCliente(''); setToneAtendente(''); setCategoria('');
+    setDateFrom(''); setDateTo(''); setPhrase(''); setToneCliente(''); setToneAtendente('');
+    setCategoria(''); setCriticidade(''); setFindingType('');
     setTimeout(() => loadCalls(0), 0);
   };
 
@@ -304,6 +350,20 @@ export function InsightsTab() {
           <div>
             <label className="form-label">Categoria/Assunto</label>
             <input className="form-input" placeholder="ex: Cobrança" value={categoria} onChange={e => setCategoria(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Criticidade</label>
+            <select className="form-select" value={criticidade} onChange={e => setCriticidade(e.target.value)}>
+              <option value="">Qualquer</option>
+              {CRITICIDADE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Tipo de achado</label>
+            <select className="form-select" value={findingType} onChange={e => setFindingType(e.target.value)}>
+              <option value="">Qualquer</option>
+              {FINDING_TYPE_OPTIONS.map(t => <option key={t} value={t}>{FINDING_LABELS[t]}</option>)}
+            </select>
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
             <button className="btn btn-primary btn-sm" onClick={() => loadCalls(0)}>Aplicar filtros</button>

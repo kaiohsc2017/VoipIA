@@ -13,5 +13,7 @@ public record InsightsFilter(
         String phrase,
         String toneCliente,
         String toneAtendente,
-        String categoria
+        String categoria,
+        String criticidade,
+        String findingType
 ) {}

@@ -267,4 +267,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Documentação: nova subseção explicando o processo de atualização automática de preços, a fonte de dados e o comportamento em caso de falha.',
     ],
   },
+  {
+    version: 'v1.30',
+    date: '2026-07-18',
+    changes: [
+      'Insights → Dashboard de Tendências: clicar num indicador (chamadas analisadas, criticidade urgente/alta, achados por tipo ou top categorias) agora filtra automaticamente a aba Chamadas pelo valor clicado e já abre nela — mesmo comportamento do Ranking de Atendimentos da URA.',
+      'Insights → Chamadas: novos filtros de busca por criticidade e por tipo de achado (falha/melhoria/treinamento/tendência).',
+    ],
+  },
 ];

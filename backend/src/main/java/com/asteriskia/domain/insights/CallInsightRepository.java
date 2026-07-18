@@ -20,6 +20,9 @@ public interface CallInsightRepository extends JpaRepository<CallInsight, Long> 
     @Query("SELECT ci.audioFileId FROM CallInsight ci WHERE LOWER(ci.categoriaAssunto) = LOWER(:categoria)")
     List<Long> findAudioFileIdsByCategoria(@Param("categoria") String categoria);
 
+    @Query("SELECT ci.audioFileId FROM CallInsight ci WHERE LOWER(ci.criticidade) = LOWER(:criticidade)")
+    List<Long> findAudioFileIdsByCriticidade(@Param("criticidade") String criticidade);
+
     @Query("SELECT ci.criticidade, COUNT(ci) FROM CallInsight ci GROUP BY ci.criticidade")
     List<Object[]> countByCriticidade();
 

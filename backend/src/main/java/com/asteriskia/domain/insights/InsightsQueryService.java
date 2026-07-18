@@ -16,8 +16,9 @@ import java.util.stream.Collectors;
 /**
  * InsightsQueryService — busca/detalhe/dashboard da tela Insights.
  *
- * Texto livre, frase exata, tom (cliente/atendente) e categoria vivem em
- * call_transcript_segments/call_insights, não em call_audio_files — cada
+ * Texto livre, frase exata, tom (cliente/atendente), categoria, criticidade e
+ * tipo de achado vivem em call_transcript_segments/call_insights/
+ * call_insight_findings, não em call_audio_files — cada
  * critério informado é resolvido antes para um Set de audioFileId, e a
  * interseção desses sets vira o filtro "id IN (...)" da Specification
  * principal (ver InsightsSpecifications). Nenhum critério informado =
@@ -131,6 +132,12 @@ public class InsightsQueryService {
         }
         if (hasText(filter.categoria())) {
             restricted = intersect(restricted, insightRepository.findAudioFileIdsByCategoria(filter.categoria()));
+        }
+        if (hasText(filter.criticidade())) {
+            restricted = intersect(restricted, insightRepository.findAudioFileIdsByCriticidade(filter.criticidade()));
+        }
+        if (hasText(filter.findingType())) {
+            restricted = intersect(restricted, findingRepository.findAudioFileIdsByTipo(filter.findingType()));
         }
 
         return restricted != null ? List.copyOf(restricted) : null;

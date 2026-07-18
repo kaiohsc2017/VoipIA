@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { InsightsTab } from './InsightsTab';
-import { InsightsDashboardTab } from './InsightsDashboardTab';
+import { InsightsDashboardTab, type InsightsDrillDownFilters } from './InsightsDashboardTab';
 import { InsightsCostsTab } from './InsightsCostsTab';
 import { InsightsCostsDashboardTab } from './InsightsCostsDashboardTab';
 import { InsightsProcessingTab } from './InsightsProcessingTab';
@@ -12,6 +12,23 @@ import { InsightsProcessingTab } from './InsightsProcessingTab';
  */
 export default function ModuloInsights() {
   const [tab, setTab] = useState<'calls' | 'dashboard' | 'costs' | 'costsDashboard' | 'processing'>('calls');
+  const [pendingDrillDown, setPendingDrillDown] = useState<{ filters: InsightsDrillDownFilters; nonce: number } | null>(null);
+
+  /**
+   * Drill-down vindo do Dashboard de Tendências: troca para a aba Chamadas já
+   * com o filtro do indicador clicado — mesmo comportamento do drill-down do
+   * Ranking de Atendimentos (URA/ModuloURA.handleDrillDown). O `nonce` garante
+   * reprocessar mesmo se o usuário clicar duas vezes seguidas no mesmo indicador.
+   */
+  const handleDrillDown = (filters: InsightsDrillDownFilters) => {
+    setPendingDrillDown(prev => ({ filters, nonce: (prev?.nonce ?? 0) + 1 }));
+    setTab('calls');
+  };
+
+  /** InsightsTab desmonta/remonta a cada troca de aba (renderização condicional
+   * abaixo) — sem isso, o drill-down seria reaplicado a cada volta manual pra
+   * aba Chamadas, mesmo sem novo clique no dashboard. */
+  const handleDrillDownConsumed = () => setPendingDrillDown(null);
 
   return (
     <>
@@ -38,8 +55,8 @@ export default function ModuloInsights() {
           </button>
         </div>
 
-        {tab === 'calls' && <InsightsTab />}
-        {tab === 'dashboard' && <InsightsDashboardTab />}
+        {tab === 'calls' && <InsightsTab pendingDrillDown={pendingDrillDown} onDrillDownConsumed={handleDrillDownConsumed} />}
+        {tab === 'dashboard' && <InsightsDashboardTab onDrillDown={handleDrillDown} />}
         {tab === 'costs' && <InsightsCostsTab />}
         {tab === 'costsDashboard' && <InsightsCostsDashboardTab />}
         {tab === 'processing' && <InsightsProcessingTab />}
