@@ -391,7 +391,7 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
             </select>
           </div>
           <div>
-            <label className="form-label">Fila/Departamento</label>
+            <label className="form-label">Fila</label>
             <input className="form-input" placeholder="ex: BPO Alfa SAC" value={skill} onChange={e => setSkill(e.target.value)} />
           </div>
           <div>

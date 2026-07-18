@@ -44,22 +44,22 @@ export default function ModuloInsights() {
           <button className={`btn ${tab === 'dashboard' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('dashboard')}>
             📈 Dashboard de Tendências
           </button>
+          <button className={`btn ${tab === 'processing' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('processing')}>
+            ⚙️ Processamento
+          </button>
           <button className={`btn ${tab === 'costs' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('costs')}>
             💰 Custos IA
           </button>
           <button className={`btn ${tab === 'costsDashboard' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('costsDashboard')}>
             📈 Dashboard de Custos
           </button>
-          <button className={`btn ${tab === 'processing' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('processing')}>
-            ⚙️ Processamento
-          </button>
         </div>
 
         {tab === 'calls' && <InsightsTab pendingDrillDown={pendingDrillDown} onDrillDownConsumed={handleDrillDownConsumed} />}
         {tab === 'dashboard' && <InsightsDashboardTab onDrillDown={handleDrillDown} />}
+        {tab === 'processing' && <InsightsProcessingTab />}
         {tab === 'costs' && <InsightsCostsTab />}
         {tab === 'costsDashboard' && <InsightsCostsDashboardTab />}
-        {tab === 'processing' && <InsightsProcessingTab />}
       </div>
     </>
   );

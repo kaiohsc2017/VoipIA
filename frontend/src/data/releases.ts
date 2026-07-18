@@ -282,4 +282,13 @@ export const RELEASES: ReleaseEntry[] = [
       'Insights → Chamadas: novos filtros de busca por Atendente, Direção (recebida/efetuada), Fila/Departamento e faixa de Duração (mínima/máxima em segundos).',
     ],
   },
+  {
+    version: 'v1.32',
+    date: '2026-07-18',
+    changes: [
+      'Insights: aba "Processamento" reposicionada para logo após "Dashboard de Tendências".',
+      'Insights → Chamadas → Filtros: label "Fila/Departamento" simplificado para "Fila".',
+      'Menu Cadastros: item "Usuários e Ramais" renomeado para "Usuários" e reordenado — nova ordem: Usuários, Clientes, Operadoras, Linhas, 0800.',
+    ],
+  },
 ];

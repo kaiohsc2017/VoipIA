@@ -41,9 +41,9 @@ export default function TelecomInsights() {
               rows={[
                 [<FieldName>📋 Chamadas</FieldName>, 'Lista de chamadas transcritas/analisadas, com busca por texto, filtros e reprodução do áudio original (transcodificado de G.729A para PCM sob demanda)'],
                 [<FieldName>📈 Dashboard de Tendências</FieldName>, 'Agregados de sentimento, criticidade e achados mais frequentes no período'],
+                [<FieldName>⚙️ Processamento</FieldName>, 'Status de cada arquivo descoberto em /opt/audio: nome, data de início/fim, posição na fila e status, com filtro por status/data/nome'],
                 [<FieldName>💰 Custos IA</FieldName>, 'Tokens de STT/LLM e custo estimado por chamada, com filtro por atendente e período'],
                 [<FieldName>📈 Dashboard de Custos</FieldName>, 'Evolução de gastos de IA mês a mês (STT + LLM, sem TTS — Insights não faz síntese de voz)'],
-                [<FieldName>⚙️ Processamento</FieldName>, 'Status de cada arquivo descoberto em /opt/audio: nome, data de início/fim, posição na fila e status, com filtro por status/data/nome'],
               ]}
             />
           </Card>

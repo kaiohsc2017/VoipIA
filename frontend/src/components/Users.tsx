@@ -226,7 +226,7 @@ export default function Users() {
   return (
     <>
       <div className="page-header">
-        <h1>👥 Usuários e Ramais</h1>
+        <h1>👥 Usuários</h1>
         <p>Gerencie os usuários do sistema. Cada usuário recebe um ramal SIP WebRTC exclusivo a partir de 9001.</p>
       </div>
       <div className="page-body">

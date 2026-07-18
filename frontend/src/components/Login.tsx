@@ -137,7 +137,7 @@ export default function Login({ onLogin }: LoginProps) {
           <>
             <h1 className="login-title">Ative a verificação em 2 etapas</h1>
             <p className="login-subtitle">
-              Deixe sua conta mais segura com um código extra a cada login. É opcional — você pode configurar depois em "Usuários e Ramais".
+              Deixe sua conta mais segura com um código extra a cada login. É opcional — você pode configurar depois em "Usuários".
             </p>
             {mfaMsg && (
               <div className="login-error"><span>⚠️</span><span>{mfaMsg}</span></div>
