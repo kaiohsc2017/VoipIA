@@ -18,10 +18,19 @@ import org.springframework.web.bind.annotation.*;
 public class AiModelPricingController {
 
     private final AiModelPricingRepository repository;
+    private final AiModelPricingSyncScheduler syncScheduler;
 
     @GetMapping
     public ResponseEntity<List<AiModelPricing>> list() {
         return ResponseEntity.ok(repository.findAll());
+    }
+
+    /** Dispara a mesma busca automática do job diário (02:00) imediatamente — usado pra validar
+     * a integração sem esperar o horário agendado e pra permitir que um admin force um refresh
+     * sob demanda. Síncrono: bloqueia até a busca (1 request HTTP) terminar. */
+    @PostMapping("/sync-now")
+    public ResponseEntity<List<PricingFetchResult>> syncNow() {
+        return ResponseEntity.ok(syncScheduler.run());
     }
 
     @PutMapping("/{modelId}")

@@ -247,4 +247,24 @@ export const RELEASES: ReleaseEntry[] = [
       'Nova tela "Insights": transcrição e análise de IA das gravações do call center corporativo (Verint), com abas "Chamadas" (busca por data, texto livre, frase exata e tom de voz do cliente/atendente, player de áudio, transcrição diarizada por locutor e achados de melhoria/falha de processo/treinamento/tendência) e "Dashboard de Tendências". Módulo novo, apartado do domínio Asterisk já existente.',
     ],
   },
+  {
+    version: 'v1.28',
+    date: '2026-07-18',
+    changes: [
+      'Tela de Insights: novas abas "Custos IA" (tokens consumidos e custo estimado de STT/LLM por chamada, com filtros por atendente/período) e "Dashboard de Custos" (evolução mensal de gastos).',
+      'Tela de Insights: nova aba "Processamento" — acompanhamento de cada gravação descoberta em disco, com nome do arquivo, data de início/fim, posição na fila e status (pendente/processando/concluído/erro), com filtro por status/data/nome.',
+      'Grupos de Acesso: corrigida a ausência do recurso "Insights" na matriz de permissões — administradores agora conseguem conceder/negar acesso a esse módulo para grupos customizados.',
+      'Documentação: nova seção detalhando as 5 abas da tela Insights e o significado dos status de processamento.',
+    ],
+  },
+  {
+    version: 'v1.29',
+    date: '2026-07-18',
+    changes: [
+      'Custos IA: corrigido preço zerado ($0,00) dos modelos Gemini usado para estimar custo de tokens (afetava as abas de Custos IA da URA e do Insights).',
+      'Custos IA: preço por milhão de tokens agora é buscado automaticamente todo dia às 02:00 na página oficial de preços da Google — nunca sobrescreve com valor inválido/zero, mantém o último preço confirmado e alerta por Telegram em caso de falha ou mudança significativa.',
+      'Configurações → Inteligência Artificial: nova seção "Preço de tokens (Custos IA)" com edição manual e botão "Buscar preço agora".',
+      'Documentação: nova subseção explicando o processo de atualização automática de preços, a fonte de dados e o comportamento em caso de falha.',
+    ],
+  },
 ];

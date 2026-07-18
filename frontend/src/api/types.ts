@@ -119,6 +119,15 @@ export interface AiModelPricing {
   updatedBy?: string;
 }
 
+// Resultado da busca automática/manual de preço (POST /ai/model-pricing/sync-now)
+export interface PricingFetchResult {
+  modelId: string;
+  success: boolean;
+  pricePerMillionInputUsd: number | null;
+  pricePerMillionOutputUsd: number | null;
+  failureReason: string | null;
+}
+
 // ---- URA Questions (Módulo 1) ----
 export interface UraQuestion {
   id: number;
@@ -350,6 +359,44 @@ export interface InsightsDashboardSummary {
   porCriticidade: Record<string, number>;
   porCategoria: Record<string, number>;
   achadosPorTipo: Record<string, number>;
+}
+
+// ---- Insights — aba "Custos IA" / "Dashboard de Custos" (mirror de CallCostView/MonthlyCostSummary) ----
+export interface InsightCostView {
+  id: number;
+  callRef: string;
+  callStarttime?: string;
+  agentName?: string;
+  durationSeconds?: number;
+  sttTokensIn: number;
+  sttTokensOut: number;
+  sttModel?: string;
+  llmTokensIn: number;
+  llmTokensOut: number;
+  llmModel?: string;
+  totalTokens: number;
+  estimatedCostUsd: number;
+}
+
+export interface InsightMonthlyCostSummary {
+  month: string; // "yyyy-MM"
+  sttCostUsd: number;
+  llmCostUsd: number;
+  totalCostUsd: number;
+  callCount: number;
+}
+
+// ---- Insights — aba "Processamento" (status/fila de arquivos descobertos em /opt/audio) ----
+export interface InsightProcessingItem {
+  id: number;
+  callRef: string;
+  fileName: string;
+  status: 'pending' | 'processing' | 'done' | 'error';
+  ingestedAt?: string;
+  startedAt?: string;
+  processedAt?: string;
+  errorMsg?: string;
+  queuePosition?: number;
 }
 
 // ---- Dashboard KPIs ----

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import api from '../api/client';
+import type { AiModelPricing, PricingFetchResult } from '../api/types';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -69,13 +70,23 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({ open, onToggle
   const [keyInput, setKeyInput]     = useState('');
   const [savingKey, setSavingKey]   = useState(false);
 
+  // Preço de modelos (Custos IA) — busca automática diária às 02:00 + edição manual
+  const [pricing, setPricing]             = useState<AiModelPricing[]>([]);
+  const [editingPrice, setEditingPrice]   = useState<string | null>(null);
+  const [priceInInput, setPriceInInput]   = useState('');
+  const [priceOutInput, setPriceOutInput] = useState('');
+  const [savingPrice, setSavingPrice]     = useState(false);
+  const [syncing, setSyncing]             = useState(false);
+  const [syncResults, setSyncResults]     = useState<PricingFetchResult[] | null>(null);
+
   // ── Carregar ────────────────────────────────────────────────────────────────
 
   const loadAll = useCallback(async () => {
     try {
-      const [provRes, chainRes] = await Promise.all([
+      const [provRes, chainRes, pricingRes] = await Promise.all([
         api.get<ProviderDef[]>('/ai/providers'),
         api.get<ChainEntry[]>('/ai/chain'),
+        api.get<AiModelPricing[]>('/ai/model-pricing'),
       ]);
       setProviders(provRes.data);
       const grouped: Record<Capability, ChainEntry[]> = { STT: [], LLM: [], TTS: [] };
@@ -84,6 +95,7 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({ open, onToggle
         if (grouped[cap]) grouped[cap].push(e);
       });
       setChains(grouped);
+      setPricing(pricingRes.data);
     } catch {
       showToast('Erro ao carregar configuração de IA', 'error');
     }
@@ -124,6 +136,57 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({ open, onToggle
       showToast('Erro ao salvar key', 'error');
     } finally {
       setSavingKey(false);
+    }
+  };
+
+  // ── Preço de modelos (Custos IA) ────────────────────────────────────────────
+
+  const startEditPrice = (p: AiModelPricing) => {
+    setEditingPrice(p.modelId);
+    setPriceInInput(String(p.pricePerMillionInputUsd));
+    setPriceOutInput(String(p.pricePerMillionOutputUsd));
+  };
+
+  const savePrice = async (modelId: string) => {
+    const input = Number(priceInInput);
+    const output = Number(priceOutInput);
+    if (!Number.isFinite(input) || input < 0 || !Number.isFinite(output) || output < 0) {
+      showToast('Preço inválido — use um número maior ou igual a zero', 'error');
+      return;
+    }
+    setSavingPrice(true);
+    try {
+      await api.put(`/ai/model-pricing/${modelId}`, {
+        pricePerMillionInputUsd: input,
+        pricePerMillionOutputUsd: output,
+      });
+      setEditingPrice(null);
+      await loadAll();
+      showToast('Preço atualizado manualmente', 'success');
+    } catch {
+      showToast('Erro ao salvar preço', 'error');
+    } finally {
+      setSavingPrice(false);
+    }
+  };
+
+  const syncPricesNow = async () => {
+    setSyncing(true);
+    setSyncResults(null);
+    try {
+      const res = await api.post<PricingFetchResult[]>('/ai/model-pricing/sync-now', {});
+      setSyncResults(res.data);
+      await loadAll();
+      const failures = res.data.filter(r => !r.success).length;
+      if (failures > 0) {
+        showToast(`Busca concluída com ${failures} falha(s) — preço anterior mantido`, 'error');
+      } else {
+        showToast('Preços atualizados a partir da página da Google', 'success');
+      }
+    } catch {
+      showToast('Erro ao disparar a busca de preços', 'error');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -397,6 +460,122 @@ export const AISettingsPanel: React.FC<AISettingsPanelProps> = ({ open, onToggle
                     )}
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* ── Preço de modelos (Custos IA) ── */}
+            <div style={{ marginTop: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                  💲 Preço de tokens (Custos IA)
+                </span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>
+                  — usado para estimar o custo de cada chamada (URA e Insights)
+                </span>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+                Buscado automaticamente todo dia às 02:00 na página pública de preços da Google —
+                não é uma API oficial, então em caso de falha o último preço válido é mantido e um
+                alerta é enviado por Telegram (ver Documentação → Insights). Corrija manualmente
+                aqui se desconfiar do valor.
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {pricing.map(p => (
+                  <div key={p.modelId} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 14px', borderRadius: 8,
+                    background: 'var(--bg-input)', border: '1px solid var(--border-glass)',
+                    flexWrap: 'wrap',
+                  }}>
+                    <span style={{
+                      fontWeight: 600, fontSize: '0.8rem', minWidth: 220, flexShrink: 0,
+                      fontFamily: '"JetBrains Mono","Fira Code",monospace',
+                    }}>
+                      {p.modelId}
+                    </span>
+
+                    {editingPrice === p.modelId ? (
+                      <>
+                        <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          Input ($/1M)
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={priceInInput}
+                            onChange={e => setPriceInInput(e.target.value)}
+                            className="form-input"
+                            style={{ width: 90, marginLeft: 6, padding: '4px 8px', fontSize: '0.8rem' }}
+                          />
+                        </label>
+                        <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          Output ($/1M)
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={priceOutInput}
+                            onChange={e => setPriceOutInput(e.target.value)}
+                            className="form-input"
+                            style={{ width: 90, marginLeft: 6, padding: '4px 8px', fontSize: '0.8rem' }}
+                          />
+                        </label>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => savePrice(p.modelId)}
+                          disabled={savingPrice}
+                        >{savingPrice ? '…' : 'Salvar'}</button>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => setEditingPrice(null)}
+                        >Cancelar</button>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: '0.8rem' }}>
+                          Input: <strong>${p.pricePerMillionInputUsd.toFixed(2)}</strong> · Output: <strong>${p.pricePerMillionOutputUsd.toFixed(2)}</strong>
+                        </span>
+                        <span className={`badge ${p.updatedBy === 'auto-fetch' ? 'badge-info' : 'badge-gray'}`} style={{ fontSize: '0.65rem' }}>
+                          {p.updatedBy === 'auto-fetch' ? '🤖 busca automática' : `✍️ manual — ${p.updatedBy ?? '?'}`}
+                        </span>
+                        {p.updatedAt && (
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            {new Date(p.updatedAt).toLocaleString('pt-BR')}
+                          </span>
+                        )}
+                        <div style={{ flex: 1 }} />
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => startEditPrice(p)}
+                        >Editar</button>
+                      </>
+                    )}
+                  </div>
+                ))}
+                {pricing.length === 0 && (
+                  <div style={{
+                    padding: '10px 14px', borderRadius: 8,
+                    background: 'rgba(148,163,184,0.08)',
+                    border: '1px dashed var(--border-glass)',
+                    fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center',
+                  }}>
+                    Nenhum modelo com preço cadastrado ainda
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                {syncResults && syncResults.some(r => !r.success) && (
+                  <span style={{ fontSize: '0.72rem', color: 'var(--clr-danger)' }}>
+                    {syncResults.filter(r => !r.success).map(r => `${r.modelId}: ${r.failureReason}`).join(' · ')}
+                  </span>
+                )}
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={syncPricesNow}
+                  disabled={syncing}
+                >
+                  {syncing ? (
+                    <><span className="spinner" style={{ width: 14, height: 14, display: 'inline-block', marginRight: 6, verticalAlign: 'middle' }} />Buscando…</>
+                  ) : '🔄 Buscar preço agora'}
+                </button>
               </div>
             </div>
           </div>
