@@ -17,7 +17,13 @@ import logging
 from datetime import datetime
 
 from src.audio_decode import decode_to_pcm
-from src.backend_client import get_known_call_refs, submit_insights
+from src.backend_client import (
+    get_known_call_refs,
+    mark_error,
+    mark_processing,
+    register_pending,
+    submit_insights,
+)
 from src.config import (
     AUDIO_DIR,
     MAX_CONCURRENT_PROCESSING,
@@ -94,18 +100,35 @@ def _build_payload(metadata: CallMetadata, pair: AudioPair, diarization, tones: 
     }
 
 
+async def _safe_mark_error(call_ref: str, error_msg: str) -> None:
+    """mark_error nunca deve derrubar o pipeline — se o próprio backend estiver
+    inacessível nesse instante, loga e segue; a chamada só fica invisível na aba
+    Processamento até o próximo ciclo conseguir persistir o erro."""
+    try:
+        await mark_error(call_ref, error_msg)
+    except Exception as e:
+        logger.warning("call_ref=%s: falha ao registrar erro no backend — %s", call_ref, e)
+
+
 async def process_pair(pair: AudioPair) -> None:
     logger.info("Processando call_ref=%s", pair.call_ref)
+    try:
+        await mark_processing(pair.call_ref, pair.wav_path, pair.xml_path)
+    except Exception as e:
+        logger.warning("call_ref=%s: falha ao marcar início de processamento — %s", pair.call_ref, e)
+
     try:
         metadata = parse_call_xml(pair.xml_path)
     except XmlParseError as e:
         logger.error("call_ref=%s: falha ao parsear XML — %s", pair.call_ref, e)
+        await _safe_mark_error(pair.call_ref, f"Falha ao parsear XML: {e}")
         return
 
     try:
         pcm = await decode_to_pcm(pair.wav_path)
     except Exception as e:
         logger.error("call_ref=%s: falha ao decodificar áudio — %s", pair.call_ref, e)
+        await _safe_mark_error(pair.call_ref, f"Falha ao decodificar áudio: {e}")
         return
 
     try:
@@ -118,6 +141,7 @@ async def process_pair(pair: AudioPair) -> None:
         )
     except Exception as e:
         logger.error("call_ref=%s: falha na análise de IA — %s", pair.call_ref, e)
+        await _safe_mark_error(pair.call_ref, f"Falha na análise de IA: {e}")
         return
 
     payload = _build_payload(metadata, pair, diarization, tones, insights)
@@ -126,6 +150,7 @@ async def process_pair(pair: AudioPair) -> None:
         await submit_insights(payload)
     except Exception as e:
         logger.error("call_ref=%s: falha ao enviar resultado ao backend — %s", pair.call_ref, e)
+        await _safe_mark_error(pair.call_ref, f"Falha ao enviar resultado ao backend: {e}")
         return
 
     logger.info("call_ref=%s processado com sucesso (%d segmentos, criticidade=%s)",
@@ -143,19 +168,30 @@ async def _poll_once(semaphore: asyncio.Semaphore) -> None:
         return
 
     pairs = discover_pairs(AUDIO_DIR)
-    new_pairs = [p for p in pairs if p.call_ref not in known_refs]
+    # 'done' -> já processado com sucesso, pula. Qualquer outro caso (nunca visto,
+    # 'pending', 'processing' de um ciclo anterior que não terminou, ou 'error') entra
+    # na fila de novo — mesmo comportamento de retry de sempre, agora com status visível
+    # na aba Processamento em vez de só nos logs do container.
+    to_process = [p for p in pairs if known_refs.get(p.call_ref) != "done"]
 
-    if not new_pairs:
-        logger.debug("Nenhum par novo em %s (%d pares descobertos, todos já conhecidos)", AUDIO_DIR, len(pairs))
+    if not to_process:
+        logger.debug("Nenhum par pendente em %s (%d pares descobertos, todos concluídos)", AUDIO_DIR, len(pairs))
         return
 
-    logger.info("%d par(es) novo(s) para processar", len(new_pairs))
+    novos = [p for p in to_process if p.call_ref not in known_refs]
+    for pair in novos:
+        try:
+            await register_pending(pair.call_ref, pair.wav_path, pair.xml_path)
+        except Exception as e:
+            logger.warning("call_ref=%s: falha ao registrar como pendente — %s", pair.call_ref, e)
+
+    logger.info("%d par(es) a processar (%d novo(s))", len(to_process), len(novos))
 
     async def _bounded(pair: AudioPair) -> None:
         async with semaphore:
             await process_pair(pair)
 
-    await asyncio.gather(*(_bounded(p) for p in new_pairs), return_exceptions=True)
+    await asyncio.gather(*(_bounded(p) for p in to_process), return_exceptions=True)
 
 
 async def poll_loop() -> None:

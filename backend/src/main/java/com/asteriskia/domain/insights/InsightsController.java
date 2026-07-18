@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +32,7 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 public class InsightsController {
 
     private final InsightsQueryService queryService;
+    private final InsightsCostService costService;
 
     @Value("${app.insights.audio-path:/opt/audio}")
     private String insightsAudioPath;
@@ -62,6 +64,52 @@ public class InsightsController {
     @GetMapping("/dashboard")
     public ResponseEntity<InsightsDashboardSummary> dashboard() {
         return ResponseEntity.ok(queryService.dashboard());
+    }
+
+    /** Lista paginada de chamadas com tokens/custo estimado de IA — aba "Custos IA". */
+    @GetMapping("/costs")
+    public ResponseEntity<Page<InsightCostView>> listCosts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String agentName,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "callStarttime"));
+        return ResponseEntity.ok(costService.findCosts(costFilter(agentName, dateFrom, dateTo), pageable));
+    }
+
+    /** Custo de IA agregado por mês — "Dashboard de Custos". */
+    @GetMapping("/costs/summary")
+    public ResponseEntity<List<InsightMonthlyCostSummary>> costsSummary(
+            @RequestParam(required = false) String agentName,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        return ResponseEntity.ok(costService.summarizeByMonth(costFilter(agentName, dateFrom, dateTo)));
+    }
+
+    private static InsightsCostFilter costFilter(String agentName, LocalDate dateFrom, LocalDate dateTo) {
+        return new InsightsCostFilter(
+                dateFrom != null ? LocalDateTime.of(dateFrom, LocalTime.MIN) : null,
+                dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null,
+                agentName);
+    }
+
+    /** Aba "Processamento" — status/fila de cada arquivo .wav/.xml descoberto em /opt/audio. */
+    @GetMapping("/processing")
+    public ResponseEntity<Page<InsightProcessingItem>> listProcessing(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String fileName,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "ingestedAt"));
+        InsightsProcessingFilter filter = new InsightsProcessingFilter(
+                status,
+                dateFrom != null ? LocalDateTime.of(dateFrom, LocalTime.MIN) : null,
+                dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null,
+                fileName);
+        return ResponseEntity.ok(queryService.findProcessing(filter, pageable));
     }
 
     /**

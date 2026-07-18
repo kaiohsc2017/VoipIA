@@ -81,6 +81,9 @@ public class CallAudioFile {
     @Column(name = "ingested_at", insertable = false, updatable = false)
     private LocalDateTime ingestedAt;
 
+    @Column(name = "started_at")
+    private LocalDateTime startedAt;
+
     @Column(name = "processed_at")
     private LocalDateTime processedAt;
 

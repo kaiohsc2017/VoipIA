@@ -1,6 +1,7 @@
 import DocsLayout from './docs/DocsLayout';
 import Instalacao from './docs/sections/Instalacao';
 import TelecomModulos from './docs/sections/TelecomModulos';
+import TelecomInsights from './docs/sections/TelecomInsights';
 import TelecomRBAC from './docs/sections/TelecomRBAC';
 import Introducao from './docs/sections/Introducao';
 import AgentesDashboard from './docs/sections/AgentesDashboard';
@@ -17,6 +18,7 @@ export default function Documentacao() {
     <DocsLayout>
       <Instalacao />
       <TelecomModulos />
+      <TelecomInsights />
       <TelecomRBAC />
       <Introducao />
       <AgentesDashboard />

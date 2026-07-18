@@ -7,6 +7,7 @@ import type { AccessGroup, AccessGroupPermission, AccessGroupRequest } from '../
 const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agentes' }[] = [
   { key: 'telecom.dashboard',    label: 'Dashboard',              system: 'Telecom' },
   { key: 'telecom.modulo1',      label: 'URA',                    system: 'Telecom' },
+  { key: 'telecom.insights',     label: 'Insights',               system: 'Telecom' },
   { key: 'telecom.modulo2',      label: 'Conectividade',          system: 'Telecom' },
   { key: 'telecom.modulo3',      label: 'Monitoramento',          system: 'Telecom' },
   { key: 'telecom.agents_link',  label: 'Agentes (link de nav)',  system: 'Telecom' },

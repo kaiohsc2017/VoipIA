@@ -107,8 +107,62 @@ public class InsightsIngestionService {
         return audioFile;
     }
 
-    public List<String> knownCallRefs() {
-        return audioFileRepository.findAllCallRefs();
+    public List<CallStatusRef> knownCallRefs() {
+        return audioFileRepository.findAllRefsAndStatus();
+    }
+
+    /**
+     * Registra um par .wav+.xml recém-descoberto em /opt/audio, status='pending'. Chamado pelo
+     * watcher Python ANTES de entrar na fila de processamento (não no início do processamento em
+     * si — ver markProcessing) — só assim a chamada aparece na aba "Processamento" mesmo antes de
+     * começar a rodar. Idempotente: se já existir (corrida entre ciclos de poll), não sobrescreve
+     * o status atual (evita voltar 'processing'/'done'/'error' pra 'pending' por engano).
+     */
+    @Transactional
+    public void registerPending(String callRef, String wavPath, String xmlPath) {
+        boolean isNew = audioFileRepository.findByCallRef(callRef).isEmpty();
+        if (!isNew) {
+            return;
+        }
+        audioFileRepository.save(CallAudioFile.builder()
+                .callRef(callRef)
+                .wavPath(wavPath)
+                .xmlPath(xmlPath)
+                .status("pending")
+                .build());
+    }
+
+    /** Marca o início do processamento de fato (retirada da fila) — chamado no início de
+     * process_pair() no watcher Python, tanto pra chamadas novas quanto pra retries de erro. */
+    @Transactional
+    public void markProcessing(String callRef, String wavPath, String xmlPath) {
+        CallAudioFile audioFile = audioFileRepository.findByCallRef(callRef)
+                .orElseGet(() -> CallAudioFile.builder().callRef(callRef).build());
+        // wavPath/xmlPath só chegam preenchidos quando a chamada nunca foi vista antes
+        // (registerPending não rodou) — nunca sobrescrever com null um valor já persistido.
+        if (wavPath != null) {
+            audioFile.setWavPath(wavPath);
+        }
+        if (xmlPath != null) {
+            audioFile.setXmlPath(xmlPath);
+        }
+        audioFile.setStatus("processing");
+        audioFile.setStartedAt(LocalDateTime.now());
+        audioFile.setErrorMsg(null);
+        audioFileRepository.save(audioFile);
+    }
+
+    /** Marca falha — chamado em qualquer exceção do pipeline Python (parse XML, decode de áudio,
+     * falha de IA, falha ao enviar o resultado final). Sem isso, chamadas com erro nunca ficavam
+     * visíveis (só nos logs do container) e o watcher as reprocessava para sempre, silenciosamente. */
+    @Transactional
+    public void markError(String callRef, String errorMsg) {
+        CallAudioFile audioFile = audioFileRepository.findByCallRef(callRef)
+                .orElseGet(() -> CallAudioFile.builder().callRef(callRef).build());
+        audioFile.setStatus("error");
+        audioFile.setErrorMsg(errorMsg);
+        audioFile.setProcessedAt(LocalDateTime.now());
+        audioFileRepository.save(audioFile);
     }
 
     private String toJsonString(JsonNode node) {

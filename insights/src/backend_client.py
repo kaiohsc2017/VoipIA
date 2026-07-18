@@ -48,12 +48,41 @@ async def _request_with_retry(method: str, url: str, **kwargs) -> httpx.Response
     raise last_error
 
 
-async def get_known_call_refs() -> set[str]:
-    """Busca no backend os call_ref já conhecidos (em qualquer status), para o
-    watcher não reprocessar pares já descobertos em ciclos de poll anteriores."""
+async def get_known_call_refs() -> dict[str, str]:
+    """Busca no backend os call_ref já conhecidos + status atual de cada um (pending/
+    processing/done/error). O watcher usa isso pra decidir: 'done' -> pular; qualquer
+    outro status -> (re)processar."""
     resp = await _request_with_retry("GET", f"{BACKEND_URL}/api/v1/internal/insights/known-refs")
     data = resp.json()
-    return set(data.get("callRefs", []))
+    return {c["callRef"]: c["status"] for c in data.get("calls", [])}
+
+
+async def register_pending(call_ref: str, wav_path: str, xml_path: str) -> None:
+    """Registra um par .wav+.xml recém-descoberto, status='pending' — chamado ANTES de
+    entrar na fila de processamento, pra aparecer na aba Processamento mesmo antes de
+    começar a rodar. Idempotente no lado do backend (não sobrescreve status existente)."""
+    await _request_with_retry(
+        "POST", f"{BACKEND_URL}/api/v1/internal/insights/{call_ref}/pending",
+        json={"wavPath": wav_path, "xmlPath": xml_path},
+    )
+
+
+async def mark_processing(call_ref: str, wav_path: str | None = None, xml_path: str | None = None) -> None:
+    """Marca o início real do processamento (retirada da fila) — chamado no início de
+    process_pair(), tanto pra chamadas novas quanto pra retries de erro."""
+    await _request_with_retry(
+        "POST", f"{BACKEND_URL}/api/v1/internal/insights/{call_ref}/processing",
+        json={"wavPath": wav_path, "xmlPath": xml_path},
+    )
+
+
+async def mark_error(call_ref: str, error_msg: str) -> None:
+    """Marca falha no processamento — sem isso, erros nunca ficavam visíveis (só nos logs
+    do container) e o watcher reprocessava a mesma chamada pra sempre, silenciosamente."""
+    await _request_with_retry(
+        "POST", f"{BACKEND_URL}/api/v1/internal/insights/{call_ref}/error",
+        json={"errorMsg": error_msg[:2000]},
+    )
 
 
 async def submit_insights(payload: dict) -> None:

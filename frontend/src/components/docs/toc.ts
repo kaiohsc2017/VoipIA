@@ -29,6 +29,7 @@ export const TOC: TocGroup[] = [
       { id: 'telecom-ura', label: 'Módulo 1 — URA' },
       { id: 'telecom-conectividade', label: 'Módulo 2 — Conectividade' },
       { id: 'telecom-alertas', label: 'Módulo 3 — Alertas Zabbix' },
+      { id: 'telecom-insights', label: 'Insights (Transcrição/IA)' },
       { id: 'telecom-rbac', label: 'Grupos de Acesso (RBAC)' },
       { id: 'telecom-softphone', label: 'Softphone e Ramais' },
     ],

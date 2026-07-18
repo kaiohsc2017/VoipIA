@@ -3,6 +3,7 @@ package com.asteriskia.domain.insights;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -78,6 +79,37 @@ public class InsightsQueryService {
         }
 
         return new InsightsDashboardSummary(total, porCriticidade, porCategoria, achadosPorTipo);
+    }
+
+    /** Aba "Processamento" — status/fila de cada arquivo descoberto em /opt/audio. Posição na
+     * fila calculada só para status='pending' (FIFO por ordem de descoberta); demais status
+     * ficam com queuePosition=null. */
+    public Page<InsightProcessingItem> findProcessing(InsightsProcessingFilter filter, Pageable pageable) {
+        Page<CallAudioFile> page = audioFileRepository.findAll(withProcessingFilters(filter), pageable);
+        return page.map(a -> InsightProcessingItem.from(a,
+                "pending".equals(a.getStatus()) && a.getIngestedAt() != null
+                        ? (int) audioFileRepository.countPendingBefore(a.getIngestedAt()) + 1
+                        : null));
+    }
+
+    private Specification<CallAudioFile> withProcessingFilters(InsightsProcessingFilter filter) {
+        return (root, query, cb) -> {
+            var predicates = cb.conjunction();
+            if (filter.status() != null && !filter.status().isBlank()) {
+                predicates = cb.and(predicates, cb.equal(root.get("status"), filter.status()));
+            }
+            if (filter.dateFrom() != null) {
+                predicates = cb.and(predicates, cb.greaterThanOrEqualTo(root.get("ingestedAt"), filter.dateFrom()));
+            }
+            if (filter.dateTo() != null) {
+                predicates = cb.and(predicates, cb.lessThanOrEqualTo(root.get("ingestedAt"), filter.dateTo()));
+            }
+            if (filter.fileName() != null && !filter.fileName().isBlank()) {
+                predicates = cb.and(predicates,
+                        cb.like(cb.lower(root.get("wavPath")), "%" + filter.fileName().toLowerCase() + "%"));
+            }
+            return predicates;
+        };
     }
 
     private List<Long> resolveRestrictedIds(InsightsFilter filter) {
