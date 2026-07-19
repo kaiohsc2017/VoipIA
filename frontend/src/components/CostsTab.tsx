@@ -17,19 +17,29 @@ function formatTokens(value: number) {
   return value.toLocaleString('pt-BR');
 }
 
+interface CostsTabProps {
+  uras: Ura[];
+  /** Preenchidos pelo drill-down do Dashboard de Custos (mês clicado). */
+  initialDateFrom?: string;
+  initialDateTo?: string;
+  /** Avisa o pai (ModuloURA) que o drill-down já foi aplicado, para não "grudar" numa
+   * troca de aba manual seguinte (o pai zera o range guardado). */
+  onInitialFiltersConsumed?: () => void;
+}
+
 /** Aba "Custos IA" — lista paginada de chamadas com tokens consumidos e custo estimado,
  * no mesmo padrão de filtros/paginação da aba Chamadas (ModuloURA). */
-export function CostsTab({ uras }: { uras: Ura[] }) {
+export function CostsTab({ uras, initialDateFrom, initialDateTo, onInitialFiltersConsumed }: CostsTabProps) {
   const [costs, setCosts] = useState<CallCostView[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(!!(initialDateFrom || initialDateTo));
   const [uraFilter, setUraFilter] = useState('');
   const [clientNameFilter, setClientNameFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(initialDateFrom ?? '');
+  const [dateTo, setDateTo] = useState(initialDateTo ?? '');
 
   const hasActiveFilters = !!(uraFilter || clientNameFilter || dateFrom || dateTo);
 
@@ -53,8 +63,13 @@ export function CostsTab({ uras }: { uras: Ura[] }) {
       .finally(() => setLoading(false));
   };
 
-  // Filtros só recarregam via botão "Aplicar filtros"/clearFilters, não a cada digitação — mount-only intencional.
-  useEffect(() => { loadCosts(0); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Filtros só recarregam via botão "Aplicar filtros"/clearFilters, não a cada digitação — mount-only
+  // intencional. Usa os valores iniciais (drill-down do Dashboard de Custos) já no primeiro load e
+  // avisa o pai que o drill-down foi consumido, para não reaplicar numa troca de aba manual futura.
+  useEffect(() => {
+    loadCosts(0, { uraFilter, clientNameFilter, dateFrom, dateTo });
+    onInitialFiltersConsumed?.();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const clearFilters = () => {
     setUraFilter(''); setClientNameFilter(''); setDateFrom(''); setDateTo('');

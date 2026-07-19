@@ -334,4 +334,13 @@ export const RELEASES: ReleaseEntry[] = [
       'Grupos de Acesso: tela de administração passa a listar os recursos granulares de Insights (Chamadas, Dashboard, Processamento, Custos IA) e o item de menu, em vez do recurso antigo já removido — antes o toggle de Insights nessa tela não tinha mais efeito nenhum.',
     ],
   },
+  {
+    version: 'v1.38',
+    date: '2026-07-19',
+    changes: [
+      'URA → Dashboard de Custos: gráfico passa a mostrar sempre os 12 meses do ano corrente (Janeiro a Dezembro), com tamanho fixo — antes crescia indefinidamente conforme o histórico acumulava, ficando desproporcional.',
+      'URA → Dashboard de Custos: clicar num mês do gráfico leva direto para a aba Custos IA já filtrada pelo período daquele mês (mesmo drill-down já existente no Dashboard de Chamadas e no Ranking de Atendimentos).',
+      'Insights → Dashboard de Custos: mesmo tratamento — gráfico fixo no ano corrente e clique no mês leva para a aba Custos já filtrada.',
+    ],
+  },
 ];

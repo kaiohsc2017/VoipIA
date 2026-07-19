@@ -63,6 +63,7 @@ export default function App() {
 
   const [tab, setTab] = useState<Tab>('calls');
   const [pendingDrillDown, setPendingDrillDown] = useState<{ filters: InsightsDrillDownFilters; nonce: number } | null>(null);
+  const [costsRange, setCostsRange] = useState<{ dateFrom: string; dateTo: string } | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Escuta logout forçado (token expirado / 401) — mesmo padrão do Telecom.
@@ -92,6 +93,13 @@ export default function App() {
   };
 
   const handleDrillDownConsumed = () => setPendingDrillDown(null);
+
+  /** Drill-down vindo do Dashboard de Custos: troca para a aba Custos já com o range
+   * do mês clicado. */
+  const handleCostsDrillDown = (filters: InsightsDrillDownFilters) => {
+    setCostsRange({ dateFrom: filters.dateFrom ?? '', dateTo: filters.dateTo ?? '' });
+    setTab('costs');
+  };
 
   if (!token) {
     return (
@@ -128,8 +136,15 @@ export default function App() {
             {currentTab === 'calls' && <InsightsTab pendingDrillDown={pendingDrillDown} onDrillDownConsumed={handleDrillDownConsumed} />}
             {currentTab === 'dashboard' && <InsightsDashboardTab onDrillDown={handleDrillDown} />}
             {currentTab === 'processing' && <InsightsProcessingTab onDrillDown={handleDrillDown} />}
-            {currentTab === 'costs' && <InsightsCostsTab onDrillDown={handleDrillDown} />}
-            {currentTab === 'costsDashboard' && <InsightsCostsDashboardTab />}
+            {currentTab === 'costs' && (
+              <InsightsCostsTab
+                onDrillDown={handleDrillDown}
+                initialDateFrom={costsRange?.dateFrom}
+                initialDateTo={costsRange?.dateTo}
+                onInitialFiltersConsumed={() => setCostsRange(null)}
+              />
+            )}
+            {currentTab === 'costsDashboard' && <InsightsCostsDashboardTab onDrillDown={handleCostsDrillDown} />}
             {!currentTab && (
               <p style={{ color: 'var(--text-muted)' }}>Você não tem permissão de leitura em nenhuma aba do Insights.</p>
             )}

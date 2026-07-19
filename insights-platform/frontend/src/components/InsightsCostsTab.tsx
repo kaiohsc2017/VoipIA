@@ -18,18 +18,28 @@ function formatTokens(value: number) {
   return value.toLocaleString('pt-BR');
 }
 
+interface InsightsCostsTabProps {
+  onDrillDown: (filters: InsightsDrillDownFilters) => void;
+  /** Preenchidos pelo drill-down do Dashboard de Custos (mês clicado). */
+  initialDateFrom?: string;
+  initialDateTo?: string;
+  /** Avisa o pai (App) que o drill-down já foi aplicado, para não "grudar" numa troca
+   * de aba manual seguinte (o pai zera o range guardado). */
+  onInitialFiltersConsumed?: () => void;
+}
+
 /** Aba "Custos IA" de Insights — mirror exato de CostsTab.tsx (URA), sem filtro de URA
  * (Insights não tem) — trocado por filtro de atendente. Só STT+LLM, sem TTS. */
-export function InsightsCostsTab({ onDrillDown }: { onDrillDown: (filters: InsightsDrillDownFilters) => void }) {
+export function InsightsCostsTab({ onDrillDown, initialDateFrom, initialDateTo, onInitialFiltersConsumed }: InsightsCostsTabProps) {
   const [costs, setCosts] = useState<InsightCostView[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(!!(initialDateFrom || initialDateTo));
   const [agentNameFilter, setAgentNameFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(initialDateFrom ?? '');
+  const [dateTo, setDateTo] = useState(initialDateTo ?? '');
 
   const hasActiveFilters = !!(agentNameFilter || dateFrom || dateTo);
 
@@ -52,8 +62,13 @@ export function InsightsCostsTab({ onDrillDown }: { onDrillDown: (filters: Insig
       .finally(() => setLoading(false));
   };
 
-  // Filtros só recarregam via botão "Aplicar filtros"/clearFilters, não a cada digitação — mount-only intencional.
-  useEffect(() => { loadCosts(0); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Filtros só recarregam via botão "Aplicar filtros"/clearFilters, não a cada digitação — mount-only
+  // intencional. Usa os valores iniciais (drill-down do Dashboard de Custos) já no primeiro load e
+  // avisa o pai que o drill-down foi consumido, para não reaplicar numa troca de aba manual futura.
+  useEffect(() => {
+    loadCosts(0, { agentNameFilter, dateFrom, dateTo });
+    onInitialFiltersConsumed?.();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const clearFilters = () => {
     setAgentNameFilter(''); setDateFrom(''); setDateTo('');

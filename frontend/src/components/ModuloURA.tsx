@@ -29,6 +29,7 @@ export default function ModuloURA() {
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
   const [detailCall, setDetailCall] = useState<CallRecord | null>(null);
+  const [costsRange, setCostsRange] = useState<{ dateFrom: string; dateTo: string } | null>(null);
 
   // Filtros avançados (colapsáveis)
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -115,6 +116,13 @@ export default function ModuloURA() {
     setDateTo(filters.dateTo ?? '');
     setFiltersOpen(true);
     setTab('calls');
+  };
+
+  /** Drill-down vindo do Dashboard de Custos: troca para a aba Custos IA já com o
+   * range do mês clicado. */
+  const handleCostsDrillDown = (filters: RankingDrillDownFilters) => {
+    setCostsRange({ dateFrom: filters.dateFrom ?? '', dateTo: filters.dateTo ?? '' });
+    setTab('costs');
   };
 
   const priorityBadge = (value?: string) => {
@@ -487,10 +495,17 @@ export default function ModuloURA() {
         {tab === 'uras' && <UraManagementTab />}
 
         {/* ---- CUSTOS IA TAB ---- */}
-        {tab === 'costs' && <CostsTab uras={uras} />}
+        {tab === 'costs' && (
+          <CostsTab
+            uras={uras}
+            initialDateFrom={costsRange?.dateFrom}
+            initialDateTo={costsRange?.dateTo}
+            onInitialFiltersConsumed={() => setCostsRange(null)}
+          />
+        )}
 
         {/* ---- DASHBOARD DE CUSTOS TAB ---- */}
-        {tab === 'costsDashboard' && <CostsDashboardTab uras={uras} />}
+        {tab === 'costsDashboard' && <CostsDashboardTab uras={uras} onDrillDown={handleCostsDrillDown} />}
 
       </div>
     </>

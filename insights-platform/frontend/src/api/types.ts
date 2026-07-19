@@ -109,6 +109,8 @@ export interface InsightsDrillDownFilters {
   categoria?: string;
   criticidade?: string;
   findingType?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 // ---- Insights — aba "Custos IA" / "Dashboard de Custos" ----
