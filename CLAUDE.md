@@ -240,11 +240,12 @@ Plataforma de Agentes (abrindo `/agents/docs.html`) foi removido — o acesso ag
   `require_admin` nos endpoints de escrita de `agents`/`servers`/`llm_config`/secrets de `system`;
   `require_admin` puro sobrevive só pra retenção (sem menu) e logs de execução em `executions.py`
   (risco de leak de DSN/senha em mensagem de erro, não uma decisão de visibilidade de menu).
-- **Frontend**: `client.ts` (`getPermissionsFromToken`/`canRead`/`canWrite`) e o equivalente
-  `getPermissions()`/`canRead()`/`canWrite()` no `agents-platform/frontend/index.html` decodificam
-  a claim `perm` do JWT (sem validar assinatura — é só hint de UI) para esconder nav/botões por
-  recurso. ADMIN (`role` legada) sempre enxerga tudo, mesmo com token antigo sem `perm`.
-  `Sidebar.tsx`/`App.tsx` e o `NAV` de Agentes usam esse par em vez do binário `adminOnly`.
+- **Frontend**: `client.ts` (`getPermissionsFromToken`/`canRead`/`canWrite`) — hoje replicado nas
+  três SPAs (Telecom, Insights e Agentes, `agents-platform/frontend/src/api/client.ts` desde a
+  migração para Vite) — decodifica a claim `perm` do JWT (sem validar assinatura — é só hint de
+  UI) para esconder nav/botões por recurso. ADMIN (`role` legada) sempre enxerga tudo, mesmo com
+  token antigo sem `perm`. `Sidebar.tsx`/`App.tsx` das três SPAs usam esse par em vez do binário
+  `adminOnly`.
 - **Pendência conhecida**: `Users.tsx` ainda atribui `role` ADMIN|USER na criação/edição (o
   `UserController` resolve pro grupo "Administradores"/"Usuários" internamente) — atribuir um
   grupo customizado a um usuário pela UI ainda não existe, é a próxima iteração natural.
@@ -300,8 +301,8 @@ AsteriskIA/
 │       └── integration/
 │           └── jira/            # JiraIntegrationService — REST API v3
 ├── frontend/
-│   ├── Dockerfile               # Multi-stage: node:22-alpine (Telecom) → node:22-alpine (Insights) → nginx:1.27-alpine
-│   ├── nginx.conf               # SPA fallback + proxy /agents/api, /agents/ws + location /insights/ (alias)
+│   ├── Dockerfile               # Multi-stage: node:22-alpine (Telecom) → node:22-alpine (Insights) → node:22-alpine (Agentes) → nginx:1.27-alpine
+│   ├── nginx.conf               # SPA fallback + proxy /agents/api, /agents/ws + location /insights/ e /agents/ (alias)
 │   └── src/
 │       └── components/          # Dashboard, Settings, AISettingsPanel, Softphone, InsightsPage.tsx (iframe /insights/)… (inclui docs/ — Documentacao.tsx, migrado de agents-platform/frontend/docs.html)
 ├── agents-platform/
@@ -313,13 +314,16 @@ AsteriskIA/
 │   │   ├── notifier.py          # Telegram + webhook
 │   │   ├── llm.py               # Multi-provider LLM
 │   │   └── routers/             # agents, servers, executions, reports, knowledge, llm_config, system
-│   └── frontend/
-│       ├── index.html           # React 18 UMD — SPA sem build step
-│       └── js/                  # React 18 UMD local
+│   └── frontend/                # Vite+React+TS, build próprio (migrado do React 18 UMD sem build
+│                                 # step em 2026-07-19 — mesmo padrão da SPA de Insights); 8 telas em
+│                                 # src/components/ (Dashboard/Agents/Servers/Knowledge/Logs/Alerts/
+│                                 # Secrets/LlmSettings + AgentForm); backend FastAPI inalterado —
+│                                 # api/client.ts tem dois axios (agents-backend + telecomApi p/
+│                                 # login e streaming-token do WS de alertas)
 ├── insights-platform/
 │   └── frontend/                # SPA independente de Insights (Vite+React, build próprio) — reusa o
 │                                 # backend Java (/api/v1/insights/**), servida em /insights pelo mesmo
-│                                 # nginx do frontend Telecom (padrão análogo ao agents-platform, mas
+│                                 # nginx do frontend Telecom (mesmo padrão do agents-platform, mas
 │                                 # sem backend próprio); componentes Insights*.tsx copiados do Telecom
 ├── security/
 │   ├── Dockerfile
@@ -430,6 +434,31 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > de verificação de sempre continuam válidos: `SIP_PUBLIC_IP` injetado no `pjsip.conf`,
 > `external_media_address`/`external_signaling_address` não vazios, portas RTP `15000-15500/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
+
+### ✅ Agentes migrado de React UMD (single-file) para Vite+TS (2026-07-19) — implementado, pendente deploy/validação em produção
+Plano completo em `.claude/plans/agentes-migracao-vite-spa.plan.md` (9 fases). O antigo
+`agents-platform/frontend/index.html` (1688 linhas, React 18 UMD sem build step, `js/` com
+`react`/`react-dom` vendorizados manualmente) virou um projeto Vite+React+TypeScript completo,
+mesmo padrão da SPA de Insights — 8 telas em `src/components/` (`DashboardTab`, `AgentsTab` +
+`AgentForm`, `ServersTab`, `KnowledgeTab`, `LogsTab`, `AlertsTab`, `SecretsTab`,
+`LlmSettingsTab`), `Sidebar.tsx`/`Login.tsx`/`useAuthSession.ts` copiados/adaptados de
+`insights-platform/frontend`. **Backend FastAPI não mudou nada** — `agents-platform/backend/`
+continua exatamente como estava; o novo `api/client.ts` tem **dois** clientes axios porque
+Agentes fala com dois backends: `api` (agents-backend, `baseURL:'/agents'`, sem envelope de
+resposta, paginação offset/limit, erros em `{detail: string|array}`) e `telecomApi` (backend
+Java, só para login e para obter o token de streaming do WebSocket de alertas — Agentes não tem
+login nem refresh-token próprios).
+- **3 correções confirmadas com o usuário** (além da troca de tecnologia): (1) login de Agentes
+  passa a suportar 2FA (antes recusava mesmo com o usuário tendo ativado); (2) Base de
+  Conhecimento/Secrets/Config. IA passam a esconder botões de escrita de quem só tem leitura
+  (antes só Agentes/Servidores faziam esse gating — o backend sempre bloqueou certo via
+  `require_permission`, era só a UI que não escondia); (3) gráfico de disponibilidade por agente
+  no Dashboard passa a usar `recharts` (antes eram barras de progresso CSS puro).
+- `frontend/Dockerfile` ganhou um 3º estágio de build (`agents-builder`, espelhando
+  `insights-builder`) — `Caddyfile`/`frontend/nginx.conf` **não mudaram** (o roteamento por path
+  já era compatível, achado confirmado na pesquisa antes de implementar).
+- **Pendente**: deploy real (`docker compose build/up frontend`) e validação manual no navegador
+  (login com 2FA, WebSocket de alertas, as 8 telas, CRUDs) — sem acesso a browser nesta sessão.
 
 ### ✅ Insights virou SPA independente (2026-07-19) — implementado, pendente deploy/validação em produção
 Plano completo em `.claude/plans/insights-spa-independente.plan.md` (5 fases) e memória

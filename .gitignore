@@ -46,6 +46,8 @@ frontend/.env.test.local
 frontend/.env.production.local
 insights-platform/frontend/node_modules/
 insights-platform/frontend/dist/
+agents-platform/frontend/node_modules/
+agents-platform/frontend/dist/
 
 # --- IDEs ---
 .idea/

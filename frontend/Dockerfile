@@ -61,7 +61,26 @@ ENV VITE_API_URL=$VITE_API_URL
 
 RUN npm run build
 
-# ---------- Stage 3: Nginx ----------
+# ---------- Stage 3: Build da SPA de Agentes ----------
+FROM node:22-alpine AS agents-builder
+
+WORKDIR /app
+
+COPY agents-platform/frontend/package.json agents-platform/frontend/package-lock.json* ./
+RUN npm ci --silent
+
+COPY agents-platform/frontend/ .
+
+# VITE_API_URL aponta pro backend Telecom (login + streaming-token do WS de
+# alertas) — o backend próprio de Agentes (FastAPI) é acessado via
+# VITE_AGENTS_API_URL, default '/agents' (relativo, mesma origem, atrás do
+# Caddy @agents-api) — não precisa de build arg em produção.
+ARG VITE_API_URL=https://app.voiphash.com.br/api/v1
+ENV VITE_API_URL=$VITE_API_URL
+
+RUN npm run build
+
+# ---------- Stage 4: Nginx ----------
 FROM nginx:1.27-alpine
 
 # Remove default config
@@ -73,12 +92,11 @@ COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 # Copia build estático do Telecom
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copia arquivos estáticos da plataforma de Agentes
-COPY agents-platform/frontend/index.html /usr/share/nginx/html/agents/index.html
-COPY agents-platform/frontend/js         /usr/share/nginx/html/agents/js
-
 # Copia build da SPA de Insights
 COPY --from=insights-builder /app/dist /usr/share/nginx/html/insights
+
+# Copia build da SPA de Agentes
+COPY --from=agents-builder /app/dist /usr/share/nginx/html/agents
 
 # Achado de segurança (débito aceito): master process do nginx rodava como
 # root (necessário só pra bindar a porta 80, <1024). Roda como o usuário

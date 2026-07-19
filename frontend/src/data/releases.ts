@@ -316,4 +316,14 @@ export const RELEASES: ReleaseEntry[] = [
       'Insights → Processamento: clicar numa linha já concluída faz o mesmo (chamadas ainda pendentes/em processamento não têm o que abrir; linhas com erro continuam expandindo a mensagem de erro).',
     ],
   },
+  {
+    version: 'v1.36',
+    date: '2026-07-19',
+    changes: [
+      'Agentes: frontend reescrito do zero em Vite + React + TypeScript (antes era um único arquivo HTML sem build), seguindo o mesmo padrão já usado em Insights — mesmas 8 telas (Dashboard, Agentes, Servidores, Base de Conhecimento, Logs, Alertas, Secrets, Config. IA), mesma API do backend (inalterado).',
+      'Agentes: tela de login passa a suportar autenticação em duas etapas (2FA), que antes era recusada nessa tela mesmo com o usuário tendo ativado.',
+      'Agentes: Base de Conhecimento, Secrets e Config. IA passam a esconder os botões de escrita (adicionar/remover/salvar) de quem só tem permissão de leitura — antes só as telas de Agentes e Servidores faziam essa checagem.',
+      'Agentes → Dashboard: gráfico de disponibilidade por agente ganhou visual mais rico (antes eram barras de progresso simples).',
+    ],
+  },
 ];
