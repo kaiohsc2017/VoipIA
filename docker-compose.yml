@@ -323,6 +323,16 @@ services:
       - fail2ban_socket:/var/run/fail2ban
       - security_cmds:/var/run/asteriskia-security
       - /opt/AsteriskIA/security/config:/opt/asteriskia/security/config
+      # fail2ban-client (usado por FailToBanClient) lê seu PRÓPRIO
+      # /etc/fail2ban/jail.d local pra saber quais jails existem antes de
+      # falar com o daemon via socket — sem isso ele só enxerga o jail.d
+      # padrão do pacote (sshd com backend=systemd, que não inicializa num
+      # container), e TODO "reload"/"reload <jail>" falha silenciosamente
+      # (SecurityController não valida o retorno). Precisa ser o mesmo
+      # jail.d/filter.d real, senão "No section: 'asterisk-auth'".
+      - ./security/config/jail.d:/etc/fail2ban/jail.d:ro
+      - ./security/config/filter.d:/etc/fail2ban/filter.d:ro
+      - asterisk_log:/var/log/asterisk:ro
       - /opt/audio:/opt/audio:ro
       # Achado de segurança: montava o diretório security/ INTEIRO em RW,
       # incluindo entrypoint.sh/lockdown-watcher.sh — um RCE no backend
