@@ -41,6 +41,7 @@ public class InsightsController {
     public ResponseEntity<Page<InsightsListItem>> listCalls(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Long id,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(required = false) String text,
@@ -57,6 +58,7 @@ public class InsightsController {
             @RequestParam(required = false) Integer durationMax) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "callStarttime"));
         InsightsFilter filter = new InsightsFilter(
+                id,
                 dateFrom != null ? LocalDateTime.of(dateFrom, LocalTime.MIN) : null,
                 dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null,
                 text, phrase, toneCliente, toneAtendente, categoria, criticidade, findingType,

@@ -2,12 +2,13 @@ import { useEffect, useState, Component, type ReactNode } from 'react';
 import Login from './components/Login';
 import Sidebar, { type Tab } from './components/Sidebar';
 import { InsightsTab } from './components/InsightsTab';
-import { InsightsDashboardTab, type InsightsDrillDownFilters } from './components/InsightsDashboardTab';
+import { InsightsDashboardTab } from './components/InsightsDashboardTab';
 import { InsightsProcessingTab } from './components/InsightsProcessingTab';
 import { InsightsCostsTab } from './components/InsightsCostsTab';
 import { InsightsCostsDashboardTab } from './components/InsightsCostsDashboardTab';
 import { revokeSession } from './api/client';
 import { authSessionFromToken } from './hooks/useAuthSession';
+import type { InsightsDrillDownFilters } from './api/types';
 
 // Resource keys do namespace RBAC granular `insights.*` — espelha o namespace
 // `agents.*` da Plataforma de Agentes (ResourceCatalog.java). Mantido em
@@ -126,8 +127,8 @@ export default function App() {
           <div className="page-body">
             {currentTab === 'calls' && <InsightsTab pendingDrillDown={pendingDrillDown} onDrillDownConsumed={handleDrillDownConsumed} />}
             {currentTab === 'dashboard' && <InsightsDashboardTab onDrillDown={handleDrillDown} />}
-            {currentTab === 'processing' && <InsightsProcessingTab />}
-            {currentTab === 'costs' && <InsightsCostsTab />}
+            {currentTab === 'processing' && <InsightsProcessingTab onDrillDown={handleDrillDown} />}
+            {currentTab === 'costs' && <InsightsCostsTab onDrillDown={handleDrillDown} />}
             {currentTab === 'costsDashboard' && <InsightsCostsDashboardTab />}
             {!currentTab && (
               <p style={{ color: 'var(--text-muted)' }}>Você não tem permissão de leitura em nenhuma aba do Insights.</p>

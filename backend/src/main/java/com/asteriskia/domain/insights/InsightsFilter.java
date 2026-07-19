@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
  * Qualquer campo nulo/em branco é ignorado na query.
  */
 public record InsightsFilter(
+        Long id,
         LocalDateTime dateFrom,
         LocalDateTime dateTo,
         String text,

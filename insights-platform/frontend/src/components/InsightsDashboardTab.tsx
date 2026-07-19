@@ -3,7 +3,7 @@ import api from '../api/client';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import type { InsightsDashboardSummary } from '../api/types';
+import type { InsightsDashboardSummary, InsightsDrillDownFilters } from '../api/types';
 
 const FINDING_LABELS: Record<string, string> = {
   melhoria: 'Melhorias',
@@ -11,14 +11,6 @@ const FINDING_LABELS: Record<string, string> = {
   treinamento: 'Treinamento',
   tendencia: 'Tendências',
 };
-
-/** Filtros de drill-down do Dashboard de Tendências pra aba "Chamadas" — mesmo
- * padrão de RankingDrillDownFilters (URA/RankingTab.tsx). */
-export interface InsightsDrillDownFilters {
-  categoria?: string;
-  criticidade?: string;
-  findingType?: string;
-}
 
 /** Dashboard de tendências — achados agregados (falhas/melhorias/treinamento) e
  * categorias mais frequentes, na mesma linha visual do CostsDashboardTab.

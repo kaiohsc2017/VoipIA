@@ -20,6 +20,9 @@ public final class InsightsSpecifications {
         return (root, query, cb) -> {
             var predicates = cb.conjunction();
 
+            if (filter.id() != null) {
+                predicates = cb.and(predicates, cb.equal(root.get("id"), filter.id()));
+            }
             if (filter.dateFrom() != null) {
                 predicates = cb.and(predicates, cb.greaterThanOrEqualTo(root.get("callStarttime"), filter.dateFrom()));
             }

@@ -101,6 +101,16 @@ export interface InsightsDashboardSummary {
   achadosPorTipo: Record<string, number>;
 }
 
+// Filtros de drill-down entre abas (Dashboard de Tendências, Custos IA e
+// Processamento → Chamadas) — `id` filtra uma chamada exata (mesma PK
+// CallAudioFile.id em todas as abas); os demais campos filtram por agregado.
+export interface InsightsDrillDownFilters {
+  id?: number;
+  categoria?: string;
+  criticidade?: string;
+  findingType?: string;
+}
+
 // ---- Insights — aba "Custos IA" / "Dashboard de Custos" ----
 export interface InsightCostView {
   id: number;

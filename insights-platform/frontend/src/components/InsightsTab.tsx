@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api/client';
 import type { InsightsListItem, InsightsDetailResponse, PageResponse } from '../api/types';
-import type { InsightsDrillDownFilters } from './InsightsDashboardTab';
+import type { InsightsDrillDownFilters } from '../api/types';
 import { AuthedAudio } from './AuthedAudio';
 
 const TONE_OPTIONS = ['calmo', 'neutro', 'tenso', 'irritado', 'empolgado'];
@@ -96,6 +96,7 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     const effectiveCriticidade = overrides.criticidade ?? criticidade;
     const effectiveFindingType = overrides.findingType ?? findingType;
     const params = new URLSearchParams({ page: String(p), size: '20' });
+    if (overrides.id != null) params.set('id', String(overrides.id));
     if (text) params.set('text', text);
     if (dateFrom) params.set('dateFrom', dateFrom);
     if (dateTo) params.set('dateTo', dateTo);
@@ -133,22 +134,24 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Drill-down vindo do Dashboard de Tendências: limpa os demais filtros (para
-   * não combinar com um recorte anterior sem o usuário perceber, mesmo critério
-   * do ModuloURA.handleDrillDown), aplica o filtro do indicador clicado, já
-   * dispara a busca e avisa o pai que o drill-down foi consumido — InsightsTab
-   * desmonta/remonta a cada troca de aba, então sem isso o mesmo drill-down
-   * seria reaplicado numa volta manual pra aba Chamadas. */
+  /** Drill-down vindo do Dashboard de Tendências, Custos IA ou Processamento: limpa
+   * os demais filtros (para não combinar com um recorte anterior sem o usuário
+   * perceber, mesmo critério do ModuloURA.handleDrillDown), aplica o filtro do
+   * indicador/linha clicada, já dispara a busca e avisa o pai que o drill-down foi
+   * consumido — InsightsTab desmonta/remonta a cada troca de aba, então sem isso o
+   * mesmo drill-down seria reaplicado numa volta manual pra aba Chamadas.
+   * `id` (Custos IA/Processamento) filtra uma chamada exata — não tem campo próprio
+   * no formulário de filtros, é só um override pontual desta busca. */
   useEffect(() => {
     if (!pendingDrillDown) return;
-    const { categoria: newCategoria, criticidade: newCriticidade, findingType: newFindingType } = pendingDrillDown.filters;
+    const { id: newId, categoria: newCategoria, criticidade: newCriticidade, findingType: newFindingType } = pendingDrillDown.filters;
     setText(''); setDateFrom(''); setDateTo(''); setPhrase(''); setToneCliente(''); setToneAtendente('');
     setAgentName(''); setDirection(''); setSkill(''); setDurationMin(''); setDurationMax('');
     setCategoria(newCategoria ?? '');
     setCriticidade(newCriticidade ?? '');
     setFindingType(newFindingType ?? '');
     setFiltersOpen(true);
-    loadCalls(0, { categoria: newCategoria, criticidade: newCriticidade, findingType: newFindingType });
+    loadCalls(0, { id: newId, categoria: newCategoria, criticidade: newCriticidade, findingType: newFindingType });
     onDrillDownConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingDrillDown?.nonce]);

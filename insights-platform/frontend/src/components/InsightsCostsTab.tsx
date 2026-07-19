@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
-import type { InsightCostView, PageResponse } from '../api/types';
+import type { InsightCostView, InsightsDrillDownFilters, PageResponse } from '../api/types';
 
 function formatDate(iso?: string) {
   if (!iso) return '—';
@@ -20,7 +20,7 @@ function formatTokens(value: number) {
 
 /** Aba "Custos IA" de Insights — mirror exato de CostsTab.tsx (URA), sem filtro de URA
  * (Insights não tem) — trocado por filtro de atendente. Só STT+LLM, sem TTS. */
-export function InsightsCostsTab() {
+export function InsightsCostsTab({ onDrillDown }: { onDrillDown: (filters: InsightsDrillDownFilters) => void }) {
   const [costs, setCosts] = useState<InsightCostView[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -123,7 +123,7 @@ export function InsightsCostsTab() {
               {costs.length === 0 ? (
                 <tr><td colSpan={8} className="table-empty">Nenhuma chamada com custo de IA registrado</td></tr>
               ) : costs.map(c => (
-                <tr key={c.id}>
+                <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => onDrillDown({ id: c.id })}>
                   <td className="td-muted">{c.id}</td>
                   <td className="td-muted">{formatDate(c.callStarttime)}</td>
                   <td>{c.agentName || <span className="text-muted">—</span>}</td>

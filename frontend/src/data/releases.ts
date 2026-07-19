@@ -308,4 +308,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Insights: nome do usuário e botão "Sair" saíram do cabeçalho e passaram para o rodapé do novo menu lateral.',
     ],
   },
+  {
+    version: 'v1.35',
+    date: '2026-07-19',
+    changes: [
+      'Insights → Custos IA: clicar numa linha filtra automaticamente a aba Chamadas por aquela chamada específica e já abre nela.',
+      'Insights → Processamento: clicar numa linha já concluída faz o mesmo (chamadas ainda pendentes/em processamento não têm o que abrir; linhas com erro continuam expandindo a mensagem de erro).',
+    ],
+  },
 ];

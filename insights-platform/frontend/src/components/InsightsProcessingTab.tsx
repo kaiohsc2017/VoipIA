@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import api from '../api/client';
-import type { InsightProcessingItem, PageResponse } from '../api/types';
+import type { InsightProcessingItem, InsightsDrillDownFilters, PageResponse } from '../api/types';
 
 function formatDate(iso?: string) {
   if (!iso) return '—';
@@ -39,7 +39,7 @@ function StatusBadge({ status }: { status: string }) {
 /** Aba "Processamento" — status/fila de cada arquivo .wav/.xml descoberto em /opt/audio,
  * desde a descoberta até concluir ou falhar. Sem mirror direto (tabela nova) — estrutura de
  * busca/filtro segue o mesmo padrão das demais abas de Insights. */
-export function InsightsProcessingTab() {
+export function InsightsProcessingTab({ onDrillDown }: { onDrillDown: (filters: InsightsDrillDownFilters) => void }) {
   const [items, setItems] = useState<InsightProcessingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -148,8 +148,11 @@ export function InsightsProcessingTab() {
                 <Fragment key={item.id}>
                   <tr
                     key={item.id}
-                    style={item.status === 'error' ? { cursor: 'pointer' } : undefined}
-                    onClick={() => item.status === 'error' && setExpandedError(expandedError === item.id ? null : item.id)}
+                    style={item.status === 'done' || item.status === 'error' ? { cursor: 'pointer' } : undefined}
+                    onClick={() => {
+                      if (item.status === 'done') onDrillDown({ id: item.id });
+                      else if (item.status === 'error') setExpandedError(expandedError === item.id ? null : item.id);
+                    }}
                   >
                     <td className="mono">{item.fileName}</td>
                     <td className="td-muted">{formatDate(item.ingestedAt)}</td>
