@@ -369,6 +369,18 @@ else
     log_warn "apply-raw-rules.sh não encontrado — isolamento de containers não configurado"
 fi
 
+# ── Rotação do log do Asterisk (logrotate no host) ───────────────────────────
+# O volume Docker asteriskia_asterisk_log cresce sem limite se nada rotacionar
+# /var/log/asterisk/full — sem isso já chegou a 7G em produção. size 100M,
+# rotate 10, maxage 10 (~1G rotacionado no total, o que vencer primeiro).
+log_step "8.3 Rotação de log do Asterisk (logrotate)"
+if [ -f "$INSTALL_DIR/security/asteriskia-asterisk.logrotate" ]; then
+    cp "$INSTALL_DIR/security/asteriskia-asterisk.logrotate" /etc/logrotate.d/asteriskia-asterisk
+    log_ok "logrotate configurado (/etc/logrotate.d/asteriskia-asterisk)"
+else
+    log_warn "asteriskia-asterisk.logrotate não encontrado — rotação do log do Asterisk não configurada"
+fi
+
 # ── Build e subida ────────────────────────────────────────────────────────────
 log_step "9. Build e inicialização dos containers"
 cd "$INSTALL_DIR"
