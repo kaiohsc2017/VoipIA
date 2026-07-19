@@ -300,4 +300,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Grupos de Acesso: permissão de Insights passa a ser granular por aba (Chamadas, Dashboard de Tendências, Processamento, Custos IA), em vez de um único recurso — permissões já concedidas foram migradas automaticamente, sem perda de acesso.',
     ],
   },
+  {
+    version: 'v1.34',
+    date: '2026-07-19',
+    changes: [
+      'Insights: as 5 abas (Chamadas, Dashboard de Tendências, Processamento, Custos IA, Dashboard de Custos) saíram da fileira de botões no topo e viraram um menu lateral fixo, no mesmo padrão visual do Telecom/Agentes — com ícones, item ativo destacado e opção de colapsar o menu.',
+      'Insights: nome do usuário e botão "Sair" saíram do cabeçalho e passaram para o rodapé do novo menu lateral.',
+    ],
+  },
 ];

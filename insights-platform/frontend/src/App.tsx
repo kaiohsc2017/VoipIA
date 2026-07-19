@@ -1,5 +1,6 @@
 import { useEffect, useState, Component, type ReactNode } from 'react';
 import Login from './components/Login';
+import Sidebar, { type Tab } from './components/Sidebar';
 import { InsightsTab } from './components/InsightsTab';
 import { InsightsDashboardTab, type InsightsDrillDownFilters } from './components/InsightsDashboardTab';
 import { InsightsProcessingTab } from './components/InsightsProcessingTab';
@@ -10,7 +11,8 @@ import { authSessionFromToken } from './hooks/useAuthSession';
 
 // Resource keys do namespace RBAC granular `insights.*` — espelha o namespace
 // `agents.*` da Plataforma de Agentes (ResourceCatalog.java). Mantido em
-// sincronia manual com o backend, mesmo padrão do restante do sistema.
+// sincronia manual com o backend e com os `resource` de Sidebar.tsx, mesma
+// duplicação intencional já aceita entre Sidebar.tsx/PAGE_RESOURCE no Telecom.
 const TAB_RESOURCE = {
   calls: 'insights.calls',
   dashboard: 'insights.dashboard',
@@ -18,8 +20,6 @@ const TAB_RESOURCE = {
   costs: 'insights.costs',
   costsDashboard: 'insights.costs',
 } as const;
-
-type Tab = keyof typeof TAB_RESOURCE;
 
 // ─── ErrorBoundary — evita tela em branco em caso de exceção de render ──────
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -62,6 +62,7 @@ export default function App() {
 
   const [tab, setTab] = useState<Tab>('calls');
   const [pendingDrillDown, setPendingDrillDown] = useState<{ filters: InsightsDrillDownFilters; nonce: number } | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Escuta logout forçado (token expirado / 401) — mesmo padrão do Telecom.
   useEffect(() => {
@@ -99,57 +100,39 @@ export default function App() {
     );
   }
 
-  const TABS: { id: Tab; label: string }[] = [
-    { id: 'calls', label: '📋 Chamadas' },
-    { id: 'dashboard', label: '📈 Dashboard de Tendências' },
-    { id: 'processing', label: '⚙️ Processamento' },
-    { id: 'costs', label: '💰 Custos IA' },
-    { id: 'costsDashboard', label: '📈 Dashboard de Custos' },
+  const TABS: { id: Tab }[] = [
+    { id: 'calls' },
+    { id: 'dashboard' },
+    { id: 'processing' },
+    { id: 'costs' },
+    { id: 'costsDashboard' },
   ];
   const visibleTabs = TABS.filter(t => session.hasRead(TAB_RESOURCE[t.id]));
   const currentTab = visibleTabs.some(t => t.id === tab) ? tab : visibleTabs[0]?.id;
 
   return (
     <ErrorBoundary>
-      <div className="app-layout" style={{ flexDirection: 'column' }}>
-        <header className="topbar" style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '12px 24px', borderBottom: '1px solid var(--border-glass)',
-          background: 'var(--bg-glass)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <strong>💡 Insights</strong>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              Transcrição e análise de IA das gravações do call center
-            </span>
+      <div className="app-layout">
+        <Sidebar
+          currentTab={currentTab ?? 'calls'}
+          onNavigate={setTab}
+          username={username}
+          session={session}
+          onLogout={handleSignOut}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(c => !c)}
+        />
+        <main className={`main-content${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+          <div className="page-body">
+            {currentTab === 'calls' && <InsightsTab pendingDrillDown={pendingDrillDown} onDrillDownConsumed={handleDrillDownConsumed} />}
+            {currentTab === 'dashboard' && <InsightsDashboardTab onDrillDown={handleDrillDown} />}
+            {currentTab === 'processing' && <InsightsProcessingTab />}
+            {currentTab === 'costs' && <InsightsCostsTab />}
+            {currentTab === 'costsDashboard' && <InsightsCostsDashboardTab />}
+            {!currentTab && (
+              <p style={{ color: 'var(--text-muted)' }}>Você não tem permissão de leitura em nenhuma aba do Insights.</p>
+            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{username}</span>
-            <button className="btn btn-ghost" onClick={handleSignOut}>Sair</button>
-          </div>
-        </header>
-
-        <main className="page-body" style={{ flex: 1, overflow: 'auto' }}>
-          <div style={{ marginBottom: 20, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {visibleTabs.map(t => (
-              <button
-                key={t.id}
-                className={`btn ${currentTab === t.id ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {currentTab === 'calls' && <InsightsTab pendingDrillDown={pendingDrillDown} onDrillDownConsumed={handleDrillDownConsumed} />}
-          {currentTab === 'dashboard' && <InsightsDashboardTab onDrillDown={handleDrillDown} />}
-          {currentTab === 'processing' && <InsightsProcessingTab />}
-          {currentTab === 'costs' && <InsightsCostsTab />}
-          {currentTab === 'costsDashboard' && <InsightsCostsDashboardTab />}
-          {!currentTab && (
-            <p style={{ color: 'var(--text-muted)' }}>Você não tem permissão de leitura em nenhuma aba do Insights.</p>
-          )}
         </main>
       </div>
     </ErrorBoundary>
