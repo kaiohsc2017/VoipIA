@@ -326,4 +326,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Agentes → Dashboard: gráfico de disponibilidade por agente ganhou visual mais rico (antes eram barras de progresso simples).',
     ],
   },
+  {
+    version: 'v1.37',
+    date: '2026-07-19',
+    changes: [
+      'Agentes → Base de Conhecimento: corrigido upload de PDF, que estava sendo descartado silenciosamente antes de sair do navegador e não aparecia na lista.',
+      'Grupos de Acesso: tela de administração passa a listar os recursos granulares de Insights (Chamadas, Dashboard, Processamento, Custos IA) e o item de menu, em vez do recurso antigo já removido — antes o toggle de Insights nessa tela não tinha mais efeito nenhum.',
+    ],
+  },
 ];
