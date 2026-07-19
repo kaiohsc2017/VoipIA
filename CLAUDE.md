@@ -113,6 +113,7 @@ Externo (HTTPS)
         ├── /agents/api/*   → strip /agents → asteriskia-agents-api:8000
         ├── /agents/ws/*    → strip /agents → asteriskia-agents-api:8000 (WS)
         ├── /agents*        → asteriskia-frontend:80 (NÃO strip — nginx tem location /agents/)
+        ├── /insights*      → asteriskia-frontend:80 (NÃO strip — nginx tem location /insights/)
         ├── /docs/*         → /srv/docs (file_server direto no Caddy)
         ├── /api/*          → asteriskia-backend:8080
         ├── /ws/*           → asteriskia-backend:8080 (STOMP)
@@ -124,6 +125,9 @@ O Nginx interno serve:
 - `/` → `/usr/share/nginx/html/` (build React Telecom)
 - `/agents/` → `/usr/share/nginx/html/agents/` (React UMD Agentes)
 - `/agents/api/` → proxy para `asteriskia-agents-api:8000` (fallback interno)
+- `/insights/` → `/usr/share/nginx/html/insights/` (SPA própria — build Vite, `insights-platform/frontend/`)
+  — sem proxy `/insights/api`: a SPA consome `/api/v1/insights/**` direto no backend Java (mesma
+  origem), já coberto pela `location /api/`; diferente de Agentes, que tem FastAPI dedicado.
 
 ---
 
@@ -213,9 +217,12 @@ Plataforma de Agentes (abrindo `/agents/docs.html`) foi removido — o acesso ag
 - **Grupos de acesso** (`access_groups` + `access_group_permissions`, migration V22) substituem o
   binário `role` ADMIN|USER por grupos nomeados com permissão de leitura/escrita por menu
   (`resource_key`, ex: `telecom.settings`, `agents.secrets`). Catálogo de recursos fixo em código
-  (`ResourceCatalog.java`, espelhado em `Sidebar.tsx` e no `NAV` do `agents-platform/frontend`) —
-  os menus são fixos, só a matriz de permissões é dinâmica. Gestão pela UI: página "Grupos de
-  Acesso" (`AccessGroups.tsx`, admin-only).
+  (`ResourceCatalog.java`, espelhado em `Sidebar.tsx`, no `NAV` do `agents-platform/frontend` e no
+  `App.tsx` da SPA `insights-platform/frontend`) — os menus são fixos, só a matriz de permissões é
+  dinâmica. Gestão pela UI: página "Grupos de Acesso" (`AccessGroups.tsx`, admin-only).
+  Namespace `insights.*` (`insights.calls`/`dashboard`/`processing`/`costs`) segue o mesmo padrão
+  granular por aba do namespace `agents.*`; `telecom.insights_link` é só o item de menu que abre a
+  SPA via iframe, sem relação com os dados.
 - **Claim `role`** (`ADMIN`|`USER`) continua sendo emitida em paralelo (**dual-emit**) por
   compatibilidade — tokens antigos (antes do deploy do RBAC granular) só têm `role`, sem a claim
   `perm`, e continuam válidos até expirar/renovar (máx. 8h). **Claim `perm`**
@@ -293,10 +300,10 @@ AsteriskIA/
 │       └── integration/
 │           └── jira/            # JiraIntegrationService — REST API v3
 ├── frontend/
-│   ├── Dockerfile               # Multi-stage: node:22-alpine → nginx:1.27-alpine
-│   ├── nginx.conf               # SPA fallback + proxy /agents/api e /agents/ws
+│   ├── Dockerfile               # Multi-stage: node:22-alpine (Telecom) → node:22-alpine (Insights) → nginx:1.27-alpine
+│   ├── nginx.conf               # SPA fallback + proxy /agents/api, /agents/ws + location /insights/ (alias)
 │   └── src/
-│       └── components/          # Dashboard, Settings, AISettingsPanel, Softphone… (inclui docs/ — Documentacao.tsx, migrado de agents-platform/frontend/docs.html)
+│       └── components/          # Dashboard, Settings, AISettingsPanel, Softphone, InsightsPage.tsx (iframe /insights/)… (inclui docs/ — Documentacao.tsx, migrado de agents-platform/frontend/docs.html)
 ├── agents-platform/
 │   ├── backend/
 │   │   ├── main.py              # FastAPI app + JWT middleware + WebSocket broadcast
@@ -309,6 +316,11 @@ AsteriskIA/
 │   └── frontend/
 │       ├── index.html           # React 18 UMD — SPA sem build step
 │       └── js/                  # React 18 UMD local
+├── insights-platform/
+│   └── frontend/                # SPA independente de Insights (Vite+React, build próprio) — reusa o
+│                                 # backend Java (/api/v1/insights/**), servida em /insights pelo mesmo
+│                                 # nginx do frontend Telecom (padrão análogo ao agents-platform, mas
+│                                 # sem backend próprio); componentes Insights*.tsx copiados do Telecom
 ├── security/
 │   ├── Dockerfile
 │   ├── entrypoint.sh
@@ -418,6 +430,22 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > de verificação de sempre continuam válidos: `SIP_PUBLIC_IP` injetado no `pjsip.conf`,
 > `external_media_address`/`external_signaling_address` não vazios, portas RTP `15000-15500/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
+
+### ✅ Insights virou SPA independente (2026-07-19) — implementado, pendente deploy/validação em produção
+Plano completo em `.claude/plans/insights-spa-independente.plan.md` (5 fases) e memória
+`asteriskia_insights_spa_independente_plan`. Segue o mesmo padrão do módulo Agentes: novo frontend
+Vite próprio (`insights-platform/frontend/`) servido em `/insights` pelo mesmo nginx do frontend
+Telecom (`frontend/nginx.conf` — `location /insights/`; `Caddyfile` — `@insights-ui`), com o item
+"Insights" do menu Telecom virando um iframe (`InsightsPage.tsx`, espelho de `AgentesPage.tsx`).
+Backend **não mudou** — a SPA consome `/api/v1/insights/**` direto no mesmo Spring Boot. RBAC
+migrou de um resource único (`telecom.insights`) para namespace granular por aba (`insights.calls`/
+`dashboard`/`processing`/`costs`) + `telecom.insights_link` só pro item de menu (migration V37,
+preserva permissões já concedidas). Os 6 componentes `Insights*.tsx` antigos do Telecom foram
+deletados (migrados para a SPA); `AuthedAudio.tsx` foi copiado, não movido — é compartilhado com
+URA/Alertas. `tsc --noEmit` limpo nas duas SPAs e `npm run build` da SPA de Insights ok;
+**faltou validar**: `mvn compile` do backend (Maven não disponível no ambiente desta sessão) e o
+deploy real (`docker compose up -d --build backend frontend caddy`, depois `curl -I
+https://app.voiphash.com.br/insights/` e teste de login/abas/áudio na SPA).
 
 ### ✅ Feature: tela Insights — transcrição/análise de IA do call center Verint (2026-07-17) — deployada e validada em produção
 Módulo novo e apartado do domínio Asterisk (sem FK com `call_records`/`uras`) — analisa gravações

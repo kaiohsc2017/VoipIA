@@ -44,7 +44,24 @@ ENV VITE_TURN_CREDENTIAL=$VITE_TURN_CREDENTIAL
 
 RUN npm run build
 
-# ---------- Stage 2: Nginx ----------
+# ---------- Stage 2: Build da SPA de Insights ----------
+FROM node:22-alpine AS insights-builder
+
+WORKDIR /app
+
+COPY insights-platform/frontend/package.json insights-platform/frontend/package-lock.json* ./
+RUN npm ci --silent
+
+COPY insights-platform/frontend/ .
+
+# Mesma API do backend Java usada pelo Telecom — a SPA de Insights reusa
+# /api/v1/insights/** no mesmo backend Spring Boot (sem backend próprio).
+ARG VITE_API_URL=https://app.voiphash.com.br/api/v1
+ENV VITE_API_URL=$VITE_API_URL
+
+RUN npm run build
+
+# ---------- Stage 3: Nginx ----------
 FROM nginx:1.27-alpine
 
 # Remove default config
@@ -59,6 +76,9 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copia arquivos estáticos da plataforma de Agentes
 COPY agents-platform/frontend/index.html /usr/share/nginx/html/agents/index.html
 COPY agents-platform/frontend/js         /usr/share/nginx/html/agents/js
+
+# Copia build da SPA de Insights
+COPY --from=insights-builder /app/dist /usr/share/nginx/html/insights
 
 # Achado de segurança (débito aceito): master process do nginx rodava como
 # root (necessário só pra bindar a porta 80, <1024). Roda como o usuário

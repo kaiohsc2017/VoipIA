@@ -3,9 +3,10 @@
 # Proxy reverso HTTPS com TLS automático (Let's Encrypt).
 #
 # Rotas:
-#   app.voiphash.com.br        → Telecom (frontend + API + WebSockets)
-#   app.voiphash.com.br/agents → Plataforma de Agentes (frontend + API + WS)
-#   app.voiphash.com.br/docs   → Documentação estática (HTML)
+#   app.voiphash.com.br          → Telecom (frontend + API + WebSockets)
+#   app.voiphash.com.br/agents   → Plataforma de Agentes (frontend + API + WS)
+#   app.voiphash.com.br/insights → Insights (frontend próprio, backend Spring Boot reusado)
+#   app.voiphash.com.br/docs     → Documentação estática (HTML)
 #   claw.voiphash.com.br       → Proxy interno (10.0.3.1:18789)
 #   manager.voiphash.com.br    → Manager Telecom (app-telecom na porta 8082)
 # =============================================================================
@@ -70,6 +71,18 @@ app.voiphash.com.br {
 		path /agents*
 	}
 	handle @agents-ui {
+		reverse_proxy asteriskia-frontend:80
+	}
+
+	# ── Insights — Frontend (React SPA servida pelo nginx do frontend) ────────
+	# Sem @insights-api/@insights-ws: o backend do Insights continua no Spring
+	# Boot (mesmo @api abaixo), diferente de Agentes que tem FastAPI dedicado.
+	# NÃO remover o prefixo /insights — mesmo motivo do @agents-ui: o nginx tem
+	# location /insights/ com alias para servir os arquivos corretos.
+	@insights-ui {
+		path /insights*
+	}
+	handle @insights-ui {
 		reverse_proxy asteriskia-frontend:80
 	}
 

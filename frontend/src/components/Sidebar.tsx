@@ -30,7 +30,7 @@ interface SidebarProps {
 const NAV_ITEMS: { page: Page; icon: ComponentType<{ size?: number; strokeWidth?: number }>; label: string; section: string; resource?: string; adminOnly?: boolean }[] = [
   { page: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard',          section: 'GERAL',     resource: 'telecom.dashboard'    },
   { page: 'modulo1',    icon: Headset,         label: 'URA',                section: 'MÓDULOS',   resource: 'telecom.modulo1'      },
-  { page: 'insights',   icon: Lightbulb,       label: 'Insights',           section: 'MÓDULOS',   resource: 'telecom.insights'     },
+  { page: 'insights',   icon: Lightbulb,       label: 'Insights',           section: 'MÓDULOS',   resource: 'telecom.insights_link' },
   { page: 'modulo2',    icon: PhoneCall,       label: 'Conectividade',      section: 'MÓDULOS',   resource: 'telecom.modulo2'      },
   { page: 'modulo3',    icon: AlertTriangle,   label: 'Monitoramento',      section: 'MÓDULOS',   resource: 'telecom.modulo3'      },
   { page: 'agents',     icon: Bot,             label: 'Agentes',            section: 'MÓDULOS',   resource: 'telecom.agents_link' },

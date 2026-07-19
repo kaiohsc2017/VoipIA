@@ -291,4 +291,13 @@ export const RELEASES: ReleaseEntry[] = [
       'Menu Cadastros: item "Usuários e Ramais" renomeado para "Usuários" e reordenado — nova ordem: Usuários, Clientes, Operadoras, Linhas, 0800.',
     ],
   },
+  {
+    version: 'v1.33',
+    date: '2026-07-19',
+    changes: [
+      'Insights virou uma SPA independente (mesmo padrão do módulo Agentes), acessível em /insights com frontend próprio (build Vite dedicado) — o item "Insights" no menu do Telecom agora abre essa SPA embutida em iframe, reaproveitando a mesma sessão de login.',
+      'Backend do Insights não mudou de lugar: continua no mesmo Spring Boot do Telecom, endpoints /api/v1/insights/** inalterados.',
+      'Grupos de Acesso: permissão de Insights passa a ser granular por aba (Chamadas, Dashboard de Tendências, Processamento, Custos IA), em vez de um único recurso — permissões já concedidas foram migradas automaticamente, sem perda de acesso.',
+    ],
+  },
 ];

@@ -2,7 +2,7 @@ import { Section, SubSection, Card, CardGrid, CardSm, FieldTable, FieldName, Cal
 
 // Conteúdo novo — módulo Insights (transcrição/análise de IA das gravações
 // Verint) e suas 5 abas, escrito a partir do CLAUDE.md e do código-fonte
-// atual (ModuloInsights.tsx, InsightsController.java, insights/src/main.py).
+// atual (insights-platform/frontend, InsightsController.java, insights/src/main.py).
 export default function TelecomInsights() {
   return (
     <>
@@ -15,6 +15,15 @@ export default function TelecomInsights() {
           (<code>asteriskia-insights</code>) faz o polling desse diretório, transcreve o áudio e
           gera uma análise de IA (aderência a script, sentimento, achados) via Gemini.
         </p>
+
+        <Callout tone="info">
+          Insights é uma <strong>SPA independente</strong>, no mesmo padrão do módulo Agentes: o
+          item "Insights" no menu do Telecom abre <code>/insights/</code> dentro de um iframe em
+          tela cheia (mesma origem, mesma sessão — sem tela de login duplicada em uso normal). O
+          frontend tem build Vite próprio (<code>insights-platform/frontend/</code>), mas o backend
+          continua 100% no Spring Boot do Telecom — os endpoints <code>/api/v1/insights/**</code>
+          não mudaram de lugar.
+        </Callout>
 
         <CardGrid>
           <CardSm title="Transcrição + diarização">
@@ -74,10 +83,13 @@ export default function TelecomInsights() {
         </SubSection>
 
         <Callout tone="ok">
-          Gestão de acesso: a permissão de leitura/escrita das 5 abas é controlada por um único
-          recurso, <code>telecom.insights</code>, na página <strong>"Grupos de Acesso"</strong> —
-          as sub-abas não têm permissão própria, seguindo o mesmo padrão das abas de Custos do
-          Módulo 1 — URA.
+          Gestão de acesso: <code>telecom.insights_link</code> controla só o item de menu no
+          Telecom que abre a SPA (o iframe). O acesso aos dados dentro da SPA é granular por aba,
+          um recurso por namespace <code>insights.*</code> — <code>insights.calls</code>{' '}
+          (Chamadas), <code>insights.dashboard</code> (Dashboard de Tendências),{' '}
+          <code>insights.processing</code> (Processamento) e <code>insights.costs</code> (Custos
+          IA + Dashboard de Custos) — configurado na página <strong>"Grupos de Acesso"</strong>,
+          mesmo padrão do namespace <code>agents.*</code> do módulo Agentes.
         </Callout>
 
         <SubSection title="De onde vem o preço usado nos Custos IA">

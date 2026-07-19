@@ -12,7 +12,6 @@ import { authSessionFromToken } from './hooks/useAuthSession';
 // O chunk só é baixado quando o usuário navega para aquela página.
 const Dashboard          = lazy(() => import('./components/Dashboard'));
 const ModuloURA          = lazy(() => import('./components/ModuloURA'));
-const ModuloInsights     = lazy(() => import('./components/ModuloInsights'));
 const ModuloConectividade= lazy(() => import('./components/ModuloConectividade'));
 const ModuloAlertas      = lazy(() => import('./components/ModuloAlertas'));
 const Softphone          = lazy(() => import('./components/Softphone'));
@@ -27,6 +26,7 @@ const AccessGroups       = lazy(() => import('./components/AccessGroups'));
 const Documentacao       = lazy(() => import('./components/Documentacao'));
 const Release            = lazy(() => import('./components/Release'));
 const AgentesPage        = lazy(() => import('./components/AgentesPage'));
+const InsightsPage       = lazy(() => import('./components/InsightsPage'));
 
 // ─── ErrorBoundary ─────────────────────────────────────────────────────────────
 // Evita que erros em componentes filhos desmontem toda a árvore React (tela em branco).
@@ -96,7 +96,7 @@ function PageLoader() {
 const PAGE_RESOURCE: Partial<Record<Page, string>> = {
   dashboard:  'telecom.dashboard',
   modulo1:    'telecom.modulo1',
-  insights:   'telecom.insights',
+  insights:   'telecom.insights_link',
   modulo2:    'telecom.modulo2',
   modulo3:    'telecom.modulo3',
   masterdata: 'telecom.masterdata',
@@ -199,7 +199,7 @@ export default function App() {
             <ErrorBoundary>
               {page === 'dashboard'  && <Dashboard />}
               {page === 'modulo1'    && <ModuloURA />}
-              {page === 'insights'   && <ModuloInsights />}
+              {page === 'insights'   && <InsightsPage />}
               {page === 'modulo2'    && <ModuloConectividade />}
               {page === 'modulo3'    && <ModuloAlertas />}
               {page === 'masterdata' && <MasterData />}

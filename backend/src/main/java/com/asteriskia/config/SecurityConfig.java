@@ -121,10 +121,19 @@ public class SecurityConfig {
                         // mesma proteção.
                         .requestMatchers(HttpMethod.GET, "/api/v1/calls/costs/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.modulo1")
-                        // Tela Insights (transcrição/análise de IA de gravações do call center
-                        // Verint) — módulo apartado do domínio Asterisk, recurso próprio.
-                        .requestMatchers(HttpMethod.GET, "/api/v1/insights/**")
-                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.insights")
+                        // Insights (transcrição/análise de IA de gravações do call center
+                        // Verint) — agora SPA independente em /insights; backend continua no
+                        // mesmo Spring Boot. Namespace granular por aba (insights.*), espelhando
+                        // agents.* — telecom.insights_link (acima) é só o item de menu que abre
+                        // a SPA via iframe no Telecom, sem relação com estas permissões de dados.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/insights/calls/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.calls")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/insights/dashboard/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.dashboard")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/insights/processing/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.processing")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/insights/costs/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.costs")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da
@@ -147,8 +156,14 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.linhas")
                         .requestMatchers("/api/v1/operadoras/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.operadoras")
-                        .requestMatchers("/api/v1/insights/**")
-                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.insights")
+                        .requestMatchers("/api/v1/insights/calls/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.calls")
+                        .requestMatchers("/api/v1/insights/dashboard/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.dashboard")
+                        .requestMatchers("/api/v1/insights/processing/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.processing")
+                        .requestMatchers("/api/v1/insights/costs/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.costs")
 
                         // Todos os demais endpoints exigem apenas autenticação (JWT ou InternalKey)
                         .anyRequest().authenticated()
