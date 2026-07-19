@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import api from '../api/client';
 import type { AccessGroup, AccessGroupPermission, AccessGroupRequest } from '../api/types';
 
-// Catálogo fixo de recursos (menus) — espelha ResourceCatalog.java e o NAV do
-// agents-platform/frontend/index.html. Manter em sincronia manual.
-const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agentes' }[] = [
+// Catálogo fixo de recursos (menus) — espelha ResourceCatalog.java, o NAV do
+// agents-platform/frontend e o App.tsx da SPA insights-platform/frontend.
+// Manter em sincronia manual.
+const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agentes' | 'Insights' }[] = [
   { key: 'telecom.dashboard',    label: 'Dashboard',              system: 'Telecom' },
   { key: 'telecom.modulo1',      label: 'URA',                    system: 'Telecom' },
-  { key: 'telecom.insights',     label: 'Insights',               system: 'Telecom' },
+  { key: 'telecom.insights_link', label: 'Insights (link de nav)', system: 'Telecom' },
   { key: 'telecom.modulo2',      label: 'Conectividade',          system: 'Telecom' },
   { key: 'telecom.modulo3',      label: 'Monitoramento',          system: 'Telecom' },
   { key: 'telecom.agents_link',  label: 'Agentes (link de nav)',  system: 'Telecom' },
@@ -30,6 +31,10 @@ const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agent
   { key: 'agents.reports',       label: 'Alertas',                system: 'Agentes' },
   { key: 'agents.secrets',       label: 'Secrets',                system: 'Agentes' },
   { key: 'agents.llm',           label: 'Config. IA',             system: 'Agentes' },
+  { key: 'insights.calls',       label: 'Chamadas',               system: 'Insights' },
+  { key: 'insights.dashboard',   label: 'Dashboard',              system: 'Insights' },
+  { key: 'insights.processing',  label: 'Processamento',          system: 'Insights' },
+  { key: 'insights.costs',       label: 'Custos IA',              system: 'Insights' },
 ];
 
 type PermMap = Record<string, { canRead: boolean; canWrite: boolean }>;
