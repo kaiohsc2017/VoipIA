@@ -27,7 +27,11 @@ export function KnowledgeTab({ canWrite }: { canWrite: boolean }) {
     if (!file) return;
     const fd = new FormData();
     fd.append('file', file);
-    api.post<KnowledgeDoc>('/api/knowledge/upload', fd)
+    // Sobrescreve o Content-Type padrão da instância (application/json) — sem
+    // isso, o transformRequest do axios serializa o FormData como JSON (perde
+    // o arquivo). 'multipart/form-data' sem boundary é proposital: o adapter
+    // do axios detecta e deixa o navegador completar com o boundary correto.
+    api.post<KnowledgeDoc>('/api/knowledge/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       .then(({ data }) => { setDocs(d => [...d, data]); flash(`"${file.name}" adicionado.`); })
       .catch(err => flash(getErrorMessage(err, 'Erro ao enviar arquivo.')))
       .finally(() => { if (fileRef.current) fileRef.current.value = ''; });
