@@ -14,8 +14,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
@@ -37,6 +39,12 @@ public class InsightsController {
     @Value("${app.insights.audio-path:/opt/audio}")
     private String insightsAudioPath;
 
+    // Pasta separada dos uploads do portal do supervisor (Fase 3 do Quality Management,
+    // V40) — nunca subpasta de insightsAudioPath, decisão deliberada para o watcher do
+    // Verint (discovery.py, scan não-recursivo) nunca cruzar os dois fluxos.
+    @Value("${app.insights.upload-audio-path:/opt/audio_upload}")
+    private String insightsUploadAudioPath;
+
     @GetMapping("/calls")
     public ResponseEntity<Page<InsightsListItem>> listCalls(
             @RequestParam(defaultValue = "0") int page,
@@ -55,20 +63,31 @@ public class InsightsController {
             @RequestParam(required = false) String direction,
             @RequestParam(required = false) String skill,
             @RequestParam(required = false) Integer durationMin,
-            @RequestParam(required = false) Integer durationMax) {
+            @RequestParam(required = false) Integer durationMax,
+            @RequestParam(required = false) java.math.BigDecimal notaMin,
+            @RequestParam(required = false) java.math.BigDecimal notaMax,
+            @RequestParam(required = false) Boolean isFailed) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "callStarttime"));
         InsightsFilter filter = new InsightsFilter(
                 id,
                 dateFrom != null ? LocalDateTime.of(dateFrom, LocalTime.MIN) : null,
                 dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null,
                 text, phrase, toneCliente, toneAtendente, categoria, criticidade, findingType,
-                agentName, direction, skill, durationMin, durationMax);
+                agentName, direction, skill, durationMin, durationMax, notaMin, notaMax, isFailed);
         return ResponseEntity.ok(queryService.search(filter, pageable));
     }
 
     @GetMapping("/calls/{id}")
     public ResponseEntity<InsightsDetailResponse> getCall(@PathVariable Long id) {
-        return ResponseEntity.ok(queryService.detail(id));
+        InsightsDetailResponse detail = queryService.detail(id);
+        // Mesma checagem de permissão/posse do getAudio abaixo — sem isso, o detalhe
+        // completo (transcrição, insights, avaliação) de um upload de outro supervisor
+        // seria visível a qualquer usuário com insights.calls só variando o id na URL
+        // (mesma classe de achado do security-reviewer, 2026-07-20).
+        if ("upload".equals(detail.audioFile().getSource()) && !canAccessUpload(detail.audioFile())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        return ResponseEntity.ok(detail);
     }
 
     @GetMapping("/dashboard")
@@ -98,10 +117,13 @@ public class InsightsController {
     }
 
     private static InsightsCostFilter costFilter(String agentName, LocalDate dateFrom, LocalDate dateTo) {
+        // source="verint" fixo — esta aba sempre foi sobre o call center Verint (Fase 3
+        // do Quality Management, V40); os custos dos uploads do portal do supervisor têm
+        // endpoints próprios em InsightsUploadController.
         return new InsightsCostFilter(
                 dateFrom != null ? LocalDateTime.of(dateFrom, LocalTime.MIN) : null,
                 dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null,
-                agentName);
+                agentName, "verint", null);
     }
 
     /** Aba "Processamento" — status/fila de cada arquivo .wav/.xml descoberto em /opt/audio. */
@@ -141,11 +163,26 @@ public class InsightsController {
             return ResponseEntity.notFound().build();
         }
 
-        String fileName = new File(audioFile.getWavPath()).getName();
-        File resolved = resolveWithinBase(insightsAudioPath, fileName);
+        // Uploads do portal do supervisor (Fase 3, V40) vivem em subpastas por lote
+        // (/opt/audio_upload/{batchId}/...) — precisa preservar o subcaminho, não só o
+        // nome do arquivo. Verint continua flat em /opt/audio (basename já bastava).
+        boolean isUpload = "upload".equals(audioFile.getSource());
+        if (isUpload && !canAccessUpload(audioFile)) {
+            // 404 (não 403) — mesmo padrão de posse do resto do portal do supervisor
+            // (InsightsUploadService.batchDetail): não vaza existência a quem não é
+            // dono nem ADMIN, nem a quem só tem insights.calls (achado real do
+            // security-reviewer — este endpoint era compartilhado com o fluxo Verint
+            // sem checar permissão/posse de upload).
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        String baseDir = isUpload ? insightsUploadAudioPath : insightsAudioPath;
+        String relativePath = isUpload
+                ? pathRelativeToBase(audioFile.getWavPath(), baseDir)
+                : new File(audioFile.getWavPath()).getName();
+        File resolved = resolveWithinBase(baseDir, relativePath);
 
         if (resolved == null || !resolved.exists() || !resolved.canRead()) {
-            log.warn("Arquivo de áudio não encontrado para insight id={} (arquivo: {})", id, fileName);
+            log.warn("Arquivo de áudio não encontrado para insight id={} (arquivo: {})", id, relativePath);
             return ResponseEntity.notFound().build();
         }
 
@@ -168,6 +205,40 @@ public class InsightsController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + audioFile.getCallRef() + ".wav\"")
                 .contentType(MediaType.valueOf("audio/wav"))
                 .body(body);
+    }
+
+    /** Áudio de upload (source='upload') exige a permissão da aba insights.uploads (não
+     * basta insights.calls, usada pelo restante deste controller) E posse — ADMIN ou o
+     * mesmo username que enviou o lote. Achado real do security-reviewer (2026-07-20):
+     * antes desta checagem, qualquer usuário com insights.calls conseguia ouvir áudio de
+     * upload de qualquer supervisor só variando o id na URL. */
+    private boolean canAccessUpload(CallAudioFile audioFile) {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            return false;
+        }
+        boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        if (isAdmin) {
+            return true;
+        }
+        boolean hasUploadsPermission = auth.getAuthorities().stream()
+                .anyMatch(a -> "PERM_READ_insights.uploads".equals(a.getAuthority())
+                        || "PERM_WRITE_insights.uploads".equals(a.getAuthority()));
+        return hasUploadsPermission && auth.getName().equals(audioFile.getUploadedBy());
+    }
+
+    private String pathRelativeToBase(String storedPath, String baseDir) {
+        try {
+            File base = new File(baseDir).getCanonicalFile();
+            File stored = new File(storedPath).getCanonicalFile();
+            String basePath = base.getPath() + File.separator;
+            if (stored.getPath().startsWith(basePath)) {
+                return stored.getPath().substring(basePath.length());
+            }
+        } catch (IOException e) {
+            log.warn("Erro ao resolver caminho relativo de upload em {}: {}", baseDir, e.getMessage());
+        }
+        return new File(storedPath).getName();
     }
 
     private File resolveWithinBase(String baseDir, String fileName) {

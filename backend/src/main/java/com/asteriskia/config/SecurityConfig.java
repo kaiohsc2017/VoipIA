@@ -134,6 +134,20 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.processing")
                         .requestMatchers(HttpMethod.GET, "/api/v1/insights/costs/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.costs")
+                        // Fichas de avaliação (scorecards) — Fase 1 da evolução para Quality
+                        // Management (V38); mesmo padrão granular das demais abas de Insights.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/insights/scorecards/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.scorecards")
+                        // Relatórios de performance por atendente — Fase 2 do Quality
+                        // Management (V39); posse (supervisor só vê o que ele pediu) é aplicada
+                        // no service, não aqui — este matcher só garante a permissão de aba.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/insights/reports/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.reports")
+                        // Portal do supervisor (upload em lote) — Fase 3 do Quality
+                        // Management (V40); posse (supervisor só vê os próprios lotes) é
+                        // aplicada no service, não aqui.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/insights/uploads/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.uploads")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da
@@ -164,6 +178,12 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.processing")
                         .requestMatchers("/api/v1/insights/costs/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.costs")
+                        .requestMatchers("/api/v1/insights/scorecards/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.scorecards")
+                        .requestMatchers("/api/v1/insights/reports/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.reports")
+                        .requestMatchers("/api/v1/insights/uploads/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.uploads")
 
                         // Todos os demais endpoints exigem apenas autenticação (JWT ou InternalKey)
                         .anyRequest().authenticated()

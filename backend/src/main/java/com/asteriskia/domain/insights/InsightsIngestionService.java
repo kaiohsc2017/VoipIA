@@ -29,6 +29,7 @@ public class InsightsIngestionService {
     private final CallTranscriptSegmentRepository segmentRepository;
     private final CallInsightRepository insightRepository;
     private final CallInsightFindingRepository findingRepository;
+    private final EvaluationService evaluationService;
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -101,6 +102,15 @@ public class InsightsIngestionService {
             findingRepository.saveAll(findings);
         }
 
+        if (request.evaluation() != null) {
+            IngestInsightsRequest.EvaluationPayload evaluation = request.evaluation();
+            List<EvaluationService.EvaluatedItem> evaluatedItems = evaluation.items().stream()
+                    .map(i -> new EvaluationService.EvaluatedItem(i.itemId(), i.nota(), i.justificativa(), i.trechoReferencia()))
+                    .toList();
+            evaluationService.evaluate(audioFileId, evaluation.scorecardId(), evaluatedItems,
+                    evaluation.llmTokensIn(), evaluation.llmTokensOut(), evaluation.llmModel());
+        }
+
         log.info("Insights persistidos para call_ref={} (id={}, {} segmentos, criticidade={})",
                 request.callRef(), audioFileId, segments.size(), insightsPayload.criticidade());
 
@@ -109,6 +119,13 @@ public class InsightsIngestionService {
 
     public List<CallStatusRef> knownCallRefs() {
         return audioFileRepository.findAllRefsAndStatus();
+    }
+
+    /** Uploads pendentes de processamento (Fase 3 do Quality Management, V40) — o
+     * serviço Python consulta este método (via endpoint interno) em vez de escanear
+     * disco: o Java já sabe exatamente quais arquivos foram enviados e por quem. */
+    public List<CallAudioFile> findPendingUploads() {
+        return audioFileRepository.findBySourceAndStatus("upload", "pending");
     }
 
     /**
@@ -129,6 +146,25 @@ public class InsightsIngestionService {
                 .wavPath(wavPath)
                 .xmlPath(xmlPath)
                 .status("pending")
+                .build());
+    }
+
+    /** Registra um arquivo de upload do portal do supervisor (Fase 3 do Quality
+     * Management, V40) — chamado diretamente pelo InsightsUploadController no momento do
+     * upload (não pelo watcher Python; uploads não passam por registerPending). Sem XML,
+     * status='pending', source='upload'. */
+    @Transactional
+    public void registerUpload(String callRef, String wavPath, String agentName, String direction,
+                                String uploadedBy, java.util.UUID uploadBatchId) {
+        audioFileRepository.save(CallAudioFile.builder()
+                .callRef(callRef)
+                .wavPath(wavPath)
+                .agentName(agentName)
+                .direction(direction)
+                .status("pending")
+                .source("upload")
+                .uploadedBy(uploadedBy)
+                .uploadBatchId(uploadBatchId)
                 .build());
     }
 

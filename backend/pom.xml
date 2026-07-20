@@ -109,6 +109,14 @@
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
+        <!-- Export em PDF do relatório de performance por atendente (Fase 2 do Quality
+             Management, V39) — Apache 2.0, sem motor de browser embutido; único ponto do
+             projeto que gera PDF, escolhida por não ter a licença AGPL do iText. -->
+        <dependency>
+            <groupId>com.openhtmltopdf</groupId>
+            <artifactId>openhtmltopdf-pdfbox</artifactId>
+            <version>1.0.10</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

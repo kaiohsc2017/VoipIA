@@ -16,13 +16,19 @@ import asyncio
 import logging
 from datetime import datetime
 
-from src.audio_decode import decode_to_pcm
+from src.audio_decode import PCM_SAMPLE_RATE, decode_to_pcm
 from src.backend_client import (
+    get_active_scorecard,
     get_known_call_refs,
+    get_pending_reports,
+    get_pending_uploads,
     mark_error,
     mark_processing,
+    mark_report_error,
+    mark_report_processing,
     register_pending,
     submit_insights,
+    submit_report_result,
 )
 from src.config import (
     AUDIO_DIR,
@@ -32,8 +38,10 @@ from src.config import (
     get_gemini_model_stt,
 )
 from src.discovery import AudioPair, discover_pairs
+from src.evaluation_llm import EvaluationResult, ScorecardItemInput, evaluate_call
 from src.insights_llm import generate_insights
 from src.prosody import compute_acoustic_tones
+from src.report_narrative_llm import generate_narrative
 from src.stt_diarize import transcribe_and_diarize
 from src.xml_parser import CallMetadata, XmlParseError, parse_call_xml
 
@@ -44,7 +52,8 @@ logging.basicConfig(
 logger = logging.getLogger("asteriskia.insights.main")
 
 
-def _build_payload(metadata: CallMetadata, pair: AudioPair, diarization, tones: list[str], insights) -> dict:
+def _build_payload(metadata: CallMetadata, pair: AudioPair, diarization, tones: list[str], insights,
+                    scorecard: dict | None, evaluation: EvaluationResult | None) -> dict:
     segments_payload = [
         {
             "speaker": seg.speaker,
@@ -97,6 +106,27 @@ def _build_payload(metadata: CallMetadata, pair: AudioPair, diarization, tones: 
             "insightsJson": insights.insights_json,
         },
         "findings": findings_payload,
+        "evaluation": _build_evaluation_payload(scorecard, evaluation),
+    }
+
+
+def _build_evaluation_payload(scorecard: dict | None, evaluation: EvaluationResult | None) -> dict | None:
+    if scorecard is None or evaluation is None:
+        return None
+    return {
+        "scorecardId": scorecard["id"],
+        "items": [
+            {
+                "itemId": item.item_id,
+                "nota": item.nota,
+                "justificativa": item.justificativa,
+                "trechoReferencia": item.trecho_referencia,
+            }
+            for item in evaluation.items
+        ],
+        "llmTokensIn": evaluation.usage.input_tokens if evaluation.usage else 0,
+        "llmTokensOut": evaluation.usage.output_tokens if evaluation.usage else 0,
+        "llmModel": evaluation.model_id,
     }
 
 
@@ -108,6 +138,42 @@ async def _safe_mark_error(call_ref: str, error_msg: str) -> None:
         await mark_error(call_ref, error_msg)
     except Exception as e:
         logger.warning("call_ref=%s: falha ao registrar erro no backend — %s", call_ref, e)
+
+
+async def _evaluate_against_active_scorecard(
+    call_ref: str, segments
+) -> tuple[dict | None, EvaluationResult | None]:
+    """Avalia a chamada contra a ficha ativa, se houver — retrocompatível: sem ficha
+    ativa (ou falha ao consultá-la), a avaliação é pulada e o pipeline segue igual ao
+    comportamento anterior a esta feature (Fase 1 do Quality Management, V38)."""
+    try:
+        scorecard = await get_active_scorecard()
+    except Exception as e:
+        logger.warning("call_ref=%s: falha ao consultar ficha ativa — seguindo sem avaliação: %s", call_ref, e)
+        return None, None
+
+    if scorecard is None:
+        return None, None
+
+    items = [
+        ScorecardItemInput(
+            item_id=item["id"],
+            pergunta=item["pergunta"],
+            nota_maxima=item["notaMaxima"],
+            is_critical=item["isCritical"],
+        )
+        for item in scorecard.get("items", [])
+    ]
+    if not items:
+        return None, None
+
+    try:
+        evaluation = await evaluate_call(segments, items, get_gemini_model_insights())
+    except Exception as e:
+        logger.error("call_ref=%s: falha na avaliação por IA — seguindo sem avaliação: %s", call_ref, e)
+        return None, None
+
+    return scorecard, evaluation
 
 
 async def process_pair(pair: AudioPair) -> None:
@@ -144,7 +210,9 @@ async def process_pair(pair: AudioPair) -> None:
         await _safe_mark_error(pair.call_ref, f"Falha na análise de IA: {e}")
         return
 
-    payload = _build_payload(metadata, pair, diarization, tones, insights)
+    scorecard, evaluation = await _evaluate_against_active_scorecard(pair.call_ref, diarization.segments)
+
+    payload = _build_payload(metadata, pair, diarization, tones, insights, scorecard, evaluation)
 
     try:
         await submit_insights(payload)
@@ -155,6 +223,168 @@ async def process_pair(pair: AudioPair) -> None:
 
     logger.info("call_ref=%s processado com sucesso (%d segmentos, criticidade=%s)",
                 pair.call_ref, len(diarization.segments), insights.criticidade)
+
+
+async def _process_pending_report(report: dict) -> None:
+    """Gera a narrativa de um relatório de performance pendente (Fase 2 do Quality
+    Management, V39) — o agregado numérico já vem pronto do Java; este processo só
+    chama o LLM para escrever o texto e devolve o resultado."""
+    report_id = report["id"]
+    logger.info("Gerando narrativa do relatório de performance id=%s (agente=%s)", report_id, report["agentName"])
+    try:
+        await mark_report_processing(report_id)
+    except Exception as e:
+        logger.warning("report_id=%s: falha ao marcar início de processamento — %s", report_id, e)
+
+    try:
+        aggregate = report["content"]["aggregate"]
+        evolution = report.get("evolution")
+        narrative = await generate_narrative(
+            report["agentName"], report["dateFrom"], report["dateTo"],
+            aggregate, evolution, get_gemini_model_insights(),
+        )
+    except Exception as e:
+        logger.error("report_id=%s: falha ao gerar narrativa — %s", report_id, e)
+        try:
+            await mark_report_error(report_id, f"Falha ao gerar narrativa: {e}")
+        except Exception as inner:
+            logger.warning("report_id=%s: falha ao registrar erro no backend — %s", report_id, inner)
+        return
+
+    payload = {
+        "pontosFortes": narrative.pontos_fortes,
+        "pontosMelhoria": narrative.pontos_melhoria,
+        "recomendacoes": narrative.recomendacoes,
+        "comparacaoTextual": narrative.comparacao_textual,
+        "llmTokensIn": narrative.usage.input_tokens if narrative.usage else 0,
+        "llmTokensOut": narrative.usage.output_tokens if narrative.usage else 0,
+        "llmModel": narrative.model_id,
+    }
+    try:
+        await submit_report_result(report_id, payload)
+    except Exception as e:
+        logger.error("report_id=%s: falha ao enviar narrativa ao backend — %s", report_id, e)
+        return
+
+    logger.info("Relatório de performance id=%s concluído", report_id)
+
+
+async def _poll_reports_once() -> None:
+    try:
+        pending = await get_pending_reports()
+    except Exception as e:
+        logger.warning("Não foi possível consultar relatórios pendentes — pulando ciclo: %s", e)
+        return
+
+    if not pending:
+        return
+
+    logger.info("%d relatório(s) de performance pendente(s) de narrativa", len(pending))
+    await asyncio.gather(*(_process_pending_report(r) for r in pending), return_exceptions=True)
+
+
+async def process_upload_item(item: dict) -> None:
+    """Processa um áudio do portal do supervisor (Fase 3 do Quality Management, V40) —
+    mesmo pipeline de STT/análise/avaliação do fluxo Verint, mas sem XML: metadados
+    (atendente, direção) já vieram do registro feito no upload; duração é derivada do
+    PCM decodificado em vez de lida de metadado externo."""
+    call_ref = item["callRef"]
+    wav_path = item["wavPath"]
+    agent_name = item.get("agentName")
+    direction = item.get("direction")
+
+    logger.info("Processando upload call_ref=%s", call_ref)
+    try:
+        await mark_processing(call_ref, wav_path, None)
+    except Exception as e:
+        logger.warning("call_ref=%s: falha ao marcar início de processamento — %s", call_ref, e)
+
+    try:
+        pcm = await decode_to_pcm(wav_path)
+    except Exception as e:
+        logger.error("call_ref=%s: falha ao decodificar áudio de upload — %s", call_ref, e)
+        await _safe_mark_error(call_ref, f"Falha ao decodificar áudio: {e}")
+        return
+
+    duration_seconds = len(pcm) // (PCM_SAMPLE_RATE * 2)
+
+    try:
+        diarization = await transcribe_and_diarize(pcm, get_gemini_model_stt(), agent_name, direction)
+        tones = await asyncio.to_thread(compute_acoustic_tones, pcm, diarization.segments)
+        insights = await generate_insights(diarization.segments, None, duration_seconds, get_gemini_model_insights())
+    except Exception as e:
+        logger.error("call_ref=%s: falha na análise de IA (upload) — %s", call_ref, e)
+        await _safe_mark_error(call_ref, f"Falha na análise de IA: {e}")
+        return
+
+    scorecard, evaluation = await _evaluate_against_active_scorecard(call_ref, diarization.segments)
+
+    segments_payload = [
+        {
+            "speaker": seg.speaker, "startMs": seg.start_ms, "endMs": seg.end_ms,
+            "text": seg.text, "toneSemantic": seg.tone_semantic, "toneAcoustic": tone,
+        }
+        for seg, tone in zip(diarization.segments, tones)
+    ]
+    findings_payload = [
+        {"tipo": f.tipo, "descricao": f.descricao, "trechoReferencia": f.trecho_referencia, "prioridade": f.prioridade}
+        for f in insights.findings
+    ]
+    payload = {
+        "callRef": call_ref,
+        "wavPath": wav_path,
+        "xmlPath": None,
+        "durationSeconds": duration_seconds,
+        "callStarttime": None,
+        "agentName": agent_name,
+        "direction": direction,
+        "sttTokensIn": diarization.usage.input_tokens if diarization.usage else 0,
+        "sttTokensOut": diarization.usage.output_tokens if diarization.usage else 0,
+        "sttModel": diarization.model_id,
+        "llmTokensIn": insights.usage.input_tokens if insights.usage else 0,
+        "llmTokensOut": insights.usage.output_tokens if insights.usage else 0,
+        "llmModel": insights.model_id,
+        "segments": segments_payload,
+        "insights": {
+            "resumo": insights.resumo,
+            "categoriaAssunto": insights.categoria_assunto,
+            "sentimentoGeral": insights.sentimento_geral,
+            "aderenciaScript": insights.aderencia_script,
+            "criticidade": insights.criticidade,
+            "insightsJson": insights.insights_json,
+        },
+        "findings": findings_payload,
+        "evaluation": _build_evaluation_payload(scorecard, evaluation),
+    }
+
+    try:
+        await submit_insights(payload)
+    except Exception as e:
+        logger.error("call_ref=%s: falha ao enviar resultado de upload ao backend — %s", call_ref, e)
+        await _safe_mark_error(call_ref, f"Falha ao enviar resultado ao backend: {e}")
+        return
+
+    logger.info("call_ref=%s (upload) processado com sucesso (%d segmentos, criticidade=%s)",
+                call_ref, len(diarization.segments), insights.criticidade)
+
+
+async def _poll_uploads_once(semaphore: asyncio.Semaphore) -> None:
+    try:
+        pending = await get_pending_uploads()
+    except Exception as e:
+        logger.warning("Não foi possível consultar uploads pendentes — pulando ciclo: %s", e)
+        return
+
+    if not pending:
+        return
+
+    logger.info("%d upload(s) pendente(s) do portal do supervisor", len(pending))
+
+    async def _bounded(item: dict) -> None:
+        async with semaphore:
+            await process_upload_item(item)
+
+    await asyncio.gather(*(_bounded(item) for item in pending), return_exceptions=True)
 
 
 async def _poll_once(semaphore: asyncio.Semaphore) -> None:
@@ -206,6 +436,14 @@ async def poll_loop() -> None:
             await _poll_once(semaphore)
         except Exception as e:
             logger.exception("Erro inesperado no ciclo de polling: %s", e)
+        try:
+            await _poll_uploads_once(semaphore)
+        except Exception as e:
+            logger.exception("Erro inesperado no ciclo de uploads do portal do supervisor: %s", e)
+        try:
+            await _poll_reports_once()
+        except Exception as e:
+            logger.exception("Erro inesperado no ciclo de relatórios de performance: %s", e)
         elapsed = (datetime.now() - started).total_seconds()
         await asyncio.sleep(max(0.0, POLL_INTERVAL_SECONDS - elapsed))
 

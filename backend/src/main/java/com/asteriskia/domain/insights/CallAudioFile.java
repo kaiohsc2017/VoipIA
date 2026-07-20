@@ -34,7 +34,9 @@ public class CallAudioFile {
     @Column(name = "wav_path", nullable = false, length = 500)
     private String wavPath;
 
-    @Column(name = "xml_path", nullable = false, length = 500)
+    // nullable desde a V40 — uploads do portal do supervisor (source='upload') não têm
+    // XML da Verint.
+    @Column(name = "xml_path", length = 500)
     private String xmlPath;
 
     @Column(name = "duration_seconds")
@@ -108,4 +110,16 @@ public class CallAudioFile {
 
     @Column(name = "llm_model", length = 100)
     private String llmModel;
+
+    // ─── Fase 3 do Quality Management (V40) — portal de upload do supervisor ───
+
+    @Column(name = "source", nullable = false, length = 20)
+    @Builder.Default
+    private String source = "verint";
+
+    @Column(name = "uploaded_by", length = 100)
+    private String uploadedBy;
+
+    @Column(name = "upload_batch_id")
+    private java.util.UUID uploadBatchId;
 }

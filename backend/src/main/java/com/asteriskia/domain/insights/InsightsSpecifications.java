@@ -18,7 +18,10 @@ public final class InsightsSpecifications {
 
     public static Specification<CallAudioFile> withFilters(InsightsFilter filter, List<Long> restrictedToIds) {
         return (root, query, cb) -> {
-            var predicates = cb.conjunction();
+            // Restrito a source='verint' (Fase 3 do Quality Management, V40) — a aba
+            // Chamadas sempre foi sobre o call center Verint; os uploads do portal do
+            // supervisor têm sua própria tela ("Meus Envios"), sem se misturar aqui.
+            var predicates = cb.equal(root.get("source"), "verint");
 
             if (filter.id() != null) {
                 predicates = cb.and(predicates, cb.equal(root.get("id"), filter.id()));

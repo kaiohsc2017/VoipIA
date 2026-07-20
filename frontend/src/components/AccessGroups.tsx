@@ -35,6 +35,9 @@ const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agent
   { key: 'insights.dashboard',   label: 'Dashboard',              system: 'Insights' },
   { key: 'insights.processing',  label: 'Processamento',          system: 'Insights' },
   { key: 'insights.costs',       label: 'Custos IA',              system: 'Insights' },
+  { key: 'insights.scorecards',  label: 'Fichas',                 system: 'Insights' },
+  { key: 'insights.reports',     label: 'Relatórios',             system: 'Insights' },
+  { key: 'insights.uploads',     label: 'Meus Envios (upload)',   system: 'Insights' },
 ];
 
 type PermMap = Record<string, { canRead: boolean; canWrite: boolean }>;

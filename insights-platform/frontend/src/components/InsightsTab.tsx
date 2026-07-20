@@ -79,9 +79,10 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
   const [skill, setSkill] = useState('');
   const [durationMin, setDurationMin] = useState('');
   const [durationMax, setDurationMax] = useState('');
+  const [isFailedFilter, setIsFailedFilter] = useState('');
 
   const hasActiveFilters = !!(dateFrom || dateTo || phrase || toneCliente || toneAtendente || categoria
-    || criticidade || findingType || agentName || direction || skill || durationMin || durationMax);
+    || criticidade || findingType || agentName || direction || skill || durationMin || durationMax || isFailedFilter);
 
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<InsightsDetailResponse | null>(null);
@@ -95,6 +96,7 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     const effectiveCategoria = overrides.categoria ?? categoria;
     const effectiveCriticidade = overrides.criticidade ?? criticidade;
     const effectiveFindingType = overrides.findingType ?? findingType;
+    const effectiveIsFailed = overrides.isFailed ?? (isFailedFilter ? isFailedFilter === 'true' : undefined);
     const params = new URLSearchParams({ page: String(p), size: '20' });
     if (overrides.id != null) params.set('id', String(overrides.id));
     if (text) params.set('text', text);
@@ -111,6 +113,7 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     if (skill) params.set('skill', skill);
     if (durationMin) params.set('durationMin', durationMin);
     if (durationMax) params.set('durationMax', durationMax);
+    if (effectiveIsFailed != null) params.set('isFailed', String(effectiveIsFailed));
     api.get<PageResponse<InsightsListItem>>(`/insights/calls?${params}`)
       .then(r => {
         setItems(r.data.content ?? []);
@@ -144,14 +147,15 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
    * no formulário de filtros, é só um override pontual desta busca. */
   useEffect(() => {
     if (!pendingDrillDown) return;
-    const { id: newId, categoria: newCategoria, criticidade: newCriticidade, findingType: newFindingType } = pendingDrillDown.filters;
+    const { id: newId, categoria: newCategoria, criticidade: newCriticidade, findingType: newFindingType, isFailed: newIsFailed } = pendingDrillDown.filters;
     setText(''); setDateFrom(''); setDateTo(''); setPhrase(''); setToneCliente(''); setToneAtendente('');
     setAgentName(''); setDirection(''); setSkill(''); setDurationMin(''); setDurationMax('');
     setCategoria(newCategoria ?? '');
     setCriticidade(newCriticidade ?? '');
     setFindingType(newFindingType ?? '');
+    setIsFailedFilter(newIsFailed != null ? String(newIsFailed) : '');
     setFiltersOpen(true);
-    loadCalls(0, { id: newId, categoria: newCategoria, criticidade: newCriticidade, findingType: newFindingType });
+    loadCalls(0, { id: newId, categoria: newCategoria, criticidade: newCriticidade, findingType: newFindingType, isFailed: newIsFailed });
     onDrillDownConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingDrillDown?.nonce]);
@@ -162,6 +166,7 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     setDateFrom(''); setDateTo(''); setPhrase(''); setToneCliente(''); setToneAtendente('');
     setCategoria(''); setCriticidade(''); setFindingType('');
     setAgentName(''); setDirection(''); setSkill(''); setDurationMin(''); setDurationMax('');
+    setIsFailedFilter('');
     setTimeout(() => loadCalls(0), 0);
   };
 
@@ -249,6 +254,40 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
                         {detail.insights.aderenciaScript != null && (
                           <span className="chip">Aderência ao script: {Math.round(detail.insights.aderenciaScript * 100)}%</span>
                         )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Avaliação (Fase 1 do Quality Management) */}
+                  {detail.evaluation && (
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Avaliação</span>
+                        <span className="chip">Nota: {detail.evaluation.notaTotal.toFixed(1)}</span>
+                        {detail.evaluation.isFailed && <span className="badge badge-danger">Reprovada</span>}
+                      </div>
+                      {detail.evaluation.isFailed && detail.evaluation.failReason && (
+                        <div style={{ fontSize: '.8rem', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 8 }}>
+                          {detail.evaluation.failReason}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {detail.evaluationItems.map(item => (
+                          <div key={item.id} style={{
+                            background: 'var(--bg-input)', border: '1px solid var(--border-glass)',
+                            borderRadius: 8, padding: '8px 12px',
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                              <span style={{ fontSize: '.85rem' }}>{item.justificativa || '—'}</span>
+                              <span className="badge badge-info" style={{ flexShrink: 0 }}>{item.nota}</span>
+                            </div>
+                            {item.trechoReferencia && (
+                              <div style={{ fontSize: '.78rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4 }}>
+                                "{item.trechoReferencia}"
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -405,6 +444,14 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
             <label className="form-label">Duração máxima (seg)</label>
             <input type="number" min={0} className="form-input" placeholder="ex: 600" value={durationMax} onChange={e => setDurationMax(e.target.value)} />
           </div>
+          <div>
+            <label className="form-label">Avaliação</label>
+            <select className="form-select" value={isFailedFilter} onChange={e => setIsFailedFilter(e.target.value)}>
+              <option value="">Qualquer</option>
+              <option value="true">Reprovadas</option>
+              <option value="false">Aprovadas</option>
+            </select>
+          </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
             <button className="btn btn-primary btn-sm" onClick={() => loadCalls(0)}>Aplicar filtros</button>
             <button className="btn btn-ghost btn-sm" onClick={clearFilters} disabled={!hasActiveFilters}>Limpar</button>
@@ -427,12 +474,13 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
                 <th>Categoria</th>
                 <th>Sentimento</th>
                 <th>Criticidade</th>
+                <th>Nota</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
-                <tr><td colSpan={9} className="table-empty">Nenhuma chamada encontrada</td></tr>
+                <tr><td colSpan={10} className="table-empty">Nenhuma chamada encontrada</td></tr>
               ) : items.map(item => (
                 <tr key={item.id} onClick={() => openDetail(item.id)} style={{ cursor: 'pointer' }} title="Clique para ver detalhes">
                   <td className="td-muted">{formatDate(item.callStarttime)}</td>
@@ -443,6 +491,14 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
                   <td>{item.categoriaAssunto || <span className="text-muted">—</span>}</td>
                   <td>{item.sentimentoGeral || <span className="text-muted">—</span>}</td>
                   <td>{criticidadeBadge(item.criticidade)}</td>
+                  <td>
+                    {item.notaTotal != null ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="mono">{item.notaTotal.toFixed(1)}</span>
+                        {item.isFailed && <span className="badge badge-danger">Reprovada</span>}
+                      </div>
+                    ) : <span className="text-muted">—</span>}
+                  </td>
                   <td><span className="badge badge-info">{item.status}</span></td>
                 </tr>
               ))}

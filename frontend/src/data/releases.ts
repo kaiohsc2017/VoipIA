@@ -343,4 +343,34 @@ export const RELEASES: ReleaseEntry[] = [
       'Insights → Dashboard de Custos: mesmo tratamento — gráfico fixo no ano corrente e clique no mês leva para a aba Custos já filtrada.',
     ],
   },
+  {
+    version: 'v1.39',
+    date: '2026-07-20',
+    changes: [
+      'Insights → Fichas: nova aba para cadastrar fichas de avaliação de qualidade (perguntas, peso, nota máxima e itens críticos/auto-fail) — só uma ficha pode estar ativa por vez; editar uma ficha já usada em avaliações cria uma nova versão em vez de sobrescrever o histórico.',
+      'Insights: toda chamada processada com uma ficha ativa passa a ser avaliada automaticamente pela IA — nota por item com justificativa e trecho da transcrição, nota total ponderada e reprovação automática (auto-fail) calculadas de forma determinística no backend, nunca aceitas prontas da IA.',
+      'Insights → Chamadas: nova coluna de nota e badge "Reprovada"; detalhe da chamada ganhou seção "Avaliação" com nota, justificativa e trecho de referência por item; novo filtro por avaliação (aprovadas/reprovadas).',
+      'Insights → Dashboard: novos indicadores de nota média geral, agentes abaixo da média e auto-fails no período (com drill-down para a aba Chamadas).',
+    ],
+  },
+  {
+    version: 'v1.40',
+    date: '2026-07-20',
+    changes: [
+      'Insights → Relatórios: nova aba para o supervisor pedir um relatório de performance de um atendente num período — a IA gera pontos fortes, pontos de melhoria e recomendações a partir do agregado (nota média, nota por item da ficha, achados) sempre calculado de forma determinística no backend, nunca pela IA.',
+      'Insights → Relatórios: relatórios sucessivos do mesmo atendente comparam automaticamente com o relatório anterior (evolução por item, com seta de alta/baixa) e ficam navegáveis num histórico próprio por agente, além de exportáveis em PDF.',
+      'Insights → Relatórios: cada supervisor só pode gerar 1 relatório por atendente a cada 5 dias úteis (ADMIN sem esse limite); supervisor só vê os relatórios que ele mesmo pediu, ADMIN vê todos.',
+      'Grupos de Acesso: tela de administração passa a listar também os recursos "Fichas" e "Relatórios" do Insights — antes só listava Chamadas/Dashboard/Processamento/Custos IA, mesmo depois de a aba Fichas já existir.',
+    ],
+  },
+  {
+    version: 'v1.41',
+    date: '2026-07-20',
+    changes: [
+      'Insights → Meus Envios: novo portal do supervisor para enviar até 100 áudios (wav/mp3/ogg/m4a, até 50MB cada) de uma vez para transcrição e análise por IA ad-hoc, fora do fluxo automático do call center — reusa o mesmo motor de transcrição/análise/avaliação, com status de processamento por arquivo e os dados da chamada numa tela só.',
+      'Insights → Meus Envios: supervisor só vê os próprios lotes de envio; ADMIN vê todos com a coluna de quem enviou. Sub-abas próprias de Custo IA/Dashboard de Custos, filtradas só pelos próprios envios.',
+      'Insights → Chamadas/Dashboard/Processamento/Custos IA: continuam mostrando só as chamadas do call center Verint, mesmo agora que a mesma tabela também guarda os áudios enviados pelo portal do supervisor.',
+      'Grupos de Acesso: tela de administração passa a listar também o recurso "Meus Envios (upload)" do Insights.',
+    ],
+  },
 ];

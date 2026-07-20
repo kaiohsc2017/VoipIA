@@ -32,6 +32,8 @@ public class InsightsQueryService {
     private final CallTranscriptSegmentRepository segmentRepository;
     private final CallInsightRepository insightRepository;
     private final CallInsightFindingRepository findingRepository;
+    private final CallEvaluationRepository evaluationRepository;
+    private final CallEvaluationItemRepository evaluationItemRepository;
 
     public Page<InsightsListItem> search(InsightsFilter filter, Pageable pageable) {
         List<Long> restrictedToIds = resolveRestrictedIds(filter);
@@ -42,9 +44,12 @@ public class InsightsQueryService {
         List<Long> pageIds = page.getContent().stream().map(CallAudioFile::getId).toList();
         Map<Long, CallInsight> insightsByAudioFileId = insightRepository.findByAudioFileIdIn(pageIds).stream()
                 .collect(Collectors.toMap(CallInsight::getAudioFileId, i -> i));
+        Map<Long, CallEvaluation> evaluationsByAudioFileId = evaluationRepository.findByAudioFileIdIn(pageIds).stream()
+                .collect(Collectors.toMap(CallEvaluation::getAudioFileId, e -> e));
 
         return page.map(audioFile ->
-                InsightsListItem.from(audioFile, insightsByAudioFileId.get(audioFile.getId())));
+                InsightsListItem.from(audioFile, insightsByAudioFileId.get(audioFile.getId()),
+                        evaluationsByAudioFileId.get(audioFile.getId())));
     }
 
     public InsightsDetailResponse detail(Long id) {
@@ -53,7 +58,11 @@ public class InsightsQueryService {
         List<CallTranscriptSegment> segments = segmentRepository.findByAudioFileIdOrderByStartMsAsc(id);
         CallInsight insight = insightRepository.findByAudioFileId(id).orElse(null);
         List<CallInsightFinding> findings = findingRepository.findByAudioFileIdOrderByIdAsc(id);
-        return new InsightsDetailResponse(audioFile, segments, insight, findings);
+        CallEvaluation evaluation = evaluationRepository.findByAudioFileId(id).orElse(null);
+        List<CallEvaluationItem> evaluationItems = evaluation != null
+                ? evaluationItemRepository.findByEvaluationIdOrderByIdAsc(evaluation.getId())
+                : List.of();
+        return new InsightsDetailResponse(audioFile, segments, insight, findings, evaluation, evaluationItems);
     }
 
     public CallAudioFile findAudioFileById(Long id) {
@@ -62,7 +71,10 @@ public class InsightsQueryService {
     }
 
     public InsightsDashboardSummary dashboard() {
-        long total = audioFileRepository.count();
+        // Restrito a source='verint' (Fase 3 do Quality Management, V40) — este dashboard
+        // sempre foi sobre o call center Verint; uploads do portal do supervisor têm
+        // agregados próprios, à parte, na tela "Meus Envios".
+        long total = audioFileRepository.countBySource("verint");
 
         Map<String, Long> porCriticidade = new HashMap<>();
         for (Object[] row : insightRepository.countByCriticidade()) {
@@ -79,7 +91,22 @@ public class InsightsQueryService {
             achadosPorTipo.put((String) row[0], (Long) row[1]);
         }
 
-        return new InsightsDashboardSummary(total, porCriticidade, porCategoria, achadosPorTipo);
+        Map<String, Double> mediaNotaPorAgente = new HashMap<>();
+        for (Object[] row : evaluationRepository.averageNotaByAgent()) {
+            java.math.BigDecimal media = (java.math.BigDecimal) row[1];
+            mediaNotaPorAgente.put((String) row[0], media != null ? media.doubleValue() : null);
+        }
+        double mediaGeral = mediaNotaPorAgente.values().stream()
+                .filter(java.util.Objects::nonNull)
+                .mapToDouble(Double::doubleValue).average().orElse(0.0);
+        long agentesAbaixoMedia = mediaNotaPorAgente.values().stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(m -> m < mediaGeral)
+                .count();
+        long autoFailsNoPeriodo = evaluationRepository.countFailed();
+
+        return new InsightsDashboardSummary(total, porCriticidade, porCategoria, achadosPorTipo,
+                mediaGeral, agentesAbaixoMedia, autoFailsNoPeriodo);
     }
 
     /** Aba "Processamento" — status/fila de cada arquivo descoberto em /opt/audio. Posição na
@@ -95,7 +122,10 @@ public class InsightsQueryService {
 
     private Specification<CallAudioFile> withProcessingFilters(InsightsProcessingFilter filter) {
         return (root, query, cb) -> {
-            var predicates = cb.conjunction();
+            // Restrito a source='verint' (Fase 3 do Quality Management, V40) — a aba
+            // Processamento é sobre a fila do watcher em /opt/audio; o processamento dos
+            // uploads do portal do supervisor é visto na própria tela "Meus Envios".
+            var predicates = cb.equal(root.get("source"), "verint");
             if (filter.status() != null && !filter.status().isBlank()) {
                 predicates = cb.and(predicates, cb.equal(root.get("status"), filter.status()));
             }
@@ -138,6 +168,15 @@ public class InsightsQueryService {
         }
         if (hasText(filter.findingType())) {
             restricted = intersect(restricted, findingRepository.findAudioFileIdsByTipo(filter.findingType()));
+        }
+        if (filter.notaMin() != null) {
+            restricted = intersect(restricted, evaluationRepository.findAudioFileIdsByNotaMin(filter.notaMin()));
+        }
+        if (filter.notaMax() != null) {
+            restricted = intersect(restricted, evaluationRepository.findAudioFileIdsByNotaMax(filter.notaMax()));
+        }
+        if (filter.isFailed() != null) {
+            restricted = intersect(restricted, evaluationRepository.findAudioFileIdsByIsFailed(filter.isFailed()));
         }
 
         return restricted != null ? List.copyOf(restricted) : null;

@@ -21,7 +21,15 @@ function formatMonthLabel(month: string) {
  * de URA (Insights não tem) — trocado por filtro de atendente. Só STT+LLM, sem TTS.
  * Gráfico fixo no ano corrente (Jan-Dez, tamanho não cresce com o histórico) e com
  * drill-down: clicar num mês leva para a aba "Custos" já filtrada por aquele mês. */
-export function InsightsCostsDashboardTab({ onDrillDown }: { onDrillDown: (filters: InsightsDrillDownFilters) => void }) {
+interface InsightsCostsDashboardTabProps {
+  onDrillDown: (filters: InsightsDrillDownFilters) => void;
+  /** Endpoint a consumir — default é o fluxo Verint (/insights/costs/summary). A tela
+   * "Meus Envios" (Fase 3 do Quality Management, V40) reusa este componente
+   * parametrizado com '/insights/uploads/costs/summary'. */
+  basePath?: string;
+}
+
+export function InsightsCostsDashboardTab({ onDrillDown, basePath = '/insights/costs/summary' }: InsightsCostsDashboardTabProps) {
   const [summary, setSummary] = useState<InsightMonthlyCostSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [agentNameFilter, setAgentNameFilter] = useState('');
@@ -32,14 +40,14 @@ export function InsightsCostsDashboardTab({ onDrillDown }: { onDrillDown: (filte
     setLoading(true);
     const params = new URLSearchParams({ dateFrom: `${year}-01-01`, dateTo: `${year}-12-31` });
     if (agentNameFilter) params.set('agentName', agentNameFilter);
-    api.get<InsightMonthlyCostSummary[]>(`/insights/costs/summary?${params}`)
+    api.get<InsightMonthlyCostSummary[]>(`${basePath}?${params}`)
       .then(r => setSummary(r.data))
       .catch(err => {
         console.error('Erro ao carregar dashboard de custos de Insights:', err);
         setSummary([]);
       })
       .finally(() => setLoading(false));
-  }, [agentNameFilter, year]);
+  }, [agentNameFilter, year, basePath]);
 
   useEffect(() => { load(); }, [load]);
 

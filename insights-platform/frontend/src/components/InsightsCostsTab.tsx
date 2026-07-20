@@ -26,11 +26,15 @@ interface InsightsCostsTabProps {
   /** Avisa o pai (App) que o drill-down já foi aplicado, para não "grudar" numa troca
    * de aba manual seguinte (o pai zera o range guardado). */
   onInitialFiltersConsumed?: () => void;
+  /** Endpoint a consumir — default é o fluxo Verint (/insights/costs). A tela "Meus
+   * Envios" (Fase 3 do Quality Management, V40) reusa este componente parametrizado
+   * com '/insights/uploads/costs', sem duplicar nenhuma linha de código. */
+  basePath?: string;
 }
 
 /** Aba "Custos IA" de Insights — mirror exato de CostsTab.tsx (URA), sem filtro de URA
  * (Insights não tem) — trocado por filtro de atendente. Só STT+LLM, sem TTS. */
-export function InsightsCostsTab({ onDrillDown, initialDateFrom, initialDateTo, onInitialFiltersConsumed }: InsightsCostsTabProps) {
+export function InsightsCostsTab({ onDrillDown, initialDateFrom, initialDateTo, onInitialFiltersConsumed, basePath = '/insights/costs' }: InsightsCostsTabProps) {
   const [costs, setCosts] = useState<InsightCostView[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -49,7 +53,7 @@ export function InsightsCostsTab({ onDrillDown, initialDateFrom, initialDateTo, 
     if (filters.agentNameFilter) params.set('agentName', filters.agentNameFilter);
     if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
     if (filters.dateTo) params.set('dateTo', filters.dateTo);
-    api.get<PageResponse<InsightCostView>>(`/insights/costs?${params}`)
+    api.get<PageResponse<InsightCostView>>(`${basePath}?${params}`)
       .then(r => {
         setCosts(r.data.content ?? []);
         setTotalPages(r.data.totalPages);

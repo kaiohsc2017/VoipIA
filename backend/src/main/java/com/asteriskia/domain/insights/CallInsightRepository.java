@@ -23,10 +23,16 @@ public interface CallInsightRepository extends JpaRepository<CallInsight, Long> 
     @Query("SELECT ci.audioFileId FROM CallInsight ci WHERE LOWER(ci.criticidade) = LOWER(:criticidade)")
     List<Long> findAudioFileIdsByCriticidade(@Param("criticidade") String criticidade);
 
-    @Query("SELECT ci.criticidade, COUNT(ci) FROM CallInsight ci GROUP BY ci.criticidade")
+    // Restrito a source='verint' (Fase 3 do Quality Management, V40) — o dashboard de
+    // Insights sempre mostrou só o call center Verint; uploads do portal do supervisor
+    // não podem poluir esse agregado.
+    @Query("SELECT ci.criticidade, COUNT(ci) FROM CallInsight ci " +
+           "JOIN CallAudioFile caf ON caf.id = ci.audioFileId WHERE caf.source = 'verint' GROUP BY ci.criticidade")
     List<Object[]> countByCriticidade();
 
     @Query("SELECT ci.categoriaAssunto, COUNT(ci) FROM CallInsight ci " +
-           "WHERE ci.categoriaAssunto IS NOT NULL GROUP BY ci.categoriaAssunto ORDER BY COUNT(ci) DESC")
+           "JOIN CallAudioFile caf ON caf.id = ci.audioFileId " +
+           "WHERE ci.categoriaAssunto IS NOT NULL AND caf.source = 'verint' " +
+           "GROUP BY ci.categoriaAssunto ORDER BY COUNT(ci) DESC")
     List<Object[]> countByCategoria();
 }

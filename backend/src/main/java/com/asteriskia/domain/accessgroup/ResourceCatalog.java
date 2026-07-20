@@ -52,7 +52,10 @@ public final class ResourceCatalog {
             "insights.calls",
             "insights.dashboard",
             "insights.processing",
-            "insights.costs"
+            "insights.costs",
+            "insights.scorecards",
+            "insights.reports",
+            "insights.uploads"
     );
 
     public static List<String> all() {

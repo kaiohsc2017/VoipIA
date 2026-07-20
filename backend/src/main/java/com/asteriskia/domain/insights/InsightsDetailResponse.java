@@ -7,5 +7,7 @@ public record InsightsDetailResponse(
         CallAudioFile audioFile,
         List<CallTranscriptSegment> segments,
         CallInsight insights,
-        List<CallInsightFinding> findings
+        List<CallInsightFinding> findings,
+        CallEvaluation evaluation,
+        List<CallEvaluationItem> evaluationItems
 ) {}

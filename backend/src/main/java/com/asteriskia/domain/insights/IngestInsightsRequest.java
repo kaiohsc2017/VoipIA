@@ -16,7 +16,9 @@ import java.util.List;
 public record IngestInsightsRequest(
         @NotBlank String callRef,
         @NotBlank String wavPath,
-        @NotBlank String xmlPath,
+        // Sem @NotBlank desde a V40 — uploads do portal do supervisor (source='upload')
+        // não têm XML da Verint.
+        String xmlPath,
         Integer durationSeconds,
         OffsetDateTime callStarttime,
         String agentName,
@@ -40,7 +42,10 @@ public record IngestInsightsRequest(
         // persistir uma chamada genuinamente sem fala. @NotNull permite lista vazia.
         @NotNull @Valid List<SegmentPayload> segments,
         @NotNull @Valid InsightsPayload insights,
-        @Valid List<FindingPayload> findings
+        @Valid List<FindingPayload> findings,
+        // Opcional/retrocompatível — só vem preenchido quando havia ficha de avaliação
+        // ativa no momento do processamento (Fase 1 do Quality Management, V38).
+        @Valid EvaluationPayload evaluation
 ) {
     public record SegmentPayload(
             @NotBlank String speaker,
@@ -65,5 +70,20 @@ public record IngestInsightsRequest(
             @NotBlank String descricao,
             String trechoReferencia,
             String prioridade
+    ) {}
+
+    public record EvaluationPayload(
+            @NotNull Long scorecardId,
+            @NotNull @Valid List<EvaluationItemPayload> items,
+            Integer llmTokensIn,
+            Integer llmTokensOut,
+            String llmModel
+    ) {}
+
+    public record EvaluationItemPayload(
+            @NotNull Long itemId,
+            @NotNull Double nota,
+            String justificativa,
+            String trechoReferencia
     ) {}
 }

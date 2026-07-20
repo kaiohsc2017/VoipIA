@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * InsightsInternalController — endpoints consumidos pelo serviço asteriskia-insights.
  *
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 public class InsightsInternalController {
 
     private final InsightsIngestionService ingestionService;
+    private final ScorecardService scorecardService;
 
     public record PendingRequest(@NotBlank String wavPath, @NotBlank String xmlPath) {}
 
@@ -61,5 +64,34 @@ public class InsightsInternalController {
     public ResponseEntity<Void> ingest(@Valid @RequestBody IngestInsightsRequest request) {
         ingestionService.ingest(request);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * GET /internal/insights/active-scorecard — ficha de avaliação ativa no momento,
+     * consultada pelo serviço asteriskia-insights uma vez por ciclo (cache TTL do lado
+     * Python, mesmo padrão de config.py). 204 quando nenhuma ficha está ativa — o
+     * pipeline segue exatamente como antes da Fase 1 (avaliação é opcional).
+     */
+    @GetMapping("/active-scorecard")
+    public ResponseEntity<ScorecardDto> activeScorecard() {
+        return scorecardService.getActive()
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    public record PendingUploadView(String callRef, String wavPath, String agentName, String direction) {}
+
+    /**
+     * GET /internal/insights/uploads/pending — arquivos do portal do supervisor
+     * aguardando processamento (Fase 3 do Quality Management, V40). Diferente do fluxo
+     * Verint, o Java já sabe exatamente quais arquivos existem e seus metadados (não
+     * precisa de descoberta por regex de nome de arquivo no lado Python).
+     */
+    @GetMapping("/uploads/pending")
+    public ResponseEntity<List<PendingUploadView>> pendingUploads() {
+        List<PendingUploadView> views = ingestionService.findPendingUploads().stream()
+                .map(a -> new PendingUploadView(a.getCallRef(), a.getWavPath(), a.getAgentName(), a.getDirection()))
+                .toList();
+        return ResponseEntity.ok(views);
     }
 }

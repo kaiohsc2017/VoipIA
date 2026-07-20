@@ -40,6 +40,8 @@ export interface InsightsListItem {
   categoriaAssunto?: string;
   sentimentoGeral?: string;
   criticidade?: 'baixa' | 'media' | 'alta' | 'urgente';
+  notaTotal?: number;
+  isFailed?: boolean;
 }
 
 export interface CallAudioFile {
@@ -87,11 +89,30 @@ export interface CallInsight {
   criticidade: 'baixa' | 'media' | 'alta' | 'urgente';
 }
 
+export interface CallEvaluationItem {
+  id: number;
+  itemId: number;
+  nota: number;
+  justificativa?: string;
+  trechoReferencia?: string;
+}
+
+export interface CallEvaluation {
+  id: number;
+  audioFileId: number;
+  scorecardId: number;
+  notaTotal: number;
+  isFailed: boolean;
+  failReason?: string;
+}
+
 export interface InsightsDetailResponse {
   audioFile: CallAudioFile;
   segments: CallTranscriptSegment[];
   insights: CallInsight | null;
   findings: CallInsightFinding[];
+  evaluation: CallEvaluation | null;
+  evaluationItems: CallEvaluationItem[];
 }
 
 export interface InsightsDashboardSummary {
@@ -99,6 +120,125 @@ export interface InsightsDashboardSummary {
   porCriticidade: Record<string, number>;
   porCategoria: Record<string, number>;
   achadosPorTipo: Record<string, number>;
+  mediaNotaGeral: number;
+  agentesAbaixoMedia: number;
+  autoFailsNoPeriodo: number;
+}
+
+// ---- Insights — aba "Fichas" (scorecards, Fase 1 Quality Management, V38) ----
+export interface ScorecardItemDto {
+  id?: number;
+  ordem: number;
+  pergunta: string;
+  peso: number;
+  notaMaxima: number;
+  isCritical: boolean;
+}
+
+export interface ScorecardDto {
+  id: number;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  version: number;
+  items: ScorecardItemDto[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ---- Insights — aba "Relatórios" (relatórios de performance por atendente, Fase 2 QM, V39) ----
+export interface AgentReportItemAverage {
+  itemId: number;
+  pergunta: string;
+  media: number;
+}
+
+export interface AgentReportFinding {
+  tipo: string;
+  descricao: string;
+  trechoReferencia?: string;
+  prioridade: string;
+}
+
+export interface AgentReportNarrative {
+  pontosFortes: string[];
+  pontosMelhoria: string[];
+  recomendacoes: string[];
+  comparacaoTextual?: string;
+}
+
+export interface AgentReportAggregate {
+  totalChamadas: number;
+  notaMedia?: number;
+  autoFails: number;
+  notaPorItem: AgentReportItemAverage[];
+  achadosPorTipo: Record<string, number>;
+}
+
+export interface AgentReportContent {
+  aggregate: AgentReportAggregate;
+  achadosGraves: AgentReportFinding[];
+  narrative: AgentReportNarrative | null;
+}
+
+export interface AgentReportItemDelta {
+  itemId: number;
+  pergunta: string;
+  anterior?: number;
+  atual?: number;
+  delta?: number;
+}
+
+export interface AgentReportEvolution {
+  previousReportId: number;
+  partial: boolean;
+  deltaNotaMedia?: number;
+  deltaPorItem: AgentReportItemDelta[];
+}
+
+export interface AgentReportDto {
+  id: number;
+  agentName: string;
+  dateFrom: string;
+  dateTo: string;
+  requestedBy: string;
+  requestedAt: string;
+  status: 'pending' | 'processing' | 'done' | 'error';
+  errorMsg?: string;
+  content: AgentReportContent | null;
+  previousReportId?: number;
+  evolution: AgentReportEvolution | null;
+  completedAt?: string;
+}
+
+export interface AgentEvolutionSnapshot {
+  id: number;
+  agentName: string;
+  reportId: number;
+  itemId?: number;
+  metricKey: string;
+  valor: number;
+  createdAt: string;
+}
+
+// ---- Insights — aba "Meus Envios" (portal do supervisor, Fase 3 QM, V40) ----
+export interface UploadFileSummary {
+  id: number;
+  callRef: string;
+  agentName?: string;
+  direction?: string;
+  status: 'pending' | 'processing' | 'done' | 'error';
+  errorMsg?: string;
+  durationSeconds?: number;
+}
+
+export interface UploadBatchDto {
+  id: string;
+  uploadedBy: string;
+  createdAt: string;
+  fileCount: number;
+  notes?: string;
+  files: UploadFileSummary[] | null;
 }
 
 // Filtros de drill-down entre abas (Dashboard de Tendências, Custos IA e
@@ -111,6 +251,7 @@ export interface InsightsDrillDownFilters {
   findingType?: string;
   dateFrom?: string;
   dateTo?: string;
+  isFailed?: boolean;
 }
 
 // ---- Insights — aba "Custos IA" / "Dashboard de Custos" ----

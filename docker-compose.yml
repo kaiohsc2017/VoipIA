@@ -211,10 +211,14 @@ services:
       INTERNAL_API_KEY:             ${INTERNAL_API_KEY}
       DOTENV_PATH:                  /opt/asteriskia/env/.env
       INSIGHTS_AUDIO_DIR:           ${INSIGHTS_AUDIO_DIR:-/opt/audio}
+      INSIGHTS_UPLOAD_AUDIO_DIR:    ${INSIGHTS_UPLOAD_AUDIO_DIR:-/opt/audio_upload}
       INSIGHTS_POLL_INTERVAL_SECONDS: ${INSIGHTS_POLL_INTERVAL_SECONDS:-60}
       INSIGHTS_MAX_CONCURRENCY:     ${INSIGHTS_MAX_CONCURRENCY:-2}
     volumes:
       - /opt/audio:/opt/audio:ro
+      # Portal do supervisor (Fase 3 do Quality Management, V40) — pasta separada de
+      # /opt/audio (não subpasta), só leitura: o backend é quem grava os uploads.
+      - /opt/audio_upload:/opt/audio_upload:ro
       - /opt/AsteriskIA/env:/opt/asteriskia/env:ro
     networks:
       asteriskia-net:
@@ -316,6 +320,9 @@ services:
       # Insights — streaming de áudio (InsightsController.getAudio transcodifica
       # via ffmpeg); módulo apartado, mesmo caminho lido pelo serviço insights.
       INSIGHTS_AUDIO_PATH:        ${INSIGHTS_AUDIO_DIR:-/opt/audio}
+      # Portal do supervisor (Fase 3 do Quality Management, V40) — InsightsUploadService
+      # grava os arquivos enviados aqui; hoje o backend não montava RW nenhum áudio.
+      INSIGHTS_UPLOAD_AUDIO_PATH: ${INSIGHTS_UPLOAD_AUDIO_DIR:-/opt/audio_upload}
     volumes:
       - asterisk_recordings:/var/spool/asterisk/monitor
       - /opt/AsteriskIA/env:/opt/asteriskia/env
@@ -334,6 +341,11 @@ services:
       - ./security/config/filter.d:/etc/fail2ban/filter.d:ro
       - asterisk_log:/var/log/asterisk:ro
       - /opt/audio:/opt/audio:ro
+      # Portal do supervisor (Fase 3 do Quality Management, V40) — único mount RW de
+      # áudio do stack; pasta separada de /opt/audio (nunca subpasta), elimina por
+      # construção o risco de o watcher do Verint (scan não-recursivo) cruzar os dois
+      # fluxos mesmo que um ajuste futuro torne o scan recursivo.
+      - /opt/audio_upload:/opt/audio_upload:rw
       # Achado de segurança: montava o diretório security/ INTEIRO em RW,
       # incluindo entrypoint.sh/lockdown-watcher.sh — um RCE no backend
       # escreveria o script que o container security executa como root

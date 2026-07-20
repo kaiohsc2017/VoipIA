@@ -76,6 +76,18 @@ export function InsightsDashboardTab({ onDrillDown }: { onDrillDown: (filters: I
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>Falhas de processo</div>
           <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#34c759' }}>{summary.achadosPorTipo.falha ?? 0}</div>
         </div>
+        <div className="stat-card" style={{ padding: '12px 16px' }} title="Média das notas por agente (Fichas de avaliação)">
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>Nota média geral</div>
+          <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#5856d6' }}>{summary.mediaNotaGeral.toFixed(1)}</div>
+        </div>
+        <div className="stat-card" style={{ padding: '12px 16px' }} title="Agentes com nota média abaixo da média geral">
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>Agentes abaixo da média</div>
+          <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#ff9500' }}>{summary.agentesAbaixoMedia}</div>
+        </div>
+        <div className="stat-card" style={{ padding: '12px 16px', cursor: 'pointer' }} onClick={() => onDrillDown({ isFailed: true })} title="Ver chamadas reprovadas por item crítico (auto-fail)">
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>Auto-fails no período</div>
+          <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#ff3b30' }}>{summary.autoFailsNoPeriodo}</div>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

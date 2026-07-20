@@ -21,5 +21,8 @@ public record InsightsFilter(
         String direction,
         String skill,
         Integer durationMin,
-        Integer durationMax
+        Integer durationMax,
+        java.math.BigDecimal notaMin,
+        java.math.BigDecimal notaMax,
+        Boolean isFailed
 ) {}

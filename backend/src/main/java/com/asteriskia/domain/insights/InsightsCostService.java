@@ -101,6 +101,12 @@ public class InsightsCostService {
                 predicates = cb.and(predicates,
                         cb.like(cb.lower(root.get("agentName")), "%" + filter.agentName().toLowerCase() + "%"));
             }
+            if (filter.source() != null && !filter.source().isBlank()) {
+                predicates = cb.and(predicates, cb.equal(root.get("source"), filter.source()));
+            }
+            if (filter.uploadedBy() != null && !filter.uploadedBy().isBlank()) {
+                predicates = cb.and(predicates, cb.equal(root.get("uploadedBy"), filter.uploadedBy()));
+            }
             return predicates;
         };
     }
