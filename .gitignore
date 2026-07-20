@@ -8,6 +8,11 @@
 # Credenciais anotadas manualmente (PAT do GitHub, chaves) — NUNCA commitar
 git.txt
 
+# Arquivos soltos antigos e backups de banco — organizados fora do controle
+# de versão (podem conter dumps/credenciais anotadas manualmente)
+old/
+backups/
+
 # Diretório de secrets de produção — NÃO É PARTE DO REPOSITÓRIO
 # Fica em /opt/AsteriskIA/env/ na VPS (fora do git working tree)
 env/

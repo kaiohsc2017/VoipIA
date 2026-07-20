@@ -8,7 +8,6 @@
 #   app.voiphash.com.br/insights → Insights (frontend próprio, backend Spring Boot reusado)
 #   app.voiphash.com.br/docs     → Documentação estática (HTML)
 #   claw.voiphash.com.br       → Proxy interno (10.0.3.1:18789)
-#   manager.voiphash.com.br    → Manager Telecom (app-telecom na porta 8082)
 # =============================================================================
 {
 	# API de administração — socket Unix em vez de TCP: um bind TCP em
@@ -139,14 +138,6 @@ app.voiphash.com.br {
 # ── Claw — proxy para serviço interno ────────────────────────────────────────
 claw.voiphash.com.br {
 	reverse_proxy 10.0.3.1:18789 {
-		header_up Host {host}
-		header_up X-Real-IP {remote_host}
-	}
-}
-
-# ── Manager Telecom ──────────────────────────────────────────────────────────
-manager.voiphash.com.br {
-	reverse_proxy 172.16.7.1:8082 {
 		header_up Host {host}
 		header_up X-Real-IP {remote_host}
 	}
