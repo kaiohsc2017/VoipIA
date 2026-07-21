@@ -254,31 +254,6 @@ export interface InsightsDrillDownFilters {
   isFailed?: boolean;
 }
 
-// ---- Insights — aba "Custos IA" / "Dashboard de Custos" ----
-export interface InsightCostView {
-  id: number;
-  callRef: string;
-  callStarttime?: string;
-  agentName?: string;
-  durationSeconds?: number;
-  sttTokensIn: number;
-  sttTokensOut: number;
-  sttModel?: string;
-  llmTokensIn: number;
-  llmTokensOut: number;
-  llmModel?: string;
-  totalTokens: number;
-  estimatedCostUsd: number;
-}
-
-export interface InsightMonthlyCostSummary {
-  month: string; // "yyyy-MM"
-  sttCostUsd: number;
-  llmCostUsd: number;
-  totalCostUsd: number;
-  callCount: number;
-}
-
 // ---- Insights — aba "Processamento" ----
 export interface InsightProcessingItem {
   id: number;

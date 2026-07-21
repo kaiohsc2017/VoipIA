@@ -273,6 +273,25 @@
   flex-shrink: 0;
 }
 
+/* Submenu expansível (ex: Financeiro → URA/Insights/Análise Sob Demanda) */
+.nav-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 2px 12px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-glass);
+}
+
+.nav-subitem {
+  padding: 8px 12px;
+  font-size: 0.82rem;
+}
+
+.sidebar.collapsed .nav-submenu {
+  display: none;
+}
+
 .sidebar-footer {
   padding: 16px 12px;
   border-top: 1px solid var(--border-glass);

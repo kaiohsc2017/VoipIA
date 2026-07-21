@@ -8,6 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
@@ -50,6 +51,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleResourceNotFound(ResourceNotFoundException ex) {
         log.debug("Recurso não encontrado: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, String>> handleResponseStatusException(ResponseStatusException ex) {
+        // Achado durante a validação em produção do módulo Financeiro: sem este handler,
+        // ResponseStatusException (usada em vários controllers — InsightsUploadController,
+        // AgentReportController, CostAlertController — para 404/401/409/400) caía no
+        // catch-all de RuntimeException abaixo, virando sempre 500 e mascarando o status
+        // real (e a mensagem, quando não sensível) que o próprio código já tinha decidido.
+        log.debug("ResponseStatusException: {} — {}", ex.getStatusCode(), ex.getReason());
+        return ResponseEntity.status(ex.getStatusCode())
+                .body(Map.of("error", ex.getReason() != null ? ex.getReason() : "Erro na requisição"));
     }
 
     @ExceptionHandler(RuntimeException.class)

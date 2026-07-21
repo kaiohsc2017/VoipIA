@@ -220,9 +220,12 @@ Plataforma de Agentes (abrindo `/agents/docs.html`) foi removido — o acesso ag
   (`ResourceCatalog.java`, espelhado em `Sidebar.tsx`, no `NAV` do `agents-platform/frontend` e no
   `App.tsx` da SPA `insights-platform/frontend`) — os menus são fixos, só a matriz de permissões é
   dinâmica. Gestão pela UI: página "Grupos de Acesso" (`AccessGroups.tsx`, admin-only).
-  Namespace `insights.*` (`insights.calls`/`dashboard`/`processing`/`costs`) segue o mesmo padrão
-  granular por aba do namespace `agents.*`; `telecom.insights_link` é só o item de menu que abre a
-  SPA via iframe, sem relação com os dados.
+  Namespace `insights.*` (`insights.calls`/`dashboard`/`processing`/`scorecards`/`reports`/
+  `uploads`) segue o mesmo padrão granular por aba do namespace `agents.*`; `telecom.insights_link`
+  é só o item de menu que abre a SPA via iframe, sem relação com os dados. Namespace
+  `financeiro.*` (`financeiro.ura`/`insights`/`envios`) protege o módulo Financeiro (submenu na
+  Sidebar do Telecom) — `insights.costs` foi removido do catálogo quando as telas de custo do
+  Insights migraram pra lá (V41).
 - **Claim `role`** (`ADMIN`|`USER`) continua sendo emitida em paralelo (**dual-emit**) por
   compatibilidade — tokens antigos (antes do deploy do RBAC granular) só têm `role`, sem a claim
   `perm`, e continuam válidos até expirar/renovar (máx. 8h). **Claim `perm`**
@@ -434,6 +437,45 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > de verificação de sempre continuam válidos: `SIP_PUBLIC_IP` injetado no `pjsip.conf`,
 > `external_media_address`/`external_signaling_address` não vazios, portas RTP `15000-15500/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
+
+### ✅ Novo módulo Financeiro — centraliza Custo de IA (2026-07-20) — implementado, pendente deploy/validação em produção
+Pedido do usuário: um módulo Financeiro no menu, com submenu URA / Insights / **Análise Sob
+Demanda** (nome escolhido no lugar de "Análise Individual" — é a frente antes chamada
+"Custo IA (Envios)"), reunindo as telas de Custo IA/Dashboard de Custos que hoje viviam
+espalhadas (aba do Módulo URA + abas da SPA Insights). Plano completo em
+`.claude/plans/modulo-financeiro.plan.md`.
+- **Movido, não duplicado**: as abas de custo saíram do `ModuloURA.tsx` e da SPA Insights
+  (`insights-platform/frontend`) — `Financeiro.tsx` (novo, `frontend/src/components/`) as
+  centraliza, reaproveitando os componentes já existentes (`CostsTab`/`CostsDashboardTab`
+  para URA; `InsightsCostsTab`/`InsightsCostsDashboardTab` portados da SPA Insights para o
+  Telecom, parametrizados por `basePath`, para Insights/Análise Sob Demanda). Nenhum endpoint
+  de dados novo — só mudou a permissão que protege cada rota `/costs/**` e o frontend que
+  consome.
+- **RBAC**: namespace novo `financeiro.ura`/`financeiro.insights`/`financeiro.envios`
+  (migration `V41__financeiro_rbac_namespace.sql`, copia concessões de `telecom.modulo1`/
+  `insights.costs`/`insights.uploads` sem apagar as origens, que continuam protegendo o
+  resto de suas telas). `insights.costs` foi **removido** do `ResourceCatalog.java` — não
+  protegia mais nada além do custo. 4 pontos de sincronia atualizados (`ResourceCatalog`,
+  `SecurityConfig`, `Sidebar.tsx`, `AccessGroups.tsx`).
+- **Submenu expansível na Sidebar** — padrão novo, inédito até esta entrega (a Sidebar do
+  Telecom era 100% plana); implementado com um item `NavParent`/`children[]` genérico, sem
+  lib nova.
+- **Alerta de gasto em USD por frente** (pedido adicional do usuário): aba "Alerta de
+  Gasto" em cada submenu — limite mensal configurável, verificado diariamente por
+  `CostAlertScheduler` (migration `V42__financeiro_cost_alerts.sql`, espelha
+  `AiModelPricingSyncScheduler`) e notificado via `TelegramBotService.sendMessage` (já
+  existente) — no máximo uma vez por mês por frente. `CostAlertServiceTest` (6 testes)
+  cobre limite atingido/não atingido/já notificado/desabilitado.
+- **Dashboard principal**: novo gráfico `LineChart` (recharts) com evolução mensal das 3
+  frentes no mesmo gráfico + novo `KpiCard` de custo acumulado do mês corrente somando as
+  3 frentes — busca só as frentes com permissão de leitura, tolera 403 por frente sem
+  quebrar o restante do Dashboard.
+- Backend: `mvn compile` limpo, suíte completa 232 testes (só a falha pré-existente e
+  não-relacionada de `ClientControllerTest` — já conhecida antes desta sessão). Frontend:
+  `tsc --noEmit` e `npm run build` limpos nas duas SPAs (Telecom e Insights).
+- **Pendente**: deploy real (`docker compose up -d --build backend frontend`, migrations
+  V41/V42 aplicam no boot) e validação visual no navegador (submenu, as 3 abas por frente,
+  config de alerta, Dashboard) — sem acesso a browser nesta sessão.
 
 ### ✅ Agentes migrado de React UMD (single-file) para Vite+TS (2026-07-19) — implementado, pendente deploy/validação em produção
 Plano completo em `.claude/plans/agentes-migracao-vite-spa.plan.md` (9 fases). O antigo

@@ -3,6 +3,7 @@ import Instalacao from './docs/sections/Instalacao';
 import TelecomModulos from './docs/sections/TelecomModulos';
 import TelecomInsights from './docs/sections/TelecomInsights';
 import TelecomRBAC from './docs/sections/TelecomRBAC';
+import Financeiro from './docs/sections/Financeiro';
 import Introducao from './docs/sections/Introducao';
 import AgentesDashboard from './docs/sections/AgentesDashboard';
 import AgentesTipos from './docs/sections/AgentesTipos';
@@ -20,6 +21,7 @@ export default function Documentacao() {
       <TelecomModulos />
       <TelecomInsights />
       <TelecomRBAC />
+      <Financeiro />
       <Introducao />
       <AgentesDashboard />
       <AgentesTipos />

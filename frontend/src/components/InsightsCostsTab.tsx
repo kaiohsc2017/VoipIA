@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
-import type { InsightCostView, InsightsDrillDownFilters, PageResponse } from '../api/types';
+import type { FinanceiroDrillDownFilters, InsightCostView, PageResponse } from '../api/types';
 
 function formatDate(iso?: string) {
   if (!iso) return '—';
@@ -19,22 +19,23 @@ function formatTokens(value: number) {
 }
 
 interface InsightsCostsTabProps {
-  onDrillDown: (filters: InsightsDrillDownFilters) => void;
+  onDrillDown: (filters: FinanceiroDrillDownFilters) => void;
   /** Preenchidos pelo drill-down do Dashboard de Custos (mês clicado). */
   initialDateFrom?: string;
   initialDateTo?: string;
-  /** Avisa o pai (App) que o drill-down já foi aplicado, para não "grudar" numa troca
-   * de aba manual seguinte (o pai zera o range guardado). */
+  /** Avisa o pai (Financeiro) que o drill-down já foi aplicado, para não "grudar" numa
+   * troca de aba manual seguinte (o pai zera o range guardado). */
   onInitialFiltersConsumed?: () => void;
-  /** Endpoint a consumir — default é o fluxo Verint (/insights/costs). A tela "Meus
-   * Envios" (Fase 3 do Quality Management, V40) reusa este componente parametrizado
-   * com '/insights/uploads/costs', sem duplicar nenhuma linha de código. */
-  basePath?: string;
+  /** Endpoint a consumir — fluxo Verint (/insights/costs) ou Análise Sob Demanda
+   * (/insights/uploads/costs), parametrizado pelo módulo Financeiro (Financeiro.tsx),
+   * sem duplicar nenhuma linha de código entre as duas frentes. */
+  basePath: string;
 }
 
-/** Aba "Custos IA" de Insights — mirror exato de CostsTab.tsx (URA), sem filtro de URA
- * (Insights não tem) — trocado por filtro de atendente. Só STT+LLM, sem TTS. */
-export function InsightsCostsTab({ onDrillDown, initialDateFrom, initialDateTo, onInitialFiltersConsumed, basePath = '/insights/costs' }: InsightsCostsTabProps) {
+/** Aba "Custos IA" do módulo Financeiro (frentes Insights/Análise Sob Demanda) — mirror
+ * exato de CostsTab.tsx (URA), sem filtro de URA (Insights não tem) — trocado por filtro
+ * de atendente. Só STT+LLM, sem TTS. */
+export function InsightsCostsTab({ onDrillDown, initialDateFrom, initialDateTo, onInitialFiltersConsumed, basePath }: InsightsCostsTabProps) {
   const [costs, setCosts] = useState<InsightCostView[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -60,7 +61,7 @@ export function InsightsCostsTab({ onDrillDown, initialDateFrom, initialDateTo, 
         setPage(r.data.number);
       })
       .catch(err => {
-        console.error('Erro ao carregar custos de IA de Insights:', err);
+        console.error('Erro ao carregar custos de IA:', err);
         setCosts([]);
       })
       .finally(() => setLoading(false));
@@ -72,7 +73,8 @@ export function InsightsCostsTab({ onDrillDown, initialDateFrom, initialDateTo, 
   useEffect(() => {
     loadCosts(0, { agentNameFilter, dateFrom, dateTo });
     onInitialFiltersConsumed?.();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [basePath]);
 
   const clearFilters = () => {
     setAgentNameFilter(''); setDateFrom(''); setDateTo('');

@@ -373,4 +373,14 @@ export const RELEASES: ReleaseEntry[] = [
       'Grupos de Acesso: tela de administração passa a listar também o recurso "Meus Envios (upload)" do Insights.',
     ],
   },
+  {
+    version: 'v1.42',
+    date: '2026-07-20',
+    changes: [
+      'Novo módulo Financeiro: centraliza as telas de Custo IA e Dashboard de Custos das 3 frentes de uso (URA, Insights e Análise Sob Demanda — antes "Custo IA (Envios)"), num submenu próprio no menu lateral. As abas de custo saíram do Módulo URA e do Insights, que continuam com o restante de suas telas normalmente.',
+      'Financeiro: cada frente ganhou uma aba de "Alerta de Gasto" — configura um limite mensal em USD que, ao ser ultrapassado, dispara um alerta pelo Telegram (verificado diariamente, no máximo uma notificação por mês por frente).',
+      'Dashboard: novo card "Custo IA acumulado (mês)" somando as 3 frentes, e novo gráfico de evolução mensal de custo de IA com uma linha por frente (URA/Insights/Análise Sob Demanda) no mesmo gráfico.',
+      'Grupos de Acesso: novo grupo de recursos "Financeiro" (URA, Insights, Análise Sob Demanda) — substitui o antigo recurso "Custos IA" do Insights, que foi removido por não proteger mais nada.',
+    ],
+  },
 ];

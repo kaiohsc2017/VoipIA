@@ -35,6 +35,12 @@ export const TOC: TocGroup[] = [
     ],
   },
   {
+    label: 'Financeiro',
+    items: [
+      { id: 'financeiro-visao-geral', label: 'Custo de IA (URA/Insights/Envios)' },
+    ],
+  },
+  {
     label: 'Agentes',
     items: [
       { id: 'agentes-visao-geral', label: 'Visão Geral' },

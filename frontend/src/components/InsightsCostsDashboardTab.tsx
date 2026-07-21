@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import type { ValueType } from 'recharts/types/component/DefaultTooltipContent';
-import type { InsightMonthlyCostSummary, InsightsDrillDownFilters } from '../api/types';
+import type { FinanceiroDrillDownFilters, InsightMonthlyCostSummary } from '../api/types';
 
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -17,19 +17,19 @@ function formatMonthLabel(month: string) {
   return `${MONTH_NAMES[Number(m) - 1]}/${year.slice(2)}`;
 }
 
-/** Dashboard de Custos de Insights — mirror exato de CostsDashboardTab.tsx (URA), sem filtro
- * de URA (Insights não tem) — trocado por filtro de atendente. Só STT+LLM, sem TTS.
- * Gráfico fixo no ano corrente (Jan-Dez, tamanho não cresce com o histórico) e com
- * drill-down: clicar num mês leva para a aba "Custos" já filtrada por aquele mês. */
 interface InsightsCostsDashboardTabProps {
-  onDrillDown: (filters: InsightsDrillDownFilters) => void;
-  /** Endpoint a consumir — default é o fluxo Verint (/insights/costs/summary). A tela
-   * "Meus Envios" (Fase 3 do Quality Management, V40) reusa este componente
-   * parametrizado com '/insights/uploads/costs/summary'. */
-  basePath?: string;
+  onDrillDown: (filters: FinanceiroDrillDownFilters) => void;
+  /** Endpoint a consumir — fluxo Verint (/insights/costs/summary) ou Análise Sob Demanda
+   * (/insights/uploads/costs/summary), parametrizado pelo módulo Financeiro. */
+  basePath: string;
 }
 
-export function InsightsCostsDashboardTab({ onDrillDown, basePath = '/insights/costs/summary' }: InsightsCostsDashboardTabProps) {
+/** Dashboard de Custos do módulo Financeiro (frentes Insights/Análise Sob Demanda) — mirror
+ * exato de CostsDashboardTab.tsx (URA), sem filtro de URA (Insights não tem) — trocado por
+ * filtro de atendente. Só STT+LLM, sem TTS. Gráfico fixo no ano corrente (Jan-Dez, tamanho
+ * não cresce com o histórico) e com drill-down: clicar num mês leva para a aba "Custos IA"
+ * já filtrada por aquele mês. */
+export function InsightsCostsDashboardTab({ onDrillDown, basePath }: InsightsCostsDashboardTabProps) {
   const [summary, setSummary] = useState<InsightMonthlyCostSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [agentNameFilter, setAgentNameFilter] = useState('');
@@ -43,7 +43,7 @@ export function InsightsCostsDashboardTab({ onDrillDown, basePath = '/insights/c
     api.get<InsightMonthlyCostSummary[]>(`${basePath}?${params}`)
       .then(r => setSummary(r.data))
       .catch(err => {
-        console.error('Erro ao carregar dashboard de custos de Insights:', err);
+        console.error('Erro ao carregar dashboard de custos:', err);
         setSummary([]);
       })
       .finally(() => setLoading(false));

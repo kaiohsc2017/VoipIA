@@ -1,10 +1,9 @@
 import type { ComponentType } from 'react';
 import { useState } from 'react';
-import { PhoneCall, TrendingUp, Settings, DollarSign, BarChart3, LogOut, ClipboardList, FileText, Upload } from 'lucide-react';
+import { PhoneCall, TrendingUp, Settings, LogOut, ClipboardList, FileText, Upload } from 'lucide-react';
 import type { AuthSession } from '../hooks/useAuthSession';
 
-type Tab = 'calls' | 'dashboard' | 'processing' | 'costs' | 'costsDashboard' | 'scorecards' | 'reports'
-  | 'uploads' | 'uploadsCosts' | 'uploadsCostsDashboard';
+type Tab = 'calls' | 'dashboard' | 'processing' | 'scorecards' | 'reports' | 'uploads';
 
 interface SidebarProps {
   currentTab: Tab;
@@ -23,13 +22,9 @@ const NAV_ITEMS: { tab: Tab; icon: ComponentType<{ size?: number; strokeWidth?: 
   { tab: 'calls',          icon: PhoneCall,  label: 'Chamadas',                 resource: 'insights.calls'      },
   { tab: 'dashboard',      icon: TrendingUp, label: 'Dashboard de Tendências',  resource: 'insights.dashboard'  },
   { tab: 'processing',     icon: Settings,   label: 'Processamento',           resource: 'insights.processing' },
-  { tab: 'costs',          icon: DollarSign, label: 'Custos IA',                resource: 'insights.costs'      },
-  { tab: 'costsDashboard', icon: BarChart3,  label: 'Dashboard de Custos',      resource: 'insights.costs'      },
   { tab: 'scorecards',     icon: ClipboardList, label: 'Fichas',                resource: 'insights.scorecards' },
   { tab: 'reports',        icon: FileText,   label: 'Relatórios',               resource: 'insights.reports'    },
   { tab: 'uploads',        icon: Upload,     label: 'Meus Envios',              resource: 'insights.uploads'    },
-  { tab: 'uploadsCosts',   icon: DollarSign, label: 'Custo IA (Envios)',        resource: 'insights.uploads'    },
-  { tab: 'uploadsCostsDashboard', icon: BarChart3, label: 'Dashboard de Custos (Envios)', resource: 'insights.uploads' },
 ];
 
 export default function Sidebar({ currentTab, onNavigate, username, session, onLogout, collapsed, onToggleCollapse }: SidebarProps) {

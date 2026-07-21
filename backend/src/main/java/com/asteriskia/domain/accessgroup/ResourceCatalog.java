@@ -48,18 +48,32 @@ public final class ResourceCatalog {
     // Insights virou SPA independente (/insights, backend Spring Boot reusado)
     // — namespace próprio por aba, espelhando agents.* acima. telecom.insights_link
     // (acima) é só o item de menu no Telecom que abre a SPA via iframe.
+    // "insights.costs" foi removido daqui (V41) — as rotas /insights/costs/** que ele
+    // protegia migraram para "financeiro.insights" (módulo Financeiro); não sobrou nada
+    // mais pra esse resource_key proteger.
     public static final List<String> INSIGHTS = List.of(
             "insights.calls",
             "insights.dashboard",
             "insights.processing",
-            "insights.costs",
             "insights.scorecards",
             "insights.reports",
             "insights.uploads"
     );
 
+    // Módulo Financeiro — centraliza as 2 telas de custo de IA (lista + dashboard) de cada
+    // frente de uso, antes espalhadas em telecom.modulo1 (URA), insights.costs (Insights,
+    // removido acima) e insights.uploads (Análise Sob Demanda). telecom.modulo1 e
+    // insights.uploads continuam existindo — protegem o restante de suas telas — só
+    // perderam a responsabilidade sobre as rotas /costs/**.
+    public static final List<String> FINANCEIRO = List.of(
+            "financeiro.ura",
+            "financeiro.insights",
+            "financeiro.envios"
+    );
+
     public static List<String> all() {
-        return java.util.stream.Stream.of(TELECOM.stream(), AGENTS.stream(), INSIGHTS.stream())
+        return java.util.stream.Stream.of(
+                        TELECOM.stream(), AGENTS.stream(), INSIGHTS.stream(), FINANCEIRO.stream())
                 .flatMap(s -> s)
                 .toList();
     }

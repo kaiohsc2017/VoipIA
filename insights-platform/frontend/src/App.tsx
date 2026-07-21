@@ -4,8 +4,6 @@ import Sidebar, { type Tab } from './components/Sidebar';
 import { InsightsTab } from './components/InsightsTab';
 import { InsightsDashboardTab } from './components/InsightsDashboardTab';
 import { InsightsProcessingTab } from './components/InsightsProcessingTab';
-import { InsightsCostsTab } from './components/InsightsCostsTab';
-import { InsightsCostsDashboardTab } from './components/InsightsCostsDashboardTab';
 import { ScorecardsTab } from './components/ScorecardsTab';
 import { ReportsTab } from './components/ReportsTab';
 import { SupervisorPortalTab } from './components/SupervisorPortalTab';
@@ -21,13 +19,9 @@ const TAB_RESOURCE = {
   calls: 'insights.calls',
   dashboard: 'insights.dashboard',
   processing: 'insights.processing',
-  costs: 'insights.costs',
-  costsDashboard: 'insights.costs',
   scorecards: 'insights.scorecards',
   reports: 'insights.reports',
   uploads: 'insights.uploads',
-  uploadsCosts: 'insights.uploads',
-  uploadsCostsDashboard: 'insights.uploads',
 } as const;
 
 // ─── ErrorBoundary — evita tela em branco em caso de exceção de render ──────
@@ -71,7 +65,6 @@ export default function App() {
 
   const [tab, setTab] = useState<Tab>('calls');
   const [pendingDrillDown, setPendingDrillDown] = useState<{ filters: InsightsDrillDownFilters; nonce: number } | null>(null);
-  const [costsRange, setCostsRange] = useState<{ dateFrom: string; dateTo: string } | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Escuta logout forçado (token expirado / 401) — mesmo padrão do Telecom.
@@ -102,13 +95,6 @@ export default function App() {
 
   const handleDrillDownConsumed = () => setPendingDrillDown(null);
 
-  /** Drill-down vindo do Dashboard de Custos: troca para a aba Custos já com o range
-   * do mês clicado. */
-  const handleCostsDrillDown = (filters: InsightsDrillDownFilters) => {
-    setCostsRange({ dateFrom: filters.dateFrom ?? '', dateTo: filters.dateTo ?? '' });
-    setTab('costs');
-  };
-
   if (!token) {
     return (
       <ErrorBoundary>
@@ -121,13 +107,9 @@ export default function App() {
     { id: 'calls' },
     { id: 'dashboard' },
     { id: 'processing' },
-    { id: 'costs' },
-    { id: 'costsDashboard' },
     { id: 'scorecards' },
     { id: 'reports' },
     { id: 'uploads' },
-    { id: 'uploadsCosts' },
-    { id: 'uploadsCostsDashboard' },
   ];
   const visibleTabs = TABS.filter(t => session.hasRead(TAB_RESOURCE[t.id]));
   const currentTab = visibleTabs.some(t => t.id === tab) ? tab : visibleTabs[0]?.id;
@@ -149,25 +131,10 @@ export default function App() {
             {currentTab === 'calls' && <InsightsTab pendingDrillDown={pendingDrillDown} onDrillDownConsumed={handleDrillDownConsumed} />}
             {currentTab === 'dashboard' && <InsightsDashboardTab onDrillDown={handleDrillDown} />}
             {currentTab === 'processing' && <InsightsProcessingTab onDrillDown={handleDrillDown} />}
-            {currentTab === 'costs' && (
-              <InsightsCostsTab
-                onDrillDown={handleDrillDown}
-                initialDateFrom={costsRange?.dateFrom}
-                initialDateTo={costsRange?.dateTo}
-                onInitialFiltersConsumed={() => setCostsRange(null)}
-              />
-            )}
-            {currentTab === 'costsDashboard' && <InsightsCostsDashboardTab onDrillDown={handleCostsDrillDown} />}
             {currentTab === 'scorecards' && <ScorecardsTab canWrite={session.hasWrite('insights.scorecards')} />}
             {currentTab === 'reports' && <ReportsTab canWrite={session.hasWrite('insights.reports')} isAdmin={session.role === 'ADMIN'} />}
             {currentTab === 'uploads' && (
               <SupervisorPortalTab canWrite={session.hasWrite('insights.uploads')} isAdmin={session.role === 'ADMIN'} />
-            )}
-            {currentTab === 'uploadsCosts' && (
-              <InsightsCostsTab onDrillDown={() => {}} basePath="/insights/uploads/costs" />
-            )}
-            {currentTab === 'uploadsCostsDashboard' && (
-              <InsightsCostsDashboardTab onDrillDown={() => {}} basePath="/insights/uploads/costs/summary" />
             )}
             {!currentTab && (
               <p style={{ color: 'var(--text-muted)' }}>Você não tem permissão de leitura em nenhuma aba do Insights.</p>

@@ -5,7 +5,7 @@ import type { AccessGroup, AccessGroupPermission, AccessGroupRequest } from '../
 // Catálogo fixo de recursos (menus) — espelha ResourceCatalog.java, o NAV do
 // agents-platform/frontend e o App.tsx da SPA insights-platform/frontend.
 // Manter em sincronia manual.
-const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agentes' | 'Insights' }[] = [
+const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agentes' | 'Insights' | 'Financeiro' }[] = [
   { key: 'telecom.dashboard',    label: 'Dashboard',              system: 'Telecom' },
   { key: 'telecom.modulo1',      label: 'URA',                    system: 'Telecom' },
   { key: 'telecom.insights_link', label: 'Insights (link de nav)', system: 'Telecom' },
@@ -34,10 +34,12 @@ const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agent
   { key: 'insights.calls',       label: 'Chamadas',               system: 'Insights' },
   { key: 'insights.dashboard',   label: 'Dashboard',              system: 'Insights' },
   { key: 'insights.processing',  label: 'Processamento',          system: 'Insights' },
-  { key: 'insights.costs',       label: 'Custos IA',              system: 'Insights' },
   { key: 'insights.scorecards',  label: 'Fichas',                 system: 'Insights' },
   { key: 'insights.reports',     label: 'Relatórios',             system: 'Insights' },
   { key: 'insights.uploads',     label: 'Meus Envios (upload)',   system: 'Insights' },
+  { key: 'financeiro.ura',       label: 'URA',                    system: 'Financeiro' },
+  { key: 'financeiro.insights',  label: 'Insights',                system: 'Financeiro' },
+  { key: 'financeiro.envios',    label: 'Análise Sob Demanda',    system: 'Financeiro' },
 ];
 
 type PermMap = Record<string, { canRead: boolean; canWrite: boolean }>;

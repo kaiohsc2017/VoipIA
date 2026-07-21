@@ -7,8 +7,6 @@ import { KpiBar } from './KpiBar';
 import { AudioPlayer } from './AudioPlayer';
 import { DashboardTab } from './DashboardTab';
 import { RankingTab, type RankingDrillDownFilters } from './RankingTab';
-import { CostsTab } from './CostsTab';
-import { CostsDashboardTab } from './CostsDashboardTab';
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString('pt-BR', {
@@ -20,7 +18,7 @@ function formatDate(iso: string) {
 // ─── Módulo URA principal ────────────────────────────────────────────────────
 
 export default function ModuloURA() {
-  const [tab, setTab] = useState<'calls' | 'dashboard' | 'uras' | 'ranking' | 'costs' | 'costsDashboard'>('calls');
+  const [tab, setTab] = useState<'calls' | 'dashboard' | 'uras' | 'ranking'>('calls');
   const [uras, setUras] = useState<Ura[]>([]);
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +27,6 @@ export default function ModuloURA() {
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
   const [detailCall, setDetailCall] = useState<CallRecord | null>(null);
-  const [costsRange, setCostsRange] = useState<{ dateFrom: string; dateTo: string } | null>(null);
 
   // Filtros avançados (colapsáveis)
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -118,13 +115,6 @@ export default function ModuloURA() {
     setTab('calls');
   };
 
-  /** Drill-down vindo do Dashboard de Custos: troca para a aba Custos IA já com o
-   * range do mês clicado. */
-  const handleCostsDrillDown = (filters: RankingDrillDownFilters) => {
-    setCostsRange({ dateFrom: filters.dateFrom ?? '', dateTo: filters.dateTo ?? '' });
-    setTab('costs');
-  };
-
   const priorityBadge = (value?: string) => {
     if (!value) return <span className="text-muted">—</span>;
     const v = value.toLowerCase();
@@ -175,12 +165,6 @@ export default function ModuloURA() {
           </button>
           <button className={`btn ${tab === 'ranking'   ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('ranking')}>
             🏆 Ranking de Atendimentos
-          </button>
-          <button className={`btn ${tab === 'costs'     ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('costs')}>
-            💰 Custos IA
-          </button>
-          <button className={`btn ${tab === 'costsDashboard' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab('costsDashboard')}>
-            📈 Dashboard de Custos
           </button>
         </div>
 
@@ -493,19 +477,6 @@ export default function ModuloURA() {
 
         {/* ---- URAs TAB ---- */}
         {tab === 'uras' && <UraManagementTab />}
-
-        {/* ---- CUSTOS IA TAB ---- */}
-        {tab === 'costs' && (
-          <CostsTab
-            uras={uras}
-            initialDateFrom={costsRange?.dateFrom}
-            initialDateTo={costsRange?.dateTo}
-            onInitialFiltersConsumed={() => setCostsRange(null)}
-          />
-        )}
-
-        {/* ---- DASHBOARD DE CUSTOS TAB ---- */}
-        {tab === 'costsDashboard' && <CostsDashboardTab uras={uras} onDrillDown={handleCostsDrillDown} />}
 
       </div>
     </>

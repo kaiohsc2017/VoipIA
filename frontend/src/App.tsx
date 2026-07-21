@@ -27,6 +27,7 @@ const Documentacao       = lazy(() => import('./components/Documentacao'));
 const Release            = lazy(() => import('./components/Release'));
 const AgentesPage        = lazy(() => import('./components/AgentesPage'));
 const InsightsPage       = lazy(() => import('./components/InsightsPage'));
+const Financeiro         = lazy(() => import('./components/Financeiro'));
 
 // ─── ErrorBoundary ─────────────────────────────────────────────────────────────
 // Evita que erros em componentes filhos desmontem toda a árvore React (tela em branco).
@@ -111,6 +112,9 @@ const PAGE_RESOURCE: Partial<Record<Page, string>> = {
   docs:       'telecom.docs',
   release:    'telecom.release',
   agents:     'telecom.agents_link',
+  finUra:      'financeiro.ura',
+  finInsights: 'financeiro.insights',
+  finEnvios:   'financeiro.envios',
 };
 
 export default function App() {
@@ -120,7 +124,7 @@ export default function App() {
   const [perms, setPerms] = useState<Record<string, string>>(() => authSessionFromToken(localStorage.getItem('asteriskia_token')).perms);
   const pageFromHash = (): Page => {
     const hash = window.location.hash.replace('#', '').trim() as Page;
-    const valid: Page[] = ['dashboard','modulo1','insights','modulo2','modulo3','masterdata','users','operadoras','cadastro0800','linhas','settings','audit','logs','security','accessGroups','docs','release','agents'];
+    const valid: Page[] = ['dashboard','modulo1','insights','modulo2','modulo3','masterdata','users','operadoras','cadastro0800','linhas','settings','audit','logs','security','accessGroups','docs','release','agents','finUra','finInsights','finEnvios'];
     if (!valid.includes(hash)) return 'dashboard';
     // Acesso direto via hash (digitado/favoritado) a uma página sem permissão de
     // leitura: volta pro dashboard. O botão de nav já fica escondido (ver
@@ -215,6 +219,9 @@ export default function App() {
               {page === 'docs'       && <Documentacao />}
               {page === 'release'    && <Release />}
               {page === 'agents'     && <AgentesPage />}
+              {page === 'finUra'      && <Financeiro scope="ura" />}
+              {page === 'finInsights' && <Financeiro scope="insights" />}
+              {page === 'finEnvios'   && <Financeiro scope="envios" />}
             </ErrorBoundary>
           </Suspense>
         </main>

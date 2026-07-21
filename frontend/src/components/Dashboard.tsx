@@ -1,17 +1,20 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
-  Ticket, PhoneCall, CheckCircle2, AlertTriangle, Timer, Radio, Globe,
+  Ticket, PhoneCall, CheckCircle2, AlertTriangle, Timer, Radio, Globe, DollarSign,
 } from 'lucide-react';
 import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import type { TooltipContentProps, PieLabelRenderProps } from 'recharts';
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import api from '../api/client';
 import { connectWebSocket, subscribe } from '../api/websocket';
-import type { CallRecord, TestResult, AlertCall, PageResponse } from '../api/types';
+import { useAuthSession } from '../hooks/useAuthSession';
+import type { CallRecord, TestResult, AlertCall, PageResponse, MonthlyCostSummary, InsightMonthlyCostSummary } from '../api/types';
+
+const COST_MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -139,6 +142,18 @@ export default function Dashboard() {
   const [wsStatus, setWsStatus] = useState<'connecting' | 'live' | 'offline'>('connecting');
   const [activityTab, setActivityTab] = useState<ActivityTab>('tests');
   const [trunkStatus, setTrunkStatus] = useState<TrunkStatus | null>(null);
+  const [costSummary, setCostSummary] = useState<{
+    ura: MonthlyCostSummary[]; insights: InsightMonthlyCostSummary[]; envios: InsightMonthlyCostSummary[];
+  }>({ ura: [], insights: [], envios: [] });
+
+  // Booleans primitivos (não a função hasRead em si) nas deps do useCallback abaixo —
+  // useAuthSession() cria um objeto/closures novos a cada render; usar a função direto
+  // como dep recriaria loadCosts (e o efeito que a chama) infinitamente.
+  const { hasRead } = useAuthSession();
+  const canReadUra = hasRead('financeiro.ura');
+  const canReadInsights = hasRead('financeiro.insights');
+  const canReadEnvios = hasRead('financeiro.envios');
+  const showCosts = canReadUra || canReadInsights || canReadEnvios;
 
   const fetchTrunkStatus = useCallback(async () => {
     try {
@@ -164,9 +179,30 @@ export default function Dashboard() {
     }
   }, []);
 
+  /** Evolução mensal de custo de IA das 3 frentes do módulo Financeiro, para o gráfico
+   * consolidado + card de acumulado do mês — busca só as frentes que o usuário pode ler,
+   * e não deixa uma frente sem permissão (403) quebrar as outras. */
+  const loadCosts = useCallback(async () => {
+    const year = new Date().getFullYear();
+    const params = `dateFrom=${year}-01-01&dateTo=${year}-12-31`;
+    const [ura, insights, envios] = await Promise.all([
+      canReadUra
+        ? api.get<MonthlyCostSummary[]>(`/calls/costs/summary?${params}`).then(r => r.data).catch(() => [])
+        : Promise.resolve([]),
+      canReadInsights
+        ? api.get<InsightMonthlyCostSummary[]>(`/insights/costs/summary?${params}`).then(r => r.data).catch(() => [])
+        : Promise.resolve([]),
+      canReadEnvios
+        ? api.get<InsightMonthlyCostSummary[]>(`/insights/uploads/costs/summary?${params}`).then(r => r.data).catch(() => [])
+        : Promise.resolve([]),
+    ]);
+    setCostSummary({ ura, insights, envios });
+  }, [canReadUra, canReadInsights, canReadEnvios]);
+
   useEffect(() => {
     loadData();
     fetchTrunkStatus();
+    if (showCosts) loadCosts();
 
     const ws = connectWebSocket(() => setWsStatus('live'));
     ws.onDisconnect = () => setWsStatus('offline');
@@ -184,7 +220,7 @@ export default function Dashboard() {
     });
 
     return () => { unsubCalls(); unsubResults(); unsubAlerts(); clearInterval(trunkInterval); };
-  }, [loadData, fetchTrunkStatus]);
+  }, [loadData, fetchTrunkStatus, loadCosts, showCosts]);
 
   // ─── KPIs ──────────────────────────────────────────────────────────────────
   const today = new Date().toDateString();
@@ -223,6 +259,24 @@ export default function Dashboard() {
   const barData = Object.entries(clientMap)
     .map(([name, total]) => ({ name: name.length > 12 ? name.slice(0, 11) + '…' : name, total }))
     .sort((a, b) => b.total - a.total).slice(0, 6);
+
+  // ─── Custo de IA — 3 frentes do módulo Financeiro (URA/Insights/Análise Sob Demanda) ──
+  const costYear = new Date().getFullYear();
+  const costChartData = Array.from({ length: 12 }, (_, i) => {
+    const rawMonth = `${costYear}-${String(i + 1).padStart(2, '0')}`;
+    return {
+      month: `${COST_MONTH_NAMES[i]}/${String(costYear).slice(2)}`,
+      URA: costSummary.ura.find(m => m.month === rawMonth)?.totalCostUsd ?? 0,
+      Insights: costSummary.insights.find(m => m.month === rawMonth)?.totalCostUsd ?? 0,
+      'Análise Sob Demanda': costSummary.envios.find(m => m.month === rawMonth)?.totalCostUsd ?? 0,
+    };
+  });
+  const currentMonthKey = `${costYear}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+  const currentMonthCostTotal =
+    (costSummary.ura.find(m => m.month === currentMonthKey)?.totalCostUsd ?? 0) +
+    (costSummary.insights.find(m => m.month === currentMonthKey)?.totalCostUsd ?? 0) +
+    (costSummary.envios.find(m => m.month === currentMonthKey)?.totalCostUsd ?? 0);
+  const hasCostData = costSummary.ura.length + costSummary.insights.length + costSummary.envios.length > 0;
 
   const CustomTooltip = ({ active, payload, label }: Partial<TooltipContentProps<ValueType, NameType>>) => {
     if (!active || !payload?.length) return null;
@@ -296,6 +350,10 @@ export default function Dashboard() {
             badge={trunkStatus == null ? 'Verificando…' : trunkStatus.status === 'ONLINE' && trunkStatus.rttMs >= 0 ? `${trunkStatus.rttMs}ms RTT` : trunkStatus.status === 'OFFLINE' ? 'Sem resposta' : 'Indisponível'}
             badgeClass={trunkStatus?.status === 'ONLINE' ? 'success' : trunkStatus?.status === 'OFFLINE' ? 'danger' : 'gray'}
           />
+          {showCosts && (
+            <KpiCard icon={DollarSign} value={`US$ ${currentMonthCostTotal.toFixed(2)}`}
+              label="Custo IA acumulado (mês)" badge="URA + Insights + Envios" badgeClass="info" />
+          )}
         </div>
 
         {/* ── Area Chart ─────────────────────────────────────────────────── */}
@@ -409,6 +467,37 @@ export default function Dashboard() {
             }
           </div>
         </div>
+
+        {/* ── Evolução de Custos de IA — 3 frentes (módulo Financeiro) ─────── */}
+        {showCosts && (
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card-header">
+              <span className="card-title">Evolução de Custos de IA — mês a mês ({costYear})</span>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                URA · Insights · Análise Sob Demanda
+              </span>
+            </div>
+            <div className="card-body" style={{ padding: '8px 16px 20px' }}>
+              {!hasCostData ? <EmptyChart msg="Sem custo de IA registrado no período" /> : (
+                <ResponsiveContainer width="100%" height={240}>
+                  <LineChart data={costChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" />
+                    <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 11 }} />
+                    <YAxis tick={{ fill: '#64748b', fontSize: 11 }} tickFormatter={v => `US$${v}`} />
+                    <Tooltip
+                      formatter={(value: ValueType | undefined) =>
+                        typeof value === 'number' ? `US$ ${value.toFixed(2)}` : String(value ?? '')}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '0.78rem', color: '#94a3b8' }} />
+                    <Line type="monotone" dataKey="URA" stroke="#007aff" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="Insights" stroke="#ff9f0a" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="Análise Sob Demanda" stroke="#34c759" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Últimas Atividades (unificado com tabs) ────────────────────── */}
         <div className="card">

@@ -33,17 +33,13 @@ export default function TelecomInsights() {
             Aderência a script, sentimento e achados (ex: promessa não cumprida, informação
             incorreta) por chamada.
           </CardSm>
-          <CardSm title="Custos de IA">
-            Tokens de STT/LLM capturados por chamada e convertidos em custo estimado, mesmo padrão
-            do Módulo 1 — URA.
-          </CardSm>
           <CardSm title="Fila de processamento">
             Visibilidade do status de cada arquivo descoberto — desde a descoberta até concluir ou
             falhar.
           </CardSm>
         </CardGrid>
 
-        <SubSection title="As 5 abas">
+        <SubSection title="Abas">
           <Card>
             <FieldTable
               headers={['Aba', 'Conteúdo']}
@@ -51,11 +47,14 @@ export default function TelecomInsights() {
                 [<FieldName>📋 Chamadas</FieldName>, 'Lista de chamadas transcritas/analisadas, com busca por texto, filtros e reprodução do áudio original (transcodificado de G.729A para PCM sob demanda)'],
                 [<FieldName>📈 Dashboard de Tendências</FieldName>, 'Agregados de sentimento, criticidade e achados mais frequentes no período'],
                 [<FieldName>⚙️ Processamento</FieldName>, 'Status de cada arquivo descoberto em /opt/audio: nome, data de início/fim, posição na fila e status, com filtro por status/data/nome'],
-                [<FieldName>💰 Custos IA</FieldName>, 'Tokens de STT/LLM e custo estimado por chamada, com filtro por atendente e período'],
-                [<FieldName>📈 Dashboard de Custos</FieldName>, 'Evolução de gastos de IA mês a mês (STT + LLM, sem TTS — Insights não faz síntese de voz)'],
               ]}
             />
           </Card>
+          <Callout tone="info">
+            As telas de <strong>Custos IA</strong> e <strong>Dashboard de Custos</strong> deste
+            módulo saíram daqui — ver módulo <strong>Financeiro → Insights</strong> (Documentação →
+            Financeiro).
+          </Callout>
         </SubSection>
 
         <SubSection title="Status de processamento">
@@ -86,20 +85,22 @@ export default function TelecomInsights() {
           Gestão de acesso: <code>telecom.insights_link</code> controla só o item de menu no
           Telecom que abre a SPA (o iframe). O acesso aos dados dentro da SPA é granular por aba,
           um recurso por namespace <code>insights.*</code> — <code>insights.calls</code>{' '}
-          (Chamadas), <code>insights.dashboard</code> (Dashboard de Tendências),{' '}
-          <code>insights.processing</code> (Processamento) e <code>insights.costs</code> (Custos
-          IA + Dashboard de Custos) — configurado na página <strong>"Grupos de Acesso"</strong>,
-          mesmo padrão do namespace <code>agents.*</code> do módulo Agentes.
+          (Chamadas), <code>insights.dashboard</code> (Dashboard de Tendências) e{' '}
+          <code>insights.processing</code> (Processamento) — configurado na página{' '}
+          <strong>"Grupos de Acesso"</strong>, mesmo padrão do namespace <code>agents.*</code> do
+          módulo Agentes. Custos IA passou a usar o namespace <code>financeiro.*</code> (ver
+          Documentação → Financeiro).
         </Callout>
 
         <SubSection title="De onde vem o preço usado nos Custos IA">
           <p>
-            As abas <strong>Custos IA</strong> (deste módulo e do Módulo 1 — URA) estimam o custo
-            de cada chamada multiplicando os tokens consumidos pelo preço por milhão de tokens
-            cadastrado em <code>ai_model_pricing</code> — uma tabela única, compartilhada pelos
-            dois módulos. Esse preço <strong>alimenta decisão de negócio</strong> (quanto a
-            operação está gastando com IA), então mantê-lo correto é crítico — um preço zerado
-            faz o custo aparecer como "grátis", o que não é a realidade, só falta de cadastro.
+            As telas de <strong>Custos IA</strong> (módulo Financeiro, frentes URA/Insights/Análise
+            Sob Demanda) estimam o custo de cada chamada multiplicando os tokens consumidos pelo
+            preço por milhão de tokens cadastrado em <code>ai_model_pricing</code> — uma tabela
+            única, compartilhada pelas 3 frentes. Esse preço <strong>alimenta decisão de
+            negócio</strong> (quanto a operação está gastando com IA), então mantê-lo correto é
+            crítico — um preço zerado faz o custo aparecer como "grátis", o que não é a realidade,
+            só falta de cadastro.
           </p>
           <Card>
             <FieldTable

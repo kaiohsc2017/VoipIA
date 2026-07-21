@@ -117,10 +117,11 @@ public class SecurityConfig {
                         // demais /stats/** seguem no anyRequest().authenticated() genérico abaixo.
                         .requestMatchers(HttpMethod.GET, "/api/v1/stats/calls/ranking")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.modulo1")
-                        // Custos de IA por chamada — expõe nome de cliente como o Ranking acima,
-                        // mesma proteção.
+                        // Custos de IA por chamada — movido para o módulo Financeiro
+                        // (financeiro.ura); telecom.modulo1 continua protegendo o resto do
+                        // Módulo URA (chamadas, ranking, uras).
                         .requestMatchers(HttpMethod.GET, "/api/v1/calls/costs/**")
-                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.modulo1")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.ura")
                         // Insights (transcrição/análise de IA de gravações do call center
                         // Verint) — agora SPA independente em /insights; backend continua no
                         // mesmo Spring Boot. Namespace granular por aba (insights.*), espelhando
@@ -132,8 +133,11 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.dashboard")
                         .requestMatchers(HttpMethod.GET, "/api/v1/insights/processing/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.processing")
+                        // Custos de IA (Verint) — movido para o módulo Financeiro
+                        // (financeiro.insights); insights.costs foi removido do catálogo (não
+                        // protegia mais nada além destas rotas).
                         .requestMatchers(HttpMethod.GET, "/api/v1/insights/costs/**")
-                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.costs")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.insights")
                         // Fichas de avaliação (scorecards) — Fase 1 da evolução para Quality
                         // Management (V38); mesmo padrão granular das demais abas de Insights.
                         .requestMatchers(HttpMethod.GET, "/api/v1/insights/scorecards/**")
@@ -146,8 +150,26 @@ public class SecurityConfig {
                         // Portal do supervisor (upload em lote) — Fase 3 do Quality
                         // Management (V40); posse (supervisor só vê os próprios lotes) é
                         // aplicada no service, não aqui.
+                        // Custo de IA dos envios do portal do supervisor (Análise Sob Demanda)
+                        // — movido para o módulo Financeiro (financeiro.envios); matcher
+                        // específico precisa vir ANTES do genérico de /insights/uploads/**
+                        // (insights.uploads), que continua protegendo o resto do portal
+                        // (upload/listagem de lotes).
+                        .requestMatchers(HttpMethod.GET, "/api/v1/insights/uploads/costs/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.envios")
                         .requestMatchers(HttpMethod.GET, "/api/v1/insights/uploads/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.uploads")
+                        // Configuração do alerta de gasto de IA por frente (módulo Financeiro).
+                        // Path exato por scope (não wildcard) — manter em sincronia manual com
+                        // CostAlertService.SCOPES; um scope novo exige replicar os matchers
+                        // aqui (GET e escrita), senão a rota cai no anyRequest().authenticated()
+                        // genérico do fim, sem exigir financeiro.<scope>.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/financeiro/cost-alerts/ura")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.ura")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/financeiro/cost-alerts/insights")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.insights")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/financeiro/cost-alerts/envios")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.envios")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da
@@ -177,13 +199,21 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/insights/processing/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.processing")
                         .requestMatchers("/api/v1/insights/costs/**")
-                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.costs")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.insights")
                         .requestMatchers("/api/v1/insights/scorecards/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.scorecards")
                         .requestMatchers("/api/v1/insights/reports/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.reports")
+                        .requestMatchers("/api/v1/insights/uploads/costs/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.envios")
                         .requestMatchers("/api/v1/insights/uploads/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.uploads")
+                        .requestMatchers("/api/v1/financeiro/cost-alerts/ura")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.ura")
+                        .requestMatchers("/api/v1/financeiro/cost-alerts/insights")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.insights")
+                        .requestMatchers("/api/v1/financeiro/cost-alerts/envios")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.envios")
 
                         // Todos os demais endpoints exigem apenas autenticação (JWT ou InternalKey)
                         .anyRequest().authenticated()

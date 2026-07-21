@@ -399,6 +399,24 @@ export interface InsightProcessingItem {
   queuePosition?: number;
 }
 
+// ---- Financeiro — drill-down entre lista e dashboard de custos (mirror reduzido de
+// RankingDrillDownFilters/InsightsDrillDownFilters, só os campos usados pelas telas
+// de custo: dateFrom/dateTo do mês clicado, id da linha clicada) ----
+export interface FinanceiroDrillDownFilters {
+  id?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+// ---- Financeiro — alerta de gasto de IA por frente (ver CostAlertScheduler no backend) ----
+export interface CostAlertConfigView {
+  scope: string;
+  thresholdUsd: number;
+  enabled: boolean;
+  lastNotifiedMonth: string | null;
+  currentMonthSpendUsd: number;
+}
+
 // ---- Dashboard KPIs ----
 export interface DashboardStats {
   callsToday: number;
