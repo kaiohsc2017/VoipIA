@@ -55,11 +55,11 @@ class ClientControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    void getClientOperations_clienteInexistente_lancaErroInterno() throws Exception {
+    void getClientOperations_clienteInexistente_devolve404() throws Exception {
         when(clientRepo.findById(99)).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/v1/clients/99/operations"))
-                .andExpect(status().is5xxServerError());
+                .andExpect(status().isNotFound());
     }
 
     @Test
