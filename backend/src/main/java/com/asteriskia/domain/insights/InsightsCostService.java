@@ -40,12 +40,16 @@ public class InsightsCostService {
 
     @Transactional(readOnly = true)
     public List<InsightMonthlyCostSummary> summarizeByMonth(InsightsCostFilter filter) {
-        List<CallAudioFile> records = audioFileRepository.findAll(withFilters(filter));
+        List<CallAudioFile> records = audioFileRepository.findAll(withCostSummaryFilters(filter));
         Map<String, AiModelPricing> pricing = loadPricingMap();
 
+        // Agrupa por processedAt (quando o custo de IA foi de fato incorrido), não por
+        // callStarttime (data da gravação original, que pode ser de um mês anterior ao
+        // processamento, ou nula em uploads manuais sem metadado da Verint) — do
+        // contrário o mês corrente aparece zerado mesmo com gasto real.
         Map<String, List<CallAudioFile>> byMonth = records.stream()
-                .filter(a -> a.getCallStarttime() != null)
-                .collect(Collectors.groupingBy(a -> YearMonth.from(a.getCallStarttime()).toString()));
+                .filter(a -> a.getProcessedAt() != null)
+                .collect(Collectors.groupingBy(a -> YearMonth.from(a.getProcessedAt()).toString()));
 
         return byMonth.entrySet().stream()
                 .map(e -> summarizeMonth(e.getKey(), e.getValue(), pricing))
@@ -89,13 +93,25 @@ public class InsightsCostService {
     }
 
     private Specification<CallAudioFile> withFilters(InsightsCostFilter filter) {
+        return withFilters(filter, "callStarttime");
+    }
+
+    /** withFilters() com o intervalo de data sobre processedAt em vez de callStarttime —
+     * usado só por summarizeByMonth(), para o filtro de datas ficar consistente com o campo
+     * usado no agrupamento mensal (quando o custo de IA foi de fato incorrido, não a data da
+     * gravação original — nula em uploads manuais, ou de um mês anterior ao processamento). */
+    private Specification<CallAudioFile> withCostSummaryFilters(InsightsCostFilter filter) {
+        return withFilters(filter, "processedAt");
+    }
+
+    private Specification<CallAudioFile> withFilters(InsightsCostFilter filter, String dateField) {
         return (root, query, cb) -> {
             var predicates = cb.conjunction();
             if (filter.dateFrom() != null) {
-                predicates = cb.and(predicates, cb.greaterThanOrEqualTo(root.get("callStarttime"), filter.dateFrom()));
+                predicates = cb.and(predicates, cb.greaterThanOrEqualTo(root.get(dateField), filter.dateFrom()));
             }
             if (filter.dateTo() != null) {
-                predicates = cb.and(predicates, cb.lessThanOrEqualTo(root.get("callStarttime"), filter.dateTo()));
+                predicates = cb.and(predicates, cb.lessThanOrEqualTo(root.get(dateField), filter.dateTo()));
             }
             if (filter.agentName() != null && !filter.agentName().isBlank()) {
                 predicates = cb.and(predicates,

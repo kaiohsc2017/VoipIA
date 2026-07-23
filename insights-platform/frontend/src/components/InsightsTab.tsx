@@ -30,6 +30,14 @@ function formatDuration(seconds?: number) {
   return `${min}:${String(sec).padStart(2, '0')}`;
 }
 
+function toTitleCase(name: string): string {
+  return name
+    .toLowerCase()
+    .split(' ')
+    .map(word => (word ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(' ');
+}
+
 function criticidadeBadge(value?: string) {
   if (!value) return <span className="text-muted">—</span>;
   const cls = value === 'urgente' ? 'badge-danger' : value === 'alta' ? 'badge-warning'
@@ -484,7 +492,7 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
               ) : items.map(item => (
                 <tr key={item.id} onClick={() => openDetail(item.id)} style={{ cursor: 'pointer' }} title="Clique para ver detalhes">
                   <td className="td-muted">{formatDate(item.callStarttime)}</td>
-                  <td>{item.agentName || <span className="text-muted">—</span>}</td>
+                  <td>{item.agentName ? toTitleCase(item.agentName) : <span className="text-muted">—</span>}</td>
                   <td>{directionBadge(item.direction)}</td>
                   <td className="td-muted">{item.skill || '—'}</td>
                   <td className="mono">{formatDuration(item.durationSeconds)}</td>
