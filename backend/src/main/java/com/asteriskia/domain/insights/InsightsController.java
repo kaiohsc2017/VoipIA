@@ -66,27 +66,45 @@ public class InsightsController {
             @RequestParam(required = false) Integer durationMax,
             @RequestParam(required = false) java.math.BigDecimal notaMin,
             @RequestParam(required = false) java.math.BigDecimal notaMax,
-            @RequestParam(required = false) Boolean isFailed) {
+            @RequestParam(required = false) Boolean isFailed,
+            @RequestParam(required = false) String customerNumber,
+            @RequestParam(required = false) String extension,
+            @RequestParam(required = false) String disconnectedBy,
+            @RequestParam(required = false) Boolean hasHold,
+            @RequestParam(required = false) Integer wrapupTimeMin,
+            @RequestParam(required = false) Integer wrapupTimeMax,
+            @RequestParam(required = false) String transferTargetExtension,
+            @RequestParam(required = false) String transferTargetAgentName,
+            @RequestParam(required = false) String targetSwitchCallId) {
+        boolean isAdmin = isAdmin();
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "callStarttime"));
         InsightsFilter filter = new InsightsFilter(
                 id,
                 dateFrom != null ? LocalDateTime.of(dateFrom, LocalTime.MIN) : null,
                 dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null,
                 text, phrase, toneCliente, toneAtendente, categoria, criticidade, findingType,
-                agentName, direction, skill, durationMin, durationMax, notaMin, notaMax, isFailed);
-        return ResponseEntity.ok(queryService.search(filter, pageable));
+                agentName, direction, skill, durationMin, durationMax, notaMin, notaMax, isFailed,
+                customerNumber, extension, disconnectedBy, hasHold, wrapupTimeMin, wrapupTimeMax,
+                transferTargetExtension, transferTargetAgentName,
+                // Nunca repassa o filtro admin-only pra quem não é ADMIN — defesa em
+                // profundidade, o serviço/Specification também ignoram por conta própria.
+                isAdmin ? targetSwitchCallId : null);
+        return ResponseEntity.ok(queryService.search(filter, pageable, isAdmin));
     }
 
     @GetMapping("/calls/{id}")
     public ResponseEntity<InsightsDetailResponse> getCall(@PathVariable Long id) {
-        InsightsDetailResponse detail = queryService.detail(id);
         // Mesma checagem de permissão/posse do getAudio abaixo — sem isso, o detalhe
         // completo (transcrição, insights, avaliação) de um upload de outro supervisor
         // seria visível a qualquer usuário com insights.calls só variando o id na URL
-        // (mesma classe de achado do security-reviewer, 2026-07-20).
-        if ("upload".equals(detail.audioFile().getSource()) && !canAccessUpload(detail.audioFile())) {
+        // (mesma classe de achado do security-reviewer, 2026-07-20). InsightsAudioFileDto
+        // não expõe getSource(), por isso a checagem de posse usa o CallAudioFile cru.
+        CallAudioFile rawAudioFile = queryService.findAudioFileById(id);
+        if ("upload".equals(rawAudioFile.getSource()) && !canAccessUpload(rawAudioFile)) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
+        boolean isAdmin = isAdmin();
+        InsightsDetailResponse detail = queryService.detail(id, isAdmin);
         return ResponseEntity.ok(detail);
     }
 
@@ -212,6 +230,17 @@ public class InsightsController {
      * mesmo username que enviou o lote. Achado real do security-reviewer (2026-07-20):
      * antes desta checagem, qualquer usuário com insights.calls conseguia ouvir áudio de
      * upload de qualquer supervisor só variando o id na URL. */
+    /** ADMIN detection (V43) — gate do grupo C (técnico/auditoria) e do filtro
+     * targetSwitchCallId, os dois só visíveis/aplicáveis para administradores. Mesmo
+     * padrão de canAccessUpload abaixo. */
+    private boolean isAdmin() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            return false;
+        }
+        return auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+    }
+
     private boolean canAccessUpload(CallAudioFile audioFile) {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {

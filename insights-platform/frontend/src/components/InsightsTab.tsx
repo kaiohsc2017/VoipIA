@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import api from '../api/client';
+import api, { getRoleFromToken } from '../api/client';
 import type { InsightsListItem, InsightsDetailResponse, PageResponse } from '../api/types';
 import type { InsightsDrillDownFilters } from '../api/types';
 import { AuthedAudio } from './AuthedAudio';
+
+const isAdmin = getRoleFromToken(localStorage.getItem('asteriskia_token')) === 'ADMIN';
 
 const TONE_OPTIONS = ['calmo', 'neutro', 'tenso', 'irritado', 'empolgado'];
 const CRITICIDADE_OPTIONS = ['baixa', 'media', 'alta', 'urgente'];
@@ -50,6 +52,21 @@ function directionBadge(value?: string) {
   return <span className="badge badge-info">{value === 'inbound' ? 'Recebida' : 'Efetuada'}</span>;
 }
 
+function disconnectedByBadge(value?: string) {
+  if (!value) return <span className="text-muted">—</span>;
+  return <span className="badge badge-gray">{value === 'atendente' ? 'Atendente' : 'Cliente'}</span>;
+}
+
+/** Coluna "Ramal destino"/"Atendente destino": traço quando a chamada não teve
+ * transferência; badge neutro "Não identificado" quando transferiu mas a
+ * correlação (ver TransferResolutionService) ainda não encontrou a perna de
+ * destino — estado normal e esperado, não um erro (ver decisão 5/6 do plano). */
+function transferTargetCell(numberOfTransfers: number | undefined, value: string | undefined) {
+  if (!numberOfTransfers || numberOfTransfers <= 0) return <span className="text-muted">—</span>;
+  if (value) return <span>{value}</span>;
+  return <span className="badge badge-gray" title="Transferiu, mas a gravação de destino ainda não foi correlacionada">Não identificado</span>;
+}
+
 function speakerBadge(speaker: string) {
   const cls = speaker === 'agente' ? 'badge-info' : speaker === 'cliente' ? 'badge-success' : 'badge-gray';
   const label = speaker === 'agente' ? 'Atendente' : speaker === 'cliente' ? 'Cliente' : 'Indefinido';
@@ -88,9 +105,21 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
   const [durationMin, setDurationMin] = useState('');
   const [durationMax, setDurationMax] = useState('');
   const [isFailedFilter, setIsFailedFilter] = useState('');
+  // ─── V43 — filtros novos (decisão 8 do plano insights-chamadas-campos-xml) ───
+  const [customerNumberFilter, setCustomerNumberFilter] = useState('');
+  const [extensionFilter, setExtensionFilter] = useState('');
+  const [disconnectedByFilter, setDisconnectedByFilter] = useState('');
+  const [hasHoldFilter, setHasHoldFilter] = useState(false);
+  const [wrapupTimeMin, setWrapupTimeMin] = useState('');
+  const [wrapupTimeMax, setWrapupTimeMax] = useState('');
+  const [transferTargetExtension, setTransferTargetExtension] = useState('');
+  const [transferTargetAgentName, setTransferTargetAgentName] = useState('');
+  const [targetSwitchCallId, setTargetSwitchCallId] = useState('');
 
   const hasActiveFilters = !!(dateFrom || dateTo || phrase || toneCliente || toneAtendente || categoria
-    || criticidade || findingType || agentName || direction || skill || durationMin || durationMax || isFailedFilter);
+    || criticidade || findingType || agentName || direction || skill || durationMin || durationMax || isFailedFilter
+    || customerNumberFilter || extensionFilter || disconnectedByFilter || hasHoldFilter || wrapupTimeMin
+    || wrapupTimeMax || transferTargetExtension || transferTargetAgentName || targetSwitchCallId);
 
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<InsightsDetailResponse | null>(null);
@@ -122,6 +151,15 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     if (durationMin) params.set('durationMin', durationMin);
     if (durationMax) params.set('durationMax', durationMax);
     if (effectiveIsFailed != null) params.set('isFailed', String(effectiveIsFailed));
+    if (customerNumberFilter) params.set('customerNumber', customerNumberFilter);
+    if (extensionFilter) params.set('extension', extensionFilter);
+    if (disconnectedByFilter) params.set('disconnectedBy', disconnectedByFilter);
+    if (hasHoldFilter) params.set('hasHold', 'true');
+    if (wrapupTimeMin) params.set('wrapupTimeMin', wrapupTimeMin);
+    if (wrapupTimeMax) params.set('wrapupTimeMax', wrapupTimeMax);
+    if (transferTargetExtension) params.set('transferTargetExtension', transferTargetExtension);
+    if (transferTargetAgentName) params.set('transferTargetAgentName', transferTargetAgentName);
+    if (isAdmin && targetSwitchCallId) params.set('targetSwitchCallId', targetSwitchCallId);
     api.get<PageResponse<InsightsListItem>>(`/insights/calls?${params}`)
       .then(r => {
         setItems(r.data.content ?? []);
@@ -158,6 +196,9 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     const { id: newId, categoria: newCategoria, criticidade: newCriticidade, findingType: newFindingType, isFailed: newIsFailed } = pendingDrillDown.filters;
     setText(''); setDateFrom(''); setDateTo(''); setPhrase(''); setToneCliente(''); setToneAtendente('');
     setAgentName(''); setDirection(''); setSkill(''); setDurationMin(''); setDurationMax('');
+    setCustomerNumberFilter(''); setExtensionFilter(''); setDisconnectedByFilter(''); setHasHoldFilter(false);
+    setWrapupTimeMin(''); setWrapupTimeMax(''); setTransferTargetExtension(''); setTransferTargetAgentName('');
+    setTargetSwitchCallId('');
     setCategoria(newCategoria ?? '');
     setCriticidade(newCriticidade ?? '');
     setFindingType(newFindingType ?? '');
@@ -175,6 +216,9 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     setCategoria(''); setCriticidade(''); setFindingType('');
     setAgentName(''); setDirection(''); setSkill(''); setDurationMin(''); setDurationMax('');
     setIsFailedFilter('');
+    setCustomerNumberFilter(''); setExtensionFilter(''); setDisconnectedByFilter(''); setHasHoldFilter(false);
+    setWrapupTimeMin(''); setWrapupTimeMax(''); setTransferTargetExtension(''); setTransferTargetAgentName('');
+    setTargetSwitchCallId('');
     setTimeout(() => loadCalls(0), 0);
   };
 
@@ -239,6 +283,114 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
                       <div>{criticidadeBadge(detail.insights?.criticidade)}</div>
                     </div>
                   </div>
+
+                  {/* Identificação (campos que não viraram coluna/filtro — decisão 8) */}
+                  <div>
+                    <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Identificação</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                      <div>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Organização</div>
+                        <div style={{ fontSize: '.85rem' }}>{detail.audioFile.organization || '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>DNIS</div>
+                        <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.dnis || '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>ANI</div>
+                        <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.ani || '—'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Qualidade (campos que não viraram coluna — decisão 8) */}
+                  <div>
+                    <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Qualidade</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                      <div>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Nº de esperas</div>
+                        <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.numberOfHolds ?? '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Tempo em espera</div>
+                        <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.totalHoldTime != null ? `${detail.audioFile.totalHoldTime}s` : '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Wrap-up</div>
+                        <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.wrapupTime != null ? `${detail.audioFile.wrapupTime}s` : '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Nº de transferências</div>
+                        <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.numberOfTransfers ?? '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Nº de conferências</div>
+                        <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.numberOfConferences ?? '—'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Histórico de transferências (grupo D) */}
+                  <div>
+                    <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Histórico de transferências</div>
+                    {detail.transferEvents.length === 0 ? (
+                      <div style={{ fontSize: '.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Sem transferências nesta chamada.</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {detail.transferEvents.map(ev => (
+                          <div key={ev.order} style={{
+                            background: 'var(--bg-input)', border: '1px solid var(--border-glass)',
+                            borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 12,
+                          }}>
+                            <span className="mono" style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{formatDate(ev.transferredAt)}</span>
+                            {disconnectedByBadge(ev.disconnectedBy)}
+                            <span style={{ fontSize: '.85rem', flex: 1 }}>
+                              {ev.resolved
+                                ? `${ev.targetExtension ?? '—'}${ev.targetAgentName ? ` (${ev.targetAgentName})` : ''}`
+                                : <span className="badge badge-gray">Não identificado</span>}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Técnico/Auditoria — só ADMIN (grupo C) */}
+                  {isAdmin && (
+                    <div>
+                      <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>🔒 Técnico / Auditoria (admin)</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                        <div>
+                          <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Codec</div>
+                          <div style={{ fontSize: '.85rem' }}>{detail.audioFile.codec || '—'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Pacotes RTP perdidos</div>
+                          <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.missedRtpPackets ?? '—'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Erros de decodificação</div>
+                          <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.decodingErrors ?? '—'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>ID global (switch)</div>
+                          <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.switchCallId || '—'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Tronco</div>
+                          <div style={{ fontSize: '.85rem' }}>{detail.audioFile.trunk || '—'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Tipo de captura</div>
+                          <div style={{ fontSize: '.85rem' }}>{detail.audioFile.captureType || '—'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Datasource</div>
+                          <div style={{ fontSize: '.85rem' }}>{detail.audioFile.datasourceName || '—'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Player */}
                   <div>
@@ -460,6 +612,50 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
               <option value="false">Aprovadas</option>
             </select>
           </div>
+          <div>
+            <label className="form-label">Nº do cliente</label>
+            <input className="form-input" placeholder="ex: 11 98421-7734" value={customerNumberFilter} onChange={e => setCustomerNumberFilter(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Ramal</label>
+            <input className="form-input" placeholder="ex: 4021" value={extensionFilter} onChange={e => setExtensionFilter(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Quem desligou</label>
+            <select className="form-select" value={disconnectedByFilter} onChange={e => setDisconnectedByFilter(e.target.value)}>
+              <option value="">Qualquer</option>
+              <option value="atendente">Atendente</option>
+              <option value="cliente">Cliente</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 6 }}>
+            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 0 }}>
+              <input type="checkbox" checked={hasHoldFilter} onChange={e => setHasHoldFilter(e.target.checked)} />
+              Teve espera
+            </label>
+          </div>
+          <div>
+            <label className="form-label">Wrap-up mínimo (seg)</label>
+            <input type="number" min={0} className="form-input" placeholder="ex: 0" value={wrapupTimeMin} onChange={e => setWrapupTimeMin(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Wrap-up máximo (seg)</label>
+            <input type="number" min={0} className="form-input" placeholder="ex: 60" value={wrapupTimeMax} onChange={e => setWrapupTimeMax(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Ramal destino (transferência)</label>
+            <input className="form-input" placeholder="ex: 4108" value={transferTargetExtension} onChange={e => setTransferTargetExtension(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Atendente destino (transferência)</label>
+            <input className="form-input" placeholder="ex: Diego Ramalho" value={transferTargetAgentName} onChange={e => setTransferTargetAgentName(e.target.value)} />
+          </div>
+          {isAdmin && (
+            <div>
+              <label className="form-label">🔒 ID global (switch_call_id)</label>
+              <input className="form-input mono" placeholder="ex: SW-88213371" value={targetSwitchCallId} onChange={e => setTargetSwitchCallId(e.target.value)} />
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
             <button className="btn btn-primary btn-sm" onClick={() => loadCalls(0)}>Aplicar filtros</button>
             <button className="btn btn-ghost btn-sm" onClick={clearFilters} disabled={!hasActiveFilters}>Limpar</button>
@@ -484,11 +680,17 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
                 <th>Criticidade</th>
                 <th>Nota</th>
                 <th>Status</th>
+                <th>Nº do cliente</th>
+                <th>Ramal</th>
+                <th>ANI</th>
+                <th>Quem desligou</th>
+                <th>Ramal destino</th>
+                <th>Atendente destino</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
-                <tr><td colSpan={10} className="table-empty">Nenhuma chamada encontrada</td></tr>
+                <tr><td colSpan={16} className="table-empty">Nenhuma chamada encontrada</td></tr>
               ) : items.map(item => (
                 <tr key={item.id} onClick={() => openDetail(item.id)} style={{ cursor: 'pointer' }} title="Clique para ver detalhes">
                   <td className="td-muted">{formatDate(item.callStarttime)}</td>
@@ -508,6 +710,12 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
                     ) : <span className="text-muted">—</span>}
                   </td>
                   <td><span className="badge badge-info">{item.status}</span></td>
+                  <td className="mono td-muted">{item.customerNumber || '—'}</td>
+                  <td className="mono td-muted">{item.extension || '—'}</td>
+                  <td className="mono td-muted">{item.ani || '—'}</td>
+                  <td>{disconnectedByBadge(item.disconnectedBy)}</td>
+                  <td>{transferTargetCell(item.numberOfTransfers, item.transferTargetExtension)}</td>
+                  <td>{transferTargetCell(item.numberOfTransfers, item.transferTargetAgentName)}</td>
                 </tr>
               ))}
             </tbody>

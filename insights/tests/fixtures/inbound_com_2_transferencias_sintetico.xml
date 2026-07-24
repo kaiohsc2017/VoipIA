@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<x:recording xmlns:x="http://www.verint.com/xmlns/recording20080320" x:ref="999000000000001" x:version="11.2">
+
+  <x:segment x:version="1">
+    <x:complete>true</x:complete>
+    <x:contenttype>audio/vnd.verint.wav</x:contenttype>
+    <x:capturetype>IP</x:capturetype>
+    <x:starttime>2026-06-15T09:19:20.840-03:00</x:starttime>
+    <x:switch_id>256000003</x:switch_id>
+    <x:tags>
+      <x:tag x:taggedbycomponent="IPCapture" x:taggedbyhost="SVTERC0089" x:timestamp="2026-06-15T09:19:26.870-03:00">
+        <x:attribute x:key="datasourcename">CM03</x:attribute>
+      </x:tag>
+      <x:tag x:forwardtosession="false" x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:26.870-03:00">
+        <x:attribute x:key="signallingcallingparty">16991379262</x:attribute>
+        <x:attribute x:key="signallingcallingpartyname">OPERADORAS</x:attribute>
+      </x:tag>
+    </x:tags>
+    <x:duration>60</x:duration>
+    <x:streams>
+      <x:stream>
+        <x:decodingerrors>1</x:decodingerrors>
+        <x:missedrtppackets>5</x:missedrtppackets>
+        <x:rtptype>18</x:rtptype>
+        <x:rtptypename>G729A</x:rtptypename>
+      </x:stream>
+    </x:streams>
+  </x:segment>
+
+  <x:contacts>
+    <x:contact x:id="9158238035440000322" x:parent="true" x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:version="3">
+      <x:sessions>
+        <x:session x:ctiseen="true" x:id="2026061509191446408165554825603202" x:lastupdated="2026-06-15T09:19:46.051-03:00" x:parent="true" x:parentinum="999000000000001" x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:version="2">
+          <x:complete>true</x:complete>
+          <x:agent_id>256003639</x:agent_id>
+          <x:ani>16991379262</x:ani>
+          <x:datasource>3</x:datasource>
+          <x:direction>Inbound</x:direction>
+          <x:dnis>994850</x:dnis>
+          <x:duration>58</x:duration>
+          <x:employeename>JULIANA PAULA</x:employeename>
+          <x:extension>3153</x:extension>
+          <x:number_of_holds>2</x:number_of_holds>
+          <x:total_hold_time>3</x:total_hold_time>
+          <x:starttime>2026-06-15T09:19:14.465-03:00</x:starttime>
+          <x:switch_call_id>00001140071781525999</x:switch_call_id>
+          <x:switch_id>256000003</x:switch_id>
+          <x:wrapup_time>12</x:wrapup_time>
+          <x:tags>
+            <x:tag x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:14.464-03:00">
+              <x:attribute x:key="agentname">JULIANA PAULA</x:attribute>
+              <x:attribute x:key="calledparty">3153</x:attribute>
+              <x:attribute x:key="datasourcename">CM03</x:attribute>
+              <x:attribute x:key="dnis">994850</x:attribute>
+              <x:attribute x:key="eventtype">Alerting</x:attribute>
+              <x:attribute x:key="extension">3153</x:attribute>
+              <x:attribute x:key="numberoftimestransferred">0</x:attribute>
+              <x:attribute x:key="organization">Agentes-CM03</x:attribute>
+              <x:attribute x:key="skill">62100 (Qualidade Comercio)</x:attribute>
+              <x:attribute x:key="trunk">3F63</x:attribute>
+              <x:attribute x:key="trunkgroup">3</x:attribute>
+            </x:tag>
+            <x:tag x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:20.623-03:00">
+              <x:attribute x:key="ani">16991379262</x:attribute>
+              <x:attribute x:key="calldirection">Inbound</x:attribute>
+              <x:attribute x:key="eventtype">Connected</x:attribute>
+              <x:attribute x:key="numberdialed">994850</x:attribute>
+            </x:tag>
+            <!-- primeira transferência: sem hold explícito antes, direto pro Begin_Call -->
+            <x:tag x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:30.000-03:00">
+              <x:attribute x:key="eventtype">Begin_Call</x:attribute>
+              <x:attribute x:key="externalcallid">00001140131781525981</x:attribute>
+              <x:attribute x:key="globalcallid">00001140131781525981</x:attribute>
+            </x:tag>
+            <x:tag x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:32.000-03:00">
+              <x:attribute x:key="disconnectingparty">EMPLOYEE</x:attribute>
+              <x:attribute x:key="eventtype">Transferred</x:attribute>
+              <x:attribute x:key="numberoftimestransferred">1</x:attribute>
+            </x:tag>
+            <!-- segunda transferência: outro Begin_Call com globalcallid diferente -->
+            <x:tag x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:50.000-03:00">
+              <x:attribute x:key="eventtype">Begin_Call</x:attribute>
+              <x:attribute x:key="externalcallid">00001140131781529999</x:attribute>
+              <x:attribute x:key="globalcallid">00001140131781529999</x:attribute>
+            </x:tag>
+            <x:tag x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:52.000-03:00">
+              <x:attribute x:key="disconnectingparty">OTHER</x:attribute>
+              <x:attribute x:key="eventtype">Transferred</x:attribute>
+              <x:attribute x:key="numberoftimestransferred">2</x:attribute>
+            </x:tag>
+          </x:tags>
+        </x:session>
+      </x:sessions>
+      <x:complete>true</x:complete>
+      <x:ani>16991379262</x:ani>
+      <x:number_of_conferences>1</x:number_of_conferences>
+      <x:dnis>994850</x:dnis>
+      <x:duration>58</x:duration>
+      <x:number_of_holds>2</x:number_of_holds>
+      <x:total_hold_time>3</x:total_hold_time>
+      <x:starttime>2026-06-15T09:19:14.464-03:00</x:starttime>
+      <x:number_of_transfers>2</x:number_of_transfers>
+    </x:contact>
+  </x:contacts>
+
+</x:recording>

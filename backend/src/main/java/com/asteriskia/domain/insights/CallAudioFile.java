@@ -122,4 +122,54 @@ public class CallAudioFile {
 
     @Column(name = "upload_batch_id")
     private java.util.UUID uploadBatchId;
+
+    // ─── V43 — campos restantes do XML Verint (plano insights-chamadas-campos-xml) ───
+
+    // Grupo A — Identificação
+    @Column(name = "customer_number", length = 50)
+    private String customerNumber;
+
+    @Column(name = "organization", length = 100)
+    private String organization;
+
+    // Grupo B — Qualidade
+    @Column(name = "disconnected_by", length = 20)
+    private String disconnectedBy;
+
+    @Column(name = "number_of_holds")
+    private Integer numberOfHolds;
+
+    @Column(name = "total_hold_time")
+    private Integer totalHoldTime;
+
+    @Column(name = "number_of_transfers")
+    private Integer numberOfTransfers;
+
+    @Column(name = "number_of_conferences")
+    private Integer numberOfConferences;
+
+    @Column(name = "wrapup_time")
+    private Integer wrapupTime;
+
+    // Grupo C — Técnico/Auditoria (admin-only, sempre só no detalhe)
+    @Column(name = "codec", length = 20)
+    private String codec;
+
+    @Column(name = "missed_rtp_packets")
+    private Integer missedRtpPackets;
+
+    @Column(name = "decoding_errors")
+    private Integer decodingErrors;
+
+    @Column(name = "switch_call_id", length = 50)
+    private String switchCallId;
+
+    @Column(name = "trunk", length = 20)
+    private String trunk;
+
+    @Column(name = "capture_type", length = 20)
+    private String captureType;
+
+    @Column(name = "datasource_name", length = 20)
+    private String datasourceName;
 }

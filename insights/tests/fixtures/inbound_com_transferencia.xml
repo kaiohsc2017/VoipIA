@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<x:recording xmlns:x="http://www.verint.com/xmlns/recording20080320" x:ref="256001003459902" x:version="11.2">
+
+  <x:segment x:version="1">
+    <x:complete>true</x:complete>
+    <x:master>true</x:master>
+    <x:keepcontent>true</x:keepcontent>
+    <x:keepxml>true</x:keepxml>
+    <x:rollbackrequired>false</x:rollbackrequired>
+    <x:rollbacktime>15</x:rollbacktime>
+    <x:compressiontype>18</x:compressiontype>
+    <x:compressed>true</x:compressed>
+    <x:rollbackid>5960</x:rollbackid>
+    <x:tenant_id>0</x:tenant_id>
+    <x:dualmarking>false</x:dualmarking>
+    <x:primary>true</x:primary>
+    <x:errorpriority>0</x:errorpriority>
+    <x:contenttype>audio/vnd.verint.wav</x:contenttype>
+    <x:capturetype>IP</x:capturetype>
+    <x:starttime>2026-06-15T09:19:20.840-03:00</x:starttime>
+    <x:readytoarchive>true</x:readytoarchive>
+    <x:switch_id>256000003</x:switch_id>
+    <x:captureversion>15.2.11.1637</x:captureversion>
+    <x:minumumrecordingdurationforaqs>15</x:minumumrecordingdurationforaqs>
+    <x:requiresredaction>0</x:requiresredaction>
+    <x:requiresmorphing>0</x:requiresmorphing>
+    <x:systemtype>sipproxy</x:systemtype>
+    <x:tags>
+      <x:tag x:taggedbycomponent="IPCapture" x:taggedbyhost="SVTERC0089" x:timestamp="2026-06-15T09:19:26.870-03:00">
+        <x:attribute x:key="callref">DMCC/3/61920/1780693840217/1045</x:attribute>
+      </x:tag>
+      <x:tag x:taggedbycomponent="IPCapture" x:taggedbyhost="SVTERC0089" x:timestamp="2026-06-15T09:19:26.870-03:00">
+        <x:attribute x:key="datasourcename">CM03</x:attribute>
+      </x:tag>
+      <x:tag x:taggedbycomponent="IPCapture" x:taggedbyhost="SVTERC0089" x:timestamp="2026-06-15T09:19:26.870-03:00">
+        <x:attribute x:key="datasource">3</x:attribute>
+      </x:tag>
+      <x:tag x:taggedbycomponent="IPCapture" x:taggedbyhost="SVTERC0089" x:timestamp="2026-06-15T09:19:26.870-03:00">
+        <x:attribute x:key="dataportid">5960</x:attribute>
+      </x:tag>
+      <x:tag x:taggedbycomponent="IPCapture" x:taggedbyhost="SVTERC0089" x:timestamp="2026-06-15T09:19:26.870-03:00">
+        <x:attribute x:key="extension">3153</x:attribute>
+      </x:tag>
+      <x:tag x:forwardtosession="false" x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:26.870-03:00">
+        <x:attribute x:key="dmccsoftphone">61920</x:attribute>
+      </x:tag>
+      <x:tag x:forwardtosession="false" x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:26.870-03:00">
+        <x:attribute x:key="signallingcallingparty">16991379262</x:attribute>
+        <x:attribute x:key="signallingcallingpartyname">OPERADORAS</x:attribute>
+      </x:tag>
+      <x:tag x:taggedbycomponent="IPCapture" x:taggedbyhost="SVTERC0089" x:timestamp="2026-06-15T09:19:26.871-03:00">
+        <x:attribute x:key="audiostarttime">2026-06-15T09:19:20.840-03:00</x:attribute>
+      </x:tag>
+      <x:tag x:forwardtosession="false" x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0088" x:timestamp="2026-06-15T09:19:26.872-03:00">
+        <x:attribute x:key="svterc0088_latency">1</x:attribute>
+        <x:attribute x:key="svterc0088_offset">-97</x:attribute>
+      </x:tag>
+      <x:tag x:forwardtosession="false" x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:26.872-03:00">
+        <x:attribute x:key="otherpartychannel">EXTERNAL</x:attribute>
+      </x:tag>
+      <x:tag x:forwardtosession="false" x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:26.874-03:00">
+        <x:attribute x:key="svterc0087_latency">1</x:attribute>
+        <x:attribute x:key="svterc0087_offset">Lost</x:attribute>
+      </x:tag>
+      <x:tag x:taggedbycomponent="IPCapture" x:taggedbyhost="SVTERC0089" x:timestamp="2026-06-15T09:19:41.055-03:00">
+        <x:attribute x:key="endtime">2026-06-15T09:19:41.049-03:00</x:attribute>
+      </x:tag>
+      <x:tag x:taggedbycomponent="IPCapture" x:taggedbyhost="SVTERC0089" x:timestamp="2026-06-15T09:19:41.055-03:00">
+        <x:attribute x:key="stopreason">CallEnd</x:attribute>
+      </x:tag>
+    </x:tags>
+    <x:shared_key>audio_3_3153</x:shared_key>
+    <x:duration>20</x:duration>
+    <x:streams>
+      <x:stream>
+        <x:audiodurationinms>20280</x:audiodurationinms>
+        <x:audioendtime>2026-06-15T09:19:41.049-03:00</x:audioendtime>
+        <x:decodingerrors>0</x:decodingerrors>
+        <x:decryptionerrors>0</x:decryptionerrors>
+        <x:dstip>172.16.4.146:16608</x:dstip>
+        <x:durationinms>20219</x:durationinms>
+        <x:firstpackettime>2026-06-15T09:19:20.840-03:00</x:firstpackettime>
+        <x:lastpackettime>2026-06-15T09:19:41.049-03:00</x:lastpackettime>
+        <x:missedrtppackets>0</x:missedrtppackets>
+        <x:mixingerrors>0</x:mixingerrors>
+        <x:rtptype>18</x:rtptype>
+        <x:rtptypename>G729A</x:rtptypename>
+        <x:silencedurationinms>0</x:silencedurationinms>
+        <x:srcip>172.16.4.134:6056</x:srcip>
+        <x:ssrc>0x4e24ce13</x:ssrc>
+        <x:totaldecodings>0</x:totaldecodings>
+        <x:totaldecryptions>0</x:totaldecryptions>
+        <x:totalmixings>0</x:totalmixings>
+        <x:totalrtppackets>338</x:totalrtppackets>
+      </x:stream>
+    </x:streams>
+    <x:contentfilesize>20394</x:contentfilesize>
+  </x:segment>
+
+  <x:contacts>
+    <x:contact x:id="9158238035440000321" x:parent="true" x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:version="3">
+      <x:sessions>
+        <x:session x:ctiseen="true" x:id="2026061509191446408165554825603201" x:lastupdated="2026-06-15T09:19:46.051-03:00" x:parent="true" x:parentinum="256001003459902" x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:version="2">
+          <x:complete>true</x:complete>
+          <x:agent_id>256003639</x:agent_id>
+          <x:ani>16991379262</x:ani>
+          <x:datasource>3</x:datasource>
+          <x:direction>Inbound</x:direction>
+          <x:dnis>994850</x:dnis>
+          <x:duration>28</x:duration>
+          <x:employeename>JULIANA PAULA</x:employeename>
+          <x:errorpriority>0</x:errorpriority>
+          <x:extension>3153</x:extension>
+          <x:extension_datasource>3</x:extension_datasource>
+          <x:number_of_holds>1</x:number_of_holds>
+          <x:total_hold_time>1</x:total_hold_time>
+          <x:interactiontype>Phone</x:interactiontype>
+          <x:is_mute></x:is_mute>
+          <x:mark>true</x:mark>
+          <x:organization_id>256000059</x:organization_id>
+          <x:pbx_login_id>39773</x:pbx_login_id>
+          <x:requiresmorphing>0</x:requiresmorphing>
+          <x:requiresredaction>0</x:requiresredaction>
+          <x:starttime>2026-06-15T09:19:14.465-03:00</x:starttime>
+          <x:switch_call_id>00001140071781525935</x:switch_call_id>
+          <x:switch_id>256000003</x:switch_id>
+          <x:tenant_id>0</x:tenant_id>
+          <x:time_offset>-180</x:time_offset>
+          <x:wrapup_time>0</x:wrapup_time>
+          <x:inums>
+            <x:inum x:contenttype="audio/vnd.verint.wav" x:endtime="2026-06-15T09:19:41.049-03:00" x:starttime="2026-06-15T09:19:20.840-03:00">256001003459902</x:inum>
+          </x:inums>
+          <x:tags>
+            <x:tag x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:14.464-03:00">
+              <x:attribute x:key="agentid">39773</x:attribute>
+              <x:attribute x:key="agentname">JULIANA PAULA</x:attribute>
+              <x:attribute x:key="agentpk">3639</x:attribute>
+              <x:attribute x:key="calledparty">3153</x:attribute>
+              <x:attribute x:key="callid">14007</x:attribute>
+              <x:attribute x:key="callingparty">16991379262</x:attribute>
+              <x:attribute x:key="datasourcename">CM03</x:attribute>
+              <x:attribute x:key="devicename">3153</x:attribute>
+              <x:attribute x:key="dnis">994850</x:attribute>
+              <x:attribute x:key="eventtype">Alerting</x:attribute>
+              <x:attribute x:key="extendedcallhistory">Unknown</x:attribute>
+              <x:attribute x:key="extension">3153</x:attribute>
+              <x:attribute x:key="externalcallid">00001140071781525935</x:attribute>
+              <x:attribute x:key="globalcallid">00001140071781525935</x:attribute>
+              <x:attribute x:key="interactiontype">Phone</x:attribute>
+              <x:attribute x:key="loggedonduration">4652</x:attribute>
+              <x:attribute x:key="numberofholds">0</x:attribute>
+              <x:attribute x:key="numberoftimesconference">0</x:attribute>
+              <x:attribute x:key="numberoftimestransferred">0</x:attribute>
+              <x:attribute x:key="organization">Agentes-CM03</x:attribute>
+              <x:attribute x:key="pauseduration">0</x:attribute>
+              <x:attribute x:key="skill">62100 (Qualidade Comercio)</x:attribute>
+              <x:attribute x:key="timeonhold">0</x:attribute>
+              <x:attribute x:key="trunk">3F63</x:attribute>
+              <x:attribute x:key="trunkgroup">3</x:attribute>
+              <x:attribute x:key="ultraagentid">256003639</x:attribute>
+            </x:tag>
+            <x:tag x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:20.623-03:00">
+              <x:attribute x:key="ani">16991379262</x:attribute>
+              <x:attribute x:key="calldirection">Inbound</x:attribute>
+              <x:attribute x:key="calledpartyname">JULIANA PAULA</x:attribute>
+              <x:attribute x:key="callingpartyname">16991379262</x:attribute>
+              <x:attribute x:key="eventtype">Connected</x:attribute>
+              <x:attribute x:key="extendedcallhistory">Inbound</x:attribute>
+              <x:attribute x:key="firedbusinessruleids">1</x:attribute>
+              <x:attribute x:key="firedbusinessrules">Recorder</x:attribute>
+              <x:attribute x:key="numberdialed">994850</x:attribute>
+              <x:attribute x:key="otherpartychannelhistory">EXTERNAL</x:attribute>
+              <x:attribute x:key="parties">3153</x:attribute>
+            </x:tag>
+            <x:tag x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:26.872-03:00">
+              <x:attribute x:key="eventtype">Data_Changed</x:attribute>
+              <x:attribute x:key="mimemediatype">Audio</x:attribute>
+              <x:attribute x:key="modulenumber">256001</x:attribute>
+              <x:attribute x:key="serialnumber">256001</x:attribute>
+            </x:tag>
+            <x:tag x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:41.052-03:00">
+              <x:attribute x:key="eventtype">Held</x:attribute>
+              <x:attribute x:key="extendedcallhistory">Inbound,Hold</x:attribute>
+              <x:attribute x:key="numberofholds">1</x:attribute>
+            </x:tag>
+            <x:tag x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:41.053-03:00">
+              <x:attribute x:key="eventtype">Begin_Call</x:attribute>
+              <x:attribute x:key="externalcallid">00001140131781525981</x:attribute>
+              <x:attribute x:key="globalcallid">00001140131781525981</x:attribute>
+            </x:tag>
+            <x:tag x:taggedbycomponent="IFServices" x:taggedbyhost="SVTERC0087" x:timestamp="2026-06-15T09:19:42.057-03:00">
+              <x:attribute x:key="disconnectingparty">EMPLOYEE</x:attribute>
+              <x:attribute x:key="eventtype">Transferred</x:attribute>
+              <x:attribute x:key="extendedcallhistory">Inbound,Transfer</x:attribute>
+              <x:attribute x:key="numberoftimestransferred">1</x:attribute>
+              <x:attribute x:key="timeonhold">1</x:attribute>
+            </x:tag>
+          </x:tags>
+        </x:session>
+      </x:sessions>
+      <x:complete>true</x:complete>
+      <x:ani>16991379262</x:ani>
+      <x:number_of_conferences>0</x:number_of_conferences>
+      <x:dnis>994850</x:dnis>
+      <x:duration>27</x:duration>
+      <x:number_of_holds>1</x:number_of_holds>
+      <x:total_hold_time>1</x:total_hold_time>
+      <x:is_exception>false</x:is_exception>
+      <x:starttime>2026-06-15T09:19:14.464-03:00</x:starttime>
+      <x:tenant_id>0</x:tenant_id>
+      <x:time_offset>-180</x:time_offset>
+      <x:number_of_transfers>1</x:number_of_transfers>
+    </x:contact>
+  </x:contacts>
+
+</x:recording>

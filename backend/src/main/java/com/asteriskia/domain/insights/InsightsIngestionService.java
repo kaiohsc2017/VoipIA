@@ -29,6 +29,8 @@ public class InsightsIngestionService {
     private final CallTranscriptSegmentRepository segmentRepository;
     private final CallInsightRepository insightRepository;
     private final CallInsightFindingRepository findingRepository;
+    private final CallTransferEventRepository transferEventRepository;
+    private final TransferResolutionService transferResolutionService;
     private final EvaluationService evaluationService;
     private final ObjectMapper objectMapper;
 
@@ -49,6 +51,11 @@ public class InsightsIngestionService {
         audioFile.setDirection(request.direction());
         audioFile.setSkill(request.skill());
         audioFile.setXmlRaw(toJsonString(request.xmlRaw()));
+        applyMetadataFields(audioFile, request.customerNumber(), request.organization(), request.disconnectedBy(),
+                request.numberOfHolds(), request.totalHoldTime(), request.numberOfTransfers(),
+                request.numberOfConferences(), request.wrapupTime(), request.codec(), request.missedRtpPackets(),
+                request.decodingErrors(), request.switchCallId(), request.trunk(), request.captureType(),
+                request.datasourceName());
         audioFile.setStatus("done");
         audioFile.setErrorMsg(null);
         audioFile.setProcessedAt(LocalDateTime.now());
@@ -111,10 +118,78 @@ public class InsightsIngestionService {
                     evaluation.llmTokensIn(), evaluation.llmTokensOut(), evaluation.llmModel());
         }
 
+        replaceTransferEvents(audioFileId, request.transferEvents());
+        transferResolutionService.resolveForAudioFile(audioFile);
+
         log.info("Insights persistidos para call_ref={} (id={}, {} segmentos, criticidade={})",
                 request.callRef(), audioFileId, segments.size(), insightsPayload.criticidade());
 
         return audioFile;
+    }
+
+    /** Backfill metadata-only (insights/src/backfill_metadata.py) — atualiza só os campos
+     * novos do grupo A/B/C/D (V43) de uma chamada JÁ processada, sem tocar status/
+     * transcrição/insights/avaliação. Nunca reprocessa STT/LLM. */
+    @Transactional
+    public void updateMetadata(String callRef, InsightsMetadataUpdateRequest request) {
+        CallAudioFile audioFile = audioFileRepository.findByCallRef(callRef)
+                .orElseThrow(() -> new IllegalArgumentException("Chamada não encontrada para backfill: callRef=" + callRef));
+
+        applyMetadataFields(audioFile, request.customerNumber(), request.organization(), request.disconnectedBy(),
+                request.numberOfHolds(), request.totalHoldTime(), request.numberOfTransfers(),
+                request.numberOfConferences(), request.wrapupTime(), request.codec(), request.missedRtpPackets(),
+                request.decodingErrors(), request.switchCallId(), request.trunk(), request.captureType(),
+                request.datasourceName());
+        audioFile = audioFileRepository.save(audioFile);
+
+        replaceTransferEvents(audioFile.getId(), request.transferEvents());
+        transferResolutionService.resolveForAudioFile(audioFile);
+
+        log.info("Metadados (backfill) atualizados para call_ref={} (id={})", callRef, audioFile.getId());
+    }
+
+    private void applyMetadataFields(CallAudioFile audioFile, String customerNumber, String organization,
+            String disconnectedBy, Integer numberOfHolds, Integer totalHoldTime, Integer numberOfTransfers,
+            Integer numberOfConferences, Integer wrapupTime, String codec, Integer missedRtpPackets,
+            Integer decodingErrors, String switchCallId, String trunk, String captureType, String datasourceName) {
+        audioFile.setCustomerNumber(customerNumber);
+        audioFile.setOrganization(organization);
+        audioFile.setDisconnectedBy(disconnectedBy);
+        audioFile.setNumberOfHolds(numberOfHolds);
+        audioFile.setTotalHoldTime(totalHoldTime);
+        audioFile.setNumberOfTransfers(numberOfTransfers);
+        audioFile.setNumberOfConferences(numberOfConferences);
+        audioFile.setWrapupTime(wrapupTime);
+        audioFile.setCodec(codec);
+        audioFile.setMissedRtpPackets(missedRtpPackets);
+        audioFile.setDecodingErrors(decodingErrors);
+        audioFile.setSwitchCallId(switchCallId);
+        audioFile.setTrunk(trunk);
+        audioFile.setCaptureType(captureType);
+        audioFile.setDatasourceName(datasourceName);
+    }
+
+    /** Substitui por completo os eventos de transferência da chamada — mesmo padrão
+     * upsert-by-delete-and-recreate usado pra segmentos/achados. Eventos já resolvidos
+     * perdem a resolução e são re-resolvidos do zero logo em seguida (idempotente: a
+     * correlação depende só de dados já persistidos, não de estado acumulado). */
+    private void replaceTransferEvents(Long audioFileId, List<IngestInsightsRequest.TransferEventPayload> events) {
+        transferEventRepository.deleteByAudioFileId(audioFileId);
+        if (events == null || events.isEmpty()) {
+            return;
+        }
+        short order = 1;
+        List<CallTransferEvent> entities = new java.util.ArrayList<>();
+        for (IngestInsightsRequest.TransferEventPayload event : events) {
+            entities.add(CallTransferEvent.builder()
+                    .audioFileId(audioFileId)
+                    .transferOrder(order++)
+                    .transferredAt(event.transferredAt() != null ? event.transferredAt().toLocalDateTime() : null)
+                    .disconnectedBy(event.disconnectedBy())
+                    .targetSwitchCallId(event.targetSwitchCallId())
+                    .build());
+        }
+        transferEventRepository.saveAll(entities);
     }
 
     public List<CallStatusRef> knownCallRefs() {

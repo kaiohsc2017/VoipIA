@@ -383,4 +383,14 @@ export const RELEASES: ReleaseEntry[] = [
       'Grupos de Acesso: novo grupo de recursos "Financeiro" (URA, Insights, Análise Sob Demanda) — substitui o antigo recurso "Custos IA" do Insights, que foi removido por não proteger mais nada.',
     ],
   },
+  {
+    version: 'v1.43',
+    date: '2026-07-23',
+    changes: [
+      'Insights → Chamadas: tabela ganhou 6 colunas novas do XML da gravação — Nº do cliente, Ramal, ANI, Quem desligou, Ramal destino e Atendente destino (16 colunas no total); filtros novos por esses campos, mais Wrap-up e Teve espera. Demais campos do XML (Organização, DNIS, tempo em espera, nº de conferências etc.) ficam disponíveis no detalhe da chamada.',
+      'Insights → Chamadas: nova seção "Técnico/Auditoria" no detalhe (codec, pacotes RTP perdidos, tronco, IDs internos…), visível só para administradores.',
+      'Insights → Chamadas: nova tentativa de descobrir para qual ramal/atendente uma chamada foi transferida, correlacionando com outra gravação já processada — quando a gravação de destino ainda não existe no sistema, aparece "Não identificado" (comportamento esperado, não é erro).',
+      'Correção: em chamadas efetuadas (saindo do call center), a coluna ANI agora mostra o número do cliente discado em vez do ramal do próprio atendente.',
+    ],
+  },
 ];

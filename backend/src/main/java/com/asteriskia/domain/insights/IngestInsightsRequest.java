@@ -29,6 +29,23 @@ public record IngestInsightsRequest(
         String direction,
         String skill,
         JsonNode xmlRaw,
+        // ─── V43 — campos restantes do XML Verint (plano insights-chamadas-campos-xml) ───
+        String customerNumber,
+        String organization,
+        String disconnectedBy,
+        Integer numberOfHolds,
+        Integer totalHoldTime,
+        Integer numberOfTransfers,
+        Integer numberOfConferences,
+        Integer wrapupTime,
+        String codec,
+        Integer missedRtpPackets,
+        Integer decodingErrors,
+        String switchCallId,
+        String trunk,
+        String captureType,
+        String datasourceName,
+        List<TransferEventPayload> transferEvents,
         Integer sttTokensIn,
         Integer sttTokensOut,
         String sttModel,
@@ -85,5 +102,12 @@ public record IngestInsightsRequest(
             @NotNull Double nota,
             String justificativa,
             String trechoReferencia
+    ) {}
+
+    /** Evento de transferência (grupo D) — espelha src/xml_parser.py::TransferEvent. */
+    public record TransferEventPayload(
+            OffsetDateTime transferredAt,
+            String disconnectedBy,
+            String targetSwitchCallId
     ) {}
 }

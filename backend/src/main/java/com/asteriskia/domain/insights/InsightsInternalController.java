@@ -66,6 +66,15 @@ public class InsightsInternalController {
         return ResponseEntity.ok().build();
     }
 
+    /** Backfill metadata-only (insights/src/backfill_metadata.py) — popula os campos
+     * novos do grupo A/B/C/D (V43) em chamadas já processadas, sem reprocessar STT/LLM. */
+    @PostMapping("/{callRef}/metadata")
+    public ResponseEntity<Void> updateMetadata(@PathVariable String callRef,
+            @RequestBody InsightsMetadataUpdateRequest request) {
+        ingestionService.updateMetadata(callRef, request);
+        return ResponseEntity.ok().build();
+    }
+
     /**
      * GET /internal/insights/active-scorecard — ficha de avaliação ativa no momento,
      * consultada pelo serviço asteriskia-insights uma vez por ciclo (cache TTL do lado

@@ -40,4 +40,9 @@ public interface CallAudioFileRepository
      * foram enviados e por quem, sem precisar de descoberta por regex de nome de arquivo,
      * diferente do fluxo Verint). */
     List<CallAudioFile> findBySourceAndStatus(String source, String status);
+
+    /** Correlação de transferência (grupo D, V43) — busca a gravação cujo switch_call_id
+     * bate com o globalcallid capturado no Begin_Call de uma transferência de outra
+     * chamada. Ver TransferResolutionService. */
+    Optional<CallAudioFile> findBySwitchCallId(String switchCallId);
 }

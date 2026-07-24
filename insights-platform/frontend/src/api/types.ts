@@ -42,13 +42,21 @@ export interface InsightsListItem {
   criticidade?: 'baixa' | 'media' | 'alta' | 'urgente';
   notaTotal?: number;
   isFailed?: boolean;
+  // ─── V43 — 6 colunas novas (plano insights-chamadas-campos-xml) ───
+  customerNumber?: string;
+  extension?: string;
+  /** Já vem calculado do backend: para direction=outbound é o dnis bruto, não o
+   * ani bruto (que seria o ramal do próprio atendente) — ver decisão 9 do plano. */
+  ani?: string;
+  disconnectedBy?: 'atendente' | 'cliente';
+  numberOfTransfers?: number;
+  transferTargetExtension?: string;
+  transferTargetAgentName?: string;
 }
 
 export interface CallAudioFile {
   id: number;
   callRef: string;
-  wavPath: string;
-  xmlPath: string;
   durationSeconds?: number;
   callStarttime?: string;
   agentName?: string;
@@ -60,6 +68,36 @@ export interface CallAudioFile {
   skill?: string;
   status: 'pending' | 'processing' | 'done' | 'error';
   errorMsg?: string;
+  // Grupo A — Identificação
+  customerNumber?: string;
+  organization?: string;
+  // Grupo B — Qualidade
+  disconnectedBy?: 'atendente' | 'cliente';
+  numberOfHolds?: number;
+  totalHoldTime?: number;
+  numberOfTransfers?: number;
+  numberOfConferences?: number;
+  wrapupTime?: number;
+  // Grupo C — Técnico/Auditoria — ausente para não-ADMIN (nunca chega no payload)
+  codec?: string;
+  missedRtpPackets?: number;
+  decodingErrors?: number;
+  switchCallId?: string;
+  trunk?: string;
+  captureType?: string;
+  datasourceName?: string;
+}
+
+/** Grupo D — histórico de transferências (0..N por chamada). targetSwitchCallId
+ * só vem preenchido para ADMIN. */
+export interface CallTransferEvent {
+  order: number;
+  transferredAt?: string;
+  disconnectedBy?: 'atendente' | 'cliente';
+  targetExtension?: string;
+  targetAgentName?: string;
+  resolved: boolean;
+  targetSwitchCallId?: string;
 }
 
 export interface CallTranscriptSegment {
@@ -113,6 +151,7 @@ export interface InsightsDetailResponse {
   findings: CallInsightFinding[];
   evaluation: CallEvaluation | null;
   evaluationItems: CallEvaluationItem[];
+  transferEvents: CallTransferEvent[];
 }
 
 export interface InsightsDashboardSummary {

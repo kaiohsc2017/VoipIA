@@ -34,9 +34,10 @@ public class InsightsQueryService {
     private final CallInsightFindingRepository findingRepository;
     private final CallEvaluationRepository evaluationRepository;
     private final CallEvaluationItemRepository evaluationItemRepository;
+    private final CallTransferEventRepository transferEventRepository;
 
-    public Page<InsightsListItem> search(InsightsFilter filter, Pageable pageable) {
-        List<Long> restrictedToIds = resolveRestrictedIds(filter);
+    public Page<InsightsListItem> search(InsightsFilter filter, Pageable pageable, boolean isAdmin) {
+        List<Long> restrictedToIds = resolveRestrictedIds(filter, isAdmin);
 
         Page<CallAudioFile> page = audioFileRepository.findAll(
                 InsightsSpecifications.withFilters(filter, restrictedToIds), pageable);
@@ -46,13 +47,15 @@ public class InsightsQueryService {
                 .collect(Collectors.toMap(CallInsight::getAudioFileId, i -> i));
         Map<Long, CallEvaluation> evaluationsByAudioFileId = evaluationRepository.findByAudioFileIdIn(pageIds).stream()
                 .collect(Collectors.toMap(CallEvaluation::getAudioFileId, e -> e));
+        Map<Long, CallTransferEvent> lastTransferByAudioFileId = lastTransferEventByAudioFileId(pageIds);
 
         return page.map(audioFile ->
                 InsightsListItem.from(audioFile, insightsByAudioFileId.get(audioFile.getId()),
-                        evaluationsByAudioFileId.get(audioFile.getId())));
+                        evaluationsByAudioFileId.get(audioFile.getId()),
+                        lastTransferByAudioFileId.get(audioFile.getId())));
     }
 
-    public InsightsDetailResponse detail(Long id) {
+    public InsightsDetailResponse detail(Long id, boolean isAdmin) {
         CallAudioFile audioFile = audioFileRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Chamada não encontrada: id=" + id));
         List<CallTranscriptSegment> segments = segmentRepository.findByAudioFileIdOrderByStartMsAsc(id);
@@ -62,7 +65,23 @@ public class InsightsQueryService {
         List<CallEvaluationItem> evaluationItems = evaluation != null
                 ? evaluationItemRepository.findByEvaluationIdOrderByIdAsc(evaluation.getId())
                 : List.of();
-        return new InsightsDetailResponse(audioFile, segments, insight, findings, evaluation, evaluationItems);
+        List<CallTransferEventDto> transferEvents = transferEventRepository.findByAudioFileIdOrderByTransferOrderAsc(id)
+                .stream().map(e -> CallTransferEventDto.from(e, isAdmin)).toList();
+        return new InsightsDetailResponse(InsightsAudioFileDto.from(audioFile, isAdmin), segments, insight, findings,
+                evaluation, evaluationItems, transferEvents);
+    }
+
+    /** Último evento de transferência (maior transferOrder) de cada chamada da página —
+     * uma query pra todas as IDs, sem N+1. */
+    private Map<Long, CallTransferEvent> lastTransferEventByAudioFileId(List<Long> audioFileIds) {
+        if (audioFileIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, CallTransferEvent> result = new HashMap<>();
+        for (CallTransferEvent event : transferEventRepository.findByAudioFileIdInOrderByAudioFileIdAscTransferOrderAsc(audioFileIds)) {
+            result.put(event.getAudioFileId(), event); // sobrescreve com o de maior transferOrder (ordem ASC)
+        }
+        return result;
     }
 
     public CallAudioFile findAudioFileById(Long id) {
@@ -143,7 +162,7 @@ public class InsightsQueryService {
         };
     }
 
-    private List<Long> resolveRestrictedIds(InsightsFilter filter) {
+    private List<Long> resolveRestrictedIds(InsightsFilter filter, boolean isAdmin) {
         Set<Long> restricted = null;
 
         if (hasText(filter.text())) {
@@ -177,6 +196,20 @@ public class InsightsQueryService {
         }
         if (filter.isFailed() != null) {
             restricted = intersect(restricted, evaluationRepository.findAudioFileIdsByIsFailed(filter.isFailed()));
+        }
+        if (hasText(filter.transferTargetExtension())) {
+            restricted = intersect(restricted,
+                    transferEventRepository.findAudioFileIdsByTargetExtension(filter.transferTargetExtension()));
+        }
+        if (hasText(filter.transferTargetAgentName())) {
+            restricted = intersect(restricted,
+                    transferEventRepository.findAudioFileIdsByTargetAgentName(filter.transferTargetAgentName()));
+        }
+        // ADMIN-only (decisão 8) — mesmo que o parâmetro chegue preenchido de um usuário
+        // comum (contornando o frontend), nunca é aplicado sem isAdmin=true.
+        if (isAdmin && hasText(filter.targetSwitchCallId())) {
+            restricted = intersect(restricted,
+                    transferEventRepository.findAudioFileIdsByTargetSwitchCallId(filter.targetSwitchCallId()));
         }
 
         return restricted != null ? List.copyOf(restricted) : null;

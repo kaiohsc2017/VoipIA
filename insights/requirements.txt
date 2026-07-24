@@ -10,3 +10,5 @@ librosa>=0.10.2
 xmltodict>=0.13.0
 # Variáveis de ambiente
 python-dotenv>=1.0.0
+# Testes (parser XML — tests/test_xml_parser.py)
+pytest>=8.0.0

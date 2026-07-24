@@ -49,6 +49,29 @@ public final class InsightsSpecifications {
             if (filter.durationMax() != null) {
                 predicates = cb.and(predicates, cb.lessThanOrEqualTo(root.get("durationSeconds"), filter.durationMax()));
             }
+            if (filter.customerNumber() != null && !filter.customerNumber().isBlank()) {
+                predicates = cb.and(predicates,
+                        cb.like(root.get("customerNumber"), "%" + filter.customerNumber() + "%"));
+            }
+            if (filter.extension() != null && !filter.extension().isBlank()) {
+                predicates = cb.and(predicates, cb.like(root.get("extension"), "%" + filter.extension() + "%"));
+            }
+            if (filter.disconnectedBy() != null && !filter.disconnectedBy().isBlank()) {
+                predicates = cb.and(predicates, cb.equal(root.get("disconnectedBy"), filter.disconnectedBy()));
+            }
+            if (Boolean.TRUE.equals(filter.hasHold())) {
+                predicates = cb.and(predicates, cb.greaterThan(root.get("numberOfHolds"), 0));
+            } else if (Boolean.FALSE.equals(filter.hasHold())) {
+                predicates = cb.and(predicates, cb.or(
+                        cb.isNull(root.get("numberOfHolds")),
+                        cb.lessThanOrEqualTo(root.get("numberOfHolds"), 0)));
+            }
+            if (filter.wrapupTimeMin() != null) {
+                predicates = cb.and(predicates, cb.greaterThanOrEqualTo(root.get("wrapupTime"), filter.wrapupTimeMin()));
+            }
+            if (filter.wrapupTimeMax() != null) {
+                predicates = cb.and(predicates, cb.lessThanOrEqualTo(root.get("wrapupTime"), filter.wrapupTimeMax()));
+            }
             if (restrictedToIds != null) {
                 predicates = cb.and(predicates, restrictedToIds.isEmpty()
                         ? cb.disjunction()

@@ -155,6 +155,17 @@ async def submit_report_result(report_id: int, payload: dict) -> None:
     )
 
 
+async def submit_metadata(call_ref: str, payload: dict) -> None:
+    """Reenvia só os campos de metadados (grupos A/B/C/D do XML Verint) de uma
+    chamada JÁ processada — usado pelo backfill_metadata.py pra popular os
+    campos novos nas chamadas antigas sem reprocessar STT/LLM (custo Gemini).
+    Nunca passa pelo pipeline de IA — endpoint dedicado, ver
+    InsightsInternalController.updateMetadata."""
+    await _request_with_retry(
+        "POST", f"{BACKEND_URL}/api/v1/internal/insights/{call_ref}/metadata", json=payload
+    )
+
+
 async def get_pending_uploads() -> list[dict]:
     """Arquivos do portal do supervisor aguardando processamento (Fase 3 do Quality
     Management, V40) — já registrados com metadados pelo Java no momento do upload,

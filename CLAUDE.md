@@ -438,6 +438,37 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > `external_media_address`/`external_signaling_address` não vazios, portas RTP `15000-15500/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
 
+### ✅ Insights → Chamadas: campos do XML Verint + descoberta de transferência (2026-07-24) — deployada e validada em produção
+Pedido do usuário: mapear todos os campos do `.xml` da Verint (hoje só 10 viravam coluna, o resto
+ficava só em `xml_raw`) e montar um MVP da tela de Chamadas com eles, mais uma feature adicional
+pedida no meio do caminho — descobrir para qual ramal/atendente uma chamada foi transferida. Plano
+completo em `.claude/plans/insights-chamadas-campos-xml.plan.md` (10 decisões do usuário registradas,
+inclusive duas rodadas de revisão de densidade de coluna/filtro após o mockup ficar grande demais).
+- **13 colunas novas em `call_audio_files`** (migration V43) — grupos A (Identificação), B
+  (Qualidade) e C (Técnico/Auditoria, sempre admin-only e sempre só no detalhe, nunca vira coluna).
+  **Tabela final: 16 colunas** (10 existentes + 6 novas: Nº do cliente, Ramal, ANI, Quem desligou,
+  Ramal destino, Atendente destino) — bem menos que a primeira tentativa (~30), depois que o
+  usuário revisou campo a campo contra a recomendação do assistente.
+- **ANI por direção**: em chamadas `Outbound` (Efetuadas), a coluna ANI exibe o `dnis` bruto em vez
+  do `ani` bruto (que seria o ramal do próprio atendente) — regra só de exibição
+  (`InsightsAudioFileDto.resolveDisplayAni`), o dado bruto persistido nunca é alterado.
+- **Descoberta de transferência (tabela nova `call_transfer_events`)**: o XML **não tem** o
+  ramal/número de destino como campo direto — só dá pra saber correlacionando com outra gravação
+  já ingerida (`globalcallid` de um `Begin_Call` == `switch_call_id` de outra chamada).
+  `TransferResolutionService` tenta nos dois sentidos (origem→destino e destino→origem, ordem de
+  ingestão não é garantida) a cada ingestão/backfill. **Taxa de acerto confirmada em produção: 0/7**
+  no lote inicial — a gravação de destino ainda não existe no recorte atual de `/opt/audio`; "Não
+  identificado" é o estado normal esperado, documentado como tal na UI (não é bug).
+- Backfill metadata-only (`insights/src/backfill_metadata.py`) rodou nas 42 chamadas `done`
+  existentes sem reprocessar STT/LLM (0 falhas).
+- RBAC: grupo C (+ `targetSwitchCallId` no histórico de transferências e no filtro de mesmo nome)
+  só para ADMIN — testado em produção via curl com token forjado ADMIN vs USER comum: campo
+  ausente do JSON (não `null`) e filtro `targetSwitchCallId` silenciosamente ignorado para não-ADMIN.
+- Testes novos: 17 no backend (`mvn test` 257/257 verde) + 15 no Python (`pytest insights/`,
+  fixtures reais de `/opt/audio` incluindo XML sintético com 2 transferências em sequência).
+  Frontend (`insights-platform/frontend`): `tsc --noEmit` + `npm run build` limpos.
+- Release notes `v1.43` registrada.
+
 ### ✅ Novo módulo Financeiro — centraliza Custo de IA (2026-07-20) — implementado, pendente deploy/validação em produção
 Pedido do usuário: um módulo Financeiro no menu, com submenu URA / Insights / **Análise Sob
 Demanda** (nome escolhido no lugar de "Análise Individual" — é a frente antes chamada

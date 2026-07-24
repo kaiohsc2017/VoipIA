@@ -24,5 +24,16 @@ public record InsightsFilter(
         Integer durationMax,
         java.math.BigDecimal notaMin,
         java.math.BigDecimal notaMax,
-        Boolean isFailed
+        Boolean isFailed,
+        // ─── V43 — filtros novos (decisão 8 do plano insights-chamadas-campos-xml) ───
+        String customerNumber,
+        String extension,
+        String disconnectedBy,
+        Boolean hasHold,
+        Integer wrapupTimeMin,
+        Integer wrapupTimeMax,
+        String transferTargetExtension,
+        String transferTargetAgentName,
+        // ADMIN-only — ver InsightsController/InsightsQueryService (nunca repassado se !isAdmin)
+        String targetSwitchCallId
 ) {}
