@@ -403,4 +403,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Insights: telas (Dashboard, Chamadas, Processamento, Fichas, Relatórios, Meus Envios) passam a aproveitar a largura total de monitores maiores, sem faixa em branco nas laterais.',
     ],
   },
+  {
+    version: 'v1.45',
+    date: '2026-07-26',
+    changes: [
+      'Uniformização de layout: as telas do Telecom e da Plataforma de Agentes passam a aproveitar a largura total de monitores maiores (mesmo ajuste já aplicado ao Insights na v1.44), sem faixa em branco nas laterais.',
+    ],
+  },
 ];

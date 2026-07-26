@@ -56,7 +56,9 @@
   --radius-xl: 12px;
   --transition: 0.2s ease;
   --sidebar-width: 260px;
-  --content-max-width: 1600px;
+  /* Fluido (uniformização com a SPA de Insights): antes 1600px fixo deixava faixa em
+     branco em monitores maiores; teto alto só pra não esticar demais em 4K/ultrawide. */
+  --content-max-width: 2400px;
 }
 
 /* ============================================================
