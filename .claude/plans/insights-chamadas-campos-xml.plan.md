@@ -113,7 +113,13 @@ da Verint) e diferente do `extension`/Ramal (`devicename`, já mapeado). Hoje **
 - [x] Cabeçalho antes "ANI" agora mostra "Tel. Cliente" (mesmo dado, só o rótulo mudou) e tem filtro de busca próprio, funcionando tanto para chamadas inbound quanto outbound
 - [x] Tela de Chamadas (e demais abas da SPA de Insights) preenchem a largura do monitor sem faixa em branco nas laterais, em pelo menos 1920px e 2560px de largura (`--content-max-width: 2400px`, sem acesso a browser nesta sessão para conferência visual)
 - [x] `pytest` (16 passed), `mvn compile`+testes Insights* (verde via imagem `maven:3.9-eclipse-temurin-21` + volume `maven-repo-asteriskia`, mvn não disponível localmente), `tsc --noEmit`+`npm run build` limpos (SPA Insights e Telecom)
-- [ ] Deploy + backfill + validação visual — pendente (sem acesso a browser nesta sessão)
+- [x] Deploy + backfill (2026-07-25): `docker compose build --no-cache backend insights` + `up -d`
+      (V44 aplicou no boot, coluna+índice confirmados via psql); `backfill_metadata.py` rodou nas
+      42 chamadas `done` (0 falhas, 38/42 já têm `agent_login_id` — as 4 restantes não trazem
+      `agentid` no XML de origem, não é falha do backfill); validado via curl com JWT ADMIN forjado
+      contra a API real (`agentLoginId`/`telCliente` funcionando, `customerNumber` inofensivo se
+      ainda enviado). Validação visual na SPA (navegador) segue pendente — sem acesso a browser
+      nesta sessão.
 
 
 **Origem:** pedido do usuário (mapear todos os campos dos `.xml` em `/opt/audio` e montar MVP da tela de Chamadas com todos os campos); ampliado depois com a feature de descobrir **para qual ramal/atendente uma chamada foi transferida**.
