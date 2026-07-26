@@ -1,5 +1,121 @@
 # Plan: Insights — expor todos os campos do XML Verint na tela de Chamadas
 
+---
+
+## Adendo pós-deploy (2026-07-24) — 4 ajustes na tela de Chamadas
+
+**Origem:** pedido do usuário após validar o deploy da entrega original, começando por uma
+pergunta de investigação ("o XML tem o número do agente?").
+
+### Investigação — campo "agentid"
+Confirmado nos XMLs reais (`/opt/audio`): não existe um número de telefone/DDD do agente — só
+identificadores internos. O mais próximo do que o usuário pediu é a tag `agentid` (idêntica ao
+elemento `session/pbx_login_id`, ex. `39773`) — o **login do agente no PBX/Avaya**, diferente do
+`agent_id_verint` já existente (`session/agent_id`/`ultraagentid`, ex. `256003639`, chave interna
+da Verint) e diferente do `extension`/Ramal (`devicename`, já mapeado). Hoje **nenhum dos dois**
+(`agentid`/`pbx_login_id`) está mapeado — vai virar a coluna nova.
+
+### Decisão 11 — 4 ajustes confirmados pelo usuário
+1. **Nova coluna "Agente"** — campo `agentid`/`pbx_login_id` do XML, coluna + filtro (busca).
+2. **Remover a coluna "Nº do cliente" — E o filtro também (revisado):** nem coluna nem filtro.
+   `customerNumber` deixa de ser filtrável; o campo passa a aparecer só na seção "Identificação" do
+   detalhe (mesmo padrão já usado para Organização/DNIS, que também não são coluna nem filtro).
+3. **Renomear o cabeçalho "ANI" para "Tel. Cliente" — E adicionar filtro (revisado):** além do
+   rótulo, ganha um filtro de busca novo. Como o valor exibido já é calculado por direção (decisão
+   9 — `dnis` bruto se outbound, `ani` bruto caso contrário), o filtro precisa buscar no campo
+   **certo conforme a direção de cada linha**, não só em `ani` bruto — senão uma busca por telefone
+   não encontraria as chamadas efetuadas (que exibem o `dnis`). Implementação: predicado
+   `(direction='outbound' AND dnis LIKE %v%) OR (direction<>'outbound' AND ani LIKE %v%)` — mesmo
+   critério de `resolveDisplayAni`, só que como filtro de busca em vez de campo calculado.
+4. **Layout responsivo** — a causa raiz é `--content-max-width: 1600px` em
+   `insights-platform/frontend/src/App.css:59`, aplicado a `.page-header`/`.page-body`
+   (`margin: 0 auto`) — em qualquer monitor mais largo que ~1860px (sidebar 260px + 1600px), sobra
+   faixa em branco dos dois lados. **Essa variável é compartilhada por toda a SPA de Insights**
+   (Dashboard, Processamento, Fichas, Relatórios, Meus Envios, Chamadas) — a correção é global, não
+   só da tela de Chamadas (efeito colateral positivo: todas as telas passam a aproveitar a largura
+   do monitor, não só esta). Proposta: trocar o teto fixo por algo fluido (`--content-max-width:
+   100%` ou um teto bem mais alto tipo `2400px`) — a tabela de Chamadas já tem seu próprio
+   `overflow-x:auto` interno, então isso não quebra o scroll horizontal dela.
+
+## Mapa do campo novo (Grupo A — Identificação)
+| Campo | Origem no XML | Coluna nova | Exibição |
+|---|---|---|---|
+| Agente (login PBX) | tag `agentid` (= elemento `session/pbx_login_id`) | `agent_login_id` VARCHAR(20) | **Coluna + filtro (busca)** |
+
+## Files to Change (adendo)
+| Arquivo | Ação | Porquê |
+|---|---|---|
+| `backend/.../db/migration/V44__call_audio_files_agent_login_id.sql` | CREATE | Coluna `agent_login_id` (nullable) |
+| `insights/src/xml_parser.py` | UPDATE | Extrai `agentid`/`pbx_login_id` → `CallMetadata.agent_login_id` |
+| `insights/src/main.py` (`_build_payload`) | UPDATE | Envia `agentLoginId` na ingestão |
+| `insights/src/backfill_metadata.py` | UPDATE | Inclui `agentLoginId` no payload de backfill |
+| `IngestInsightsRequest.java` / `InsightsMetadataUpdateRequest.java` | UPDATE | Campo `agentLoginId` |
+| `CallAudioFile.java` | UPDATE | Coluna `agentLoginId` |
+| `InsightsIngestionService.java` | UPDATE | Persiste em `ingest()` e `updateMetadata()` |
+| `InsightsListItem.java` | UPDATE | Novo campo `agentLoginId` (coluna) |
+| `InsightsAudioFileDto.java` | UPDATE | Novo campo `agentLoginId` no detalhe |
+| `InsightsFilter.java` | UPDATE | **+** filtro `agentLoginId` (busca); **+** filtro `telCliente` (busca direction-aware); **−** filtro `customerNumber` (removido) |
+| `InsightsSpecifications.java` | UPDATE | Predicado novo do `agentLoginId` (LIKE simples); predicado novo do `telCliente` (OR condicional por `direction`, mesmo critério de `resolveDisplayAni`); remove o predicado de `customerNumber` |
+| `InsightsController.java` | UPDATE | `@RequestParam` novos (`agentLoginId`, `telCliente`); remove `@RequestParam customerNumber` |
+| `insights-platform/frontend/src/api/types.ts` | UPDATE | Campo `agentLoginId` em `InsightsListItem`/`CallAudioFile` |
+| `insights-platform/frontend/src/components/InsightsTab.tsx` | UPDATE | +coluna "Agente" e filtro; −coluna E −filtro de "Nº do cliente" (só continua no detalhe); renomeia cabeçalho "ANI"→"Tel. Cliente" e +filtro de busca por esse campo |
+| `insights-platform/frontend/src/App.css` | UPDATE | `--content-max-width` fluido |
+
+## Tasks (adendo)
+### Task A1 — Migration V44 + parser Python
+- **Action:** `ALTER TABLE call_audio_files ADD COLUMN agent_login_id VARCHAR(20)`; extrair no
+  parser via `_find_tag_attribute(session, "agentid")` (helper já genérico, sem código novo de
+  parsing); adicionar campo em `CallMetadata`.
+- **Validate:** novo teste em `test_xml_parser.py` conferindo o valor `39773` no fixture existente;
+  `pytest insights/`.
+
+### Task A2 — Backend: campo, DTOs, filtros
+- **Action:** propagar `agentLoginId` por `IngestInsightsRequest` → `CallAudioFile` →
+  `InsightsListItem`/`InsightsAudioFileDto`; novo filtro `agentLoginId` (mesmo padrão do filtro
+  `extension` já existente — busca `LIKE`); novo filtro `telCliente` com predicado condicional por
+  `direction` (busca em `dnis` quando outbound, em `ani` caso contrário); **remover** o filtro
+  `customerNumber` de `InsightsFilter`/`InsightsSpecifications`/`InsightsController` por completo.
+- **Validate:** `mvn compile` + testes (`InsightsQueryServiceTest` cobrindo os 2 filtros novos e
+  confirmando que `customerNumber` não é mais um parâmetro aceito).
+
+### Task A3 — Frontend: coluna/filtro/detalhe
+- **Action:** `types.ts` (`agentLoginId`); `InsightsTab.tsx`: nova coluna "Agente" (proposta: logo
+  após "Ramal") + novo filtro de busca; remover **coluna e filtro** de "Nº do cliente" da UI —
+  campo passa a aparecer só na seção "Identificação" do detalhe (ao lado de Organização/DNIS);
+  renomear cabeçalho "ANI" → "Tel. Cliente" (mantém a chave `ani` no JSON, só troca o rótulo) **e**
+  adicionar filtro de busca por esse campo (`telCliente`).
+- **Validate:** `tsc --noEmit` + `npm run build`.
+
+### Task A4 — Layout fluido
+- **Action:** em `App.css`, trocar `--content-max-width: 1600px` por um valor fluido (proposta:
+  `100%`, sem teto artificial — ou um teto bem mais alto como `2400px` se preferir manter alguma
+  limitação em monitores 4K+/ultrawide para não deixar texto de outras telas — ex. narrativa de
+  Relatórios — excessivamente esticado).
+- **Validate:** `npm run build`; conferir visualmente (sem acesso a browser nesta sessão — pedir
+  validação do usuário).
+
+### Task A5 — Backfill + deploy
+- **Action:** `docker compose up -d --build backend insights frontend` (V44 aplica no boot) →
+  `docker exec asteriskia-insights python -m src.backfill_metadata` (repopula os 42 registros, agora
+  incluindo `agentLoginId`) → validar visualmente.
+
+## Riscos (adendo)
+| Risco | Prob. | Mitigação |
+|---|---|---|
+| `--content-max-width` fluido esticar demais texto de outras telas (Relatórios, Dashboard) em monitores 4K/ultrawide | Média | Preferir um teto alto (`2400px`) a remover o limite por completo, se o usuário topar abrir mão de 100% fluido |
+| Remover coluna + filtro de "Nº do cliente" reduz a busca por telefone do cliente ao que der pra achar via "Tel. Cliente" | Média | Aceito pelo usuário — o novo filtro "Tel. Cliente" já cobre boa parte do caso de uso (é o mesmo número na maioria das chamadas inbound); campo continua visível no detalhe pra consulta pontual |
+| Filtro "Tel. Cliente" com predicado condicional por direção pode divergir sutilmente de `resolveDisplayAni` se a lógica não for espelhada com exatidão | Baixa | Implementar os dois a partir do mesmo critério documentado (decisão 9), com teste de Specification cobrindo inbound e outbound |
+| Rótulo "Tel. Cliente" vs "TEL CLIENTE" (caixa alta) — usuário escreveu em maiúsculas | Baixa | Plano assume Title Case pra manter consistência com os demais cabeçalhos da tabela; ajusto fácil se o usuário realmente quiser caixa alta |
+
+## Acceptance (adendo)
+- [x] Coluna "Agente" (login PBX) aparece na tabela e tem filtro de busca funcionando
+- [x] Coluna e filtro de "Nº do cliente" não existem mais; campo continua visível só no detalhe
+- [x] Cabeçalho antes "ANI" agora mostra "Tel. Cliente" (mesmo dado, só o rótulo mudou) e tem filtro de busca próprio, funcionando tanto para chamadas inbound quanto outbound
+- [x] Tela de Chamadas (e demais abas da SPA de Insights) preenchem a largura do monitor sem faixa em branco nas laterais, em pelo menos 1920px e 2560px de largura (`--content-max-width: 2400px`, sem acesso a browser nesta sessão para conferência visual)
+- [x] `pytest` (16 passed), `mvn compile`+testes Insights* (verde via imagem `maven:3.9-eclipse-temurin-21` + volume `maven-repo-asteriskia`, mvn não disponível localmente), `tsc --noEmit`+`npm run build` limpos (SPA Insights e Telecom)
+- [ ] Deploy + backfill + validação visual — pendente (sem acesso a browser nesta sessão)
+
+
 **Origem:** pedido do usuário (mapear todos os campos dos `.xml` em `/opt/audio` e montar MVP da tela de Chamadas com todos os campos); ampliado depois com a feature de descobrir **para qual ramal/atendente uma chamada foi transferida**.
 **Complexidade:** Média-Alta (full-stack: Python + Flyway + Java + 2 SPAs, com backfill metadata-only + correlação assíncrona entre gravações).
 

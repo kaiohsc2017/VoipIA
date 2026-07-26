@@ -51,11 +51,11 @@ public class InsightsIngestionService {
         audioFile.setDirection(request.direction());
         audioFile.setSkill(request.skill());
         audioFile.setXmlRaw(toJsonString(request.xmlRaw()));
-        applyMetadataFields(audioFile, request.customerNumber(), request.organization(), request.disconnectedBy(),
-                request.numberOfHolds(), request.totalHoldTime(), request.numberOfTransfers(),
-                request.numberOfConferences(), request.wrapupTime(), request.codec(), request.missedRtpPackets(),
-                request.decodingErrors(), request.switchCallId(), request.trunk(), request.captureType(),
-                request.datasourceName());
+        applyMetadataFields(audioFile, request.agentLoginId(), request.customerNumber(), request.organization(),
+                request.disconnectedBy(), request.numberOfHolds(), request.totalHoldTime(),
+                request.numberOfTransfers(), request.numberOfConferences(), request.wrapupTime(), request.codec(),
+                request.missedRtpPackets(), request.decodingErrors(), request.switchCallId(), request.trunk(),
+                request.captureType(), request.datasourceName());
         audioFile.setStatus("done");
         audioFile.setErrorMsg(null);
         audioFile.setProcessedAt(LocalDateTime.now());
@@ -135,11 +135,11 @@ public class InsightsIngestionService {
         CallAudioFile audioFile = audioFileRepository.findByCallRef(callRef)
                 .orElseThrow(() -> new IllegalArgumentException("Chamada não encontrada para backfill: callRef=" + callRef));
 
-        applyMetadataFields(audioFile, request.customerNumber(), request.organization(), request.disconnectedBy(),
-                request.numberOfHolds(), request.totalHoldTime(), request.numberOfTransfers(),
-                request.numberOfConferences(), request.wrapupTime(), request.codec(), request.missedRtpPackets(),
-                request.decodingErrors(), request.switchCallId(), request.trunk(), request.captureType(),
-                request.datasourceName());
+        applyMetadataFields(audioFile, request.agentLoginId(), request.customerNumber(), request.organization(),
+                request.disconnectedBy(), request.numberOfHolds(), request.totalHoldTime(),
+                request.numberOfTransfers(), request.numberOfConferences(), request.wrapupTime(), request.codec(),
+                request.missedRtpPackets(), request.decodingErrors(), request.switchCallId(), request.trunk(),
+                request.captureType(), request.datasourceName());
         audioFile = audioFileRepository.save(audioFile);
 
         replaceTransferEvents(audioFile.getId(), request.transferEvents());
@@ -148,10 +148,12 @@ public class InsightsIngestionService {
         log.info("Metadados (backfill) atualizados para call_ref={} (id={})", callRef, audioFile.getId());
     }
 
-    private void applyMetadataFields(CallAudioFile audioFile, String customerNumber, String organization,
-            String disconnectedBy, Integer numberOfHolds, Integer totalHoldTime, Integer numberOfTransfers,
-            Integer numberOfConferences, Integer wrapupTime, String codec, Integer missedRtpPackets,
-            Integer decodingErrors, String switchCallId, String trunk, String captureType, String datasourceName) {
+    private void applyMetadataFields(CallAudioFile audioFile, String agentLoginId, String customerNumber,
+            String organization, String disconnectedBy, Integer numberOfHolds, Integer totalHoldTime,
+            Integer numberOfTransfers, Integer numberOfConferences, Integer wrapupTime, String codec,
+            Integer missedRtpPackets, Integer decodingErrors, String switchCallId, String trunk, String captureType,
+            String datasourceName) {
+        audioFile.setAgentLoginId(agentLoginId);
         audioFile.setCustomerNumber(customerNumber);
         audioFile.setOrganization(organization);
         audioFile.setDisconnectedBy(disconnectedBy);

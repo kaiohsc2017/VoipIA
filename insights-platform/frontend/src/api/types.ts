@@ -42,11 +42,14 @@ export interface InsightsListItem {
   criticidade?: 'baixa' | 'media' | 'alta' | 'urgente';
   notaTotal?: number;
   isFailed?: boolean;
-  // ─── V43 — 6 colunas novas (plano insights-chamadas-campos-xml) ───
-  customerNumber?: string;
+  // ─── V43/V44 — colunas da tabela (plano insights-chamadas-campos-xml) ───
+  // customerNumber saiu daqui (adendo, decisão 11) — só existe em CallAudioFile (detalhe).
   extension?: string;
+  /** Login do agente no PBX (tag agentid/pbx_login_id) — adendo pós-deploy, decisão 11. */
+  agentLoginId?: string;
   /** Já vem calculado do backend: para direction=outbound é o dnis bruto, não o
-   * ani bruto (que seria o ramal do próprio atendente) — ver decisão 9 do plano. */
+   * ani bruto (que seria o ramal do próprio atendente) — ver decisão 9 do plano.
+   * Exibido na tabela como "Tel. Cliente" (decisão 11). */
   ani?: string;
   disconnectedBy?: 'atendente' | 'cliente';
   numberOfTransfers?: number;
@@ -61,6 +64,7 @@ export interface CallAudioFile {
   callStarttime?: string;
   agentName?: string;
   agentIdVerint?: string;
+  agentLoginId?: string;
   extension?: string;
   ani?: string;
   dnis?: string;

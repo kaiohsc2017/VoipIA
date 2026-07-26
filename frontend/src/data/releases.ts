@@ -393,4 +393,14 @@ export const RELEASES: ReleaseEntry[] = [
       'Correção: em chamadas efetuadas (saindo do call center), a coluna ANI agora mostra o número do cliente discado em vez do ramal do próprio atendente.',
     ],
   },
+  {
+    version: 'v1.44',
+    date: '2026-07-25',
+    changes: [
+      'Insights → Chamadas: nova coluna e filtro "Agente" — login do agente no PBX/Avaya, extraído do XML da gravação (campo distinto do ID interno da Verint já existente).',
+      'Insights → Chamadas: coluna e filtro de "Nº do cliente" removidos da tabela — o campo continua disponível na seção "Identificação" do detalhe da chamada.',
+      'Insights → Chamadas: cabeçalho "ANI" renomeado para "Tel. Cliente" e ganhou filtro de busca próprio, funcionando tanto para chamadas recebidas quanto efetuadas.',
+      'Insights: telas (Dashboard, Chamadas, Processamento, Fichas, Relatórios, Meus Envios) passam a aproveitar a largura total de monitores maiores, sem faixa em branco nas laterais.',
+    ],
+  },
 ];

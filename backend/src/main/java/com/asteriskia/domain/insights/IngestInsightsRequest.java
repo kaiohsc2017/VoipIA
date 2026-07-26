@@ -23,6 +23,7 @@ public record IngestInsightsRequest(
         OffsetDateTime callStarttime,
         String agentName,
         String agentIdVerint,
+        String agentLoginId,
         String extension,
         String ani,
         String dnis,

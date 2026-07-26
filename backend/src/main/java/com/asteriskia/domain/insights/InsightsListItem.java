@@ -18,9 +18,11 @@ public record InsightsListItem(
         String criticidade,
         BigDecimal notaTotal,
         Boolean isFailed,
-        // ─── V43 — 6 colunas novas (decisão 7/10 do plano insights-chamadas-campos-xml) ───
-        String customerNumber,
+        // ─── V43/V44 — colunas da tabela (decisão 7/10/11 do plano insights-chamadas-campos-xml) ───
+        // customerNumber saiu daqui (adendo, decisão 11) — não vira mais coluna, só existe no
+        // detalhe (InsightsAudioFileDto); "Tel. Cliente" (ani) é o que sobrou na tabela pra isso.
         String extension,
+        String agentLoginId,
         String ani,
         String disconnectedBy,
         Integer numberOfTransfers,
@@ -43,8 +45,8 @@ public record InsightsListItem(
                 insight != null ? insight.getCriticidade() : null,
                 evaluation != null ? evaluation.getNotaTotal() : null,
                 evaluation != null ? evaluation.getIsFailed() : null,
-                audioFile.getCustomerNumber(),
                 audioFile.getExtension(),
+                audioFile.getAgentLoginId(),
                 InsightsAudioFileDto.resolveDisplayAni(audioFile),
                 audioFile.getDisconnectedBy(),
                 audioFile.getNumberOfTransfers(),

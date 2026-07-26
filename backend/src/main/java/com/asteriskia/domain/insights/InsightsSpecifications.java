@@ -49,10 +49,6 @@ public final class InsightsSpecifications {
             if (filter.durationMax() != null) {
                 predicates = cb.and(predicates, cb.lessThanOrEqualTo(root.get("durationSeconds"), filter.durationMax()));
             }
-            if (filter.customerNumber() != null && !filter.customerNumber().isBlank()) {
-                predicates = cb.and(predicates,
-                        cb.like(root.get("customerNumber"), "%" + filter.customerNumber() + "%"));
-            }
             if (filter.extension() != null && !filter.extension().isBlank()) {
                 predicates = cb.and(predicates, cb.like(root.get("extension"), "%" + filter.extension() + "%"));
             }
@@ -71,6 +67,22 @@ public final class InsightsSpecifications {
             }
             if (filter.wrapupTimeMax() != null) {
                 predicates = cb.and(predicates, cb.lessThanOrEqualTo(root.get("wrapupTime"), filter.wrapupTimeMax()));
+            }
+            if (filter.agentLoginId() != null && !filter.agentLoginId().isBlank()) {
+                predicates = cb.and(predicates,
+                        cb.like(root.get("agentLoginId"), "%" + filter.agentLoginId() + "%"));
+            }
+            if (filter.telCliente() != null && !filter.telCliente().isBlank()) {
+                // Direction-aware, mesmo critério de InsightsAudioFileDto.resolveDisplayAni:
+                // outbound busca em dnis (o que é exibido como "Tel. Cliente" nesse caso);
+                // qualquer outra direção (inclusive null) busca em ani.
+                String needle = "%" + filter.telCliente() + "%";
+                var isOutbound = cb.equal(root.get("direction"), "outbound");
+                var outboundMatch = cb.and(isOutbound, cb.like(root.get("dnis"), needle));
+                var notOutboundMatch = cb.and(
+                        cb.or(cb.isNull(root.get("direction")), cb.notEqual(root.get("direction"), "outbound")),
+                        cb.like(root.get("ani"), needle));
+                predicates = cb.and(predicates, cb.or(outboundMatch, notOutboundMatch));
             }
             if (restrictedToIds != null) {
                 predicates = cb.and(predicates, restrictedToIds.isEmpty()

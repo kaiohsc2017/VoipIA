@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -49,14 +50,15 @@ class InsightsQueryServiceTest {
                 .thenReturn(Page.empty());
     }
 
-    // InsightsFilter tem 27 campos posicionais — construído explicitamente em blocos de
-    // 9 (id..criticidade / findingType..isFailed / customerNumber..targetSwitchCallId)
-    // pra facilitar contagem e revisão.
+    // InsightsFilter tem 28 campos posicionais — construído explicitamente em blocos de
+    // 7 (id..criticidade / findingType..isFailed / extension..transferTargetAgentName /
+    // agentLoginId..targetSwitchCallId) pra facilitar contagem e revisão.
     private InsightsFilter blankFilter() {
         return new InsightsFilter(
-                null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null);
     }
 
     private InsightsFilter filterWithTargetSwitchCallId() {
@@ -65,9 +67,9 @@ class InsightsQueryServiceTest {
                 blank.id(), blank.dateFrom(), blank.dateTo(), blank.text(), blank.phrase(), blank.toneCliente(),
                 blank.toneAtendente(), blank.categoria(), blank.criticidade(), blank.findingType(), blank.agentName(),
                 blank.direction(), blank.skill(), blank.durationMin(), blank.durationMax(), blank.notaMin(),
-                blank.notaMax(), blank.isFailed(), blank.customerNumber(), blank.extension(), blank.disconnectedBy(),
+                blank.notaMax(), blank.isFailed(), blank.extension(), blank.disconnectedBy(),
                 blank.hasHold(), blank.wrapupTimeMin(), blank.wrapupTimeMax(), blank.transferTargetExtension(),
-                blank.transferTargetAgentName(), "SW-FORJADO");
+                blank.transferTargetAgentName(), blank.agentLoginId(), blank.telCliente(), "SW-FORJADO");
     }
 
     @Test
@@ -100,8 +102,9 @@ class InsightsQueryServiceTest {
                 blank.id(), blank.dateFrom(), blank.dateTo(), blank.text(), blank.phrase(), blank.toneCliente(),
                 blank.toneAtendente(), blank.categoria(), blank.criticidade(), blank.findingType(), blank.agentName(),
                 blank.direction(), blank.skill(), blank.durationMin(), blank.durationMax(), blank.notaMin(),
-                blank.notaMax(), blank.isFailed(), blank.customerNumber(), blank.extension(), blank.disconnectedBy(),
-                blank.hasHold(), blank.wrapupTimeMin(), blank.wrapupTimeMax(), "4108", "Diego", blank.targetSwitchCallId());
+                blank.notaMax(), blank.isFailed(), blank.extension(), blank.disconnectedBy(),
+                blank.hasHold(), blank.wrapupTimeMin(), blank.wrapupTimeMax(), "4108", "Diego",
+                blank.agentLoginId(), blank.telCliente(), blank.targetSwitchCallId());
         when(transferEventRepository.findAudioFileIdsByTargetExtension("4108")).thenReturn(List.of(1L));
         when(transferEventRepository.findAudioFileIdsByTargetAgentName("Diego")).thenReturn(List.of(1L));
 
@@ -109,5 +112,23 @@ class InsightsQueryServiceTest {
 
         verify(transferEventRepository).findAudioFileIdsByTargetExtension("4108");
         verify(transferEventRepository).findAudioFileIdsByTargetAgentName("Diego");
+    }
+
+    @Test
+    @DisplayName("filtro agentLoginId não exige ADMIN e é repassado ao Specification")
+    void search_agentLoginIdFilter_worksForAnyUser() {
+        Pageable pageable = PageRequest.of(0, 20);
+        InsightsFilter blank = blankFilter();
+        InsightsFilter filter = new InsightsFilter(
+                blank.id(), blank.dateFrom(), blank.dateTo(), blank.text(), blank.phrase(), blank.toneCliente(),
+                blank.toneAtendente(), blank.categoria(), blank.criticidade(), blank.findingType(), blank.agentName(),
+                blank.direction(), blank.skill(), blank.durationMin(), blank.durationMax(), blank.notaMin(),
+                blank.notaMax(), blank.isFailed(), blank.extension(), blank.disconnectedBy(),
+                blank.hasHold(), blank.wrapupTimeMin(), blank.wrapupTimeMax(), blank.transferTargetExtension(),
+                blank.transferTargetAgentName(), "39773", blank.telCliente(), blank.targetSwitchCallId());
+
+        service.search(filter, pageable, false);
+
+        verify(audioFileRepository).findAll(any(Specification.class), eq(pageable));
     }
 }

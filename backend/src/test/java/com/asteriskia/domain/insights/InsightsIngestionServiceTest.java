@@ -56,7 +56,7 @@ class InsightsIngestionServiceTest {
     private IngestInsightsRequest minimalRequest(List<IngestInsightsRequest.TransferEventPayload> transferEvents) {
         return new IngestInsightsRequest(
                 "VER-1", "/opt/audio/VER-1.wav", "/opt/audio/VER-1.xml",
-                60, OffsetDateTime.now(), "Marina Souza", "AG-1", "4021", "16991379262", "994850",
+                60, OffsetDateTime.now(), "Marina Souza", "AG-1", "39773", "4021", "16991379262", "994850",
                 "inbound", "Suporte N1", null,
                 "+55 11 98421-7734", "Agentes-CM01", "atendente", 1, 30, 1, 0, 10,
                 "G729A", 0, 0, "SW-ORIGIN", "TRK-1", "IP", "CM01",
@@ -106,11 +106,12 @@ class InsightsIngestionServiceTest {
         when(audioFileRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         var request = new InsightsMetadataUpdateRequest(
-                "+55 11 98421-7734", "Agentes-CM01", "atendente", 1, 30, 0, 0, 10,
+                "39773", "+55 11 98421-7734", "Agentes-CM01", "atendente", 1, 30, 0, 0, 10,
                 "G729A", 0, 0, "SW-5", "TRK-1", "IP", "CM01", List.of());
 
         service.updateMetadata("VER-5", request);
 
+        assertThat(existing.getAgentLoginId()).isEqualTo("39773");
         assertThat(existing.getCustomerNumber()).isEqualTo("+55 11 98421-7734");
         assertThat(existing.getStatus()).isEqualTo("done"); // não mexe no status
         verify(transferEventRepository).deleteByAudioFileId(5L);
@@ -122,7 +123,8 @@ class InsightsIngestionServiceTest {
     void updateMetadata_unknownCallRef_throws() {
         when(audioFileRepository.findByCallRef("NAO-EXISTE")).thenReturn(Optional.empty());
         var request = new InsightsMetadataUpdateRequest(
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, List.of());
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                List.of());
 
         org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
                 () -> service.updateMetadata("NAO-EXISTE", request));

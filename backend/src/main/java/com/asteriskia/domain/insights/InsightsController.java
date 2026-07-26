@@ -67,7 +67,6 @@ public class InsightsController {
             @RequestParam(required = false) java.math.BigDecimal notaMin,
             @RequestParam(required = false) java.math.BigDecimal notaMax,
             @RequestParam(required = false) Boolean isFailed,
-            @RequestParam(required = false) String customerNumber,
             @RequestParam(required = false) String extension,
             @RequestParam(required = false) String disconnectedBy,
             @RequestParam(required = false) Boolean hasHold,
@@ -75,6 +74,8 @@ public class InsightsController {
             @RequestParam(required = false) Integer wrapupTimeMax,
             @RequestParam(required = false) String transferTargetExtension,
             @RequestParam(required = false) String transferTargetAgentName,
+            @RequestParam(required = false) String agentLoginId,
+            @RequestParam(required = false) String telCliente,
             @RequestParam(required = false) String targetSwitchCallId) {
         boolean isAdmin = isAdmin();
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "callStarttime"));
@@ -84,8 +85,8 @@ public class InsightsController {
                 dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null,
                 text, phrase, toneCliente, toneAtendente, categoria, criticidade, findingType,
                 agentName, direction, skill, durationMin, durationMax, notaMin, notaMax, isFailed,
-                customerNumber, extension, disconnectedBy, hasHold, wrapupTimeMin, wrapupTimeMax,
-                transferTargetExtension, transferTargetAgentName,
+                extension, disconnectedBy, hasHold, wrapupTimeMin, wrapupTimeMax,
+                transferTargetExtension, transferTargetAgentName, agentLoginId, telCliente,
                 // Nunca repassa o filtro admin-only pra quem não é ADMIN — defesa em
                 // profundidade, o serviço/Specification também ignoram por conta própria.
                 isAdmin ? targetSwitchCallId : null);

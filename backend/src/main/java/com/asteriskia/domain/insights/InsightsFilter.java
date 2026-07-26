@@ -26,7 +26,7 @@ public record InsightsFilter(
         java.math.BigDecimal notaMax,
         Boolean isFailed,
         // ─── V43 — filtros novos (decisão 8 do plano insights-chamadas-campos-xml) ───
-        String customerNumber,
+        // customerNumber removido (adendo, decisão 11) — não é mais coluna nem filtro, só detalhe.
         String extension,
         String disconnectedBy,
         Boolean hasHold,
@@ -34,6 +34,11 @@ public record InsightsFilter(
         Integer wrapupTimeMax,
         String transferTargetExtension,
         String transferTargetAgentName,
+        // ─── V44 — filtros novos (adendo pós-deploy, decisão 11) ───
+        String agentLoginId,
+        /** Busca em "Tel. Cliente" (ex-ANI) — direction-aware, mesmo critério de
+         * InsightsAudioFileDto.resolveDisplayAni (ver InsightsSpecifications). */
+        String telCliente,
         // ADMIN-only — ver InsightsController/InsightsQueryService (nunca repassado se !isAdmin)
         String targetSwitchCallId
 ) {}

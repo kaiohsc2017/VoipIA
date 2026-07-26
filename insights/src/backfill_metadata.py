@@ -26,6 +26,7 @@ logger = logging.getLogger("asteriskia.insights.backfill_metadata")
 
 def _build_metadata_payload(metadata) -> dict:
     return {
+        "agentLoginId": metadata.agent_login_id,
         "customerNumber": metadata.customer_number,
         "organization": metadata.organization,
         "disconnectedBy": metadata.disconnected_by,

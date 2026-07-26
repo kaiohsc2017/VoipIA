@@ -52,6 +52,7 @@ class CallMetadata:
     duration_seconds: int | None
     agent_name: str | None
     agent_id_verint: str | None
+    agent_login_id: str | None
     extension: str | None
     ani: str | None
     dnis: str | None
@@ -241,6 +242,9 @@ def parse_call_xml(xml_path: str) -> CallMetadata:
 
     agent_name = session.findtext("x:employeename", namespaces=_NS) if session is not None else None
     agent_id_verint = session.findtext("x:agent_id", namespaces=_NS) if session is not None else None
+    # Login do agente no PBX/Avaya (tag "agentid", igual ao elemento session/pbx_login_id) —
+    # diferente de agent_id_verint (chave interna da Verint) e de extension (ramal).
+    agent_login_id = _find_tag_attribute(session, "agentid") if session is not None else None
     extension = session.findtext("x:extension", namespaces=_NS) if session is not None else None
     ani = session.findtext("x:ani", namespaces=_NS) if session is not None else None
     dnis = session.findtext("x:dnis", namespaces=_NS) if session is not None else None
@@ -265,6 +269,7 @@ def parse_call_xml(xml_path: str) -> CallMetadata:
         duration_seconds=duration_seconds,
         agent_name=(agent_name or "").strip() or None,
         agent_id_verint=(agent_id_verint or "").strip() or None,
+        agent_login_id=(agent_login_id or "").strip() or None,
         extension=(extension or "").strip() or None,
         ani=(ani or "").strip() or None,
         dnis=(dnis or "").strip() or None,

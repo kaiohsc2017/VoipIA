@@ -42,6 +42,14 @@ class TestGrupoAIdentificacao:
         metadata = parse_call_xml(fixture_path("inbound_com_transferencia.xml"))
         assert metadata.organization == "Agentes-CM03"
 
+    def test_agent_login_id_diferente_de_agent_id_verint(self):
+        """agentid (login PBX) e agent_id/ultraagentid (chave interna Verint) são
+        campos distintos no mesmo XML — não podem ser confundidos."""
+        metadata = parse_call_xml(fixture_path("inbound_com_transferencia.xml"))
+        assert metadata.agent_login_id == "39773"
+        assert metadata.agent_id_verint == "256003639"
+        assert metadata.agent_login_id != metadata.agent_id_verint
+
     def test_ani_dnis_brutos_preservados_sem_troca(self):
         """O parser NUNCA troca ani/dnis — a regra de exibição por direção
         (decisão 9) vive só no backend Java, não aqui."""

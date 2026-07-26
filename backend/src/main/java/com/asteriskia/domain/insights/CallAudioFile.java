@@ -172,4 +172,8 @@ public class CallAudioFile {
 
     @Column(name = "datasource_name", length = 20)
     private String datasourceName;
+
+    // ─── V44 — login do agente no PBX (adendo pós-deploy) ───
+    @Column(name = "agent_login_id", length = 20)
+    private String agentLoginId;
 }

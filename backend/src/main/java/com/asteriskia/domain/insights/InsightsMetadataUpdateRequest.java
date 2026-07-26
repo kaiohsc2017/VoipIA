@@ -9,6 +9,7 @@ import java.util.List;
  * avaliação — nunca passa por InsightsIngestionService.ingest().
  */
 public record InsightsMetadataUpdateRequest(
+        String agentLoginId,
         String customerNumber,
         String organization,
         String disconnectedBy,

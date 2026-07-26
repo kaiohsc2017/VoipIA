@@ -106,7 +106,7 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
   const [durationMax, setDurationMax] = useState('');
   const [isFailedFilter, setIsFailedFilter] = useState('');
   // ─── V43 — filtros novos (decisão 8 do plano insights-chamadas-campos-xml) ───
-  const [customerNumberFilter, setCustomerNumberFilter] = useState('');
+  // customerNumberFilter saiu daqui (adendo, decisão 11) — não é mais filtro nem coluna.
   const [extensionFilter, setExtensionFilter] = useState('');
   const [disconnectedByFilter, setDisconnectedByFilter] = useState('');
   const [hasHoldFilter, setHasHoldFilter] = useState(false);
@@ -114,12 +114,16 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
   const [wrapupTimeMax, setWrapupTimeMax] = useState('');
   const [transferTargetExtension, setTransferTargetExtension] = useState('');
   const [transferTargetAgentName, setTransferTargetAgentName] = useState('');
+  // ─── V44 — filtros novos (adendo pós-deploy, decisão 11) ───
+  const [agentLoginIdFilter, setAgentLoginIdFilter] = useState('');
+  const [telClienteFilter, setTelClienteFilter] = useState('');
   const [targetSwitchCallId, setTargetSwitchCallId] = useState('');
 
   const hasActiveFilters = !!(dateFrom || dateTo || phrase || toneCliente || toneAtendente || categoria
     || criticidade || findingType || agentName || direction || skill || durationMin || durationMax || isFailedFilter
-    || customerNumberFilter || extensionFilter || disconnectedByFilter || hasHoldFilter || wrapupTimeMin
-    || wrapupTimeMax || transferTargetExtension || transferTargetAgentName || targetSwitchCallId);
+    || extensionFilter || disconnectedByFilter || hasHoldFilter || wrapupTimeMin
+    || wrapupTimeMax || transferTargetExtension || transferTargetAgentName || agentLoginIdFilter
+    || telClienteFilter || targetSwitchCallId);
 
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<InsightsDetailResponse | null>(null);
@@ -151,7 +155,6 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     if (durationMin) params.set('durationMin', durationMin);
     if (durationMax) params.set('durationMax', durationMax);
     if (effectiveIsFailed != null) params.set('isFailed', String(effectiveIsFailed));
-    if (customerNumberFilter) params.set('customerNumber', customerNumberFilter);
     if (extensionFilter) params.set('extension', extensionFilter);
     if (disconnectedByFilter) params.set('disconnectedBy', disconnectedByFilter);
     if (hasHoldFilter) params.set('hasHold', 'true');
@@ -159,6 +162,8 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     if (wrapupTimeMax) params.set('wrapupTimeMax', wrapupTimeMax);
     if (transferTargetExtension) params.set('transferTargetExtension', transferTargetExtension);
     if (transferTargetAgentName) params.set('transferTargetAgentName', transferTargetAgentName);
+    if (agentLoginIdFilter) params.set('agentLoginId', agentLoginIdFilter);
+    if (telClienteFilter) params.set('telCliente', telClienteFilter);
     if (isAdmin && targetSwitchCallId) params.set('targetSwitchCallId', targetSwitchCallId);
     api.get<PageResponse<InsightsListItem>>(`/insights/calls?${params}`)
       .then(r => {
@@ -196,9 +201,9 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     const { id: newId, categoria: newCategoria, criticidade: newCriticidade, findingType: newFindingType, isFailed: newIsFailed } = pendingDrillDown.filters;
     setText(''); setDateFrom(''); setDateTo(''); setPhrase(''); setToneCliente(''); setToneAtendente('');
     setAgentName(''); setDirection(''); setSkill(''); setDurationMin(''); setDurationMax('');
-    setCustomerNumberFilter(''); setExtensionFilter(''); setDisconnectedByFilter(''); setHasHoldFilter(false);
+    setExtensionFilter(''); setDisconnectedByFilter(''); setHasHoldFilter(false);
     setWrapupTimeMin(''); setWrapupTimeMax(''); setTransferTargetExtension(''); setTransferTargetAgentName('');
-    setTargetSwitchCallId('');
+    setAgentLoginIdFilter(''); setTelClienteFilter(''); setTargetSwitchCallId('');
     setCategoria(newCategoria ?? '');
     setCriticidade(newCriticidade ?? '');
     setFindingType(newFindingType ?? '');
@@ -216,9 +221,9 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
     setCategoria(''); setCriticidade(''); setFindingType('');
     setAgentName(''); setDirection(''); setSkill(''); setDurationMin(''); setDurationMax('');
     setIsFailedFilter('');
-    setCustomerNumberFilter(''); setExtensionFilter(''); setDisconnectedByFilter(''); setHasHoldFilter(false);
+    setExtensionFilter(''); setDisconnectedByFilter(''); setHasHoldFilter(false);
     setWrapupTimeMin(''); setWrapupTimeMax(''); setTransferTargetExtension(''); setTransferTargetAgentName('');
-    setTargetSwitchCallId('');
+    setAgentLoginIdFilter(''); setTelClienteFilter(''); setTargetSwitchCallId('');
     setTimeout(() => loadCalls(0), 0);
   };
 
@@ -289,6 +294,14 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
                     <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Identificação</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                       <div>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Nº do cliente</div>
+                        <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.customerNumber || '—'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Agente (login PBX)</div>
+                        <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.agentLoginId || '—'}</div>
+                      </div>
+                      <div>
                         <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Organização</div>
                         <div style={{ fontSize: '.85rem' }}>{detail.audioFile.organization || '—'}</div>
                       </div>
@@ -297,7 +310,7 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
                         <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.dnis || '—'}</div>
                       </div>
                       <div>
-                        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>ANI</div>
+                        <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>Tel. Cliente</div>
                         <div className="mono" style={{ fontSize: '.85rem' }}>{detail.audioFile.ani || '—'}</div>
                       </div>
                     </div>
@@ -613,12 +626,16 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
             </select>
           </div>
           <div>
-            <label className="form-label">Nº do cliente</label>
-            <input className="form-input" placeholder="ex: 11 98421-7734" value={customerNumberFilter} onChange={e => setCustomerNumberFilter(e.target.value)} />
-          </div>
-          <div>
             <label className="form-label">Ramal</label>
             <input className="form-input" placeholder="ex: 4021" value={extensionFilter} onChange={e => setExtensionFilter(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Agente (login PBX)</label>
+            <input className="form-input" placeholder="ex: 39773" value={agentLoginIdFilter} onChange={e => setAgentLoginIdFilter(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Tel. Cliente</label>
+            <input className="form-input" placeholder="ex: 11 98421-7734" value={telClienteFilter} onChange={e => setTelClienteFilter(e.target.value)} />
           </div>
           <div>
             <label className="form-label">Quem desligou</label>
@@ -680,9 +697,9 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
                 <th>Criticidade</th>
                 <th>Nota</th>
                 <th>Status</th>
-                <th>Nº do cliente</th>
                 <th>Ramal</th>
-                <th>ANI</th>
+                <th>Agente</th>
+                <th>Tel. Cliente</th>
                 <th>Quem desligou</th>
                 <th>Ramal destino</th>
                 <th>Atendente destino</th>
@@ -710,8 +727,8 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
                     ) : <span className="text-muted">—</span>}
                   </td>
                   <td><span className="badge badge-info">{item.status}</span></td>
-                  <td className="mono td-muted">{item.customerNumber || '—'}</td>
                   <td className="mono td-muted">{item.extension || '—'}</td>
+                  <td className="mono td-muted">{item.agentLoginId || '—'}</td>
                   <td className="mono td-muted">{item.ani || '—'}</td>
                   <td>{disconnectedByBadge(item.disconnectedBy)}</td>
                   <td>{transferTargetCell(item.numberOfTransfers, item.transferTargetExtension)}</td>

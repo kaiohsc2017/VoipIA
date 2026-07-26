@@ -84,6 +84,7 @@ def _build_payload(metadata: CallMetadata, pair: AudioPair, diarization, tones: 
         "callStarttime": metadata.call_starttime.isoformat() if metadata.call_starttime else None,
         "agentName": metadata.agent_name,
         "agentIdVerint": metadata.agent_id_verint,
+        "agentLoginId": metadata.agent_login_id,
         "extension": metadata.extension,
         "ani": metadata.ani,
         "dnis": metadata.dnis,
