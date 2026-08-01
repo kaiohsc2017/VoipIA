@@ -438,6 +438,53 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > `external_media_address`/`external_signaling_address` não vazios, portas RTP `15000-15500/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
 
+### ✅ Submenu Insights/Agentes na Sidebar do Telecom (2026-08-01) — deployada e validada em navegador headless
+Pedido do usuário: Insights e Agentes eram itens *folha* na Sidebar — clicar abria um iframe em
+tela cheia (`InsightsPage.tsx`/`AgentesPage.tsx`) com a sidebar própria de cada SPA embutida,
+duas navegações laterais em sequência. Passaram a ser `NavParent` com submenu indentado, mesmo
+padrão já usado pelo Financeiro (6 abas em Insights, 8 em Agentes) — **só** quando acessados
+via login pela página principal do Telecom; login direto em `/insights` ou `/agents` continua
+com a sidebar própria intacta, sem nenhuma mudança. Plano completo em
+`.claude/plans/insights-agentes-submenu-telecom.plan.md`.
+- **Sem remontar o iframe a cada troca de aba** (recarregaria a SPA inteira): as N abas de cada
+  módulo mapeiam pro mesmo elemento JSX (`<InsightsPage tab=…>`/`<AgentesPage tab=…>`) em
+  posição fixa no `App.tsx` do Telecom — React reconcilia, só a prop `tab` muda. A troca de aba
+  viaja por `postMessage` bidirecional (`useShellBridge.ts`, um hook por SPA — duplicação
+  intencional, mesmo precedente de `client.ts`/`AuthedAudio.tsx` entre as 3 SPAs Vite
+  independentes): handshake `ready` no boot, `navigate` shell→iframe, `tabChanged`/`alertCount`
+  iframe→shell. Cada SPA detecta `window.self !== window.top` pra decidir se esconde a própria
+  sidebar — zero query param, zero mudança no `src` do iframe.
+- **RBAC sem migration**: cada filho do submenu já usava resource_key existente
+  (`insights.*`/`agents.*` + `telecom.insights_link`/`agents_link`) — nenhum resource novo no
+  `ResourceCatalog.java`.
+- **4 bugs reais encontrados e corrigidos antes do deploy**, por revisão estática
+  (`ecc:react-reviewer`/`ecc:security-reviewer` em paralelo) e por validação em navegador de
+  verdade: (1) CRITICAL — `useShellBridge()` chamado depois do early-return de login nos dois
+  `App.tsx` das SPAs, quebrando a ordem de hooks do React no instante do login/logout dentro da
+  SPA embutida; (2-3) HIGH — closure obsoleta em `onTabChange`/`onAlertCount` do lado do shell
+  (faltava `useRef`) e falta de checagem de `event.source` nos 4 listeners `postMessage` (só
+  validavam `origin`); (4) HIGH, achado só na validação dinâmica — `lastSentTab`/
+  `lastReceivedTab` começavam `null`, a SPA postava a aba *default* no boot e desfazia o clique
+  que abriu o módulo (ex: clicar "Servidores" voltava pro "Dashboard").
+- **Segunda rodada** (`/code-review`) achou 4 issues **pré-existentes**, fora do escopo desta
+  feature mas corrigidos por serem bugs reais: `CallAudioFileRepository.findBySwitchCallId`
+  retornava `Optional` sem `switch_call_id` ter índice único (uma duplicata lançava
+  `IncorrectResultSizeDataAccessException` dentro da transação de ingestão, abortando
+  transcrição/insights já pagos em tokens Gemini) — virou `List`; `TransferResolutionService`
+  ganhou guard de auto-correlação nos dois sentidos (2 testes novos, suíte final 260/260 verde);
+  `InsightsTab.tsx` — `isAdmin` saiu de escopo de módulo pra `useAuthSession()` dentro do
+  componente (ficava presa no role da sessão anterior ao trocar de usuário sem reload da SPA).
+  **Não corrigido, deliberadamente**: divergência de campo de data (`callStarttime` vs
+  `processedAt`) entre `findCosts`/`summarizeByMonth` do `InsightsCostService` — é decisão
+  proposital e testada (fix anterior do bug "custo IA acumulado zerado"), reverter reintroduziria
+  esse bug.
+- Validação em Chrome headless manual + CDP puro via WebSocket nativo do Node 22 (Chrome
+  DevTools MCP falhou de novo nesta VPS com "Target closed") — 15 checks automatizados + 4
+  screenshots confirmaram indentação idêntica ao Financeiro, iframe nunca remonta, sync
+  SPA→menu funcionando, guard `event.source` bloqueando spoof same-origin, e a regressão pedida
+  (login direto preserva sidebar própria).
+- Release notes `v1.46` registrada.
+
 ### ✅ Insights → Chamadas: campos do XML Verint + descoberta de transferência (2026-07-24) — deployada e validada em produção
 Pedido do usuário: mapear todos os campos do `.xml` da Verint (hoje só 10 viravam coluna, o resto
 ficava só em `xml_raw`) e montar um MVP da tela de Chamadas com eles, mais uma feature adicional
