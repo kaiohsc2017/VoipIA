@@ -214,6 +214,16 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
+  // Reescreve o hash quando `page` foi resolvido diferente do hash bruto da URL —
+  // hash legado #insights/#agents (pré-submenu) ou qualquer hash inválido/sem
+  // permissão que pageFromHash() rebaixou pro dashboard. Sem isso a URL fica
+  // divergente do menu ativo (ex: menu mostra "Chamadas" mas a barra de
+  // endereço continua em #insights).
+  useEffect(() => {
+    const rawHash = window.location.hash.replace('#', '').trim();
+    if (rawHash !== page) window.location.hash = page;
+  }, [page]);
+
   const handleLogin = (t: string, user: string) => {
     setToken(t);
     setUsername(user);

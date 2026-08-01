@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   LayoutDashboard, Headset, PhoneCall, AlertTriangle, Bot, Users, UsersRound,
   Settings, Terminal, ShieldCheck, KeyRound, ClipboardList,
@@ -149,6 +149,17 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
     if (parent) setExpandedParents(prev => new Set(prev).add(parent.label));
   }, [currentPage]);
 
+  // Rola até o item ativo — com vários submenus abertos ao mesmo tempo (ex: Insights +
+  // Financeiro + Agentes), a lista cresce mais que a altura da sidebar e o item ativo
+  // pode acabar fora da área visível sem nenhuma pista de que precisa rolar até ele.
+  // Depende de `expandedParents` (não só `currentPage`) porque o submenu do item ativo
+  // pode só entrar no DOM depois que o efeito de auto-expansão acima roda.
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const active = navRef.current?.querySelector('.nav-item.active, .nav-subitem.active');
+    active?.scrollIntoView({ block: 'nearest' });
+  }, [currentPage, expandedParents]);
+
   // Expansão temporária ao passar o mouse — só entra em ação quando o menu
   // está no estado fixo "colapsado"; não altera o estado `collapsed` do App.tsx.
   const [hoverExpanded, setHoverExpanded] = useState(false);
@@ -171,7 +182,7 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
       </div>
 
       {/* Nav */}
-      <nav className="sidebar-nav">
+      <nav className="sidebar-nav" ref={navRef}>
         {visibleItems.map(item => {
           const showSection = item.section !== lastSection;
           lastSection = item.section;

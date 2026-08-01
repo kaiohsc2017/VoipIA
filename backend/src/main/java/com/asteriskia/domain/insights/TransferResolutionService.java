@@ -46,7 +46,14 @@ public class TransferResolutionService {
             if (event.getResolvedAt() != null || event.getTargetSwitchCallId() == null) {
                 continue;
             }
-            audioFileRepository.findBySwitchCallId(event.getTargetSwitchCallId())
+            audioFileRepository.findBySwitchCallId(event.getTargetSwitchCallId()).stream()
+                    // Exclui a própria gravação: um switch_call_id não é garantido único
+                    // (ver CallAudioFileRepository) — sem este guard, se o globalcallid do
+                    // evento coincidir com o próprio switch_call_id da chamada de origem,
+                    // a correlação aponta pra si mesma e "Ramal/Atendente destino" mostra
+                    // erroneamente o próprio atendente de origem em vez de "Não identificado".
+                    .filter(candidate -> !candidate.getId().equals(audioFile.getId()))
+                    .findFirst()
                     .ifPresent(target -> apply(event, target));
         }
     }
@@ -60,6 +67,11 @@ public class TransferResolutionService {
         List<CallTransferEvent> pending =
                 transferEventRepository.findByTargetSwitchCallIdAndResolvedAtIsNull(audioFile.getSwitchCallId());
         for (CallTransferEvent event : pending) {
+            // Mesmo guard de auto-correlação do sentido outgoing: um evento cujo
+            // audioFileId já é o desta própria chamada não é uma transferência real.
+            if (event.getAudioFileId().equals(audioFile.getId())) {
+                continue;
+            }
             apply(event, audioFile);
         }
     }

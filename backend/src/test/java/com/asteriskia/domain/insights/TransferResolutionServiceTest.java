@@ -8,7 +8,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -50,7 +49,7 @@ class TransferResolutionServiceTest {
         CallAudioFile destination = audioFile(2L, "SW-DEST", "4108", "Diego Ramalho");
 
         when(transferEventRepository.findByAudioFileIdOrderByTransferOrderAsc(1L)).thenReturn(List.of(event));
-        when(audioFileRepository.findBySwitchCallId("SW-DEST")).thenReturn(Optional.of(destination));
+        when(audioFileRepository.findBySwitchCallId("SW-DEST")).thenReturn(List.of(destination));
         when(transferEventRepository.findByTargetSwitchCallIdAndResolvedAtIsNull("SW-ORIGIN")).thenReturn(List.of());
 
         service.resolveForAudioFile(origin);
@@ -96,10 +95,46 @@ class TransferResolutionServiceTest {
                 .targetSwitchCallId("SW-DEST-NUNCA-INGERIDO").resolvedAt(null).build();
 
         when(transferEventRepository.findByAudioFileIdOrderByTransferOrderAsc(1L)).thenReturn(List.of(event));
-        when(audioFileRepository.findBySwitchCallId("SW-DEST-NUNCA-INGERIDO")).thenReturn(Optional.empty());
+        when(audioFileRepository.findBySwitchCallId("SW-DEST-NUNCA-INGERIDO")).thenReturn(List.of());
         when(transferEventRepository.findByTargetSwitchCallIdAndResolvedAtIsNull("SW-ORIGIN")).thenReturn(List.of());
 
         service.resolveForAudioFile(origin);
+
+        verify(transferEventRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("sentido origem->destino: ignora candidato cujo id é o da própria chamada (switch_call_id duplicado)")
+    void resolveOutgoing_candidateIsSelf_skipsAndDoesNotResolve() {
+        service = newService();
+        CallAudioFile origin = audioFile(1L, "SW-DUP", "4021", "Marina");
+        CallTransferEvent event = CallTransferEvent.builder()
+                .id(10L).audioFileId(1L).transferOrder((short) 1)
+                .targetSwitchCallId("SW-DUP").resolvedAt(null).build();
+
+        when(transferEventRepository.findByAudioFileIdOrderByTransferOrderAsc(1L)).thenReturn(List.of(event));
+        // switch_call_id não é único: a própria chamada de origem aparece entre os candidatos.
+        when(audioFileRepository.findBySwitchCallId("SW-DUP")).thenReturn(List.of(origin));
+        when(transferEventRepository.findByTargetSwitchCallIdAndResolvedAtIsNull("SW-DUP")).thenReturn(List.of());
+
+        service.resolveForAudioFile(origin);
+
+        verify(transferEventRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("sentido destino->origem: ignora evento pendente cujo audioFileId é o da própria chamada")
+    void resolveIncoming_pendingEventBelongsToSelf_skipsAndDoesNotResolve() {
+        service = newService();
+        CallAudioFile self = audioFile(2L, "SW-DEST", "4108", "Diego Ramalho");
+        CallTransferEvent ownEvent = CallTransferEvent.builder()
+                .id(11L).audioFileId(2L).transferOrder((short) 1)
+                .targetSwitchCallId("SW-DEST").resolvedAt(null).build();
+
+        when(transferEventRepository.findByAudioFileIdOrderByTransferOrderAsc(2L)).thenReturn(List.of());
+        when(transferEventRepository.findByTargetSwitchCallIdAndResolvedAtIsNull("SW-DEST")).thenReturn(List.of(ownEvent));
+
+        service.resolveForAudioFile(self);
 
         verify(transferEventRepository, never()).save(any());
     }

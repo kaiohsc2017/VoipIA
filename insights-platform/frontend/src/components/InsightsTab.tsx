@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import api, { getRoleFromToken } from '../api/client';
+import api from '../api/client';
 import type { InsightsListItem, InsightsDetailResponse, PageResponse } from '../api/types';
 import type { InsightsDrillDownFilters } from '../api/types';
 import { AuthedAudio } from './AuthedAudio';
-
-const isAdmin = getRoleFromToken(localStorage.getItem('asteriskia_token')) === 'ADMIN';
+import { useAuthSession } from '../hooks/useAuthSession';
 
 const TONE_OPTIONS = ['calmo', 'neutro', 'tenso', 'irritado', 'empolgado'];
 const CRITICIDADE_OPTIONS = ['baixa', 'media', 'alta', 'urgente'];
@@ -84,6 +83,10 @@ interface InsightsTabProps {
 }
 
 export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsTabProps) {
+  // Derivado do token a cada render (não em escopo de módulo) — um logout/login
+  // trocando de usuário sem reload da SPA (a página nunca recarrega ao trocar de
+  // sessão) precisa refletir o novo role imediatamente nos blocos admin-only abaixo.
+  const isAdmin = useAuthSession().role === 'ADMIN';
   const [items, setItems] = useState<InsightsListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);

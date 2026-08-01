@@ -41,8 +41,13 @@ public interface CallAudioFileRepository
      * diferente do fluxo Verint). */
     List<CallAudioFile> findBySourceAndStatus(String source, String status);
 
-    /** Correlação de transferência (grupo D, V43) — busca a gravação cujo switch_call_id
-     * bate com o globalcallid capturado no Begin_Call de uma transferência de outra
-     * chamada. Ver TransferResolutionService. */
-    Optional<CallAudioFile> findBySwitchCallId(String switchCallId);
+    /** Correlação de transferência (grupo D, V43) — busca a(s) gravação(ões) cujo
+     * switch_call_id bate com o globalcallid capturado no Begin_Call de uma
+     * transferência de outra chamada. Retorna List, não Optional/único: o índice em
+     * switch_call_id não é único (duas pernas de uma transferência multi-hop, ou uma
+     * reingestão, podem compartilhar o mesmo id técnico do PBX) — um resultado só
+     * garantiria não lançar IncorrectResultSizeDataAccessException se o dado real
+     * nunca colidisse, o que não é uma garantia do schema. Ver TransferResolutionService,
+     * que já precisa excluir a própria gravação da lista antes de aplicar. */
+    List<CallAudioFile> findBySwitchCallId(String switchCallId);
 }
