@@ -115,6 +115,53 @@ const PAGE_RESOURCE: Partial<Record<Page, string>> = {
   finUra:      'financeiro.ura',
   finInsights: 'financeiro.insights',
   finEnvios:   'financeiro.envios',
+  insCalls:      'insights.calls',
+  insDashboard:  'insights.dashboard',
+  insProcessing: 'insights.processing',
+  insScorecards: 'insights.scorecards',
+  insReports:    'insights.reports',
+  insUploads:    'insights.uploads',
+  agDashboard: 'agents.dashboard',
+  agAgents:    'agents.agents',
+  agServers:   'agents.servers',
+  agKnowledge: 'agents.knowledge',
+  agLogs:      'agents.logs',
+  agAlerts:    'agents.reports',
+  agSecrets:   'agents.secrets',
+  agLlm:       'agents.llm',
+};
+
+// Submenus Insights/Agentes: cada aba exige, além do resource_key próprio
+// (PAGE_RESOURCE acima), o resource_key do item de menu — telecom.insights_link/
+// telecom.agents_link não têm relação com os dados, só liberam o link (ver CLAUDE.md).
+const LINK_RESOURCE: Partial<Record<Page, string>> = {
+  insCalls: 'telecom.insights_link', insDashboard: 'telecom.insights_link', insProcessing: 'telecom.insights_link',
+  insScorecards: 'telecom.insights_link', insReports: 'telecom.insights_link', insUploads: 'telecom.insights_link',
+  agDashboard: 'telecom.agents_link', agAgents: 'telecom.agents_link', agServers: 'telecom.agents_link',
+  agKnowledge: 'telecom.agents_link', agLogs: 'telecom.agents_link', agAlerts: 'telecom.agents_link',
+  agSecrets: 'telecom.agents_link', agLlm: 'telecom.agents_link',
+};
+
+const INSIGHTS_SUBPAGES: Page[] = ['insCalls', 'insDashboard', 'insProcessing', 'insScorecards', 'insReports', 'insUploads'];
+const AGENTS_SUBPAGES: Page[] = ['agDashboard', 'agAgents', 'agServers', 'agKnowledge', 'agLogs', 'agAlerts', 'agSecrets', 'agLlm'];
+
+// Mapeia Page (id de rota do Telecom) <-> tab/page interno das SPAs embutidas —
+// trocado via postMessage (ver InsightsPage.tsx/AgentesPage.tsx) para não remontar o iframe.
+const INSIGHTS_PAGE_TO_TAB: Record<string, string> = {
+  insCalls: 'calls', insDashboard: 'dashboard', insProcessing: 'processing',
+  insScorecards: 'scorecards', insReports: 'reports', insUploads: 'uploads',
+};
+const INSIGHTS_TAB_TO_PAGE: Record<string, Page> = {
+  calls: 'insCalls', dashboard: 'insDashboard', processing: 'insProcessing',
+  scorecards: 'insScorecards', reports: 'insReports', uploads: 'insUploads',
+};
+const AGENTS_PAGE_TO_TAB: Record<string, string> = {
+  agDashboard: 'dashboard', agAgents: 'agents', agServers: 'servers', agKnowledge: 'knowledge',
+  agLogs: 'logs', agAlerts: 'reports', agSecrets: 'secrets', agLlm: 'llm',
+};
+const AGENTS_TAB_TO_PAGE: Record<string, Page> = {
+  dashboard: 'agDashboard', agents: 'agAgents', servers: 'agServers', knowledge: 'agKnowledge',
+  logs: 'agLogs', reports: 'agAlerts', secrets: 'agSecrets', llm: 'agLlm',
 };
 
 export default function App() {
@@ -124,7 +171,10 @@ export default function App() {
   const [perms, setPerms] = useState<Record<string, string>>(() => authSessionFromToken(localStorage.getItem('asteriskia_token')).perms);
   const pageFromHash = (): Page => {
     const hash = window.location.hash.replace('#', '').trim() as Page;
-    const valid: Page[] = ['dashboard','modulo1','insights','modulo2','modulo3','masterdata','users','operadoras','cadastro0800','linhas','settings','audit','logs','security','accessGroups','docs','release','agents','finUra','finInsights','finEnvios'];
+    const valid: Page[] = [
+      'dashboard','modulo1','insights','modulo2','modulo3','masterdata','users','operadoras','cadastro0800','linhas','settings','audit','logs','security','accessGroups','docs','release','agents','finUra','finInsights','finEnvios',
+      ...INSIGHTS_SUBPAGES, ...AGENTS_SUBPAGES,
+    ];
     if (!valid.includes(hash)) return 'dashboard';
     // Acesso direto via hash (digitado/favoritado) a uma página sem permissão de
     // leitura: volta pro dashboard. O botão de nav já fica escondido (ver
@@ -134,12 +184,21 @@ export default function App() {
     // exige ROLE_ADMIN puro (evita o ovo-e-galinha de um grupo customizado
     // precisar de si mesmo pra existir), então a checagem aqui é direto por role.
     if (hash === 'accessGroups') return session.role === 'ADMIN' ? hash : 'dashboard';
+    // Hash legado #insights/#agents (de antes do submenu) — resolve pra primeira
+    // aba legível do submenu, ou pro dashboard se não tiver nenhuma.
+    if (hash === 'insights') return INSIGHTS_SUBPAGES.find(p => session.hasRead(PAGE_RESOURCE[p]!) && session.hasRead(LINK_RESOURCE[p]!)) ?? 'dashboard';
+    if (hash === 'agents') return AGENTS_SUBPAGES.find(p => session.hasRead(PAGE_RESOURCE[p]!) && session.hasRead(LINK_RESOURCE[p]!)) ?? 'dashboard';
     const resource = PAGE_RESOURCE[hash];
     if (resource && !session.hasRead(resource)) return 'dashboard';
+    const link = LINK_RESOURCE[hash];
+    if (link && !session.hasRead(link)) return 'dashboard';
     return hash;
   };
   const [page, setPage] = useState<Page>(pageFromHash);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [agentsAlertCount, setAgentsAlertCount] = useState(0);
+
+  const navigateTo = (p: Page) => { setPage(p); window.location.hash = p; };
 
   // Escuta evento de logout forçado (token expirado / 401)
   useEffect(() => {
@@ -189,13 +248,14 @@ export default function App() {
       <div className="app-layout">
         <Sidebar
           currentPage={page}
-          onNavigate={(p) => { setPage(p); window.location.hash = p; }}
+          onNavigate={navigateTo}
           username={username}
           role={role}
           perms={perms}
           onLogout={handleSignOut}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(c => !c)}
+          agentsAlertCount={agentsAlertCount}
         />
 
         <main className={`main-content${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
@@ -203,7 +263,12 @@ export default function App() {
             <ErrorBoundary>
               {page === 'dashboard'  && <Dashboard />}
               {page === 'modulo1'    && <ModuloURA />}
-              {page === 'insights'   && <InsightsPage />}
+              {INSIGHTS_SUBPAGES.includes(page) && (
+                <InsightsPage
+                  tab={INSIGHTS_PAGE_TO_TAB[page] ?? 'calls'}
+                  onTabChange={(t) => { const p = INSIGHTS_TAB_TO_PAGE[t]; if (p) navigateTo(p); }}
+                />
+              )}
               {page === 'modulo2'    && <ModuloConectividade />}
               {page === 'modulo3'    && <ModuloAlertas />}
               {page === 'masterdata' && <MasterData />}
@@ -218,7 +283,13 @@ export default function App() {
               {page === 'accessGroups' && <AccessGroups />}
               {page === 'docs'       && <Documentacao />}
               {page === 'release'    && <Release />}
-              {page === 'agents'     && <AgentesPage />}
+              {AGENTS_SUBPAGES.includes(page) && (
+                <AgentesPage
+                  tab={AGENTS_PAGE_TO_TAB[page] ?? 'dashboard'}
+                  onTabChange={(t) => { const p = AGENTS_TAB_TO_PAGE[t]; if (p) navigateTo(p); }}
+                  onAlertCount={setAgentsAlertCount}
+                />
+              )}
               {page === 'finUra'      && <Financeiro scope="ura" />}
               {page === 'finInsights' && <Financeiro scope="insights" />}
               {page === 'finEnvios'   && <Financeiro scope="envios" />}

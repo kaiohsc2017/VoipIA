@@ -410,4 +410,13 @@ export const RELEASES: ReleaseEntry[] = [
       'Uniformização de layout: as telas do Telecom e da Plataforma de Agentes passam a aproveitar a largura total de monitores maiores (mesmo ajuste já aplicado ao Insights na v1.44), sem faixa em branco nas laterais.',
     ],
   },
+  {
+    version: 'v1.46',
+    date: '2026-08-01',
+    changes: [
+      'Menus "Insights" e "Agentes" passam a exibir submenu indentado na Sidebar do Telecom, no mesmo padrão do menu Financeiro — cada aba das duas plataformas vira um item próprio, sem precisar entrar antes na tela cheia do módulo.',
+      'A troca de aba nesses dois submenus não recarrega a tela — Insights e Agentes continuam abertos em segundo plano e só trocam de conteúdo.',
+      'Login feito direto pelas URLs /insights ou /agents continua mostrando a navegação lateral própria de cada plataforma, sem nenhuma mudança.',
+    ],
+  },
 ];

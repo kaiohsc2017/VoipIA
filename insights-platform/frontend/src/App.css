@@ -171,6 +171,11 @@
   margin-left: 64px;
 }
 
+/* Modo embutido (submenu Insights no shell do Telecom) — sem sidebar própria */
+.main-content.embedded {
+  margin-left: 0;
+}
+
 
 .sidebar-logo {
   padding: 20px 24px 16px;

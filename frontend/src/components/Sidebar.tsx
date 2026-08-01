@@ -4,14 +4,16 @@ import {
   LayoutDashboard, Headset, PhoneCall, AlertTriangle, Bot, Users, UsersRound,
   Settings, Terminal, ShieldCheck, KeyRound, ClipboardList,
   LogOut, BookOpen, Tag, Phone, Cable, Building2, Lightbulb,
-  Wallet, Send, ChevronDown, ChevronRight,
+  Wallet, Send, ChevronDown, ChevronRight, TrendingUp, FileText, Upload, Server, Bell,
 } from 'lucide-react';
 import { canRead } from '../api/client';
 import { RELEASES } from '../data/releases';
 
 const CURRENT_VERSION = RELEASES[RELEASES.length - 1].version;
 
-type Page = 'dashboard' | 'modulo1' | 'insights' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'operadoras' | 'cadastro0800' | 'linhas' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs' | 'release' | 'finUra' | 'finInsights' | 'finEnvios';
+type Page = 'dashboard' | 'modulo1' | 'insights' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'operadoras' | 'cadastro0800' | 'linhas' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs' | 'release' | 'finUra' | 'finInsights' | 'finEnvios'
+  | 'insCalls' | 'insDashboard' | 'insProcessing' | 'insScorecards' | 'insReports' | 'insUploads'
+  | 'agDashboard' | 'agAgents' | 'agServers' | 'agKnowledge' | 'agLogs' | 'agAlerts' | 'agSecrets' | 'agLlm';
 
 interface SidebarProps {
   currentPage: Page;
@@ -22,6 +24,7 @@ interface SidebarProps {
   onLogout: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  agentsAlertCount: number;
 }
 
 type IconType = ComponentType<{ size?: number; strokeWidth?: number }>;
@@ -33,15 +36,20 @@ interface NavLeaf {
   section: string;
   resource?: string;
   adminOnly?: boolean;
+  badgeCount?: number;
 }
 
 /** Item de menu com submenu (ex: Financeiro) — sem `page`/`resource` próprios; a
- * visibilidade do pai é derivada de ter ao menos um filho legível. */
+ * visibilidade do pai é derivada de ter ao menos um filho legível. `linkResource`
+ * (Insights/Agentes) é o resource_key só do item de menu (ex: telecom.insights_link),
+ * sem relação com os dados — some junto se o usuário não tiver essa permissão,
+ * mesmo que tenha alguma aba de `insights.*`/`agents.*`. */
 interface NavParent {
   label: string;
   icon: IconType;
   section: string;
   children: NavLeaf[];
+  linkResource?: string;
 }
 
 type NavEntry = NavLeaf | NavParent;
@@ -57,7 +65,18 @@ function isParent(entry: NavEntry): entry is NavParent {
 const NAV_ITEMS: NavEntry[] = [
   { page: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard',          section: 'GERAL',     resource: 'telecom.dashboard'    },
   { page: 'modulo1',    icon: Headset,         label: 'URA',                section: 'MÓDULOS',   resource: 'telecom.modulo1'      },
-  { page: 'insights',   icon: Lightbulb,       label: 'Insights',           section: 'MÓDULOS',   resource: 'telecom.insights_link' },
+  {
+    label: 'Insights', icon: Lightbulb, section: 'MÓDULOS',
+    linkResource: 'telecom.insights_link',
+    children: [
+      { page: 'insCalls',      icon: PhoneCall,     label: 'Chamadas',                section: 'MÓDULOS', resource: 'insights.calls'      },
+      { page: 'insDashboard',  icon: TrendingUp,    label: 'Dashboard de Tendências', section: 'MÓDULOS', resource: 'insights.dashboard'  },
+      { page: 'insProcessing', icon: Settings,      label: 'Processamento',           section: 'MÓDULOS', resource: 'insights.processing' },
+      { page: 'insScorecards', icon: ClipboardList, label: 'Fichas',                  section: 'MÓDULOS', resource: 'insights.scorecards' },
+      { page: 'insReports',    icon: FileText,      label: 'Relatórios',              section: 'MÓDULOS', resource: 'insights.reports'    },
+      { page: 'insUploads',    icon: Upload,        label: 'Meus Envios',             section: 'MÓDULOS', resource: 'insights.uploads'    },
+    ],
+  },
   { page: 'modulo2',    icon: PhoneCall,       label: 'Conectividade',      section: 'MÓDULOS',   resource: 'telecom.modulo2'      },
   { page: 'modulo3',    icon: AlertTriangle,   label: 'Monitoramento',      section: 'MÓDULOS',   resource: 'telecom.modulo3'      },
   {
@@ -68,7 +87,20 @@ const NAV_ITEMS: NavEntry[] = [
       { page: 'finEnvios',   icon: Send,      label: 'Análise Sob Demanda',  section: 'MÓDULOS', resource: 'financeiro.envios'   },
     ],
   },
-  { page: 'agents',     icon: Bot,             label: 'Agentes',            section: 'MÓDULOS',   resource: 'telecom.agents_link' },
+  {
+    label: 'Agentes', icon: Bot, section: 'MÓDULOS',
+    linkResource: 'telecom.agents_link',
+    children: [
+      { page: 'agDashboard', icon: LayoutDashboard, label: 'Dashboard',            section: 'MÓDULOS', resource: 'agents.dashboard' },
+      { page: 'agAgents',    icon: Bot,             label: 'Agentes',              section: 'MÓDULOS', resource: 'agents.agents'    },
+      { page: 'agServers',   icon: Server,          label: 'Servidores',           section: 'MÓDULOS', resource: 'agents.servers'   },
+      { page: 'agKnowledge', icon: BookOpen,        label: 'Base de Conhecimento', section: 'MÓDULOS', resource: 'agents.knowledge' },
+      { page: 'agLogs',      icon: Terminal,        label: 'Logs',                 section: 'MÓDULOS', resource: 'agents.logs'      },
+      { page: 'agAlerts',    icon: Bell,            label: 'Alertas',              section: 'MÓDULOS', resource: 'agents.reports'   },
+      { page: 'agSecrets',   icon: KeyRound,        label: 'Secrets',              section: 'MÓDULOS', resource: 'agents.secrets'   },
+      { page: 'agLlm',       icon: Settings,        label: 'Config. IA',           section: 'MÓDULOS', resource: 'agents.llm'       },
+    ],
+  },
   { page: 'users',      icon: UsersRound,      label: 'Usuários',           section: 'CADASTROS', resource: 'telecom.users'        },
   { page: 'masterdata', icon: Users,           label: 'Clientes',           section: 'CADASTROS', resource: 'telecom.masterdata'   },
   { page: 'operadoras', icon: Building2,       label: 'Operadoras',         section: 'CADASTROS', resource: 'telecom.operadoras'   },
@@ -85,13 +117,14 @@ const NAV_ITEMS: NavEntry[] = [
 
 type VisibleEntry = NavLeaf | (Omit<NavParent, 'children'> & { children: NavLeaf[] });
 
-export default function Sidebar({ currentPage, onNavigate, username, role, perms, onLogout, collapsed, onToggleCollapse }: SidebarProps) {
+export default function Sidebar({ currentPage, onNavigate, username, role, perms, onLogout, collapsed, onToggleCollapse, agentsAlertCount }: SidebarProps) {
   let lastSection = '';
   const isLeafVisible = (leaf: NavLeaf) => leaf.adminOnly ? role === 'ADMIN' : canRead(role, perms, leaf.resource!);
 
   const visibleItems: VisibleEntry[] = NAV_ITEMS.map(item => {
     if (isParent(item)) {
-      const children = item.children.filter(isLeafVisible);
+      const hasLink = item.linkResource ? canRead(role, perms, item.linkResource) : true;
+      const children = hasLink ? item.children.filter(isLeafVisible) : [];
       return children.length > 0 ? { ...item, children } : null;
     }
     return isLeafVisible(item) ? item : null;
@@ -170,6 +203,7 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
                   <div className="nav-submenu" id={submenuId}>
                     {item.children.map(child => {
                       const ChildIcon = child.icon;
+                      const badgeCount = child.page === 'agAlerts' ? agentsAlertCount : undefined;
                       return (
                         <div
                           key={child.page}
@@ -181,7 +215,15 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
                           onKeyDown={e => e.key === 'Enter' && onNavigate(child.page)}
                         >
                           <span className="nav-icon"><ChildIcon size={15} strokeWidth={1.75} /></span>
-                          <span>{child.label}</span>
+                          <span style={{ flex: 1 }}>{child.label}</span>
+                          {!!badgeCount && (
+                            <span style={{
+                              background: 'var(--clr-danger, #dc2626)', color: '#fff',
+                              fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 99,
+                            }}>
+                              {badgeCount}
+                            </span>
+                          )}
                         </div>
                       );
                     })}

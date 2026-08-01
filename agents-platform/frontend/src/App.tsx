@@ -12,6 +12,7 @@ import { LlmSettingsTab } from './components/LlmSettingsTab';
 import api from './api/client';
 import { authSessionFromToken } from './hooks/useAuthSession';
 import { useAgentsAlerts } from './hooks/useAgentsAlerts';
+import { useShellBridge } from './hooks/useShellBridge';
 import type { PaginatedResponse, ServerEntry } from './api/types';
 
 // ─── ErrorBoundary — evita tela em branco em caso de exceção de render ──────
@@ -88,14 +89,9 @@ export default function App() {
     setUsername('');
   };
 
-  if (!token) {
-    return (
-      <ErrorBoundary>
-        <Login onLogin={handleLogin} />
-      </ErrorBoundary>
-    );
-  }
-
+  // Hooks e cálculos sempre na mesma ordem, independente de `token` — nunca depois
+  // do early return de login abaixo (React quebra a árvore de hooks se o número
+  // de chamadas mudar entre renders do mesmo componente, ex: no instante do login).
   const canWriteAgents = session.hasWrite('agents.agents');
   const canWriteServers = session.hasWrite('agents.servers');
   const canWriteKnowledge = session.hasWrite('agents.knowledge');
@@ -115,22 +111,39 @@ export default function App() {
     secrets: 'agents.secrets',
     llm: 'agents.llm',
   };
-  const currentPage: Page = session.hasRead(PAGE_RESOURCE[page]) ? page : 'dashboard';
+  const currentPage: Page = (page in PAGE_RESOURCE && session.hasRead(PAGE_RESOURCE[page])) ? page : 'dashboard';
+
+  const { isEmbedded, notifyAlertCount } = useShellBridge(currentPage, (p) => setPage(p as Page));
+
+  useEffect(() => {
+    notifyAlertCount(alertCount);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alertCount]);
+
+  if (!token) {
+    return (
+      <ErrorBoundary>
+        <Login onLogin={handleLogin} />
+      </ErrorBoundary>
+    );
+  }
 
   return (
     <ErrorBoundary>
       <div className="app-layout">
-        <Sidebar
-          currentPage={currentPage}
-          onNavigate={setPage}
-          username={username}
-          session={session}
-          onLogout={handleSignOut}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(c => !c)}
-          alertCount={alertCount}
-        />
-        <main className={`main-content${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+        {!isEmbedded && (
+          <Sidebar
+            currentPage={currentPage}
+            onNavigate={setPage}
+            username={username}
+            session={session}
+            onLogout={handleSignOut}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(c => !c)}
+            alertCount={alertCount}
+          />
+        )}
+        <main className={`main-content${isEmbedded ? ' embedded' : sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
           {currentPage === 'dashboard' && <DashboardTab />}
           {currentPage === 'agents' && <AgentsTab servers={servers} canWrite={canWriteAgents} />}
           {currentPage === 'servers' && <ServersTab canWrite={canWriteServers} />}

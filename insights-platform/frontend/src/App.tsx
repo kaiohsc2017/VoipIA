@@ -9,6 +9,7 @@ import { ReportsTab } from './components/ReportsTab';
 import { SupervisorPortalTab } from './components/SupervisorPortalTab';
 import { revokeSession } from './api/client';
 import { authSessionFromToken } from './hooks/useAuthSession';
+import { useShellBridge } from './hooks/useShellBridge';
 import type { InsightsDrillDownFilters } from './api/types';
 
 // Resource keys do namespace RBAC granular `insights.*` — espelha o namespace
@@ -95,14 +96,9 @@ export default function App() {
 
   const handleDrillDownConsumed = () => setPendingDrillDown(null);
 
-  if (!token) {
-    return (
-      <ErrorBoundary>
-        <Login onLogin={handleLogin} />
-      </ErrorBoundary>
-    );
-  }
-
+  // Hooks sempre chamados na mesma ordem, independente de `token` — nunca depois
+  // do early return de login abaixo (React quebra a árvore de hooks se o número
+  // de chamadas mudar entre renders do mesmo componente, ex: no instante do login).
   const TABS: { id: Tab }[] = [
     { id: 'calls' },
     { id: 'dashboard' },
@@ -114,19 +110,31 @@ export default function App() {
   const visibleTabs = TABS.filter(t => session.hasRead(TAB_RESOURCE[t.id]));
   const currentTab = visibleTabs.some(t => t.id === tab) ? tab : visibleTabs[0]?.id;
 
+  const { isEmbedded } = useShellBridge(currentTab ?? 'calls', (t) => setTab(t as Tab));
+
+  if (!token) {
+    return (
+      <ErrorBoundary>
+        <Login onLogin={handleLogin} />
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <div className="app-layout">
-        <Sidebar
-          currentTab={currentTab ?? 'calls'}
-          onNavigate={setTab}
-          username={username}
-          session={session}
-          onLogout={handleSignOut}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(c => !c)}
-        />
-        <main className={`main-content${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+        {!isEmbedded && (
+          <Sidebar
+            currentTab={currentTab ?? 'calls'}
+            onNavigate={setTab}
+            username={username}
+            session={session}
+            onLogout={handleSignOut}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(c => !c)}
+          />
+        )}
+        <main className={`main-content${isEmbedded ? ' embedded' : sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
           <div className="page-body">
             {currentTab === 'calls' && <InsightsTab pendingDrillDown={pendingDrillDown} onDrillDownConsumed={handleDrillDownConsumed} />}
             {currentTab === 'dashboard' && <InsightsDashboardTab onDrillDown={handleDrillDown} />}
