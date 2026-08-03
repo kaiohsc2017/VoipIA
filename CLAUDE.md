@@ -31,7 +31,7 @@ Você é um Engenheiro Sênior de Software e DevOps com profundo conhecimento em
 | VPS | `app.voiphash.com.br` — Ubuntu 24.04 LTS |
 | IP público | `129.121.51.29` |
 | Repositório no VPS | `/opt/AsteriskIA` |
-| Remote Git | `github.com/kaiohsc2017/AsteriskIA` |
+| Remote Git | `github.com/kaiohsc2017/AsteriskIA` (`origin`) — espelhado em Azure DevOps (`azure`), ver [git-workflow.md](.claude/rules/common/git-workflow.md) |
 | Branch principal | `main` |
 | `.env` real | `/opt/AsteriskIA/env/.env` |
 | `.env` symlink | `/opt/AsteriskIA/.env` → aponta para o real |
@@ -68,6 +68,7 @@ Rede Docker: `asteriskia-net` — bridge `172.16.7.0/24`
 git add <arquivos>
 git commit -m "descrição clara"
 git push origin main
+git push azure main   # espelho obrigatório no Azure DevOps (grp-atg-bu-ti-corporativa) — todo commit
 
 # Rebuildar serviço específico (mais rápido)
 docker compose up -d --build <nome-do-serviço>
