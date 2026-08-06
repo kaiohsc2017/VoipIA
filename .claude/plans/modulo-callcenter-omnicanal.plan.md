@@ -507,7 +507,7 @@ valor percebido cedo — se precisar demonstrar resultado, priorize-a.
 | Migração para ARA quebra os ramais legados (`pjsip.conf` estático) | Média | **Alto** | ARA convive com estático; não migrar o que já funciona; PoC na Fase 0 valida a coexistência |
 | Asterisk é nó único — restart derruba chamadas ativas | Alta | **Alto** | Janela de manutenção documentada; avaliar segundo nó na Fase 10 |
 | Crescimento de disco em `/opt/telecom/gravacao` | Alta | Médio | Retenção + alerta na Fase 3, dimensionado com dado medido na Fase 0 |
-| Custo de IA nas gravações do call center (volume >> Verint) | Alta | Médio | Amostragem configurável (analisar N% ou só chamadas com critério) + alerta de gasto no Financeiro |
+| Custo de IA nas gravações do call center (100% das chamadas, volume >> Verint) | Alta | **Alto** | Sem amostragem por decisão do usuário (2026-08-06) — alerta de gasto no Financeiro obrigatório desde o dia 1; estimativa de custo mensal projetado (200 canais × taxa de uso real) entra na recomendação de hardware/infra da Fase 10 |
 | Relatório anual varrendo eventos brutos = timeout | Alta | Médio | Agregados materializados desde o desenho (Fase 9), nunca consulta direta em ano |
 | WebSocket de chat exposto à internet | Alta | **Alto** | Rate limit, validação de origem, sanitização de mensagem, sem execução de HTML, revisão dedicada na Fase 10 |
 | Escopo cresce durante a execução | Alta | Médio | Fases fechadas e deployáveis; item novo entra na fase seguinte, não na atual |
@@ -583,8 +583,10 @@ Fase 5 + 8 + 9** (flow builder, IA e relatórios de voz), **release 3 = Fase 7 +
 6. **Retenção de gravação**: **60 meses (5 anos)**. Com 200 canais simultâneos no pico, isso deixa
    de ser "alguns GB" (ver §10, risco de disco atualizado) — dimensionamento de storage real vira
    parte da recomendação de hardware da Fase 10, não um bind mount improvisado como o da Fase 0.
-7. **Análise de IA**: **amostragem configurável** (não 100% das chamadas) — mesmo padrão de
-   controle de custo do módulo Financeiro.
+7. **Análise de IA**: **100% das chamadas** (decisão revista em 2026-08-06 — não amostragem). Com
+   200 canais simultâneos no pico, custo de IA escala linear com o volume; monitoramento/alerta de
+   gasto (mesmo padrão do módulo Financeiro) segue obrigatório, e a estimativa de custo mensal
+   entra na recomendação de hardware/infra da Fase 10.
 8. **Integração com o Jira**: **sim, desde a Fase 4/5** — reusa `JiraIntegrationService` existente.
 9. **Confirmação das decisões D1-D5**: **todas aceitas conforme recomendado** (D1 ARA, D2
    ARI+Stasis, D3 Insights com discriminador de fonte, D4 bind LDAP + espelho local, D5 React
