@@ -93,6 +93,16 @@ public class AppUser {
     @Builder.Default
     private Boolean firstLoginCompleted = false;
 
+    /**
+     * True somente para contas provisionadas via bind AD (módulo Call Center, Fase 1). Só uma
+     * conta com adLinked=true pode ser autenticada pelo fallback AD do AuthController — impede que
+     * uma conta local pré-existente com o mesmo username de um usuário do AD seja sequestrada por
+     * quem souber a senha AD daquele username.
+     */
+    @Column(name = "ad_linked", nullable = false)
+    @Builder.Default
+    private Boolean adLinked = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

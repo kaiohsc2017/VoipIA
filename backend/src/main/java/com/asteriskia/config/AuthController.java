@@ -4,6 +4,9 @@ import com.asteriskia.domain.accessgroup.AccessGroupService;
 import com.asteriskia.domain.audit.AuditService;
 import com.asteriskia.domain.user.AppUser;
 import com.asteriskia.domain.user.AppUserRepository;
+import com.asteriskia.integration.ad.AdUserService;
+import com.asteriskia.integration.ad.LdapClient;
+import com.asteriskia.integration.ad.LdapUserAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.Map;
@@ -36,8 +39,11 @@ public class AuthController {
     private final AuditService auditService;
     private final RefreshTokenService refreshTokenService;
     private final AccessGroupService accessGroupService;
+    private final LdapClient ldapClient;
+    private final AdUserService adUserService;
 
     private static final BCryptPasswordEncoder ENCODER = new BCryptPasswordEncoder();
+    private static final int EXTENSION_START = 9001;
 
     @Value("${app.auth.admin-username:admin}")
     private String adminUsername;
@@ -98,6 +104,53 @@ public class AuthController {
             log.warn("Fallback para credenciais de ambiente: {}", e.getMessage());
         }
 
+        // 1bis. Fallback AD/LDAP (módulo Call Center, Fase 1) — só entra em jogo se a etapa 1
+        // não encontrou/autenticou o usuário localmente. Nunca sobrescreve um usuário local
+        // desativado com o mesmo username (checagem por findByUsername, não só *AndIsActiveTrue).
+        // CRÍTICO (achado de segurança): uma conta local pré-existente só pode ser autenticada
+        // pelo bind AD se já foi provisionada via AD (adLinked=true) — senão, qualquer pessoa que
+        // soubesse a senha AD daquele username sequestraria a conta local sem nunca validar a
+        // senha local (BCrypt). Conta local "nativa" (criada pela tela Usuários) nunca aceita AD.
+        if (ldapClient.currentConfig().enabled()) {
+            var adAttrsOpt = ldapClient.authenticate(request.username(), request.password());
+            if (adAttrsOpt.isPresent()) {
+                LdapUserAttributes attrs = adAttrsOpt.get();
+                adUserService.upsertMirror(attrs);
+                Optional<AppUser> existing = userRepo.findByUsername(request.username());
+                if (existing.isPresent() && !Boolean.TRUE.equals(existing.get().getIsActive())) {
+                    // Conta local desativada — não deixa o bind AD contornar a desativação.
+                    auditService.logAs(
+                            httpRequest,
+                            request.username(),
+                            "LOGIN_FAILED",
+                            "Bind AD ok, mas conta local está desativada",
+                            false);
+                } else if (existing.isPresent() && !Boolean.TRUE.equals(existing.get().getAdLinked())) {
+                    // Conta local nativa com o mesmo username de uma conta AD — bind AD ok não
+                    // autentica esta conta; segue para os demais fallbacks (nunca handleSuccessfulLogin).
+                    auditService.logAs(
+                            httpRequest,
+                            request.username(),
+                            "LOGIN_FAILED",
+                            "Bind AD ok, mas conta local não está vinculada ao AD (adLinked=false)",
+                            false);
+                } else {
+                    AppUser adUser = existing.orElseGet(() -> provisionAdUser(attrs));
+                    if (adUser.hasExpiredAccess()) {
+                        auditService.logAs(
+                                httpRequest,
+                                adUser.getUsername(),
+                                "LOGIN_FAILED",
+                                "Acesso expirado em " + adUser.getAccessExpiresAt(),
+                                false);
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                .body(new ErrorResponse("Acesso expirado. Contate o administrador."));
+                    }
+                    return handleSuccessfulLogin(adUser, httpRequest);
+                }
+            }
+        }
+
         // 2. Fallback: credenciais de ambiente (compatibilidade retroativa)
         if (adminUsername.equals(request.username()) && adminPassword.equals(request.password())) {
             // Fallback via env é sempre a conta mestre — tratado como ADMIN.
@@ -128,6 +181,35 @@ public class AuthController {
         log.warn("Tentativa de login inválida: '{}'", request.username());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ErrorResponse("Credenciais inválidas"));
+    }
+
+    /**
+     * Auto-provisiona um AppUser no primeiro login bem-sucedido via AD. passwordHash recebe um
+     * hash BCrypt de um UUID aleatório — nunca usado para autenticar (usuários AD sempre entram
+     * pela etapa 1bis), só satisfaz a coluna NOT NULL sem reaproveitar um hash previsível/fixo.
+     */
+    private AppUser provisionAdUser(LdapUserAttributes attrs) {
+        var group =
+                adUserService.resolveAccessGroup(
+                        attrs.memberOf(), ldapClient.currentConfig().defaultAccessGroupId());
+        int extension = userRepo.findNextExtension(EXTENSION_START);
+        AppUser user =
+                AppUser.builder()
+                        .username(attrs.samAccountName())
+                        .passwordHash(ENCODER.encode(java.util.UUID.randomUUID().toString()))
+                        .displayName(
+                                attrs.displayName() != null ? attrs.displayName() : attrs.samAccountName())
+                        .extension(extension)
+                        .isActive(true)
+                        .role("USER")
+                        .accessGroup(group)
+                        .accessIndeterminate(true)
+                        .firstLoginCompleted(false)
+                        .adLinked(true)
+                        .build();
+        AppUser saved = userRepo.save(user);
+        log.info("Usuário provisionado via AD: '{}' → ramal {}", saved.getUsername(), extension);
+        return saved;
     }
 
     private ResponseEntity<?> handleSuccessfulLogin(AppUser user, HttpServletRequest request) {

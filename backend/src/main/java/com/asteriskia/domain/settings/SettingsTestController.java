@@ -1,5 +1,7 @@
 package com.asteriskia.domain.settings;
 
+import com.asteriskia.integration.ad.AdLdapConfig;
+import com.asteriskia.integration.ad.LdapClient;
 import com.asteriskia.integration.jira.JiraIntegrationService;
 import java.net.InetAddress;
 import java.net.URI;
@@ -29,6 +31,7 @@ public class SettingsTestController {
 
     private final RestTemplate restTemplate;
     private final JiraIntegrationService jiraService;
+    private final LdapClient ldapClient;
 
     // -------------------------------------------------------------------------
     // Jira
@@ -105,6 +108,49 @@ public class SettingsTestController {
         } catch (Exception e) {
             log.warn("Teste Zabbix falhou: {}", e.getMessage());
             return bad("Falha ao conectar: " + sanitize(e.getMessage()));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Active Directory (módulo Call Center, Fase 1)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Diferente de Jira/Zabbix: NÃO valida "host público" — um Domain Controller é sempre um
+     * host da rede interna corporativa por definição, bloquear IP privado/RFC1918 quebraria o
+     * único caso de uso real deste endpoint.
+     */
+    @PostMapping("/ad")
+    public ResponseEntity<?> testAd(@RequestBody Map<String, String> body) {
+        String host = body.getOrDefault("AD_LDAP_HOST", "").trim();
+        String baseDn = body.getOrDefault("AD_LDAP_BASE_DN", "").trim();
+        String bindDn = body.getOrDefault("AD_LDAP_BIND_DN", "").trim();
+        String bindPassword = body.getOrDefault("AD_LDAP_BIND_PASSWORD", "").trim();
+        int port = parseIntOrDefault(body.get("AD_LDAP_PORT"), 636);
+        boolean useSsl = !"false".equalsIgnoreCase(body.getOrDefault("AD_LDAP_USE_SSL", "true"));
+
+        if (host.isEmpty() || baseDn.isEmpty() || bindDn.isEmpty() || bindPassword.isEmpty()
+                || isMasked(bindPassword)) {
+            return bad(
+                    "Preencha host, base DN, conta de serviço e senha antes de testar.");
+        }
+
+        try {
+            AdLdapConfig cfg =
+                    new AdLdapConfig(true, host, port, useSsl, baseDn, bindDn, bindPassword, true, 2);
+            String message = ldapClient.testConnection(cfg);
+            return ok(message);
+        } catch (Exception e) {
+            log.warn("Teste AD falhou: {}", sanitize(e.getMessage()));
+            return bad("Falha ao conectar: " + sanitize(e.getMessage()));
+        }
+    }
+
+    private int parseIntOrDefault(String value, int defaultValue) {
+        try {
+            return value != null ? Integer.parseInt(value.trim()) : defaultValue;
+        } catch (NumberFormatException e) {
+            return defaultValue;
         }
     }
 

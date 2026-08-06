@@ -85,6 +85,11 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.security")
                         .requestMatchers(HttpMethod.GET, "/api/v1/settings/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.settings")
+                        // AD/LDAP (módulo Call Center, Fase 1) — tela provisória dentro de
+                        // Configurações, sem menu próprio ainda (chega na Fase 2). Reusa
+                        // "telecom.settings" (mesma decisão do asterisk-config/ai acima).
+                        .requestMatchers(HttpMethod.GET, "/api/v1/ad/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.settings")
                         .requestMatchers(HttpMethod.GET, "/api/v1/logs/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.logs")
                         .requestMatchers(HttpMethod.GET, "/api/v1/users/**")
@@ -177,6 +182,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/security/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.security")
                         .requestMatchers("/api/v1/settings/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.settings")
+                        .requestMatchers("/api/v1/ad/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.settings")
                         .requestMatchers("/api/v1/logs/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_telecom.logs")
