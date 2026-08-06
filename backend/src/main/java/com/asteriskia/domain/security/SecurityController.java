@@ -133,7 +133,7 @@ public class SecurityController {
         } catch (Exception e) {
             log.error("updateJail {}: {}", jail, e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body(Map.of("message", "Erro ao salvar: " + e.getMessage()));
+                    .body(Map.of("message", "Erro ao salvar configuração do jail."));
         }
     }
 
@@ -181,8 +181,9 @@ public class SecurityController {
             return ResponseEntity.ok(
                     Map.of("message", "IP " + ip + " bloqueado.", "fail2ban", f2bResult));
         } catch (Exception e) {
+            log.error("ban {}: {}", ip, e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body(Map.of("message", "Erro ao banir: " + e.getMessage()));
+                    .body(Map.of("message", "Erro ao banir IP."));
         }
     }
 
@@ -204,8 +205,9 @@ public class SecurityController {
             return ResponseEntity.ok(
                     Map.of("message", "IP " + ip + " desbloqueado.", "results", results));
         } catch (Exception e) {
+            log.error("unban {}: {}", ip, e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body(Map.of("message", "Erro: " + e.getMessage()));
+                    .body(Map.of("message", "Erro ao desbloquear IP."));
         }
     }
 
@@ -234,8 +236,9 @@ public class SecurityController {
             auditService.log(request, "SECURITY_WHITELIST_ADD", ip, true);
             return ResponseEntity.ok(Map.of("message", ip + " adicionado à lista branca."));
         } catch (Exception e) {
+            log.error("addWhitelist {}: {}", ip, e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body(Map.of("message", "Erro: " + e.getMessage()));
+                    .body(Map.of("message", "Erro ao adicionar à lista branca."));
         }
     }
 
@@ -252,8 +255,9 @@ public class SecurityController {
             auditService.log(request, "SECURITY_WHITELIST_REMOVE", ip, true);
             return ResponseEntity.ok(Map.of("message", ip + " removido."));
         } catch (Exception e) {
+            log.error("removeWhitelist {}: {}", ip, e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body(Map.of("message", "Erro: " + e.getMessage()));
+                    .body(Map.of("message", "Erro ao remover da lista branca."));
         }
     }
 
@@ -293,7 +297,7 @@ public class SecurityController {
         } catch (Exception e) {
             log.error("enableLockdown: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body(Map.of("message", "Erro ao ativar lockdown: " + e.getMessage()));
+                    .body(Map.of("message", "Erro ao ativar lockdown."));
         }
     }
 
@@ -313,7 +317,7 @@ public class SecurityController {
         } catch (Exception e) {
             log.error("disableLockdown: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body(Map.of("message", "Erro ao desativar lockdown: " + e.getMessage()));
+                    .body(Map.of("message", "Erro ao desativar lockdown."));
         }
     }
 
@@ -340,7 +344,9 @@ public class SecurityController {
                                     "Regex demorou demais pra rodar (possível catastrophic"
                                             + " backtracking) — simplifique o padrão."));
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("message", e.getMessage()));
+            log.error("testRegex: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Erro ao testar regex."));
         }
     }
 
@@ -368,7 +374,7 @@ public class SecurityController {
         } catch (Exception e) {
             log.error("toggleJail {}: {}", jail, e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body(Map.of("message", "Erro: " + e.getMessage()));
+                    .body(Map.of("message", "Erro ao alterar estado do jail."));
         }
     }
 
