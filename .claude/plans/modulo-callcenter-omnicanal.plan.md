@@ -4,8 +4,23 @@
 **Complexidade**: **Extra-Large** — é um produto, não uma feature. Maior entrega já feita no AsteriskIA.
 **Status**: **Fase 0 concluída** (ARI/Stasis, ARA, AMI event-driven, faixas de numeração,
 `/opt/telecom/gravacao`, teste de carga SIPp — todos validados/commitados). Decisões D1-D5 e
-perguntas abertas respondidas (§13, 2026-08-06). Falta: dados de conexão do Domain Controller e
-recomendação de hardware do servidor dedicado de produção, antes de iniciar a Fase 1.
+perguntas abertas respondidas (§13, 2026-08-06).
+
+**Fase 1 (AD/LDAP) — backend implementado e commitado (2026-08-06, commit `aae82f5`)**: bind de
+autenticação contra o AD (spring-ldap), espelho local (`ad_users`, migration V45), sincronização
+periódica configurável, mapeamento opcional grupo AD → grupo de acesso, tela de configuração em
+Settings.tsx (padrão Jira/Zabbix). 272/272 testes verdes. Revisão de segurança pré-commit
+(`ecc:security-reviewer`) encontrou e já corrigiu 1 **CRITICAL** (conta local pré-existente podia
+ser sequestrada por bind AD com o mesmo username — resolvido com a coluna `app_users.ad_linked`,
+só contas provisionadas via AD aceitam esse fallback). 2 limitações **MEDIUM** aceitas e apenas
+documentadas em código (não bloqueiam a fase): `ad_group_name` precisa ser o DN completo do grupo,
+não o CN simples (sem UI de cadastro ainda — chega na Fase 2); `LdapClient.fetchAll()` não pagina
+(limite ~1000 usuários por busca no AD, aceitável no volume-alvo desta fase).
+**Pendente antes de dar a Fase 1 por concluída**: (1) dados reais de conexão do Domain Controller
+(host/porta/base DN/conta de serviço) — ainda não levantados, a tela de configuração está pronta
+para recebê-los; (2) deploy real (`docker compose up -d --build backend frontend`, migration V45
+aplica no boot) e validação em navegador; (3) recomendação de hardware do servidor dedicado de
+produção, antes de iniciar a Fase 2.
 
 ---
 
