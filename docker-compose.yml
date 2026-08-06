@@ -92,6 +92,8 @@ services:
     environment:
       AST_AMI_USER:           ${AST_AMI_USER}
       AST_AMI_PASSWORD:       ${AST_AMI_PASSWORD}
+      AST_ARI_USER:           ${AST_ARI_USER}
+      AST_ARI_PASSWORD:       ${AST_ARI_PASSWORD}
       SIP_TRUNK_HOST:         ${SIP_TRUNK_HOST}
       SIP_TRUNK_FROM_DOMAIN:  ${SIP_TRUNK_FROM_DOMAIN:-asteriskia.local}
       SIP_DOMAIN:             ${SIP_DOMAIN:-localhost}
