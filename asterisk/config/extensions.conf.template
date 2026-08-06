@@ -87,6 +87,15 @@ exten => _10XX,1,NoOp(=== Chamada entre ramais ===)
 exten => _10XX,n,Dial(PJSIP/${EXTEN},30)
 exten => _10XX,n,Hangup()
 
+; Faixas RESERVADAS para o módulo Call Center (Fase 0 do plano
+; modulo-callcenter-omnicanal.plan.md) — sem uso ainda, dialplan real
+; entra nas Fases 2 (cadastros/ARA) e 5 (flow builder). Documentado
+; aqui só para nenhuma outra feature (URA, ramal de teste, etc.)
+; alocar acidentalmente um número dentro delas:
+;   4000-4999 → ramais de agente do Call Center
+;   5000-5999 → filas do Call Center
+; (URAs do Módulo 1 usam 2000-2999; ramais de teste usam 1000-1002/9001-9002)
+
 exten => h,1,NoOp(=== Encerrado ===)
 
 ; ---------------------------------------------------------------

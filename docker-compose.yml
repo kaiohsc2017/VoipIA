@@ -121,6 +121,10 @@ services:
       - ./asterisk/config:/etc/asterisk
       - asterisk_recordings:/var/spool/asterisk/monitor
       - asterisk_log:/var/log/asterisk
+      # Gravações do módulo Call Center (Fase 0/3) — apartado de asterisk_recordings,
+      # que é exclusivo do fluxo de IA (Módulo 1/3). Bind mount direto (não volume
+      # nomeado) para ficar acessível fora do Docker, igual /opt/audio do Insights.
+      - /opt/telecom/gravacao:/opt/telecom/gravacao
     ports:
       - "5060:5060/udp"              # SIP UDP (tronco + softphones)
       - "5060:5060/tcp"              # SIP TCP
