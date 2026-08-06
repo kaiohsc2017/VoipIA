@@ -25,6 +25,8 @@ RUN apt-get update && apt-get install -y \
     libspeexdsp-dev \
     libasound2-dev \
     libpq-dev \
+    postgresql-server-dev-14 \
+    zlib1g-dev \
     libsrtp2-dev \
     pkg-config \
     python3 \
@@ -77,6 +79,7 @@ RUN ASTERISK_DIR=$(ls -d /usr/src/asterisk-21* | head -1) && \
         --enable res_musiconhold \
         --enable func_curl \
         --enable res_curl \
+        --enable res_config_pgsql \
         menuselect.makeopts && \
     make -j$(nproc) && \
     make install

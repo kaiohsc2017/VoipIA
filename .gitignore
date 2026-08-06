@@ -23,6 +23,7 @@ asterisk/config/pjsip.conf
 asterisk/config/manager.conf
 asterisk/config/extensions.conf
 asterisk/config/ari.conf
+asterisk/config/res_pgsql.conf
 
 # --- Java / Maven ---
 backend/target/
