@@ -2,7 +2,10 @@
 
 **Origem**: pedido livre do usuário (2026-08-06)
 **Complexidade**: **Extra-Large** — é um produto, não uma feature. Maior entrega já feita no AsteriskIA.
-**Status**: aguardando aprovação — nenhum código escrito.
+**Status**: **Fase 0 concluída** (ARI/Stasis, ARA, AMI event-driven, faixas de numeração,
+`/opt/telecom/gravacao`, teste de carga SIPp — todos validados/commitados). Decisões D1-D5 e
+perguntas abertas respondidas (§13, 2026-08-06). Falta: dados de conexão do Domain Controller e
+recomendação de hardware do servidor dedicado de produção, antes de iniciar a Fase 1.
 
 ---
 
@@ -499,7 +502,7 @@ valor percebido cedo — se precisar demonstrar resultado, priorize-a.
 
 | Risco | Prob. | Impacto | Mitigação |
 |---|---|---|---|
-| VPS atual não suporta o volume de agentes pretendido | Média | **Alto** | Teste SIPp na Fase 0 **antes** de qualquer investimento de arquitetura |
+| VPS atual não suporta o volume-alvo (200 agentes/200 chamadas) | **Confirmado** | **Alto** | **Resolvido por decisão do usuário (§13.2)**: produção real vai para servidor dedicado, dimensionado por recomendação de hardware a apresentar durante o projeto — esta VPS é só build/homologação |
 | Sem acesso de rede da VPS ao Domain Controller | Média | **Alto** | Confirmar conectividade e conta de serviço antes da Fase 1; sem isso a fase não começa |
 | Migração para ARA quebra os ramais legados (`pjsip.conf` estático) | Média | **Alto** | ARA convive com estático; não migrar o que já funciona; PoC na Fase 0 valida a coexistência |
 | Asterisk é nó único — restart derruba chamadas ativas | Alta | **Alto** | Janela de manutenção documentada; avaliar segundo nó na Fase 10 |
@@ -509,6 +512,8 @@ valor percebido cedo — se precisar demonstrar resultado, priorize-a.
 | WebSocket de chat exposto à internet | Alta | **Alto** | Rate limit, validação de origem, sanitização de mensagem, sem execução de HTML, revisão dedicada na Fase 10 |
 | Escopo cresce durante a execução | Alta | Médio | Fases fechadas e deployáveis; item novo entra na fase seguinte, não na atual |
 | Divergência de código se D3 for opção B | Média | Médio | Preferir D3-A (discriminador de fonte) |
+| Dimensionamento de storage p/ 60 meses de retenção em 200 canais | Alta | **Alto** | Faz parte da recomendação de hardware da Fase 10 — não estimar com o bind mount improvisado da Fase 0 |
+| Recomendação de hardware da Fase 10 chegar tarde/errada | Média | **Alto** | Antecipar um esboço de dimensionamento (CPU/RAM/storage/rede) logo após a Fase 4, quando o custo real por chamada (RTP+gravação+IA) já estiver medido em ambiente completo, não só sinalização |
 
 ---
 
@@ -539,10 +544,14 @@ Fase 5 + 8 + 9** (flow builder, IA e relatórios de voz), **release 3 = Fase 7 +
 
 ## 12. Aceite
 
-- [ ] Decisões D1-D5 confirmadas pelo usuário
-- [ ] Conectividade com o Domain Controller confirmada
-- [ ] Teto de capacidade da VPS medido (Fase 0)
-- [ ] Cada fase deployada e validada em produção antes de iniciar a seguinte
+- [x] Decisões D1-D5 confirmadas pelo usuário (2026-08-06, todas conforme recomendado)
+- [ ] Conectividade com o Domain Controller confirmada (host/porta/base DN ainda não levantados —
+      serão configurados via tela de administração, não em `.env`)
+- [x] Teto de capacidade da VPS medido (Fase 0) — confirmado insuficiente para 200/200; produção
+      real vai para servidor dedicado a dimensionar
+- [ ] Recomendação de hardware para o servidor dedicado de produção apresentada
+- [ ] Cada fase deployada e validada **nesta VPS** (ambiente de build/homologação) antes de iniciar
+      a seguinte — deploy no servidor dedicado de produção é evento separado, fora deste ciclo
 - [ ] Sem CRITICAL/HIGH em `ecc:security-reviewer` por fase
 - [ ] Cobertura de teste ≥ 80% no código novo
 - [ ] Release notes e `CLAUDE.md` atualizados por fase
@@ -550,16 +559,33 @@ Fase 5 + 8 + 9** (flow builder, IA e relatórios de voz), **release 3 = Fase 7 +
 
 ---
 
-## 13. Perguntas abertas para o usuário
+## 13. Perguntas abertas — respondidas (2026-08-06)
 
-1. **Volume-alvo**: quantos agentes simultâneos e quantas chamadas simultâneas no pico? (define
-   tudo em capacidade)
-2. **AD**: host/porta do DC, LDAPS disponível, base DN, conta de serviço de leitura — e haverá
-   fallback de login local?
-3. **Canais de chat**: começamos por webchat próprio? WhatsApp entra nesta entrega? (Cloud API da
-   Meta exige conta comercial verificada e tem custo por conversa)
-4. **Receptivo apenas ou também ativo?** (discador muda o desenho de fila e de agente)
-5. **Retenção de gravação**: quantos meses/anos por exigência legal ou de negócio?
-6. **Análise de IA**: 100% das chamadas ou amostragem? (impacto direto no custo mensal)
-7. **Integração com o Jira** existente: chamado aberto a partir da interação do call center?
-8. **Confirmação das decisões D1-D5.**
+1. **Volume-alvo**: pico de **200 agentes / 200 chamadas simultâneas**. Muito acima da capacidade
+   desta VPS (2 vCPU, ~3,8 GB RAM, já com ~900 MB disponíveis e 2,2 GB de swap em uso em repouso —
+   ver §10). Resolvido pela decisão de infraestrutura abaixo.
+2. **Ambiente de desenvolvimento vs. produção** (decisão nova, fora da lista original): **todo o
+   desenvolvimento e entrega acontece nesta VPS** (`app.voiphash.com.br`), como o resto do
+   AsteriskIA — mas o módulo Call Center **entra em produção real num servidor dedicado à parte**,
+   dimensionado por recomendação de hardware que preciso apresentar durante o projeto (ver novo
+   item na Fase 10). Esta VPS nunca precisa sustentar 200/200 — é ambiente de build/homologação
+   para este módulo.
+3. **AD**: sem host/porta/base DN fixos em `.env` — conexão inteira (host, porta, LDAPS, base DN,
+   conta de serviço, fallback de login local) configurável por uma **tela de administração**
+   (mesmo padrão de `SettingsService`/`ConfigService` já usado para Jira/Zabbix). Isso já era o
+   item 5 da Fase 1 ("teste de conexão"); a resposta só confirma que não há atalho por `.env` —
+   os valores reais de conexão com o DC ainda precisam ser levantados antes de iniciar a Fase 1.
+4. **Canais de chat**: só **webchat próprio** nesta entrega. WhatsApp/Telegram ficam para release
+   futura (Cloud API da Meta exige conta comercial verificada e tem custo por conversa).
+5. **Receptivo/ativo**: **receptivo + ativo manual** — agente disca manualmente pelo softphone da
+   própria tela (já previsto na Fase 4, sem trabalho extra). **Sem discador automático** — motor de
+   campanha/discagem preditiva fica fora deste plano, será um **módulo separado em outro momento**.
+6. **Retenção de gravação**: **60 meses (5 anos)**. Com 200 canais simultâneos no pico, isso deixa
+   de ser "alguns GB" (ver §10, risco de disco atualizado) — dimensionamento de storage real vira
+   parte da recomendação de hardware da Fase 10, não um bind mount improvisado como o da Fase 0.
+7. **Análise de IA**: **amostragem configurável** (não 100% das chamadas) — mesmo padrão de
+   controle de custo do módulo Financeiro.
+8. **Integração com o Jira**: **sim, desde a Fase 4/5** — reusa `JiraIntegrationService` existente.
+9. **Confirmação das decisões D1-D5**: **todas aceitas conforme recomendado** (D1 ARA, D2
+   ARI+Stasis, D3 Insights com discriminador de fonte, D4 bind LDAP + espelho local, D5 React
+   Flow) — D1/D2/D4(mecanismo) já validados tecnicamente pelos PoCs da Fase 0.
