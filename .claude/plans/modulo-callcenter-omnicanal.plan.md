@@ -16,11 +16,19 @@ só contas provisionadas via AD aceitam esse fallback). 2 limitações **MEDIUM*
 documentadas em código (não bloqueiam a fase): `ad_group_name` precisa ser o DN completo do grupo,
 não o CN simples (sem UI de cadastro ainda — chega na Fase 2); `LdapClient.fetchAll()` não pagina
 (limite ~1000 usuários por busca no AD, aceitável no volume-alvo desta fase).
+**Deploy validado nesta VPS (2026-08-06)**: `docker compose up -d --build backend frontend`,
+migration V45 aplicada (`ad_users`/`ad_sync_runs`/`ad_group_mappings`/`app_users.ad_linked`
+confirmados via `\d`), backend e frontend `healthy`. **1 bug real encontrado e corrigido no
+deploy**: `spring-boot-starter-data-ldap` autoconfigura um `LdapHealthIndicator` do Actuator que
+tenta conectar em `localhost:389` por padrão (sem relação com o AD real, configurado em runtime) —
+derrubava o healthcheck do container mesmo com AD desabilitado; corrigido com
+`management.health.ldap.enabled=false` (commit `08df7ca`). Login local sem regressão (testado via
+curl), rota `/api/v1/ad/**` corretamente protegida (403 sem token).
 **Pendente antes de dar a Fase 1 por concluída**: (1) dados reais de conexão do Domain Controller
 (host/porta/base DN/conta de serviço) — ainda não levantados, a tela de configuração está pronta
-para recebê-los; (2) deploy real (`docker compose up -d --build backend frontend`, migration V45
-aplica no boot) e validação em navegador; (3) recomendação de hardware do servidor dedicado de
-produção, antes de iniciar a Fase 2.
+para recebê-los, sem eles não há como validar o bind AD de verdade; (2) validação visual em
+navegador da tela de configuração AD em Settings; (3) recomendação de hardware do servidor
+dedicado de produção, antes de iniciar a Fase 2.
 
 ---
 
