@@ -419,4 +419,15 @@ export const RELEASES: ReleaseEntry[] = [
       'Login feito direto pelas URLs /insights ou /agents continua mostrando a navegação lateral própria de cada plataforma, sem nenhuma mudança.',
     ],
   },
+  {
+    version: 'v1.47',
+    date: '2026-08-06',
+    changes: [
+      'Novo módulo "Call Center" no menu lateral do Telecom — primeira entrega do módulo de call center omnicanal, com submenu Agentes, Filas e Skills.',
+      'Call Center → Agentes: cadastro de agente com ramal SIP próprio (faixa 4000-4999) — criar, editar ou remover pela tela já registra/desregistra o ramal no Asterisk na hora, sem precisar de reload nem restart. Senha do ramal só é revelada sob demanda, por permissão própria, para configurar o softphone do agente.',
+      'Call Center → Filas: cadastro de filas de atendimento (faixa 5000-5999) com estratégia e timeout configuráveis, e gestão dos agentes de cada fila — incluir ou remover um agente também reflete no Asterisk imediatamente.',
+      'Call Center → Skills: catálogo de habilidades dos agentes, base para o roteamento por skill de uma entrega futura.',
+      'Grupos de Acesso: novo grupo de recursos "Call Center" (Agentes, Senha do ramal, Filas, Skills) — cada tela e a senha do ramal têm permissão própria.',
+    ],
+  },
 ];
