@@ -134,6 +134,9 @@ const PAGE_RESOURCE: Partial<Record<Page, string>> = {
   ccFilas:   'callcenter.filas',
   ccSkills:  'callcenter.skills',
   ccGravacoes: 'callcenter.gravacoes',
+  ccDesktop: 'callcenter.desktop',
+  ccSupervisao: 'callcenter.supervisao',
+  ccFluxos:  'callcenter.fluxos',
 };
 
 // Submenus Insights/Agentes: cada aba exige, além do resource_key próprio
@@ -146,12 +149,13 @@ const LINK_RESOURCE: Partial<Record<Page, string>> = {
   agKnowledge: 'telecom.agents_link', agLogs: 'telecom.agents_link', agAlerts: 'telecom.agents_link',
   agSecrets: 'telecom.agents_link', agLlm: 'telecom.agents_link',
   ccAgentes: 'telecom.callcenter_link', ccFilas: 'telecom.callcenter_link', ccSkills: 'telecom.callcenter_link',
-  ccGravacoes: 'telecom.callcenter_link',
+  ccGravacoes: 'telecom.callcenter_link', ccDesktop: 'telecom.callcenter_link', ccSupervisao: 'telecom.callcenter_link',
+  ccFluxos: 'telecom.callcenter_link',
 };
 
 const INSIGHTS_SUBPAGES: Page[] = ['insCalls', 'insDashboard', 'insProcessing', 'insScorecards', 'insReports', 'insUploads'];
 const AGENTS_SUBPAGES: Page[] = ['agDashboard', 'agAgents', 'agServers', 'agKnowledge', 'agLogs', 'agAlerts', 'agSecrets', 'agLlm'];
-const CALLCENTER_SUBPAGES: Page[] = ['ccAgentes', 'ccFilas', 'ccSkills', 'ccGravacoes'];
+const CALLCENTER_SUBPAGES: Page[] = ['ccAgentes', 'ccFilas', 'ccSkills', 'ccGravacoes', 'ccDesktop', 'ccSupervisao', 'ccFluxos'];
 
 // Mapeia Page (id de rota do Telecom) <-> tab/page interno das SPAs embutidas —
 // trocado via postMessage (ver InsightsPage.tsx/AgentesPage.tsx) para não remontar o iframe.
@@ -173,9 +177,11 @@ const AGENTS_TAB_TO_PAGE: Record<string, Page> = {
 };
 const CALLCENTER_PAGE_TO_TAB: Record<string, string> = {
   ccAgentes: 'agentes', ccFilas: 'filas', ccSkills: 'skills', ccGravacoes: 'gravacoes',
+  ccDesktop: 'desktop', ccSupervisao: 'supervisao', ccFluxos: 'fluxos',
 };
 const CALLCENTER_TAB_TO_PAGE: Record<string, Page> = {
   agentes: 'ccAgentes', filas: 'ccFilas', skills: 'ccSkills', gravacoes: 'ccGravacoes',
+  desktop: 'ccDesktop', supervisao: 'ccSupervisao', fluxos: 'ccFluxos',
 };
 
 export default function App() {

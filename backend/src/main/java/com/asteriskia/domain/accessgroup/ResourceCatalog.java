@@ -82,7 +82,8 @@ public final class ResourceCatalog {
             "callcenter.skills",
             "callcenter.gravacoes",
             "callcenter.desktop",
-            "callcenter.supervisao"
+            "callcenter.supervisao",
+            "callcenter.fluxos"
     );
 
     public static List<String> all() {

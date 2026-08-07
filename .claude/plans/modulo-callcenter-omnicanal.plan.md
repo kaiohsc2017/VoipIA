@@ -2,11 +2,30 @@
 
 **Origem**: pedido livre do usuário (2026-08-06)
 **Complexidade**: **Extra-Large** — é um produto, não uma feature. Maior entrega já feita no AsteriskIA.
-**Status**: **Fases 0-4 concluídas, commitadas e deployadas**; **Fase 6 (supervisão em tempo
-real) implementada e deployada nesta sessão (2026-08-07)** — transferência de chamada em curso e
-remoção de agente de fila (esta última já cobria pela aba Filas) ficaram fora do escopo desta
-entrega. Fase 5 (flow builder) e Fase 8 (Insights do Call Center) ainda não iniciadas. Decisões
-D1-D5 e perguntas abertas respondidas (§13, 2026-08-06).
+**Status**: **Fases 0-4 e 6 concluídas, commitadas e deployadas**. **Fase 5 (flow builder) —
+sub-fase 5a (dados + editor visual + versionamento) implementada e deployada nesta sessão
+(2026-08-07, release notes v1.52)** — detalhamento completo por sub-fase (5a-5f) feito com o
+agente planner, decisões P1-P10 aceitas (app Stasis `callcenter`, faixa de ramal `6000-6999`,
+grafo JSON nativo do React Flow, catálogo de nós servido pelo backend, simulador como dry-run no
+próprio motor, fila via `continueInDialplan`, estado do motor em memória aceito como resíduo).
+ARI **confirmado funcionando em runtime** nesta VPS (módulo carregado, `curl` autenticado ao ARI
+retornou 200) — a sub-fase 5b (motor de execução real) não parte de zero. Nesta sub-fase **nenhum
+tipo de nó do catálogo é executável ainda** (`implementado=false` em todos) — publicar um fluxo
+que use qualquer nó é bloqueado pelo backend; isso só muda a partir da 5b. Revisão de segurança
+(`ecc:security-reviewer`) e de React (`ecc:react-reviewer`) encontraram e já corrigiram, antes do
+commit: 1 **HIGH** real (bypass de escopo por BU em `findVersion`), 1 **MEDIUM** (corrida em
+`publish`/`rollback` sem lock — corrigido com `PESSIMISTIC_WRITE` + índice único parcial
+`uq_cc_flow_versions_one_published_per_flow`), 1 **LOW** (canal sem allowlist), e no frontend 2
+**HIGH** (parse de JSON do rascunho sem try/catch; paleta de nós só por arrastar-e-soltar, sem
+alternativa por teclado/clique) + achados MEDIUM de acessibilidade (labels sem `htmlFor`/`id`) e
+de consistência (badge "não executável" lido de dado persistido em vez do catálogo vivo — trocado
+por `FlowCatalogContext`). Corrigido também, de passagem: o submenu Call Center do **Telecom**
+nunca tinha ganhado as abas "Desktop do Agente" (Fase 4) e "Supervisão" (Fase 6) — só existiam na
+SPA própria do módulo; ambas adicionadas junto com "Fluxos". Suíte backend: **354/354 verde**.
+`tsc -b`/`npm run build` limpos nas duas SPAs (Call Center e Telecom). Sub-fases 5b-5f (motor de
+execução ARI, simulador, catálogo avançado, horário/feriados/transbordo, traço de execução) ainda
+não iniciadas. Fase 8 (Insights do Call Center) também ainda não iniciada. Decisões D1-D5 e
+perguntas abertas respondidas (§13, 2026-08-06).
 
 **Fase 1 (AD/LDAP) — backend implementado e commitado (2026-08-06, commit `aae82f5`)**: bind de
 autenticação contra o AD (spring-ldap), espelho local (`ad_users`, migration V45), sincronização

@@ -235,3 +235,93 @@ export interface QueueAlertConfigRequest {
   minServiceLevelPercent?: number | null;
   enabled: boolean;
 }
+
+// ---- Call Center — Fluxos / Flow Builder (Fase 5a) — GET/POST/PUT/DELETE /api/v1/callcenter/fluxos ----
+export type FlowChannel = 'voice' | 'chat' | 'both';
+export type FlowVersionStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+
+export interface FlowView {
+  id: number;
+  name: string;
+  description?: string | null;
+  channel: FlowChannel;
+  entryExtension?: string | null;
+  businessUnitId?: number | null;
+  active: boolean;
+  publishedVersionId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FlowVersionView {
+  id: number;
+  flowId: number;
+  versionNumber: number;
+  status: FlowVersionStatus;
+  graph?: string | null;
+  notes?: string | null;
+  publishedAt?: string | null;
+  publishedBy?: string | null;
+  createdAt: string;
+}
+
+export interface FlowRequest {
+  name: string;
+  description?: string;
+  channel: FlowChannel;
+  entryExtension?: string;
+  businessUnitId?: number;
+}
+
+export interface DraftSaveRequest {
+  graph: string;
+}
+
+export interface FlowGraphValidationIssue {
+  nodeId: string | null;
+  message: string;
+}
+
+export interface FlowGraphValidationResult {
+  errors: FlowGraphValidationIssue[];
+  warnings: FlowGraphValidationIssue[];
+}
+
+// Catálogo de tipos de nó — fonte única servida pelo backend (GET .../fluxos/catalogo),
+// nunca duplicado em código: nesta sub-fase todo nó vem com implementado=false (o motor
+// de execução ARI/Stasis só chega na Fase 5b).
+export interface FlowGraphNodeProperty {
+  name: string;
+  label: string;
+  type: string;
+}
+
+export interface FlowGraphNodeType {
+  type: string;
+  label: string;
+  channel: FlowChannel;
+  implementado: boolean;
+  properties: FlowGraphNodeProperty[];
+}
+
+// Grafo persistido no campo `graph` (JSON.stringify) — formato nativo do React Flow.
+export interface FlowGraphDocument {
+  schemaVersion: number;
+  nodes: FlowGraphNodeInstance[];
+  edges: FlowGraphEdge[];
+}
+
+export interface FlowGraphNodeInstance {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data: { nodeType: string; label: string; properties: Record<string, string | number | boolean> };
+}
+
+export interface FlowGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+}

@@ -5,7 +5,7 @@ import {
   Settings, Terminal, ShieldCheck, KeyRound, ClipboardList,
   LogOut, BookOpen, Tag, Phone, Cable, Building2, Lightbulb,
   Wallet, Send, ChevronDown, ChevronRight, TrendingUp, FileText, Upload, Server, Bell,
-  PhoneForwarded, ListOrdered, Tags, Disc,
+  PhoneForwarded, ListOrdered, Tags, Disc, MonitorPlay, Workflow,
 } from 'lucide-react';
 import { canRead } from '../api/client';
 import { RELEASES } from '../data/releases';
@@ -15,7 +15,7 @@ const CURRENT_VERSION = RELEASES[RELEASES.length - 1].version;
 type Page = 'dashboard' | 'modulo1' | 'insights' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'operadoras' | 'cadastro0800' | 'linhas' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs' | 'release' | 'finUra' | 'finInsights' | 'finEnvios'
   | 'insCalls' | 'insDashboard' | 'insProcessing' | 'insScorecards' | 'insReports' | 'insUploads'
   | 'agDashboard' | 'agAgents' | 'agServers' | 'agKnowledge' | 'agLogs' | 'agAlerts' | 'agSecrets' | 'agLlm'
-  | 'ccAgentes' | 'ccFilas' | 'ccSkills' | 'ccGravacoes';
+  | 'ccAgentes' | 'ccFilas' | 'ccSkills' | 'ccGravacoes' | 'ccDesktop' | 'ccSupervisao' | 'ccFluxos';
 
 interface SidebarProps {
   currentPage: Page;
@@ -97,6 +97,9 @@ const NAV_ITEMS: NavEntry[] = [
       { page: 'ccFilas',   icon: ListOrdered, label: 'Filas',   section: 'MÓDULOS', resource: 'callcenter.filas'   },
       { page: 'ccSkills',  icon: Tags,        label: 'Skills',  section: 'MÓDULOS', resource: 'callcenter.skills'  },
       { page: 'ccGravacoes', icon: Disc,      label: 'Gravações', section: 'MÓDULOS', resource: 'callcenter.gravacoes' },
+      { page: 'ccDesktop',   icon: LayoutDashboard, label: 'Desktop do Agente', section: 'MÓDULOS', resource: 'callcenter.desktop' },
+      { page: 'ccSupervisao', icon: MonitorPlay, label: 'Supervisão', section: 'MÓDULOS', resource: 'callcenter.supervisao' },
+      { page: 'ccFluxos',  icon: Workflow,   label: 'Fluxos',  section: 'MÓDULOS', resource: 'callcenter.fluxos' },
     ],
   },
   {

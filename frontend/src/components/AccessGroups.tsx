@@ -48,6 +48,7 @@ const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agent
   { key: 'callcenter.gravacoes', label: 'Gravações',              system: 'Call Center' },
   { key: 'callcenter.desktop',   label: 'Desktop do Agente',      system: 'Call Center' },
   { key: 'callcenter.supervisao', label: 'Supervisão',            system: 'Call Center' },
+  { key: 'callcenter.fluxos',    label: 'Fluxos (Flow Builder)',  system: 'Call Center' },
 ];
 
 type PermMap = Record<string, { canRead: boolean; canWrite: boolean }>;

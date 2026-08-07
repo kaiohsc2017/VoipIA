@@ -1125,3 +1125,135 @@ tbody td {
   color: var(--text-secondary);
   border: 1px solid var(--border-glass);
 }
+
+/* ============================================================
+   FLOW BUILDER (Fase 5a) — editor React Flow
+   ============================================================ */
+.flow-editor-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.flow-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-glass);
+  background: var(--bg-card);
+}
+
+.flow-editor-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.flow-editor-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.flow-palette,
+.flow-properties {
+  width: 220px;
+  flex-shrink: 0;
+  padding: 16px;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border-glass);
+  overflow-y: auto;
+}
+
+.flow-properties {
+  border-right: none;
+  border-left: 1px solid var(--border-glass);
+}
+
+.flow-palette-title {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+}
+
+.flow-palette-hint {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 0 0 12px;
+}
+
+.flow-palette-item {
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+
+.flow-palette-badge {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+}
+
+.flow-canvas {
+  flex: 1;
+  min-width: 0;
+}
+
+.flow-node {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-glass);
+  min-width: 140px;
+  text-align: center;
+}
+
+.flow-node-selected {
+  border-color: var(--clr-primary);
+  box-shadow: 0 0 0 2px var(--bg-primary-soft);
+}
+
+.flow-node-label {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+}
+
+.flow-node-type {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.flow-node-badge {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.62rem;
+}
+
+.flow-issues {
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.flow-issue {
+  font-size: 0.8rem;
+  padding: 2px 0;
+}
+
+.flow-issue-error {
+  color: var(--clr-danger);
+}
+
+.flow-issue-warning {
+  color: var(--clr-warning);
+}

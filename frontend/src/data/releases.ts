@@ -471,4 +471,15 @@ export const RELEASES: ReleaseEntry[] = [
       'Grupos de Acesso: novo recurso "Supervisão" no grupo "Call Center".',
     ],
   },
+  {
+    version: 'v1.52',
+    date: '2026-08-07',
+    changes: [
+      'Call Center → nova aba "Fluxos": editor visual de URA (arrastar e soltar caixinhas) usando React Flow, com rascunho, publicação (cria versão imutável) e rollback para versão anterior.',
+      'Fluxos → catálogo com 14 tipos de nó (início, tocar áudio, menu, coletar entrada, condição, variável, API externa, fila, transferência, horário, agente de IA, gravação, pesquisa de satisfação, encerrar) — nesta entrega nenhum nó ainda é executável (o motor de chamada real chega na próxima entrega), publicar um fluxo que use algum deles é bloqueado.',
+      'Fluxos → paleta de nós também acessível por clique/teclado, não só por arrastar-e-soltar.',
+      'Submenu Call Center do Telecom: adicionadas as abas "Desktop do Agente" e "Supervisão", que existiam na tela própria do módulo mas nunca haviam sido incluídas aqui.',
+      'Grupos de Acesso: novo recurso "Fluxos" no grupo "Call Center".',
+    ],
+  },
 ];
