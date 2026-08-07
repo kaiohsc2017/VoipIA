@@ -152,3 +152,44 @@ export interface DiskAlertConfigRequest {
   thresholdPercent: number;
   enabled: boolean;
 }
+
+// Estado/interação do agente (Fase 4) — GET/POST /api/v1/callcenter/agent-state,
+// GET /api/v1/callcenter/interactions/**
+export type AgentState = 'DISPONIVEL' | 'EM_ATENDIMENTO' | 'ACW' | 'PAUSA' | 'OFFLINE';
+
+export interface CcPauseReason {
+  id: number;
+  code: string;
+  label: string;
+  productive: boolean;
+  active: boolean;
+}
+
+export interface AgentStateView {
+  agentId: number;
+  state: AgentState;
+  pauseReasonLabel?: string;
+  startedAt?: string;
+}
+
+export interface AgentStateRequest {
+  state: AgentState;
+  pauseReasonId?: number;
+}
+
+export interface CcDisposition {
+  id: number;
+  code: string;
+  label: string;
+  active: boolean;
+}
+
+export interface InteractionView {
+  id: number;
+  queueName?: string;
+  ani?: string;
+  queuedAt?: string;
+  answeredAt?: string;
+  endedAt?: string;
+  dispositionLabel?: string;
+}

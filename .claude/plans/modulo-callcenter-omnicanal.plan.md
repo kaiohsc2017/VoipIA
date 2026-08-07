@@ -2,9 +2,11 @@
 
 **Origem**: pedido livre do usuário (2026-08-06)
 **Complexidade**: **Extra-Large** — é um produto, não uma feature. Maior entrega já feita no AsteriskIA.
-**Status**: **Fases 0-2 concluídas e deployadas**; **Fase 3 (gravação/retenção/conformidade)
-implementada e testada nesta sessão (2026-08-07), pendente commit/deploy**. Decisões D1-D5 e
-perguntas abertas respondidas (§13, 2026-08-06).
+**Status**: **Fases 0-3 concluídas, commitadas e deployadas**; **Fase 4 (estados do agente,
+interações, tabulação) implementada e deployada nesta sessão (2026-08-07) — screen pop do AD
+deliberadamente fora do escopo (Fase 1/AD pendente de dados reais do DC); desktop do agente com
+softphone WebRTC embutido e supervisão em tempo real ficam para uma entrega futura**. Decisões
+D1-D5 e perguntas abertas respondidas (§13, 2026-08-06).
 
 **Fase 1 (AD/LDAP) — backend implementado e commitado (2026-08-06, commit `aae82f5`)**: bind de
 autenticação contra o AD (spring-ldap), espelho local (`ad_users`, migration V45), sincronização
@@ -49,10 +51,36 @@ diferente do Financeiro — disco pode encher em poucos dias). RBAC: recurso nov
 o Desktop do Agente (Fase 4) ou um nó do Flow Builder (Fase 5), escopo confirmado com o usuário.
 **Validado nesta sessão**: `mvn test` 306/306 verde (rodado via container `maven:3.9-eclipse-
 temurin-21`, sem Maven local no ambiente), `tsc --noEmit` limpo nas duas SPAs (Telecom e
-`callcenter-platform`). Release notes **v1.48** registrada. **Pendente**: commit, deploy real
-(`docker compose up -d --build backend frontend`, migration V49 aplica no boot) e validação em
-navegador/chamada real (aviso tocando, gravação tocável na tela, expurgo/alerta disparados
-manualmente).
+`callcenter-platform`). Release notes **v1.48** registrada. Commitada, deployada e validada em
+sessão seguinte (2026-08-07): `docker compose up -d --build backend frontend`, migration V49
+confirmada aplicada, 1 bug real corrigido antes do deploy (mensagem de erro genérica ao salvar
+retenção/alerta de disco — commits `caad601`/`dd2aba9`, release notes **v1.49**).
+
+**Fase 4 (Estados do agente, interações e tabulação) — implementada e deployada (2026-08-07)**:
+migration **V50** (`cc_agent_states`, `cc_dispositions`, `cc_interactions`,
+`cc_interaction_events`, `cc_recordings.interaction_id`) + entidade `CcPauseReason` (tabela já
+existia desde a V47, sem código até agora). `CallCenterAmiEventListener` — primeira conexão AMI
+**event-driven** do projeto (diferente do padrão request/response de `AmiOriginateService`):
+thread dedicada, `Events: on`, reconexão automática a cada 5s em caso de queda, interpreta
+`QueueCallerJoin`/`AgentConnect`/`AgentComplete`/`QueueCallerAbandon` para criar/atualizar
+`cc_interactions` e mover o estado do agente (`CallCenterAgentStateService`, broadcast via
+WebSocket STOMP em `/topic/callcenter/agent-states`). Transições manuais (Disponível/Pausa+
+motivo/Offline) e automáticas (Em Atendimento/ACW) fecham sempre a linha de estado anterior —
+nunca fazem UPDATE no estado em si. Tabulação (`cc_dispositions`) obrigatória para saved do ACW
+de volta a Disponível. Nova aba "Desktop do Agente" na SPA (seletor de estado, painel da
+interação em curso, formulário de tabulação) — **sem softphone WebRTC embutido e sem screen pop
+de dados do AD nesta entrega** (softphone fica para quando o agente precisar discar/atender pela
+própria tela; screen pop depende da Fase 1/AD, ainda sem dados reais de conexão do DC). RBAC:
+recurso novo `callcenter.desktop` (4 pontos de sincronia). **Não validado contra tráfego real de
+fila** — o listener conectou com sucesso ao Asterisk real (`asterisk:5038`, log confirmado), mas
+sem uma chamada de teste atravessando uma fila com agente logado não há como confirmar os nomes
+exatos de campo que os eventos AMI trazem nesta versão do Asterisk; parsing e lógica de cada
+handler têm teste unitário (`AmiEventParserTest`, `CallCenterAgentStateServiceTest`, 11 testes
+novos, suíte completa 317/317 verde). Validado via Chrome headless + CDP contra produção: tela
+carrega, motivos de pausa/tabulações carregam do backend, nenhuma exceção de console — usuário de
+teste sem agente vinculado recebe erro genérico 500 (comportamento intencional e já existente do
+`GlobalExceptionHandler` para `IllegalArgumentException` de regra de negócio, não uma regressão
+desta entrega). Release notes **v1.50** registrada.
 
 ---
 

@@ -1,9 +1,9 @@
 import type { ComponentType } from 'react';
 import { useState } from 'react';
-import { Users, ListOrdered, Tags, Disc, LogOut } from 'lucide-react';
+import { Users, ListOrdered, Tags, Disc, LogOut, LayoutDashboard } from 'lucide-react';
 import type { AuthSession } from '../hooks/useAuthSession';
 
-type Tab = 'agentes' | 'filas' | 'skills' | 'gravacoes';
+type Tab = 'agentes' | 'filas' | 'skills' | 'gravacoes' | 'desktop';
 
 interface SidebarProps {
   currentTab: Tab;
@@ -23,6 +23,7 @@ const NAV_ITEMS: { tab: Tab; icon: ComponentType<{ size?: number; strokeWidth?: 
   { tab: 'filas',   icon: ListOrdered, label: 'Filas',   resource: 'callcenter.filas'   },
   { tab: 'skills',  icon: Tags,        label: 'Skills',  resource: 'callcenter.skills'  },
   { tab: 'gravacoes', icon: Disc,      label: 'Gravações', resource: 'callcenter.gravacoes' },
+  { tab: 'desktop',   icon: LayoutDashboard, label: 'Desktop do Agente', resource: 'callcenter.desktop' },
 ];
 
 export default function Sidebar({ currentTab, onNavigate, username, session, onLogout, collapsed, onToggleCollapse }: SidebarProps) {

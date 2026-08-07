@@ -441,4 +441,23 @@ export const RELEASES: ReleaseEntry[] = [
       'Grupos de Acesso: novo recurso "Gravações" no grupo "Call Center".',
     ],
   },
+  {
+    version: 'v1.49',
+    date: '2026-08-07',
+    changes: [
+      'Call Center → Gravações → Configurações: corrigida mensagem de erro genérica ao salvar prazo de retenção ou limite de alerta de disco com valor inválido — agora mostra a causa real (ex: "Prazo de retenção deve ser maior ou igual a 1 dia"), em português.',
+      'Adicionados limites min/max nos campos de retenção (1-36500 dias) e alerta de disco (1-100%) na própria tela, como guarda de UX.',
+    ],
+  },
+  {
+    version: 'v1.50',
+    date: '2026-08-07',
+    changes: [
+      'Call Center → nova aba "Desktop do Agente": o agente controla o próprio estado (Disponível, Pausa com motivo, Offline) — Em Atendimento e Pós-Atendimento (ACW) passam a ser automáticos, disparados pelos eventos reais de fila/chamada do Asterisk.',
+      'Toda chamada de fila agora gera uma interação rastreável (fila, ANI, horário de entrada/atendimento/encerramento) — base da futura timeline de omnicanalidade.',
+      'Ao encerrar uma chamada, o agente tabula o atendimento (ex: Resolvido, Transferido, Abandono) antes de voltar a ficar Disponível.',
+      'Grupos de Acesso: novo recurso "Desktop do Agente" no grupo "Call Center".',
+      'Painel de dados do Active Directory na tela do agente ainda não disponível — depende da conclusão da integração com o Domain Controller (Fase 1, pendente de dados reais de conexão).',
+    ],
+  },
 ];
