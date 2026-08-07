@@ -133,6 +133,7 @@ const PAGE_RESOURCE: Partial<Record<Page, string>> = {
   ccAgentes: 'callcenter.agentes',
   ccFilas:   'callcenter.filas',
   ccSkills:  'callcenter.skills',
+  ccGravacoes: 'callcenter.gravacoes',
 };
 
 // Submenus Insights/Agentes: cada aba exige, além do resource_key próprio
@@ -145,11 +146,12 @@ const LINK_RESOURCE: Partial<Record<Page, string>> = {
   agKnowledge: 'telecom.agents_link', agLogs: 'telecom.agents_link', agAlerts: 'telecom.agents_link',
   agSecrets: 'telecom.agents_link', agLlm: 'telecom.agents_link',
   ccAgentes: 'telecom.callcenter_link', ccFilas: 'telecom.callcenter_link', ccSkills: 'telecom.callcenter_link',
+  ccGravacoes: 'telecom.callcenter_link',
 };
 
 const INSIGHTS_SUBPAGES: Page[] = ['insCalls', 'insDashboard', 'insProcessing', 'insScorecards', 'insReports', 'insUploads'];
 const AGENTS_SUBPAGES: Page[] = ['agDashboard', 'agAgents', 'agServers', 'agKnowledge', 'agLogs', 'agAlerts', 'agSecrets', 'agLlm'];
-const CALLCENTER_SUBPAGES: Page[] = ['ccAgentes', 'ccFilas', 'ccSkills'];
+const CALLCENTER_SUBPAGES: Page[] = ['ccAgentes', 'ccFilas', 'ccSkills', 'ccGravacoes'];
 
 // Mapeia Page (id de rota do Telecom) <-> tab/page interno das SPAs embutidas —
 // trocado via postMessage (ver InsightsPage.tsx/AgentesPage.tsx) para não remontar o iframe.
@@ -170,10 +172,10 @@ const AGENTS_TAB_TO_PAGE: Record<string, Page> = {
   logs: 'agLogs', reports: 'agAlerts', secrets: 'agSecrets', llm: 'agLlm',
 };
 const CALLCENTER_PAGE_TO_TAB: Record<string, string> = {
-  ccAgentes: 'agentes', ccFilas: 'filas', ccSkills: 'skills',
+  ccAgentes: 'agentes', ccFilas: 'filas', ccSkills: 'skills', ccGravacoes: 'gravacoes',
 };
 const CALLCENTER_TAB_TO_PAGE: Record<string, Page> = {
-  agentes: 'ccAgentes', filas: 'ccFilas', skills: 'ccSkills',
+  agentes: 'ccAgentes', filas: 'ccFilas', skills: 'ccSkills', gravacoes: 'ccGravacoes',
 };
 
 export default function App() {

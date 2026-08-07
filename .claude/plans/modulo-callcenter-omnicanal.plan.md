@@ -2,8 +2,8 @@
 
 **Origem**: pedido livre do usuário (2026-08-06)
 **Complexidade**: **Extra-Large** — é um produto, não uma feature. Maior entrega já feita no AsteriskIA.
-**Status**: **Fase 0 concluída** (ARI/Stasis, ARA, AMI event-driven, faixas de numeração,
-`/opt/telecom/gravacao`, teste de carga SIPp — todos validados/commitados). Decisões D1-D5 e
+**Status**: **Fases 0-2 concluídas e deployadas**; **Fase 3 (gravação/retenção/conformidade)
+implementada e testada nesta sessão (2026-08-07), pendente commit/deploy**. Decisões D1-D5 e
 perguntas abertas respondidas (§13, 2026-08-06).
 
 **Fase 1 (AD/LDAP) — backend implementado e commitado (2026-08-06, commit `aae82f5`)**: bind de
@@ -29,6 +29,30 @@ curl), rota `/api/v1/ad/**` corretamente protegida (403 sem token).
 para recebê-los, sem eles não há como validar o bind AD de verdade; (2) validação visual em
 navegador da tela de configuração AD em Settings; (3) recomendação de hardware do servidor
 dedicado de produção, antes de iniciar a Fase 2.
+
+**Fase 3 (Gravação, retenção e conformidade) — implementada (2026-08-07), pendente commit/deploy**:
+migration **V49** (`cc_recordings`, `cc_recording_retention_config`, `cc_recording_disk_alert_config`,
+colunas `recording_enabled`/`consent_message_path` em `cc_queues`). Dialplan de `_5XXX` (nos dois
+contextos, tronco e WebRTC) grava com `MixMonitor(b)` em `/opt/telecom/gravacao/YYYY/MM/DD/`,
+consultando a config de gravação/aviso da fila via CURL (fail-open: falha de rede grava por
+padrão); toca o áudio de consentimento antes de enfileirar quando configurado. Ingestão via
+`CallCenterRecordingIngestController` (padrão `ura-routing`, só `X-Internal-Key`). Nova aba
+"Gravações" na SPA (listagem paginada por fila/período + player `AuthedAudio`), com auditoria de
+reprodução (`AuditService`) e streaming defendido contra path traversal (mesmo padrão de
+`CallRecordController`). Retenção configurável (padrão 60 meses) com expurgo diário
+(`CallCenterRecordingRetentionScheduler`, 03:30) + disparo manual — só remove o registro do banco
+se o arquivo físico foi de fato apagado (achado de code review: evita órfão permanente). Alerta de
+disco diário via Telegram (`CallCenterDiskAlertScheduler`, 07:00), dedup por dia (não por mês,
+diferente do Financeiro — disco pode encher em poucos dias). RBAC: recurso novo
+`callcenter.gravacoes` (4 pontos de sincronia). `CallCenterRecordingControlService`
+(pause/resume via AMI `MixMonitorMute`) já pronto no backend, sem endpoint/UI ainda — consumidor é
+o Desktop do Agente (Fase 4) ou um nó do Flow Builder (Fase 5), escopo confirmado com o usuário.
+**Validado nesta sessão**: `mvn test` 306/306 verde (rodado via container `maven:3.9-eclipse-
+temurin-21`, sem Maven local no ambiente), `tsc --noEmit` limpo nas duas SPAs (Telecom e
+`callcenter-platform`). Release notes **v1.48** registrada. **Pendente**: commit, deploy real
+(`docker compose up -d --build backend frontend`, migration V49 aplica no boot) e validação em
+navegador/chamada real (aviso tocando, gravação tocável na tela, expurgo/alerta disparados
+manualmente).
 
 ---
 

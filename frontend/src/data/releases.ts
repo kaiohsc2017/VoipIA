@@ -430,4 +430,15 @@ export const RELEASES: ReleaseEntry[] = [
       'Grupos de Acesso: novo grupo de recursos "Call Center" (Agentes, Senha do ramal, Filas, Skills) — cada tela e a senha do ramal têm permissão própria.',
     ],
   },
+  {
+    version: 'v1.48',
+    date: '2026-08-07',
+    changes: [
+      'Call Center: toda chamada de fila passa a ser gravada automaticamente em /opt/telecom/gravacao, com aviso de gravação (consentimento) configurável por fila — quando ativado, o áudio de aviso é tocado antes de a chamada entrar na fila.',
+      'Call Center → nova aba "Gravações": lista as chamadas gravadas por fila e período, com player de áudio autenticado direto na tela.',
+      'Call Center → Gravações → Configurações: prazo de retenção das gravações (padrão 60 meses) com expurgo automático diário e opção de disparo manual, e alerta de disco (limite de uso do volume configurável) enviado por Telegram.',
+      'Toda reprodução de uma gravação do Call Center é registrada na Auditoria (quem ouviu, quando, qual chamada).',
+      'Grupos de Acesso: novo recurso "Gravações" no grupo "Call Center".',
+    ],
+  },
 ];

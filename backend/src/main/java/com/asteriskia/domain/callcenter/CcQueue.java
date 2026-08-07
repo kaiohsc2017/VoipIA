@@ -57,6 +57,13 @@ public class CcQueue {
     @Builder.Default
     private Boolean active = true;
 
+    @Column(name = "recording_enabled", nullable = false)
+    @Builder.Default
+    private Boolean recordingEnabled = true;
+
+    @Column(name = "consent_message_path")
+    private String consentMessagePath;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

@@ -94,13 +94,40 @@ exten => _4XXX,1,NoOp(=== Call Center: ramal de agente ${EXTEN} ===)
 exten => _4XXX,n,Dial(PJSIP/${EXTEN},30)
 exten => _4XXX,n,Hangup()
 
-; Filas do Call Center — faixa 5000-5999 (Fase 2). Cadastrar uma fila nova
+; Filas do Call Center — faixa 5000-5999 (Fase 2/3). Cadastrar uma fila nova
 ; pela web só grava em `queues`/`queue_members` (ARA) — o número da fila é o
-; próprio ramal dentro desta faixa.
+; próprio ramal dentro desta faixa. Fase 3: toda chamada de fila é gravada
+; (MixMonitor) em /opt/telecom/gravacao, com aviso de consentimento opcional
+; por fila — configuração consultada em tempo real no backend via CURL (mesmo
+; padrão de lookup do _2XXX acima). CURL de config falha/timeout → REC_FLAG
+; fica vazio (≠ "false") → grava por padrão, nunca deixa de gravar por falha
+; de rede transitória.
 exten => _5XXX,1,NoOp(=== Call Center: fila ${EXTEN} ===)
 exten => _5XXX,n,Answer()
-exten => _5XXX,n,Queue(${EXTEN})
-exten => _5XXX,n,Hangup()
+exten => _5XXX,n,Set(CURLOPT(httptimeout)=2)
+exten => _5XXX,n,Set(CURLOPT(httpheader)=X-Internal-Key: ${INTERNAL_API_KEY})
+exten => _5XXX,n,Set(REC_CONFIG=${CURL(http://backend:8080/api/v1/internal/callcenter/queue-recording-config,extension=${EXTEN})})
+exten => _5XXX,n,Set(REC_PART=${CUT(REC_CONFIG,;,1)})
+exten => _5XXX,n,Set(REC_FLAG=${CUT(REC_PART,=,2)})
+exten => _5XXX,n,Set(CONSENT_PART=${CUT(REC_CONFIG,;,2)})
+exten => _5XXX,n,Set(CONSENT_PATH=${CUT(CONSENT_PART,=,2)})
+exten => _5XXX,n,Set(MY_UUID=${UNIQUEID})
+exten => _5XXX,n,Set(REC_DIR=/opt/telecom/gravacao/${STRFTIME(${EPOCH},,%Y/%m/%d)})
+exten => _5XXX,n,System(mkdir -p ${REC_DIR})
+exten => _5XXX,n,Set(RECORDED=false)
+exten => _5XXX,n,Set(CONSENT_PLAYED=false)
+exten => _5XXX,n,GotoIf($["${REC_FLAG}" = "false"]?skiprec)
+exten => _5XXX,n,GotoIf($["${CONSENT_PATH}" = ""]?domixmonitor)
+exten => _5XXX,n,Playback(${CONSENT_PATH})
+exten => _5XXX,n,Set(CONSENT_PLAYED=true)
+exten => _5XXX,n(domixmonitor),MixMonitor(${REC_DIR}/${MY_UUID}.wav,b)
+exten => _5XXX,n,Set(RECORDED=true)
+exten => _5XXX,n(skiprec),Queue(${EXTEN})
+; Registro fire-and-forget (resultado ignorado), mesmo padrão do lookup de URA em _2XXX —
+; falha de CURL aqui vira arquivo órfão sem catalogação (risco residual documentado).
+exten => _5XXX,n,GotoIf($["${RECORDED}" = "true"]?ingest:done)
+exten => _5XXX,n(ingest),Set(IGNORED_REC=${CURL(http://backend:8080/api/v1/internal/callcenter/recordings,uniqueid=${MY_UUID}&extension=${EXTEN}&filePath=${REC_DIR}/${MY_UUID}.wav&consentPlayed=${CONSENT_PLAYED})})
+exten => _5XXX,n(done),Hangup()
 
 exten => h,1,NoOp(=== Encerrado ===)
 
@@ -149,6 +176,35 @@ exten => _2XXX,n,Set(IGNORED=${CURL(http://backend:8080/api/v1/internal/ura-rout
 exten => _2XXX,n,Wait(2)
 exten => _2XXX,n,AudioSocket(${MY_UUID},ai-agent:9092)
 exten => _2XXX,n,Hangup()
+
+; Filas do Call Center — faixa 5000-5999 (ver comentário em ramais-internos, Fase 3)
+exten => _5XXX,1,NoOp(=== WebRTC → Call Center: fila ${EXTEN} ===)
+; Progress + Wait(2) dá tempo para ICE/DTLS completar antes do Answer
+exten => _5XXX,n,Progress()
+exten => _5XXX,n,Wait(2)
+exten => _5XXX,n,Answer()
+exten => _5XXX,n,Set(CURLOPT(httptimeout)=2)
+exten => _5XXX,n,Set(CURLOPT(httpheader)=X-Internal-Key: ${INTERNAL_API_KEY})
+exten => _5XXX,n,Set(REC_CONFIG=${CURL(http://backend:8080/api/v1/internal/callcenter/queue-recording-config,extension=${EXTEN})})
+exten => _5XXX,n,Set(REC_PART=${CUT(REC_CONFIG,;,1)})
+exten => _5XXX,n,Set(REC_FLAG=${CUT(REC_PART,=,2)})
+exten => _5XXX,n,Set(CONSENT_PART=${CUT(REC_CONFIG,;,2)})
+exten => _5XXX,n,Set(CONSENT_PATH=${CUT(CONSENT_PART,=,2)})
+exten => _5XXX,n,Set(MY_UUID=${UNIQUEID})
+exten => _5XXX,n,Set(REC_DIR=/opt/telecom/gravacao/${STRFTIME(${EPOCH},,%Y/%m/%d)})
+exten => _5XXX,n,System(mkdir -p ${REC_DIR})
+exten => _5XXX,n,Set(RECORDED=false)
+exten => _5XXX,n,Set(CONSENT_PLAYED=false)
+exten => _5XXX,n,GotoIf($["${REC_FLAG}" = "false"]?skiprec)
+exten => _5XXX,n,GotoIf($["${CONSENT_PATH}" = ""]?domixmonitor)
+exten => _5XXX,n,Playback(${CONSENT_PATH})
+exten => _5XXX,n,Set(CONSENT_PLAYED=true)
+exten => _5XXX,n(domixmonitor),MixMonitor(${REC_DIR}/${MY_UUID}.wav,b)
+exten => _5XXX,n,Set(RECORDED=true)
+exten => _5XXX,n(skiprec),Queue(${EXTEN})
+exten => _5XXX,n,GotoIf($["${RECORDED}" = "true"]?ingest:done)
+exten => _5XXX,n(ingest),Set(IGNORED_REC=${CURL(http://backend:8080/api/v1/internal/callcenter/recordings,uniqueid=${MY_UUID}&extension=${EXTEN}&filePath=${REC_DIR}/${MY_UUID}.wav&consentPlayed=${CONSENT_PLAYED})})
+exten => _5XXX,n(done),Hangup()
 
 ; Discagem entre softphones WebRTC (90XX → 90XX)
 exten => _90XX,1,NoOp(=== Chamada WebRTC entre ramais ===)

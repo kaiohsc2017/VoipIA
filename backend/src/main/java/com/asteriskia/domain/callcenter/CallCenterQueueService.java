@@ -10,6 +10,7 @@ import com.asteriskia.domain.masterdata.BusinessUnitRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,12 @@ public class CallCenterQueueService {
     private static final int RANGE_START = 5000;
     private static final int RANGE_END = 5999;
     private static final int MAX_TIMEOUT_SECONDS = 3600;
+    // Subdiretório fixo (dentro do mesmo caminho configurável de gravação) para os áudios de
+    // aviso de gravação (Fase 3) — evita que consentMessagePath aponte para um arquivo arbitrário
+    // do container Asterisk. Lê a mesma property de CallCenterRecordingService para não divergir
+    // se CALLCENTER_RECORDING_PATH for alterado.
+    @Value("${app.callcenter.recording-path:/opt/telecom/gravacao}")
+    private String recordingBasePath;
     // Estratégias nativas do app_queue do Asterisk — mesma lista oferecida no <select> do
     // frontend (FilasTab.tsx). Allowlist evita gravar um valor arbitrário em queues.strategy
     // (ARA) via chamada direta à API, sem passar pela SPA.
@@ -110,6 +117,8 @@ public class CallCenterQueueService {
                         .strategy(strategy)
                         .timeoutSeconds(timeout)
                         .active(true)
+                        .recordingEnabled(request.recordingEnabled() == null || request.recordingEnabled())
+                        .consentMessagePath(normalizeConsentPath(request.consentMessagePath()))
                         .build();
         queue = queueRepository.save(queue);
 
@@ -139,6 +148,10 @@ public class CallCenterQueueService {
         if (request.timeoutSeconds() != null) {
             queue.setTimeoutSeconds(resolveTimeout(request.timeoutSeconds()));
         }
+        if (request.recordingEnabled() != null) {
+            queue.setRecordingEnabled(request.recordingEnabled());
+        }
+        queue.setConsentMessagePath(normalizeConsentPath(request.consentMessagePath()));
         var saved = queueRepository.save(queue);
 
         araQueueRepository
@@ -236,6 +249,34 @@ public class CallCenterQueueService {
                     "Timeout deve estar entre 0 e " + MAX_TIMEOUT_SECONDS + " segundos.");
         }
         return timeoutSeconds;
+    }
+
+    /**
+     * Normaliza string vazia para null — evita ambiguidade entre "sem aviso" e "path em branco".
+     * Achado de segurança (security-reviewer): o valor é interpolado sem sanitização no
+     * {@code Playback(${CONSENT_PATH})} do dialplan — restringe a um diretório fixo (mesma defesa
+     * de path traversal usada em {@code CallCenterRecordingService.resolveAudioFile}) para que um
+     * admin com PERM_WRITE_callcenter.filas não consiga apontar o dialplan para um arquivo
+     * arbitrário do container Asterisk.
+     */
+    private String normalizeConsentPath(String consentMessagePath) {
+        if (consentMessagePath == null || consentMessagePath.isBlank()) {
+            return null;
+        }
+        String trimmed = consentMessagePath.trim();
+        String consentBaseDir = recordingBasePath + "/avisos";
+        try {
+            java.io.File base = new java.io.File(consentBaseDir).getCanonicalFile();
+            java.io.File target = new java.io.File(trimmed).getCanonicalFile();
+            String basePath = base.getPath() + java.io.File.separator;
+            if (!target.getPath().startsWith(basePath)) {
+                throw new IllegalArgumentException(
+                        "Caminho do aviso de gravação deve estar dentro de " + consentBaseDir);
+            }
+            return target.getPath();
+        } catch (java.io.IOException e) {
+            throw new IllegalArgumentException("Caminho do aviso de gravação inválido: " + trimmed);
+        }
     }
 
     private void validateExtensionRange(String name) {

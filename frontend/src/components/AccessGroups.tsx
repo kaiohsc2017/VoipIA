@@ -45,6 +45,7 @@ const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agent
   { key: 'callcenter.ramais',    label: 'Senha do ramal (sensível)', system: 'Call Center' },
   { key: 'callcenter.filas',     label: 'Filas',                  system: 'Call Center' },
   { key: 'callcenter.skills',    label: 'Skills',                 system: 'Call Center' },
+  { key: 'callcenter.gravacoes', label: 'Gravações',              system: 'Call Center' },
 ];
 
 type PermMap = Record<string, { canRead: boolean; canWrite: boolean }>;

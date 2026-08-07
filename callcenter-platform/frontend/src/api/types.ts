@@ -61,6 +61,10 @@ export interface CcQueue {
   strategy: string;
   timeoutSeconds: number;
   active: boolean;
+  /** Fase 3 — aviso de gravação (LGPD): grava por padrão se true. */
+  recordingEnabled: boolean;
+  /** Fase 3 — caminho do áudio de consentimento tocado antes de MixMonitor (null = sem aviso). */
+  consentMessagePath?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -72,6 +76,8 @@ export interface QueueRequest {
   businessUnitId?: number | null;
   strategy?: string;
   timeoutSeconds?: number;
+  recordingEnabled?: boolean | null;
+  consentMessagePath?: string | null;
 }
 
 export interface CcQueueMember {
@@ -92,4 +98,57 @@ export interface CcSkill {
 export interface SkillRequest {
   name: string;
   description?: string;
+}
+
+// ---- Call Center — Gravações (Fase 3) ----
+// GET /api/v1/callcenter/recordings (paginado) / GET /api/v1/callcenter/recordings/{id}/audio
+export interface CcRecording {
+  id: number;
+  queue?: CcQueue;
+  queueExtension: string;
+  channelUniqueId: string;
+  filePath: string;
+  businessUnit?: BusinessUnit;
+  consentPlayed: boolean;
+  startedAt: string;
+  endedAt?: string;
+  durationSeconds?: number;
+  createdAt?: string;
+}
+
+/** Página no formato padrão do Spring Data (Page<T>). */
+export interface Page<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+// GET/PUT /api/v1/callcenter/recordings/retention-config
+export interface RetentionConfig {
+  retentionDays: number;
+  lastPurgeAt?: string;
+  lastPurgeDeletedCount?: number;
+}
+
+export interface RetentionConfigRequest {
+  retentionDays: number;
+}
+
+export interface RetentionRunResult {
+  deletedCount: number;
+}
+
+// GET/PUT /api/v1/callcenter/recordings/disk-alert-config
+export interface DiskAlertConfig {
+  thresholdPercent: number;
+  enabled: boolean;
+  lastNotifiedDate?: string;
+  currentUsagePercent?: number;
+}
+
+export interface DiskAlertConfigRequest {
+  thresholdPercent: number;
+  enabled: boolean;
 }

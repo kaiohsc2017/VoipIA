@@ -333,6 +333,9 @@ services:
       # Portal do supervisor (Fase 3 do Quality Management, V40) — InsightsUploadService
       # grava os arquivos enviados aqui; hoje o backend não montava RW nenhum áudio.
       INSIGHTS_UPLOAD_AUDIO_PATH: ${INSIGHTS_UPLOAD_AUDIO_DIR:-/opt/audio_upload}
+      # Call Center (voz) — gravação/retenção/alerta de disco (Fase 3); o job de
+      # expurgo precisa deletar o arquivo físico, por isso o mount abaixo é RW.
+      CALLCENTER_RECORDING_PATH:  ${CALLCENTER_RECORDING_PATH:-/opt/telecom/gravacao}
     volumes:
       - asterisk_recordings:/var/spool/asterisk/monitor
       - /opt/AsteriskIA/env:/opt/asteriskia/env
@@ -356,6 +359,10 @@ services:
       # construção o risco de o watcher do Verint (scan não-recursivo) cruzar os dois
       # fluxos mesmo que um ajuste futuro torne o scan recursivo.
       - /opt/audio_upload:/opt/audio_upload:rw
+      # Call Center (voz) — gravação/retenção/alerta de disco (Fase 3). RW: o job de
+      # expurgo (CallCenterRecordingRetentionService) deleta o arquivo físico expirado;
+      # mesmo volume já montado (RW) no serviço asterisk, que é quem grava via MixMonitor.
+      - /opt/telecom/gravacao:/opt/telecom/gravacao:rw
       # Achado de segurança: montava o diretório security/ INTEIRO em RW,
       # incluindo entrypoint.sh/lockdown-watcher.sh — um RCE no backend
       # escreveria o script que o container security executa como root

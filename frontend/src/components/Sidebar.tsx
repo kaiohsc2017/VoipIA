@@ -5,7 +5,7 @@ import {
   Settings, Terminal, ShieldCheck, KeyRound, ClipboardList,
   LogOut, BookOpen, Tag, Phone, Cable, Building2, Lightbulb,
   Wallet, Send, ChevronDown, ChevronRight, TrendingUp, FileText, Upload, Server, Bell,
-  PhoneForwarded, ListOrdered, Tags,
+  PhoneForwarded, ListOrdered, Tags, Disc,
 } from 'lucide-react';
 import { canRead } from '../api/client';
 import { RELEASES } from '../data/releases';
@@ -15,7 +15,7 @@ const CURRENT_VERSION = RELEASES[RELEASES.length - 1].version;
 type Page = 'dashboard' | 'modulo1' | 'insights' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'operadoras' | 'cadastro0800' | 'linhas' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs' | 'release' | 'finUra' | 'finInsights' | 'finEnvios'
   | 'insCalls' | 'insDashboard' | 'insProcessing' | 'insScorecards' | 'insReports' | 'insUploads'
   | 'agDashboard' | 'agAgents' | 'agServers' | 'agKnowledge' | 'agLogs' | 'agAlerts' | 'agSecrets' | 'agLlm'
-  | 'ccAgentes' | 'ccFilas' | 'ccSkills';
+  | 'ccAgentes' | 'ccFilas' | 'ccSkills' | 'ccGravacoes';
 
 interface SidebarProps {
   currentPage: Page;
@@ -96,6 +96,7 @@ const NAV_ITEMS: NavEntry[] = [
       { page: 'ccAgentes', icon: Users,       label: 'Agentes', section: 'MÓDULOS', resource: 'callcenter.agentes' },
       { page: 'ccFilas',   icon: ListOrdered, label: 'Filas',   section: 'MÓDULOS', resource: 'callcenter.filas'   },
       { page: 'ccSkills',  icon: Tags,        label: 'Skills',  section: 'MÓDULOS', resource: 'callcenter.skills'  },
+      { page: 'ccGravacoes', icon: Disc,      label: 'Gravações', section: 'MÓDULOS', resource: 'callcenter.gravacoes' },
     ],
   },
   {

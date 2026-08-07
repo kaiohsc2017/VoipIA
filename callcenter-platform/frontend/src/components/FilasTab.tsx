@@ -6,7 +6,10 @@ import type { BusinessUnit, CcAgent, CcQueue, CcQueueMember, QueueRequest } from
 
 const STRATEGIES = ['ringall', 'leastrecent', 'fewestcalls', 'random', 'rrmemory', 'linear'];
 
-const EMPTY_FORM: QueueRequest = { name: '', displayName: '', businessUnitId: null, strategy: 'ringall', timeoutSeconds: 15 };
+const EMPTY_FORM: QueueRequest = {
+  name: '', displayName: '', businessUnitId: null, strategy: 'ringall', timeoutSeconds: 15,
+  recordingEnabled: true, consentMessagePath: null,
+};
 
 export function FilasTab({ canWrite }: { canWrite: boolean }) {
   const [queues, setQueues] = useState<CcQueue[]>([]);
@@ -38,6 +41,7 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
     setFd(q ? {
       name: q.name, displayName: q.displayName,
       businessUnitId: q.businessUnit?.id ?? null, strategy: q.strategy, timeoutSeconds: q.timeoutSeconds,
+      recordingEnabled: q.recordingEnabled, consentMessagePath: q.consentMessagePath ?? null,
     } : EMPTY_FORM);
     setShowForm(true);
   };
@@ -133,6 +137,19 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
                     <label className="form-label">Timeout (segundos)</label>
                     <input type="number" className="form-input" value={fd.timeoutSeconds}
                       onChange={e => setFd(f => ({ ...f, timeoutSeconds: Number(e.target.value) }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">
+                      <input type="checkbox" checked={fd.recordingEnabled ?? true}
+                        onChange={e => setFd(f => ({ ...f, recordingEnabled: e.target.checked }))} />
+                      {' '}Gravar chamadas desta fila
+                    </label>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Áudio de aviso de gravação (caminho no volume)</label>
+                    <input className="form-input" placeholder="/opt/telecom/gravacao/avisos/consentimento.wav"
+                      value={fd.consentMessagePath ?? ''}
+                      onChange={e => setFd(f => ({ ...f, consentMessagePath: e.target.value || null }))} />
                   </div>
                 </div>
               </div>
