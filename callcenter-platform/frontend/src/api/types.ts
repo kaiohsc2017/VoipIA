@@ -325,3 +325,217 @@ export interface FlowGraphEdge {
   sourceHandle?: string | null;
   targetHandle?: string | null;
 }
+
+// ---- Insights do Call Center (Fase 8) — GET /api/v1/callcenter/insights/** ----
+// Mesmo pipeline de IA do módulo Insights (Verint), aplicado às gravações source=callcenter.
+// Campos exclusivos do XML da Verint (customerNumber, organization, dnis, codec, transferEvents…)
+// não existem aqui — o Call Center não descobre por XML, então esses valores nunca são
+// preenchidos; por isso o tipo abaixo é um subconjunto de InsightsListItem/CallAudioFile,
+// não uma cópia integral.
+export interface CcInsightsListItem {
+  id: number;
+  callRef: string;
+  callStarttime?: string;
+  durationSeconds?: number;
+  agentName?: string;
+  skill?: string;
+  status: 'pending' | 'processing' | 'done' | 'error';
+  categoriaAssunto?: string;
+  sentimentoGeral?: string;
+  criticidade?: 'baixa' | 'media' | 'alta' | 'urgente';
+  notaTotal?: number;
+  isFailed?: boolean;
+  ani?: string;
+}
+
+export interface CcInsightsAudioFile {
+  id: number;
+  callRef: string;
+  durationSeconds?: number;
+  callStarttime?: string;
+  agentName?: string;
+  ani?: string;
+  skill?: string;
+  status: 'pending' | 'processing' | 'done' | 'error';
+}
+
+export interface CcInsightsSegment {
+  id: number;
+  speaker: 'agente' | 'cliente' | 'indefinido';
+  startMs: number;
+  endMs: number;
+  text: string;
+  toneAcoustic?: string;
+  toneSemantic?: string;
+}
+
+export interface CcInsightFinding {
+  id: number;
+  tipo: 'melhoria' | 'falha' | 'treinamento' | 'tendencia';
+  descricao: string;
+  trechoReferencia?: string;
+  prioridade: 'baixa' | 'media' | 'alta';
+}
+
+export interface CcInsight {
+  id: number;
+  resumo?: string;
+  categoriaAssunto?: string;
+  sentimentoGeral?: string;
+  aderenciaScript?: number;
+  criticidade: 'baixa' | 'media' | 'alta' | 'urgente';
+}
+
+export interface CcEvaluationItem {
+  id: number;
+  itemId: number;
+  nota: number;
+  justificativa?: string;
+  trechoReferencia?: string;
+}
+
+export interface CcEvaluation {
+  id: number;
+  audioFileId: number;
+  scorecardId: number;
+  notaTotal: number;
+  isFailed: boolean;
+  failReason?: string;
+}
+
+export interface CcInsightsDetailResponse {
+  audioFile: CcInsightsAudioFile;
+  segments: CcInsightsSegment[];
+  insights: CcInsight | null;
+  findings: CcInsightFinding[];
+  evaluation: CcEvaluation | null;
+  evaluationItems: CcEvaluationItem[];
+}
+
+export interface CcInsightsDashboardSummary {
+  totalChamadas: number;
+  porCriticidade: Record<string, number>;
+  porCategoria: Record<string, number>;
+  achadosPorTipo: Record<string, number>;
+  mediaNotaGeral: number;
+  agentesAbaixoMedia: number;
+  autoFailsNoPeriodo: number;
+}
+
+export interface CcInsightsDrillDownFilters {
+  id?: number;
+  categoria?: string;
+  criticidade?: string;
+  findingType?: string;
+  isFailed?: boolean;
+}
+
+export interface CcInsightProcessingItem {
+  id: number;
+  callRef: string;
+  fileName: string;
+  status: 'pending' | 'processing' | 'done' | 'error';
+  ingestedAt?: string;
+  startedAt?: string;
+  processedAt?: string;
+  errorMsg?: string;
+  queuePosition?: number;
+}
+
+// ---- Insights do Call Center — aba "Fichas de Qualidade" (Fase 8, somente leitura —
+// a configuração da ficha é global, reusa GET /insights/scorecards) ----
+export interface CcScorecardItemDto {
+  id?: number;
+  ordem: number;
+  pergunta: string;
+  peso: number;
+  notaMaxima: number;
+  isCritical: boolean;
+}
+
+export interface CcScorecardDto {
+  id: number;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  version: number;
+  items: CcScorecardItemDto[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ---- Insights do Call Center — aba "Relatórios" (Fase 8, espelha /insights/reports
+// com source='callcenter', V55) ----
+export interface CcAgentReportItemAverage {
+  itemId: number;
+  pergunta: string;
+  media: number;
+}
+
+export interface CcAgentReportFinding {
+  tipo: string;
+  descricao: string;
+  trechoReferencia?: string;
+  prioridade: string;
+}
+
+export interface CcAgentReportNarrative {
+  pontosFortes: string[];
+  pontosMelhoria: string[];
+  recomendacoes: string[];
+  comparacaoTextual?: string;
+}
+
+export interface CcAgentReportAggregate {
+  totalChamadas: number;
+  notaMedia?: number;
+  autoFails: number;
+  notaPorItem: CcAgentReportItemAverage[];
+  achadosPorTipo: Record<string, number>;
+}
+
+export interface CcAgentReportContent {
+  aggregate: CcAgentReportAggregate;
+  achadosGraves: CcAgentReportFinding[];
+  narrative: CcAgentReportNarrative | null;
+}
+
+export interface CcAgentReportItemDelta {
+  itemId: number;
+  pergunta: string;
+  anterior?: number;
+  atual?: number;
+  delta?: number;
+}
+
+export interface CcAgentReportEvolution {
+  previousReportId: number;
+  partial: boolean;
+  deltaNotaMedia?: number;
+  deltaPorItem: CcAgentReportItemDelta[];
+}
+
+export interface CcAgentReportDto {
+  id: number;
+  agentName: string;
+  dateFrom: string;
+  dateTo: string;
+  requestedBy: string;
+  requestedAt: string;
+  status: 'pending' | 'processing' | 'done' | 'error';
+  errorMsg?: string;
+  content: CcAgentReportContent | null;
+  previousReportId?: number;
+  evolution: CcAgentReportEvolution | null;
+  completedAt?: string;
+}
+
+export interface CcAgentEvolutionSnapshot {
+  id: number;
+  agentName: string;
+  reportId: number;
+  itemId?: number;
+  metricKey: string;
+  valor: number;
+  createdAt: string;
+}

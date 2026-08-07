@@ -687,6 +687,57 @@ nesses cadastros), Chamadas (`CallRecordService`, via `uras.business_unit_id`) e
   escopo desta entrega.
 - Usuários pré-existentes (antes da migration V26) foram migrados com `access_indeterminate=true`
   e vinculados a todas as BUs ativas, para não perder acesso retroativamente.
+- **Gap conhecido, não coberto**: Insights do Call Center (`CallCenterInsightsController`, Fase 8
+  do módulo Call Center) também não filtra por BU — mesmo padrão já aceito no módulo Insights
+  (Verint), que nunca teve escopo de BU. Um usuário com `PERM_READ_callcenter.insights.*` vê
+  transcrição/áudio de todas as BUs. Resolver exigiria join de `call_audio_files.ccRecordingId`
+  até `cc_recordings.businessUnit` em `InsightsSpecifications` — fora do escopo desta fatia.
+
+### ✅ Fase 8 do módulo Call Center — Insights (pipeline de IA) (2026-08-07) — implementada, pendente deploy/validação em produção
+Reaproveita integralmente o pipeline de Insights (Verint) — STT/diarização/análise de
+sentimento/achados — aplicado às gravações de fila do Call Center (`cc_recordings`), sem
+duplicar lógica de negócio. Plano completo em `.claude/plans/modulo-callcenter-omnicanal.plan.md`
+(seção Fase 8).
+- **Ingestão push-based, não polling de filesystem**: diferente do desenho original do plano
+  (`discovery.py` varrendo `/opt/telecom/gravacao`), `CallCenterRecordingService.registerInsights`
+  já correlaciona a gravação com `cc_interactions` (agente/fila/ANI) no momento do `ingest` e
+  enfileira direto no backend — mais confiável que a correlação por XML usada no Verint, e sem
+  falha nunca derruba a resposta do CURL do dialplan (só loga).
+  Migration **V54**: `call_audio_files.cc_recording_id` (vínculo de volta à gravação de origem) +
+  nova frente de custo "callcenter" no Financeiro (mesmo padrão da V42).
+- **Mascaramento de dado sensível** (`insights/src/masking.py` — CPF, cartão, telefone) aplicado
+  antes de qualquer chamada ao LLM, retroativo também aos fluxos Verint/upload já existentes (não
+  só Call Center) — nunca chega ao modelo de linguagem em texto puro.
+- **5 telas no menu do Call Center**, RBAC granular `callcenter.insights.*` espelhando o
+  namespace `insights.*`: Chamadas, Dashboard de Tendências, Processamento (`InsightsChamadasTab`/
+  `InsightsDashboardTab`/`InsightsProcessamentoTab`, `CallCenterInsightsController`); Fichas de
+  Qualidade — **somente leitura** (`ScorecardsViewTab`, `callcenter.insights.scorecards` como
+  autoridade alternativa no mesmo `GET /insights/scorecards` global — a configuração da ficha
+  nunca foi duplicada, é intencionalmente global, o Call Center nunca escreve); Relatórios de
+  performance por atendente (`ReportsTab`, `CallCenterAgentReportController` em
+  `/api/v1/callcenter/insights/reports`).
+- **Migration V55** — `agent_performance_reports.source` (verint|callcenter): sem essa coluna, um
+  atendente com o mesmo nome em Verint e Call Center teria os dois universos de chamadas
+  agregados no mesmo relatório. `source` foi propagado por todo o threading de
+  `AgentReportService`/`AgentReportAggregationService` e pelas queries `*ForAgentPeriod` de
+  `CallEvaluationRepository`/`CallEvaluationItemRepository`/`CallInsightFindingRepository` — a API
+  `/api/v1/insights/reports` (Verint) não mudou de contrato, só passou a fixar `source="verint"`
+  internamente. `AgentReportServiceTest` (6 testes) cobre especificamente o isolamento por
+  origem — `getById`/`list`/`evolution` nunca vazam relatório ou identidade (404, não 403) de uma
+  origem para a outra, mesmo para ADMIN.
+- **Gap conhecido, aceito por ora**: `agent_evolution_snapshots` (histórico de evolução navegável)
+  não tem coluna `source` — um ADMIN pode ver pontos de evolução de Verint e Call Center juntos se
+  o `agentName` coincidir entre os dois universos (não-ADMIN não tem esse problema, pois só vê
+  pontos dos próprios relatórios, já filtrados por origem). Mesmo padrão de gap já aceito em BU
+  (Alertas Zabbix, Insights do Call Center acima).
+- Suíte completa do backend validada em container Maven com cache offline (`mvn -o test`,
+  sem acesso à internet nesta VPS) — 391/391 verde, nenhuma regressão. `tsc --noEmit` e
+  `npm run build` do `callcenter-platform/frontend` limpos.
+- Release notes `v1.54` já registrada e corrigida (a primeira redação dizia "ainda sem tela
+  própria" — desatualizada pelo trabalho posterior nesta mesma sessão).
+- **Pendente**: deploy real (`docker compose up -d --build backend callcenter-platform-frontend
+  insights`, migrations V54/V55 aplicam no boot) e validação manual/visual das 5 abas no
+  navegador — sem acesso a browser nesta sessão.
 
 ### ✅ Débito de segurança — 2 de 3 fechados (2026-07-03), 1 parcial
 - **CSP**: `Content-Security-Policy-Report-Only` ativo no Caddyfile (não bloqueia nada, só reporta

@@ -8,9 +8,15 @@ import { GravacoesTab } from './components/GravacoesTab';
 import { DesktopAgenteTab } from './components/DesktopAgenteTab';
 import { SupervisaoTab } from './components/SupervisaoTab';
 import { FluxosTab } from './components/FluxosTab';
+import { InsightsChamadasTab } from './components/InsightsChamadasTab';
+import { InsightsDashboardTab } from './components/InsightsDashboardTab';
+import { InsightsProcessamentoTab } from './components/InsightsProcessamentoTab';
+import { ScorecardsViewTab } from './components/ScorecardsViewTab';
+import { ReportsTab } from './components/ReportsTab';
 import { revokeSession } from './api/client';
 import { authSessionFromToken } from './hooks/useAuthSession';
 import { useShellBridge } from './hooks/useShellBridge';
+import type { CcInsightsDrillDownFilters } from './api/types';
 
 // Resource keys do namespace RBAC granular `callcenter.*` — mantido em
 // sincronia manual com o backend (ResourceCatalog.java) e com os `resource`
@@ -24,6 +30,11 @@ const TAB_RESOURCE = {
   desktop: 'callcenter.desktop',
   supervisao: 'callcenter.supervisao',
   fluxos: 'callcenter.fluxos',
+  insightsChamadas: 'callcenter.insights.calls',
+  insightsDashboard: 'callcenter.insights.dashboard',
+  insightsProcessamento: 'callcenter.insights.processing',
+  insightsScorecards: 'callcenter.insights.scorecards',
+  insightsReports: 'callcenter.insights.reports',
 } as const;
 
 // ─── ErrorBoundary — evita tela em branco em caso de exceção de render ──────
@@ -67,6 +78,14 @@ export default function App() {
 
   const [tab, setTab] = useState<Tab>('agentes');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [pendingDrillDown, setPendingDrillDown] = useState<{ filters: CcInsightsDrillDownFilters; nonce: number } | null>(null);
+
+  const handleDrillDown = (filters: CcInsightsDrillDownFilters) => {
+    setPendingDrillDown(prev => ({ filters, nonce: (prev?.nonce ?? 0) + 1 }));
+    setTab('insightsChamadas');
+  };
+
+  const handleDrillDownConsumed = () => setPendingDrillDown(null);
 
   // Escuta logout forçado (token expirado / 401) — mesmo padrão do Telecom.
   useEffect(() => {
@@ -100,6 +119,11 @@ export default function App() {
     { id: 'desktop' },
     { id: 'supervisao' },
     { id: 'fluxos' },
+    { id: 'insightsChamadas' },
+    { id: 'insightsDashboard' },
+    { id: 'insightsProcessamento' },
+    { id: 'insightsScorecards' },
+    { id: 'insightsReports' },
   ];
   const visibleTabs = TABS.filter(t => session.hasRead(TAB_RESOURCE[t.id]));
   const currentTab = visibleTabs.some(t => t.id === tab) ? tab : visibleTabs[0]?.id;
@@ -137,6 +161,15 @@ export default function App() {
             {currentTab === 'desktop' && <DesktopAgenteTab />}
             {currentTab === 'supervisao' && <SupervisaoTab canWrite={session.hasWrite('callcenter.supervisao')} />}
             {currentTab === 'fluxos' && <FluxosTab canWrite={session.hasWrite('callcenter.fluxos')} />}
+            {currentTab === 'insightsChamadas' && (
+              <InsightsChamadasTab pendingDrillDown={pendingDrillDown} onDrillDownConsumed={handleDrillDownConsumed} />
+            )}
+            {currentTab === 'insightsDashboard' && <InsightsDashboardTab onDrillDown={handleDrillDown} />}
+            {currentTab === 'insightsProcessamento' && <InsightsProcessamentoTab onDrillDown={handleDrillDown} />}
+            {currentTab === 'insightsScorecards' && <ScorecardsViewTab />}
+            {currentTab === 'insightsReports' && (
+              <ReportsTab canWrite={session.hasWrite('callcenter.insights.reports')} isAdmin={session.role === 'ADMIN'} />
+            )}
             {!currentTab && (
               <p style={{ color: 'var(--text-muted)' }}>Você não tem permissão de leitura em nenhuma aba do Call Center.</p>
             )}

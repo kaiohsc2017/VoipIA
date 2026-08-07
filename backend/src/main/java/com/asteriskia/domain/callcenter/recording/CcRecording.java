@@ -21,8 +21,10 @@ import org.hibernate.annotations.CreationTimestamp;
 
 /**
  * CcRecording — registro de uma gravação MixMonitor de uma chamada de fila do Call Center
- * (Fase 3). Sem FK para uma interação formal ainda ({@code cc_interactions} chega na Fase 4) —
- * o vínculo hoje é só por {@link #queue}/{@link #queueExtension}/{@link #channelUniqueId}.
+ * (Fase 3). {@link #interactionId} liga a gravação à interação formal ({@code cc_interactions},
+ * Fase 4) — preenchido em {@link CallCenterRecordingService#ingest} por correlação de
+ * {@link #channelUniqueId}, usado pelo registro no Insights do Call Center (Fase 8) para obter
+ * agente/fila do atendimento.
  */
 @Entity
 @Table(name = "cc_recordings")
@@ -46,6 +48,9 @@ public class CcRecording {
 
     @Column(name = "channel_uniqueid", nullable = false, unique = true, length = 64)
     private String channelUniqueId;
+
+    @Column(name = "interaction_id")
+    private Long interactionId;
 
     @Column(name = "file_path", nullable = false, length = 255)
     private String filePath;

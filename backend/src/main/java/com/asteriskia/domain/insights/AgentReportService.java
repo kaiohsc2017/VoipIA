@@ -36,23 +36,24 @@ public class AgentReportService {
     private final ObjectMapper objectMapper;
 
     @Transactional
-    public AgentReportDto requestReport(String agentName, LocalDate dateFrom, LocalDate dateTo,
+    public AgentReportDto requestReport(String agentName, String source, LocalDate dateFrom, LocalDate dateTo,
                                          String requestedBy, boolean isAdmin) {
         if (!isAdmin) {
-            enforceCooldown(agentName, requestedBy);
+            enforceCooldown(agentName, source, requestedBy);
         }
 
         AgentPerformanceReport previous = reportRepository
-                .findFirstByAgentNameAndStatusOrderByCompletedAtDesc(agentName, "done")
+                .findFirstByAgentNameAndSourceAndStatusOrderByCompletedAtDesc(agentName, source, "done")
                 .orElse(null);
 
-        AgentReportContent currentContent = aggregationService.buildAggregate(agentName, dateFrom, dateTo);
+        AgentReportContent currentContent = aggregationService.buildAggregate(agentName, source, dateFrom, dateTo);
         AgentReportEvolution evolution = aggregationService.buildEvolution(currentContent, previous);
 
         AgentPerformanceReport report;
         try {
             report = reportRepository.save(AgentPerformanceReport.builder()
                     .agentName(agentName)
+                    .source(source)
                     .dateFrom(dateFrom)
                     .dateTo(dateTo)
                     .requestedBy(requestedBy)
@@ -62,39 +63,43 @@ public class AgentReportService {
                     .previousReportId(previous != null ? previous.getId() : null)
                     .build());
         } catch (DataIntegrityViolationException e) {
-            // Cinturão de segurança do índice único parcial (requested_by, agent_name) em voo —
+            // Cinturão de segurança do índice único parcial (requested_by, agent_name, source) em voo —
             // corrida de dois pedidos simultâneos do mesmo par (checagem de aplicação já passou).
             throw new IllegalStateException("Já existe um relatório em processamento para este atendente.", e);
         }
 
         saveEvolutionSnapshots(report, currentContent);
 
-        log.info("Relatório de performance solicitado: id={} agentName={} requestedBy={} período={}..{}",
-                report.getId(), agentName, requestedBy, dateFrom, dateTo);
+        log.info("Relatório de performance solicitado: id={} agentName={} source={} requestedBy={} período={}..{}",
+                report.getId(), agentName, source, requestedBy, dateFrom, dateTo);
         return toDto(report);
     }
 
-    public Page<AgentReportDto> list(String requestedBy, boolean isAdmin, Pageable pageable) {
+    public Page<AgentReportDto> list(String requestedBy, String source, boolean isAdmin, Pageable pageable) {
         Page<AgentPerformanceReport> page = isAdmin
-                ? reportRepository.findAllByOrderByRequestedAtDesc(pageable)
-                : reportRepository.findByRequestedByOrderByRequestedAtDesc(requestedBy, pageable);
+                ? reportRepository.findBySourceOrderByRequestedAtDesc(source, pageable)
+                : reportRepository.findByRequestedByAndSourceOrderByRequestedAtDesc(requestedBy, source, pageable);
         return page.map(this::toDto);
     }
 
-    /** 404 (não 403) para relatório alheio — não vaza existência a quem não é dono nem ADMIN. */
-    public Optional<AgentReportDto> getById(Long id, String requestedBy, boolean isAdmin) {
+    /** 404 (não 403) para relatório alheio — não vaza existência a quem não é dono nem ADMIN.
+     * Filtra por source para um relatório de Verint nunca aparecer pela API do Call Center
+     * (ou vice-versa), mesmo que o id exista. */
+    public Optional<AgentReportDto> getById(Long id, String source, String requestedBy, boolean isAdmin) {
         return reportRepository.findById(id)
+                .filter(r -> source.equals(r.getSource()))
                 .filter(r -> isAdmin || r.getRequestedBy().equals(requestedBy))
                 .map(this::toDto);
     }
 
-    Optional<AgentPerformanceReport> findOwnedEntity(Long id, String requestedBy, boolean isAdmin) {
+    Optional<AgentPerformanceReport> findOwnedEntity(Long id, String source, String requestedBy, boolean isAdmin) {
         return reportRepository.findById(id)
+                .filter(r -> source.equals(r.getSource()))
                 .filter(r -> isAdmin || r.getRequestedBy().equals(requestedBy));
     }
 
-    public LocalDateTime nextAllowed(String agentName, String requestedBy) {
-        return reportRepository.findFirstByRequestedByAndAgentNameOrderByRequestedAtDesc(requestedBy, agentName)
+    public LocalDateTime nextAllowed(String agentName, String source, String requestedBy) {
+        return reportRepository.findFirstByRequestedByAndAgentNameAndSourceOrderByRequestedAtDesc(requestedBy, agentName, source)
                 .map(r -> BusinessDayCalculator.addBusinessDays(r.getRequestedAt().toLocalDateTime(), COOLDOWN_BUSINESS_DAYS))
                 .orElse(null);
     }
@@ -102,11 +107,14 @@ public class AgentReportService {
     /** Não-ADMIN só vê os pontos de evolução dos relatórios que ele mesmo pediu para este
      * agente — mesma regra de posse aplicada em getById()/list(), mesmo que o agente já
      * tenha sido reportado por outro supervisor também. */
-    public Optional<List<AgentEvolutionSnapshot>> evolution(String agentName, String requestedBy, boolean isAdmin) {
+    public Optional<List<AgentEvolutionSnapshot>> evolution(String agentName, String source, String requestedBy, boolean isAdmin) {
         if (isAdmin) {
+            // GAP CONHECIDO: agent_evolution_snapshots não tem coluna source (V39) — um ADMIN
+            // pode ver pontos de evolução de verint e callcenter juntos se o agentName coincidir
+            // entre os dois universos. Mesmo padrão de gap já aceito em outras telas cross-source.
             return Optional.of(snapshotRepository.findByAgentNameOrderByCreatedAtAsc(agentName));
         }
-        List<Long> ownReportIds = reportRepository.findIdsByAgentNameAndRequestedBy(agentName, requestedBy);
+        List<Long> ownReportIds = reportRepository.findIdsByAgentNameAndRequestedBy(agentName, source, requestedBy);
         if (ownReportIds.isEmpty()) {
             return Optional.empty();
         }
@@ -158,8 +166,8 @@ public class AgentReportService {
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    private void enforceCooldown(String agentName, String requestedBy) {
-        LocalDateTime nextAllowedAt = nextAllowed(agentName, requestedBy);
+    private void enforceCooldown(String agentName, String source, String requestedBy) {
+        LocalDateTime nextAllowedAt = nextAllowed(agentName, source, requestedBy);
         if (nextAllowedAt != null && LocalDateTime.now().isBefore(nextAllowedAt)) {
             throw new ReportCooldownException(nextAllowedAt);
         }

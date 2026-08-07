@@ -40,7 +40,7 @@ public class AgentReportInternalController {
     public ResponseEntity<List<PendingReportView>> pending() {
         List<PendingReportView> views = reportService.findPending().stream()
                 .map(r -> {
-                    AgentReportDto dto = reportService.getById(r.getId(), r.getRequestedBy(), true).orElseThrow();
+                    AgentReportDto dto = reportService.getById(r.getId(), r.getSource(), r.getRequestedBy(), true).orElseThrow();
                     return new PendingReportView(dto.id(), dto.agentName(), dto.dateFrom(), dto.dateTo(), dto.content(), dto.evolution());
                 })
                 .toList();

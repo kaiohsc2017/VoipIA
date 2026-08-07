@@ -39,6 +39,11 @@ public class AgentPerformanceReport {
     @Column(name = "requested_by", nullable = false, length = 100)
     private String requestedBy;
 
+    /** Origem das chamadas agregadas (verint|callcenter, V55) — nunca mistura os dois
+     * universos num mesmo relatório, mesmo que o agentName coincida entre eles. */
+    @Column(name = "source", nullable = false, length = 20)
+    private String source;
+
     @Column(name = "requested_at", insertable = false, updatable = false)
     private OffsetDateTime requestedAt;
 

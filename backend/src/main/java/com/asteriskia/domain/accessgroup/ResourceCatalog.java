@@ -69,12 +69,20 @@ public final class ResourceCatalog {
     public static final List<String> FINANCEIRO = List.of(
             "financeiro.ura",
             "financeiro.insights",
-            "financeiro.envios"
+            "financeiro.envios",
+            "financeiro.callcenter"
     );
 
     // Módulo Call Center (voz) — Fase 2 do plano modulo-callcenter-omnicanal.plan.md.
     // callcenter.ramais protege só a rota sensível de senha do ramal
     // (GET /callcenter/agentes/{id}/ramal-secret); o CRUD de agente em si usa callcenter.agentes.
+    // callcenter.insights.* (Fase 8) espelha as 5 abas de insights.* acima — Chamadas,
+    // Dashboard, Processamento, Fichas de Qualidade e Relatórios — aplicadas às gravações
+    // source=callcenter em vez de source=verint. callcenter.insights.scorecards é
+    // somente-leitura (a configuração da ficha continua global, reusa GET /insights/scorecards
+    // com esta permissão como autoridade alternativa — o Call Center nunca escreve a
+    // configuração). callcenter.insights.reports usa fonte própria (agent_performance_reports.
+    // source, V55) para nunca misturar agregados de verint e callcenter sob o mesmo agentName.
     public static final List<String> CALLCENTER = List.of(
             "callcenter.agentes",
             "callcenter.ramais",
@@ -83,7 +91,12 @@ public final class ResourceCatalog {
             "callcenter.gravacoes",
             "callcenter.desktop",
             "callcenter.supervisao",
-            "callcenter.fluxos"
+            "callcenter.fluxos",
+            "callcenter.insights.calls",
+            "callcenter.insights.dashboard",
+            "callcenter.insights.processing",
+            "callcenter.insights.scorecards",
+            "callcenter.insights.reports"
     );
 
     public static List<String> all() {

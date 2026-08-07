@@ -34,27 +34,27 @@ public class AgentReportAggregationService {
     private final CallInsightFindingRepository findingRepository;
     private final ObjectMapper objectMapper;
 
-    public AgentReportContent buildAggregate(String agentName, LocalDate dateFrom, LocalDate dateTo) {
+    public AgentReportContent buildAggregate(String agentName, String source, LocalDate dateFrom, LocalDate dateTo) {
         LocalDateTime from = dateFrom.atStartOfDay();
         LocalDateTime to = dateTo.atTime(LocalTime.MAX);
 
-        long totalChamadas = audioFileRepository.countByAgentNameAndCallStarttimeBetween(agentName, from, to);
-        BigDecimal notaMedia = evaluationRepository.averageNotaForAgentPeriod(agentName, from, to);
-        long autoFails = evaluationRepository.countFailedForAgentPeriod(agentName, from, to);
+        long totalChamadas = audioFileRepository.countByAgentNameAndSourceAndCallStarttimeBetween(agentName, source, from, to);
+        BigDecimal notaMedia = evaluationRepository.averageNotaForAgentPeriod(agentName, source, from, to);
+        long autoFails = evaluationRepository.countFailedForAgentPeriod(agentName, source, from, to);
 
         List<AgentReportContent.ItemAverage> notaPorItem = evaluationItemRepository
-                .averageNotaByItemForAgentPeriod(agentName, from, to).stream()
+                .averageNotaByItemForAgentPeriod(agentName, source, from, to).stream()
                 .map(row -> new AgentReportContent.ItemAverage(
                         (Long) row[0], (String) row[1], round((BigDecimal) row[2])))
                 .toList();
 
         Map<String, Long> achadosPorTipo = new HashMap<>();
-        for (Object[] row : findingRepository.countByTipoForAgentPeriod(agentName, from, to)) {
+        for (Object[] row : findingRepository.countByTipoForAgentPeriod(agentName, source, from, to)) {
             achadosPorTipo.put((String) row[0], (Long) row[1]);
         }
 
         List<AgentReportContent.Finding> achadosGraves = findingRepository
-                .findTopForAgentPeriod(agentName, from, to, PageRequest.of(0, TOP_FINDINGS_LIMIT)).stream()
+                .findTopForAgentPeriod(agentName, source, from, to, PageRequest.of(0, TOP_FINDINGS_LIMIT)).stream()
                 .map(f -> new AgentReportContent.Finding(f.getTipo(), f.getDescricao(), f.getTrechoReferencia(), f.getPrioridade()))
                 .toList();
 

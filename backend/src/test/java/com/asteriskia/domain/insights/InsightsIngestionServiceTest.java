@@ -129,4 +129,49 @@ class InsightsIngestionServiceTest {
         org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
                 () -> service.updateMetadata("NAO-EXISTE", request));
     }
+
+    @Test
+    @DisplayName("registerCallCenterRecording: nova gravação é registrada como pending/source=callcenter")
+    void registerCallCenterRecording_newCallRef_savesPendingCallCenter() {
+        when(audioFileRepository.findByCallRef("cc-1700000000.1")).thenReturn(Optional.empty());
+        when(audioFileRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.registerCallCenterRecording(
+                "cc-1700000000.1", "/opt/telecom/gravacao/2026/08/06/1700000000.1.wav",
+                "Fulano de Tal", "Suporte N1", "11999998888", 42L);
+
+        ArgumentCaptor<CallAudioFile> captor = ArgumentCaptor.forClass(CallAudioFile.class);
+        verify(audioFileRepository).save(captor.capture());
+        CallAudioFile saved = captor.getValue();
+        assertThat(saved.getCallRef()).isEqualTo("cc-1700000000.1");
+        assertThat(saved.getWavPath()).isEqualTo("/opt/telecom/gravacao/2026/08/06/1700000000.1.wav");
+        assertThat(saved.getAgentName()).isEqualTo("Fulano de Tal");
+        assertThat(saved.getSkill()).isEqualTo("Suporte N1");
+        assertThat(saved.getAni()).isEqualTo("11999998888");
+        assertThat(saved.getDirection()).isEqualTo("inbound");
+        assertThat(saved.getStatus()).isEqualTo("pending");
+        assertThat(saved.getSource()).isEqualTo("callcenter");
+        assertThat(saved.getCcRecordingId()).isEqualTo(42L);
+    }
+
+    @Test
+    @DisplayName("registerCallCenterRecording: callRef já existente não duplica (idempotente)")
+    void registerCallCenterRecording_existingCallRef_doesNotSaveAgain() {
+        when(audioFileRepository.findByCallRef("cc-1700000000.1"))
+                .thenReturn(Optional.of(CallAudioFile.builder().id(1L).callRef("cc-1700000000.1").build()));
+
+        service.registerCallCenterRecording(
+                "cc-1700000000.1", "/opt/telecom/gravacao/x.wav", "Agente", "Fila", "119", 1L);
+
+        verify(audioFileRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("findPendingCallCenterRecordings: delega para source=callcenter,status=pending")
+    void findPendingCallCenterRecordings_delegatesToRepository() {
+        var expected = List.of(CallAudioFile.builder().id(1L).build());
+        when(audioFileRepository.findBySourceAndStatus("callcenter", "pending")).thenReturn(expected);
+
+        assertThat(service.findPendingCallCenterRecordings()).isEqualTo(expected);
+    }
 }

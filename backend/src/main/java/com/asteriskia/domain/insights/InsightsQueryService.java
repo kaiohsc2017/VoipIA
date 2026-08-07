@@ -37,10 +37,16 @@ public class InsightsQueryService {
     private final CallTransferEventRepository transferEventRepository;
 
     public Page<InsightsListItem> search(InsightsFilter filter, Pageable pageable, boolean isAdmin) {
+        return search(filter, pageable, isAdmin, "verint");
+    }
+
+    /** source parametrizado (Fase 8 do Call Center) — mesma busca, aplicada às gravações do
+     * Call Center (source='callcenter') pela InsightsController correspondente daquele módulo. */
+    public Page<InsightsListItem> search(InsightsFilter filter, Pageable pageable, boolean isAdmin, String source) {
         List<Long> restrictedToIds = resolveRestrictedIds(filter, isAdmin);
 
         Page<CallAudioFile> page = audioFileRepository.findAll(
-                InsightsSpecifications.withFilters(filter, restrictedToIds), pageable);
+                InsightsSpecifications.withFilters(filter, restrictedToIds, source), pageable);
 
         List<Long> pageIds = page.getContent().stream().map(CallAudioFile::getId).toList();
         Map<Long, CallInsight> insightsByAudioFileId = insightRepository.findByAudioFileIdIn(pageIds).stream()
@@ -90,28 +96,32 @@ public class InsightsQueryService {
     }
 
     public InsightsDashboardSummary dashboard() {
-        // Restrito a source='verint' (Fase 3 do Quality Management, V40) — este dashboard
-        // sempre foi sobre o call center Verint; uploads do portal do supervisor têm
-        // agregados próprios, à parte, na tela "Meus Envios".
-        long total = audioFileRepository.countBySource("verint");
+        return dashboard("verint");
+    }
+
+    /** source parametrizado (Fase 8 do Call Center) — todos os agregados (criticidade,
+     * categoria, achados, nota média, auto-fails) são filtrados por source via JOIN com
+     * call_audio_files, mesmo padrão já usado pelo dashboard de Insights (verint). */
+    public InsightsDashboardSummary dashboard(String source) {
+        long total = audioFileRepository.countBySource(source);
 
         Map<String, Long> porCriticidade = new HashMap<>();
-        for (Object[] row : insightRepository.countByCriticidade()) {
+        for (Object[] row : insightRepository.countByCriticidade(source)) {
             porCriticidade.put((String) row[0], (Long) row[1]);
         }
 
         Map<String, Long> porCategoria = new HashMap<>();
-        for (Object[] row : insightRepository.countByCategoria()) {
+        for (Object[] row : insightRepository.countByCategoria(source)) {
             porCategoria.put((String) row[0], (Long) row[1]);
         }
 
         Map<String, Long> achadosPorTipo = new HashMap<>();
-        for (Object[] row : findingRepository.countByTipo()) {
+        for (Object[] row : findingRepository.countByTipo(source)) {
             achadosPorTipo.put((String) row[0], (Long) row[1]);
         }
 
         Map<String, Double> mediaNotaPorAgente = new HashMap<>();
-        for (Object[] row : evaluationRepository.averageNotaByAgent()) {
+        for (Object[] row : evaluationRepository.averageNotaByAgent(source)) {
             java.math.BigDecimal media = (java.math.BigDecimal) row[1];
             mediaNotaPorAgente.put((String) row[0], media != null ? media.doubleValue() : null);
         }
@@ -122,7 +132,7 @@ public class InsightsQueryService {
                 .filter(java.util.Objects::nonNull)
                 .filter(m -> m < mediaGeral)
                 .count();
-        long autoFailsNoPeriodo = evaluationRepository.countFailed();
+        long autoFailsNoPeriodo = evaluationRepository.countFailed(source);
 
         return new InsightsDashboardSummary(total, porCriticidade, porCategoria, achadosPorTipo,
                 mediaGeral, agentesAbaixoMedia, autoFailsNoPeriodo);
@@ -132,19 +142,22 @@ public class InsightsQueryService {
      * fila calculada só para status='pending' (FIFO por ordem de descoberta); demais status
      * ficam com queuePosition=null. */
     public Page<InsightProcessingItem> findProcessing(InsightsProcessingFilter filter, Pageable pageable) {
-        Page<CallAudioFile> page = audioFileRepository.findAll(withProcessingFilters(filter), pageable);
+        return findProcessing(filter, pageable, "verint");
+    }
+
+    /** source parametrizado (Fase 8 do Call Center). */
+    public Page<InsightProcessingItem> findProcessing(
+            InsightsProcessingFilter filter, Pageable pageable, String source) {
+        Page<CallAudioFile> page = audioFileRepository.findAll(withProcessingFilters(filter, source), pageable);
         return page.map(a -> InsightProcessingItem.from(a,
                 "pending".equals(a.getStatus()) && a.getIngestedAt() != null
                         ? (int) audioFileRepository.countPendingBefore(a.getIngestedAt()) + 1
                         : null));
     }
 
-    private Specification<CallAudioFile> withProcessingFilters(InsightsProcessingFilter filter) {
+    private Specification<CallAudioFile> withProcessingFilters(InsightsProcessingFilter filter, String source) {
         return (root, query, cb) -> {
-            // Restrito a source='verint' (Fase 3 do Quality Management, V40) — a aba
-            // Processamento é sobre a fila do watcher em /opt/audio; o processamento dos
-            // uploads do portal do supervisor é visto na própria tela "Meus Envios".
-            var predicates = cb.equal(root.get("source"), "verint");
+            var predicates = cb.equal(root.get("source"), source);
             if (filter.status() != null && !filter.status().isBlank()) {
                 predicates = cb.and(predicates, cb.equal(root.get("status"), filter.status()));
             }

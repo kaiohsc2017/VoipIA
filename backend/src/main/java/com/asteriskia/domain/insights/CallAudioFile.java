@@ -176,4 +176,8 @@ public class CallAudioFile {
     // ─── V44 — login do agente no PBX (adendo pós-deploy) ───
     @Column(name = "agent_login_id", length = 20)
     private String agentLoginId;
+
+    // ─── V54 — Fase 8 do Call Center: vínculo com a gravação de origem (source=callcenter) ───
+    @Column(name = "cc_recording_id")
+    private Long ccRecordingId;
 }

@@ -32,12 +32,12 @@ public class CostAlertService {
 
     // Manter em sincronia manual com os matchers de path exato de
     // /api/v1/financeiro/cost-alerts/{scope} em SecurityConfig.java (um por scope, não
-    // wildcard) e com o CHECK constraint de V42__financeiro_cost_alerts.sql — mesmo padrão
-    // de sincronia manual já aceito no projeto (ResourceCatalog.java/Sidebar.tsx/
-    // AccessGroups.tsx). Adicionar um scope novo aqui sem replicar nos outros 2 lugares
-    // deixaria a rota nova cair no anyRequest().authenticated() genérico, sem exigir a
-    // permissão financeiro.<scope>.
-    private static final List<String> SCOPES = List.of("ura", "insights", "envios");
+    // wildcard) e com o CHECK constraint de V42__financeiro_cost_alerts.sql (scope
+    // 'callcenter' adicionado na V54, Fase 8) — mesmo padrão de sincronia manual já aceito
+    // no projeto (ResourceCatalog.java/Sidebar.tsx/AccessGroups.tsx). Adicionar um scope
+    // novo aqui sem replicar nos outros 2 lugares deixaria a rota nova cair no
+    // anyRequest().authenticated() genérico, sem exigir a permissão financeiro.<scope>.
+    private static final List<String> SCOPES = List.of("ura", "insights", "envios", "callcenter");
 
     private final FinanceiroCostAlertConfigRepository repository;
     private final CallCostService callCostService;
@@ -101,6 +101,10 @@ public class CostAlertService {
                     insightsCostService.summarizeByMonth(
                             new InsightsCostFilter(monthStart, now, null, "upload", null)),
                     InsightMonthlyCostSummary::totalCostUsd);
+            case "callcenter" -> sum(
+                    insightsCostService.summarizeByMonth(
+                            new InsightsCostFilter(monthStart, now, null, "callcenter", null)),
+                    InsightMonthlyCostSummary::totalCostUsd);
             default -> throw invalidScope(scope);
         };
     }
@@ -154,6 +158,7 @@ public class CostAlertService {
             case "ura" -> "URA";
             case "insights" -> "Insights";
             case "envios" -> "Análise Sob Demanda";
+            case "callcenter" -> "Call Center";
             default -> scope;
         };
     }

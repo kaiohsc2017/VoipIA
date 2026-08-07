@@ -16,12 +16,18 @@ public final class InsightsSpecifications {
 
     private InsightsSpecifications() {}
 
+    /** Sobrecarga original — mantém o comportamento de sempre (source='verint') para os
+     * chamadores existentes (tela Insights). */
     public static Specification<CallAudioFile> withFilters(InsightsFilter filter, List<Long> restrictedToIds) {
+        return withFilters(filter, restrictedToIds, "verint");
+    }
+
+    /** source parametrizado (Fase 8 do Call Center) — mesma lógica de filtro, aplicada a
+     * source='callcenter' pela tela de Insights do Call Center em vez de source='verint'. */
+    public static Specification<CallAudioFile> withFilters(
+            InsightsFilter filter, List<Long> restrictedToIds, String source) {
         return (root, query, cb) -> {
-            // Restrito a source='verint' (Fase 3 do Quality Management, V40) — a aba
-            // Chamadas sempre foi sobre o call center Verint; os uploads do portal do
-            // supervisor têm sua própria tela ("Meus Envios"), sem se misturar aqui.
-            var predicates = cb.equal(root.get("source"), "verint");
+            var predicates = cb.equal(root.get("source"), source);
 
             if (filter.id() != null) {
                 predicates = cb.and(predicates, cb.equal(root.get("id"), filter.id()));

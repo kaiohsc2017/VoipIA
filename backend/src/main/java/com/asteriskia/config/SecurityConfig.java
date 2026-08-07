@@ -145,8 +145,12 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.insights")
                         // Fichas de avaliação (scorecards) — Fase 1 da evolução para Quality
                         // Management (V38); mesmo padrão granular das demais abas de Insights.
+                        // callcenter.insights.scorecards (Fase 8) é autoridade alternativa de
+                        // leitura no MESMO endpoint — a configuração da ficha é global, não há
+                        // endpoint próprio de Call Center; escrita continua exclusiva de
+                        // insights.scorecards (matcher de baixo).
                         .requestMatchers(HttpMethod.GET, "/api/v1/insights/scorecards/**")
-                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.scorecards")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.scorecards", "PERM_READ_callcenter.insights.scorecards")
                         // Relatórios de performance por atendente — Fase 2 do Quality
                         // Management (V39); posse (supervisor só vê o que ele pediu) é aplicada
                         // no service, não aqui — este matcher só garante a permissão de aba.
@@ -175,6 +179,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.insights")
                         .requestMatchers(HttpMethod.GET, "/api/v1/financeiro/cost-alerts/envios")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.envios")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/financeiro/cost-alerts/callcenter")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.callcenter")
                         // Módulo Call Center (voz) — Fase 2. ramal-secret precisa vir ANTES do
                         // matcher genérico de /agentes/**, e é protegido por um resource_key
                         // próprio (callcenter.ramais) por expor a senha SIP do ramal.
@@ -203,6 +209,20 @@ public class SecurityConfig {
                         // mesmo matcher (sem regra de escrita própria).
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/fluxos/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.fluxos")
+                        // Insights do Call Center — Fase 8. Mesmo pipeline de IA do módulo
+                        // Insights (Verint), aplicado às gravações source=callcenter; namespace
+                        // granular por aba, espelhando insights.* acima.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/insights/calls/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.insights.calls")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/insights/dashboard/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.insights.dashboard")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/insights/processing/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.insights.processing")
+                        // Relatórios de performance do Call Center — fonte própria
+                        // (agent_performance_reports.source='callcenter', V55); posse
+                        // (supervisor só vê o que pediu) aplicada no service, não aqui.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/insights/reports/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.insights.reports")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da
@@ -249,6 +269,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.insights")
                         .requestMatchers("/api/v1/financeiro/cost-alerts/envios")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.envios")
+                        .requestMatchers("/api/v1/financeiro/cost-alerts/callcenter")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.callcenter")
                         .requestMatchers("/api/v1/callcenter/agentes/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.agentes")
                         .requestMatchers("/api/v1/callcenter/filas/**")
@@ -265,6 +287,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.supervisao")
                         .requestMatchers("/api/v1/callcenter/fluxos/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.fluxos")
+                        .requestMatchers("/api/v1/callcenter/insights/reports/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.insights.reports")
 
                         // Todos os demais endpoints exigem apenas autenticação (JWT ou InternalKey)
                         .anyRequest().authenticated()

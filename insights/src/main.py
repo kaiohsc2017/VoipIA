@@ -13,6 +13,7 @@ estado e toda escrita passam pelo backend via backend_client.py.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 from datetime import datetime
 
@@ -20,6 +21,7 @@ from src.audio_decode import PCM_SAMPLE_RATE, decode_to_pcm
 from src.backend_client import (
     get_active_scorecard,
     get_known_call_refs,
+    get_pending_callcenter_recordings,
     get_pending_reports,
     get_pending_uploads,
     mark_error,
@@ -40,6 +42,7 @@ from src.config import (
 from src.discovery import AudioPair, discover_pairs
 from src.evaluation_llm import EvaluationResult, ScorecardItemInput, evaluate_call
 from src.insights_llm import generate_insights
+from src.masking import mask_segments
 from src.prosody import compute_acoustic_tones
 from src.report_narrative_llm import generate_narrative
 from src.stt_diarize import transcribe_and_diarize
@@ -59,7 +62,7 @@ def _build_payload(metadata: CallMetadata, pair: AudioPair, diarization, tones: 
             "speaker": seg.speaker,
             "startMs": seg.start_ms,
             "endMs": seg.end_ms,
-            "text": seg.text,
+            "text": seg.text,  # já mascarado em mask_segments (ver acima)
             "toneSemantic": seg.tone_semantic,
             "toneAcoustic": tone,
         }
@@ -225,6 +228,10 @@ async def process_pair(pair: AudioPair) -> None:
         diarization = await transcribe_and_diarize(
             pcm, get_gemini_model_stt(), metadata.agent_name, metadata.direction
         )
+        # Mascara ANTES do LLM ver o texto — sem isso, um achado que cita um trecho literal
+        # da transcrição (trecho_referencia) ou o resumo podiam ecoar CPF/cartão/telefone
+        # mesmo com o segments_payload final mascarado.
+        diarization = dataclasses.replace(diarization, segments=mask_segments(diarization.segments))
         tones = await asyncio.to_thread(compute_acoustic_tones, pcm, diarization.segments)
         insights = await generate_insights(
             diarization.segments, metadata.skill, metadata.duration_seconds, get_gemini_model_insights()
@@ -334,6 +341,7 @@ async def process_upload_item(item: dict) -> None:
 
     try:
         diarization = await transcribe_and_diarize(pcm, get_gemini_model_stt(), agent_name, direction)
+        diarization = dataclasses.replace(diarization, segments=mask_segments(diarization.segments))
         tones = await asyncio.to_thread(compute_acoustic_tones, pcm, diarization.segments)
         insights = await generate_insights(diarization.segments, None, duration_seconds, get_gemini_model_insights())
     except Exception as e:
@@ -346,7 +354,7 @@ async def process_upload_item(item: dict) -> None:
     segments_payload = [
         {
             "speaker": seg.speaker, "startMs": seg.start_ms, "endMs": seg.end_ms,
-            "text": seg.text, "toneSemantic": seg.tone_semantic, "toneAcoustic": tone,
+            "text": seg.text, "toneSemantic": seg.tone_semantic, "toneAcoustic": tone,  # já mascarado em mask_segments
         }
         for seg, tone in zip(diarization.segments, tones)
     ]
@@ -390,6 +398,115 @@ async def process_upload_item(item: dict) -> None:
 
     logger.info("call_ref=%s (upload) processado com sucesso (%d segmentos, criticidade=%s)",
                 call_ref, len(diarization.segments), insights.criticidade)
+
+
+async def process_callcenter_item(item: dict) -> None:
+    """Processa uma gravação do Call Center (Fase 8) — mesmo pipeline de STT/análise/
+    avaliação do fluxo de upload (sem XML), mas com skill (fila) e ani já resolvidos pelo
+    Java a partir de cc_interactions no momento do registro (ver
+    CallCenterRecordingService.registerInsights)."""
+    call_ref = item["callRef"]
+    wav_path = item["wavPath"]
+    agent_name = item.get("agentName")
+    direction = item.get("direction") or "inbound"
+    skill = item.get("skill")
+    ani = item.get("ani")
+
+    logger.info("Processando gravação do Call Center call_ref=%s", call_ref)
+    try:
+        await mark_processing(call_ref, wav_path, None)
+    except Exception as e:
+        logger.warning("call_ref=%s: falha ao marcar início de processamento — %s", call_ref, e)
+
+    try:
+        pcm = await decode_to_pcm(wav_path)
+    except Exception as e:
+        logger.error("call_ref=%s: falha ao decodificar áudio do Call Center — %s", call_ref, e)
+        await _safe_mark_error(call_ref, f"Falha ao decodificar áudio: {e}")
+        return
+
+    duration_seconds = len(pcm) // (PCM_SAMPLE_RATE * 2)
+
+    try:
+        diarization = await transcribe_and_diarize(pcm, get_gemini_model_stt(), agent_name, direction)
+        diarization = dataclasses.replace(diarization, segments=mask_segments(diarization.segments))
+        tones = await asyncio.to_thread(compute_acoustic_tones, pcm, diarization.segments)
+        insights = await generate_insights(diarization.segments, skill, duration_seconds, get_gemini_model_insights())
+    except Exception as e:
+        logger.error("call_ref=%s: falha na análise de IA (Call Center) — %s", call_ref, e)
+        await _safe_mark_error(call_ref, f"Falha na análise de IA: {e}")
+        return
+
+    scorecard, evaluation = await _evaluate_against_active_scorecard(call_ref, diarization.segments)
+
+    segments_payload = [
+        {
+            "speaker": seg.speaker, "startMs": seg.start_ms, "endMs": seg.end_ms,
+            "text": seg.text, "toneSemantic": seg.tone_semantic, "toneAcoustic": tone,  # já mascarado em mask_segments
+        }
+        for seg, tone in zip(diarization.segments, tones)
+    ]
+    findings_payload = [
+        {"tipo": f.tipo, "descricao": f.descricao, "trechoReferencia": f.trecho_referencia, "prioridade": f.prioridade}
+        for f in insights.findings
+    ]
+    payload = {
+        "callRef": call_ref,
+        "wavPath": wav_path,
+        "xmlPath": None,
+        "durationSeconds": duration_seconds,
+        "callStarttime": None,
+        "agentName": agent_name,
+        "ani": ani,
+        "direction": direction,
+        "skill": skill,
+        "sttTokensIn": diarization.usage.input_tokens if diarization.usage else 0,
+        "sttTokensOut": diarization.usage.output_tokens if diarization.usage else 0,
+        "sttModel": diarization.model_id,
+        "llmTokensIn": insights.usage.input_tokens if insights.usage else 0,
+        "llmTokensOut": insights.usage.output_tokens if insights.usage else 0,
+        "llmModel": insights.model_id,
+        "segments": segments_payload,
+        "insights": {
+            "resumo": insights.resumo,
+            "categoriaAssunto": insights.categoria_assunto,
+            "sentimentoGeral": insights.sentimento_geral,
+            "aderenciaScript": insights.aderencia_script,
+            "criticidade": insights.criticidade,
+            "insightsJson": insights.insights_json,
+        },
+        "findings": findings_payload,
+        "evaluation": _build_evaluation_payload(scorecard, evaluation),
+    }
+
+    try:
+        await submit_insights(payload)
+    except Exception as e:
+        logger.error("call_ref=%s: falha ao enviar resultado do Call Center ao backend — %s", call_ref, e)
+        await _safe_mark_error(call_ref, f"Falha ao enviar resultado ao backend: {e}")
+        return
+
+    logger.info("call_ref=%s (Call Center) processado com sucesso (%d segmentos, criticidade=%s)",
+                call_ref, len(diarization.segments), insights.criticidade)
+
+
+async def _poll_callcenter_once(semaphore: asyncio.Semaphore) -> None:
+    try:
+        pending = await get_pending_callcenter_recordings()
+    except Exception as e:
+        logger.warning("Não foi possível consultar gravações do Call Center pendentes — pulando ciclo: %s", e)
+        return
+
+    if not pending:
+        return
+
+    logger.info("%d gravação(ões) do Call Center pendente(s)", len(pending))
+
+    async def _bounded(item: dict) -> None:
+        async with semaphore:
+            await process_callcenter_item(item)
+
+    await asyncio.gather(*(_bounded(item) for item in pending), return_exceptions=True)
 
 
 async def _poll_uploads_once(semaphore: asyncio.Semaphore) -> None:
@@ -464,6 +581,10 @@ async def poll_loop() -> None:
             await _poll_uploads_once(semaphore)
         except Exception as e:
             logger.exception("Erro inesperado no ciclo de uploads do portal do supervisor: %s", e)
+        try:
+            await _poll_callcenter_once(semaphore)
+        except Exception as e:
+            logger.exception("Erro inesperado no ciclo de gravações do Call Center: %s", e)
         try:
             await _poll_reports_once()
         except Exception as e:

@@ -11,24 +11,27 @@ import java.util.Optional;
 @Repository
 public interface AgentPerformanceReportRepository extends JpaRepository<AgentPerformanceReport, Long> {
 
-    Page<AgentPerformanceReport> findByRequestedByOrderByRequestedAtDesc(String requestedBy, Pageable pageable);
+    Page<AgentPerformanceReport> findByRequestedByAndSourceOrderByRequestedAtDesc(String requestedBy, String source, Pageable pageable);
 
-    Page<AgentPerformanceReport> findAllByOrderByRequestedAtDesc(Pageable pageable);
+    Page<AgentPerformanceReport> findBySourceOrderByRequestedAtDesc(String source, Pageable pageable);
 
-    /** Último pedido (de qualquer status) do par supervisor/atendente — base da checagem de cooldown. */
-    Optional<AgentPerformanceReport> findFirstByRequestedByAndAgentNameOrderByRequestedAtDesc(String requestedBy, String agentName);
+    /** Último pedido (de qualquer status) do par supervisor/atendente numa origem — base da checagem de cooldown. */
+    Optional<AgentPerformanceReport> findFirstByRequestedByAndAgentNameAndSourceOrderByRequestedAtDesc(
+            String requestedBy, String agentName, String source);
 
-    /** Último relatório concluído do agente (de qualquer solicitante) — vira previous_report_id do novo pedido. */
-    Optional<AgentPerformanceReport> findFirstByAgentNameAndStatusOrderByCompletedAtDesc(String agentName, String status);
+    /** Último relatório concluído do agente numa origem (de qualquer solicitante) — vira previous_report_id do novo pedido. */
+    Optional<AgentPerformanceReport> findFirstByAgentNameAndSourceAndStatusOrderByCompletedAtDesc(
+            String agentName, String source, String status);
 
     List<AgentPerformanceReport> findByStatus(String status);
 
-    boolean existsByAgentNameAndRequestedBy(String agentName, String requestedBy);
+    boolean existsByAgentNameAndRequestedByAndSource(String agentName, String requestedBy, String source);
 
-    /** IDs dos relatórios que este supervisor pediu para o agente — usado para restringir
-     * o histórico de evolução (agent_evolution_snapshots) só aos próprios pedidos,
+    /** IDs dos relatórios que este supervisor pediu para o agente numa origem — usado para
+     * restringir o histórico de evolução (agent_evolution_snapshots) só aos próprios pedidos,
      * mesma regra de posse do resto da Fase 2 (não-ADMIN nunca vê dado de outro supervisor). */
-    @org.springframework.data.jpa.repository.Query("SELECT r.id FROM AgentPerformanceReport r WHERE r.agentName = :agentName AND r.requestedBy = :requestedBy")
+    @org.springframework.data.jpa.repository.Query("SELECT r.id FROM AgentPerformanceReport r WHERE r.agentName = :agentName AND r.source = :source AND r.requestedBy = :requestedBy")
     List<Long> findIdsByAgentNameAndRequestedBy(@org.springframework.data.repository.query.Param("agentName") String agentName,
+                                                 @org.springframework.data.repository.query.Param("source") String source,
                                                  @org.springframework.data.repository.query.Param("requestedBy") String requestedBy);
 }

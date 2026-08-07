@@ -2,6 +2,9 @@ package com.asteriskia.domain.callcenter.recording;
 
 import com.asteriskia.domain.callcenter.CcQueue;
 import com.asteriskia.domain.callcenter.CcQueueRepository;
+import com.asteriskia.domain.callcenter.interaction.CcInteraction;
+import com.asteriskia.domain.callcenter.interaction.CcInteractionRepository;
+import com.asteriskia.domain.insights.InsightsIngestionService;
 import com.asteriskia.domain.masterdata.BusinessUnitContext;
 import java.io.File;
 import java.io.IOException;
@@ -33,6 +36,8 @@ public class CallCenterRecordingService {
 
     private final CcRecordingRepository recordingRepository;
     private final CcQueueRepository queueRepository;
+    private final CcInteractionRepository interactionRepository;
+    private final InsightsIngestionService insightsIngestionService;
 
     @Value("${app.callcenter.recording-path:/opt/telecom/gravacao}")
     private String recordingBasePath;
@@ -76,6 +81,7 @@ public class CallCenterRecordingService {
         }
 
         CcQueue queue = queueRepository.findByName(extension).orElse(null);
+        CcInteraction interaction = interactionRepository.findByChannelUniqueId(channelUniqueId).orElse(null);
         LocalDateTime startedAt = parseStartedAt(channelUniqueId);
         LocalDateTime endedAt = LocalDateTime.now();
 
@@ -84,6 +90,7 @@ public class CallCenterRecordingService {
                         .queue(queue)
                         .queueExtension(extension)
                         .channelUniqueId(channelUniqueId)
+                        .interactionId(interaction != null ? interaction.getId() : null)
                         .filePath(filePath)
                         .businessUnit(queue != null ? queue.getBusinessUnit() : null)
                         .consentPlayed(consentPlayed)
@@ -98,7 +105,49 @@ public class CallCenterRecordingService {
                 recording.getId(),
                 extension,
                 channelUniqueId);
+
+        registerInsights(recording, queue, interaction);
         return recording;
+    }
+
+    /**
+     * Registra a gravação no pipeline de Insights (Fase 8) — nunca deve derrubar a resposta do
+     * CURL do dialplan: falha aqui só é logada, a gravação em si já está persistida acima.
+     */
+    private void registerInsights(CcRecording recording, CcQueue queue, CcInteraction interaction) {
+        try {
+            // Nunca repassa recording.getFilePath() cru para o serviço Python — esse valor
+            // veio do parâmetro filePath do dialplan (não confiável, mesma razão pela qual
+            // resolveAudioFile abaixo nunca o usa para acesso a disco). Resolve o caminho
+            // seguro (nome-base + subpasta derivada de startedAt, canonicalizado dentro de
+            // recordingBasePath) e usa ESSE como wavPath armazenado.
+            File resolved = resolveAudioFile(recording);
+            if (resolved == null) {
+                log.warn(
+                        "Gravação id={} com filePath fora do diretório esperado — não registrada no Insights",
+                        recording.getId());
+                return;
+            }
+            String agentName = interaction != null && interaction.getAgent() != null
+                    ? interaction.getAgent().getName()
+                    : null;
+            String queueName = queue != null
+                    ? (queue.getDisplayName() != null ? queue.getDisplayName() : queue.getName())
+                    : null;
+            String ani = interaction != null ? interaction.getAni() : null;
+            insightsIngestionService.registerCallCenterRecording(
+                    "cc-" + recording.getChannelUniqueId(),
+                    resolved.getAbsolutePath(),
+                    agentName,
+                    queueName,
+                    ani,
+                    recording.getId());
+        } catch (Exception e) {
+            log.warn(
+                    "Falha ao registrar gravação id={} no pipeline de Insights: {}",
+                    recording.getId(),
+                    e.getMessage());
+        }
     }
 
     @Transactional(readOnly = true)

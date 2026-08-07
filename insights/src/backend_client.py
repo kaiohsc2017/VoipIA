@@ -166,6 +166,14 @@ async def submit_metadata(call_ref: str, payload: dict) -> None:
     )
 
 
+async def get_pending_callcenter_recordings() -> list[dict]:
+    """Gravações do Call Center (Fase 8) aguardando processamento — o Java já registrou o
+    item com agente/fila/ANI resolvidos (ver CallCenterRecordingService.registerInsights),
+    sem descoberta por regex de nome de arquivo no lado Python."""
+    resp = await _request_with_retry("GET", f"{BACKEND_URL}/api/v1/internal/insights/callcenter/pending")
+    return resp.json()
+
+
 async def get_pending_uploads() -> list[dict]:
     """Arquivos do portal do supervisor aguardando processamento (Fase 3 do Quality
     Management, V40) — já registrados com metadados pelo Java no momento do upload,

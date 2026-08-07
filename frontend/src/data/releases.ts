@@ -491,4 +491,15 @@ export const RELEASES: ReleaseEntry[] = [
       'Os outros 7 tipos de nó (coletar entrada, API externa, transferência, horário, agente de IA, pausar gravação, pesquisa de satisfação) continuam bloqueados para publicação — chegam em entregas futuras.',
     ],
   },
+  {
+    version: 'v1.54',
+    date: '2026-08-07',
+    changes: [
+      'Call Center: toda gravação de fila passa a alimentar automaticamente o mesmo pipeline de IA (transcrição, diarização, análise de sentimento/criticidade, achados) já usado pelo Insights Verint, com 5 telas próprias no menu do Call Center — Chamadas, Dashboard de Tendências, Processamento, Fichas de Qualidade e Relatórios de performance por atendente.',
+      'Relatórios de performance por atendente agora distinguem a origem da chamada (Verint ou Call Center) — um atendente com o mesmo nome nos dois sistemas nunca tem os dados agregados no mesmo relatório.',
+      'Transcrição de qualquer chamada (Insights, Análise Sob Demanda ou Call Center) passa a mascarar CPF, número de cartão e telefone antes de persistir ou de qualquer análise por IA — nunca chega ao modelo de linguagem em texto puro.',
+      'Financeiro: nova frente de custo "Call Center" com alerta de gasto próprio (mesmo padrão de URA/Insights/Análise Sob Demanda).',
+      'Grupos de Acesso: novo recurso "Call Center" no grupo Financeiro, e 3 novos recursos em Call Center (Insights — Chamadas/Dashboard/Processamento) — ainda sem tela associada.',
+    ],
+  },
 ];

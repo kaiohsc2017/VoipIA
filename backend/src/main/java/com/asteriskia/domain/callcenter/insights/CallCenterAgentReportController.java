@@ -1,5 +1,10 @@
-package com.asteriskia.domain.insights;
+package com.asteriskia.domain.callcenter.insights;
 
+import com.asteriskia.domain.insights.AgentEvolutionSnapshot;
+import com.asteriskia.domain.insights.AgentReportDto;
+import com.asteriskia.domain.insights.AgentReportPdfService;
+import com.asteriskia.domain.insights.AgentReportService;
+import com.asteriskia.domain.insights.ReportCooldownException;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -9,7 +14,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
@@ -18,17 +29,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * AgentReportController — relatórios de performance por atendente (Fase 2 do Quality
- * Management, V39). Autorização de aba em SecurityConfig (PERM_READ/WRITE_insights.reports);
- * posse (supervisor só vê o que ele pediu, ADMIN vê tudo) é sempre aplicada aqui via
- * AgentReportService, filtrando por requestedBy (username — JWT não tem user-id).
+ * CallCenterAgentReportController — relatórios de performance por atendente (Fase 2 do
+ * Quality Management, V39) aplicados ao Call Center (Fase 8 do plano
+ * modulo-callcenter-omnicanal.plan.md). Reaproveita integralmente {@link AgentReportService}/
+ * {@link AgentReportPdfService} — só a origem ({@code source="callcenter"}) muda em relação a
+ * {@link com.asteriskia.domain.insights.AgentReportController} (source="verint"), garantindo
+ * que agent_name coincidente entre os dois universos nunca misture dados (V55).
  */
 @RestController
-@RequestMapping("/api/v1/insights/reports")
+@RequestMapping("/api/v1/callcenter/insights/reports")
 @RequiredArgsConstructor
-public class AgentReportController {
+public class CallCenterAgentReportController {
 
-    private static final String SOURCE = "verint";
+    private static final String SOURCE = "callcenter";
 
     private final AgentReportService reportService;
     private final AgentReportPdfService pdfService;
@@ -36,7 +49,7 @@ public class AgentReportController {
     public record CreateReportRequest(@NotBlank String agentName, @NotNull LocalDate dateFrom, @NotNull LocalDate dateTo) {}
 
     @PostMapping
-    public ResponseEntity<?> create(@org.springframework.web.bind.annotation.RequestBody CreateReportRequest request) {
+    public ResponseEntity<?> create(@RequestBody CreateReportRequest request) {
         if (request.agentName() == null || request.agentName().isBlank()
                 || request.dateFrom() == null || request.dateTo() == null
                 || request.dateTo().isBefore(request.dateFrom())) {

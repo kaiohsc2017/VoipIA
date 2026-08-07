@@ -229,6 +229,10 @@ services:
       # Portal do supervisor (Fase 3 do Quality Management, V40) — pasta separada de
       # /opt/audio (não subpasta), só leitura: o backend é quem grava os uploads.
       - /opt/audio_upload:/opt/audio_upload:ro
+      # Gravações do Call Center (Fase 8) — só leitura: o backend (Asterisk MixMonitor)
+      # é quem grava; este serviço só lê o .wav pelo caminho já resolvido pelo Java
+      # (CallAudioFile.wavPath), sem descoberta própria de arquivo neste diretório.
+      - /opt/telecom/gravacao:/opt/telecom/gravacao:ro
       - /opt/AsteriskIA/env:/opt/asteriskia/env:ro
     networks:
       asteriskia-net:

@@ -23,16 +23,16 @@ public interface CallInsightRepository extends JpaRepository<CallInsight, Long> 
     @Query("SELECT ci.audioFileId FROM CallInsight ci WHERE LOWER(ci.criticidade) = LOWER(:criticidade)")
     List<Long> findAudioFileIdsByCriticidade(@Param("criticidade") String criticidade);
 
-    // Restrito a source='verint' (Fase 3 do Quality Management, V40) — o dashboard de
-    // Insights sempre mostrou só o call center Verint; uploads do portal do supervisor
-    // não podem poluir esse agregado.
+    // source parametrizado (Fase 8 do Call Center) — dashboard de Insights usa 'verint',
+    // dashboard de Insights do Call Center usa 'callcenter'; uploads do portal do supervisor
+    // continuam de fora dos dois (tela própria "Meus Envios").
     @Query("SELECT ci.criticidade, COUNT(ci) FROM CallInsight ci " +
-           "JOIN CallAudioFile caf ON caf.id = ci.audioFileId WHERE caf.source = 'verint' GROUP BY ci.criticidade")
-    List<Object[]> countByCriticidade();
+           "JOIN CallAudioFile caf ON caf.id = ci.audioFileId WHERE caf.source = :source GROUP BY ci.criticidade")
+    List<Object[]> countByCriticidade(@Param("source") String source);
 
     @Query("SELECT ci.categoriaAssunto, COUNT(ci) FROM CallInsight ci " +
            "JOIN CallAudioFile caf ON caf.id = ci.audioFileId " +
-           "WHERE ci.categoriaAssunto IS NOT NULL AND caf.source = 'verint' " +
+           "WHERE ci.categoriaAssunto IS NOT NULL AND caf.source = :source " +
            "GROUP BY ci.categoriaAssunto ORDER BY COUNT(ci) DESC")
-    List<Object[]> countByCategoria();
+    List<Object[]> countByCategoria(@Param("source") String source);
 }

@@ -18,8 +18,15 @@ import java.util.List;
  * POST /api/v1/internal/insights/{callRef}/error         — marca falha, com mensagem.
  * POST /api/v1/internal/insights                         — resultado completo (sucesso).
  *
- * Protegido pelo InternalKeyFilter (X-Internal-Key) — mesmo mecanismo já usado entre
- * ai-agent/asteriskia-insights e o backend (ver UraRoutingController).
+ * Consumido pelo container asteriskia-insights via rede interna Docker (mesmo padrão de
+ * /api/v1/internal/ura-routing). ATENÇÃO: apesar do nome "internal", não há hoje um
+ * requestMatcher próprio em SecurityConfig.java para /api/v1/internal/** exigindo
+ * ROLE_INTERNAL — qualquer usuário comum autenticado no Telecom também consegue chamar
+ * estas rotas (fallback genérico .anyRequest().authenticated()). InternalKeyFilter só
+ * concede a authority quando o header X-Internal-Key bate, nunca nega quem não o enviou.
+ * Risco aceito por ora (rede interna, exige JWT válido, achado de revisão de segurança da
+ * Fase 8 do Call Center) — endurecer exigiria um matcher único cobrindo toda a família
+ * /api/v1/internal/**.
  */
 @RestController
 @RequestMapping("/api/v1/internal/insights")
@@ -100,6 +107,24 @@ public class InsightsInternalController {
     public ResponseEntity<List<PendingUploadView>> pendingUploads() {
         List<PendingUploadView> views = ingestionService.findPendingUploads().stream()
                 .map(a -> new PendingUploadView(a.getCallRef(), a.getWavPath(), a.getAgentName(), a.getDirection()))
+                .toList();
+        return ResponseEntity.ok(views);
+    }
+
+    public record PendingCallCenterView(
+            String callRef, String wavPath, String agentName, String direction, String skill, String ani) {}
+
+    /**
+     * GET /internal/insights/callcenter/pending — gravações do Call Center (Fase 8) aguardando
+     * processamento. Mesmo espírito de {@link #pendingUploads}: o Java já registrou o item com
+     * agente/fila resolvidos (ver {@code CallCenterRecordingService.registerInsights}), sem
+     * descoberta por regex de nome de arquivo no lado Python.
+     */
+    @GetMapping("/callcenter/pending")
+    public ResponseEntity<List<PendingCallCenterView>> pendingCallCenter() {
+        List<PendingCallCenterView> views = ingestionService.findPendingCallCenterRecordings().stream()
+                .map(a -> new PendingCallCenterView(
+                        a.getCallRef(), a.getWavPath(), a.getAgentName(), a.getDirection(), a.getSkill(), a.getAni()))
                 .toList();
         return ResponseEntity.ok(views);
     }

@@ -23,8 +23,11 @@ public interface CallAudioFileRepository
     @Query("SELECT COUNT(c) FROM CallAudioFile c WHERE c.status = 'pending' AND c.ingestedAt < :ingestedAt")
     long countPendingBefore(@Param("ingestedAt") java.time.LocalDateTime ingestedAt);
 
-    /** Total de chamadas de um agente num período — base do relatório de performance (V39). */
-    long countByAgentNameAndCallStarttimeBetween(String agentName, java.time.LocalDateTime from, java.time.LocalDateTime to);
+    /** Total de chamadas de um agente num período — base do relatório de performance (V39).
+     * source parametrizado (Fase 8 do Call Center) — nunca mistura verint/callcenter mesmo
+     * que o agentName coincida entre os dois universos. */
+    long countByAgentNameAndSourceAndCallStarttimeBetween(String agentName, String source,
+                                                           java.time.LocalDateTime from, java.time.LocalDateTime to);
 
     /** Total por origem — dashboard de Insights conta só 'verint' (Fase 3 do Quality
      * Management, V40); a tela "Meus Envios" do portal do supervisor tem seus próprios

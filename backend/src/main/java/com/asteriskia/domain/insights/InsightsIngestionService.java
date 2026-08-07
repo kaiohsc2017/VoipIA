@@ -245,6 +245,41 @@ public class InsightsIngestionService {
                 .build());
     }
 
+    /** Gravações do Call Center pendentes de processamento (Fase 8) — o serviço Python
+     * consulta este método (via endpoint interno) em vez de escanear disco: o Java já
+     * sabe exatamente qual agente/fila atendeu cada gravação (ver
+     * CallCenterRecordingService.registerInsights). */
+    public List<CallAudioFile> findPendingCallCenterRecordings() {
+        return audioFileRepository.findBySourceAndStatus("callcenter", "pending");
+    }
+
+    /**
+     * Registra uma gravação do Call Center (Fase 8) — chamado por
+     * {@code CallCenterRecordingService.ingest} logo após salvar a {@code CcRecording}, na
+     * mesma transação. Idempotente por callRef (channelUniqueId prefixado): uma retransmissão do
+     * CURL do dialplan não deve duplicar o registro. Diferente do fluxo Verint, o Java já sabe
+     * agente/fila (join com {@code cc_interactions}) — sem XML, sem descoberta por regex de nome
+     * de arquivo no lado Python.
+     */
+    @Transactional
+    public void registerCallCenterRecording(
+            String callRef, String wavPath, String agentName, String queueName, String ani, Long ccRecordingId) {
+        if (audioFileRepository.findByCallRef(callRef).isPresent()) {
+            return;
+        }
+        audioFileRepository.save(CallAudioFile.builder()
+                .callRef(callRef)
+                .wavPath(wavPath)
+                .agentName(agentName)
+                .direction("inbound")
+                .skill(queueName)
+                .ani(ani)
+                .status("pending")
+                .source("callcenter")
+                .ccRecordingId(ccRecordingId)
+                .build());
+    }
+
     /** Marca o início do processamento de fato (retirada da fila) — chamado no início de
      * process_pair() no watcher Python, tanto pra chamadas novas quanto pra retries de erro. */
     @Transactional

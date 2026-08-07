@@ -1,9 +1,13 @@
 import type { ComponentType } from 'react';
 import { useState } from 'react';
-import { Users, ListOrdered, Tags, Disc, LogOut, LayoutDashboard, MonitorPlay, Workflow } from 'lucide-react';
+import {
+  Users, ListOrdered, Tags, Disc, LogOut, LayoutDashboard, MonitorPlay, Workflow,
+  PhoneCall, BarChart3, ListChecks, ClipboardList, FileText,
+} from 'lucide-react';
 import type { AuthSession } from '../hooks/useAuthSession';
 
-type Tab = 'agentes' | 'filas' | 'skills' | 'gravacoes' | 'desktop' | 'supervisao' | 'fluxos';
+type Tab = 'agentes' | 'filas' | 'skills' | 'gravacoes' | 'desktop' | 'supervisao' | 'fluxos'
+  | 'insightsChamadas' | 'insightsDashboard' | 'insightsProcessamento' | 'insightsScorecards' | 'insightsReports';
 
 interface SidebarProps {
   currentTab: Tab;
@@ -26,6 +30,11 @@ const NAV_ITEMS: { tab: Tab; icon: ComponentType<{ size?: number; strokeWidth?: 
   { tab: 'desktop',   icon: LayoutDashboard, label: 'Desktop do Agente', resource: 'callcenter.desktop' },
   { tab: 'supervisao', icon: MonitorPlay, label: 'Supervisão', resource: 'callcenter.supervisao' },
   { tab: 'fluxos', icon: Workflow, label: 'Fluxos', resource: 'callcenter.fluxos' },
+  { tab: 'insightsChamadas', icon: PhoneCall, label: 'Insights — Chamadas', resource: 'callcenter.insights.calls' },
+  { tab: 'insightsDashboard', icon: BarChart3, label: 'Insights — Dashboard', resource: 'callcenter.insights.dashboard' },
+  { tab: 'insightsProcessamento', icon: ListChecks, label: 'Insights — Processamento', resource: 'callcenter.insights.processing' },
+  { tab: 'insightsScorecards', icon: ClipboardList, label: 'Insights — Fichas de Qualidade', resource: 'callcenter.insights.scorecards' },
+  { tab: 'insightsReports', icon: FileText, label: 'Insights — Relatórios', resource: 'callcenter.insights.reports' },
 ];
 
 export default function Sidebar({ currentTab, onNavigate, username, session, onLogout, collapsed, onToggleCollapse }: SidebarProps) {

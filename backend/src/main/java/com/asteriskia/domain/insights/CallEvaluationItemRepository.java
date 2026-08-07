@@ -20,9 +20,10 @@ public interface CallEvaluationItemRepository extends JpaRepository<CallEvaluati
            "JOIN CallEvaluation ce ON ce.id = cei.evaluationId " +
            "JOIN CallAudioFile caf ON caf.id = ce.audioFileId " +
            "JOIN ScorecardItem si ON si.id = cei.itemId " +
-           "WHERE caf.agentName = :agentName AND caf.callStarttime BETWEEN :from AND :to " +
+           "WHERE caf.agentName = :agentName AND caf.source = :source AND caf.callStarttime BETWEEN :from AND :to " +
            "GROUP BY si.id, si.pergunta")
     List<Object[]> averageNotaByItemForAgentPeriod(@Param("agentName") String agentName,
+                                                    @Param("source") String source,
                                                     @Param("from") java.time.LocalDateTime from,
                                                     @Param("to") java.time.LocalDateTime to);
 }

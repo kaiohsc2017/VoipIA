@@ -125,6 +125,21 @@ class CostAlertServiceTest {
     }
 
     @Test
+    void getConfig_somaGastoDeCallcenterUsandoSourceCallcenter() {
+        when(repository.findById("callcenter")).thenReturn(Optional.empty());
+        when(insightsCostService.summarizeByMonth(
+                        argThat(f -> f != null && "callcenter".equals(f.source()))))
+                .thenReturn(List.of(new InsightMonthlyCostSummary(
+                        YearMonth.now().toString(), BigDecimal.valueOf(1), BigDecimal.valueOf(1),
+                        BigDecimal.valueOf(2), 1)));
+
+        CostAlertConfigView view = service.getConfig("callcenter");
+
+        assertThat(view.scope()).isEqualTo("callcenter");
+        assertThat(view.currentMonthSpendUsd()).isEqualByComparingTo(BigDecimal.valueOf(2));
+    }
+
+    @Test
     void getConfig_scopeInvalido_lancaBadRequest() {
         assertThatThrownBy(() -> service.getConfig("invalido"))
                 .isInstanceOf(ResponseStatusException.class)
