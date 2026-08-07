@@ -482,4 +482,13 @@ export const RELEASES: ReleaseEntry[] = [
       'Grupos de Acesso: novo recurso "Fluxos" no grupo "Call Center".',
     ],
   },
+  {
+    version: 'v1.53',
+    date: '2026-08-07',
+    changes: [
+      'Fluxos → primeiros 7 tipos de nó passam a ser executáveis de verdade em uma ligação real: início, tocar áudio, menu de opções, condição, definir variável, enviar para fila e encerrar — usando um novo ramal reservado (6000-6999) que dispara o motor de execução do fluxo publicado.',
+      'Fluxos → traço de execução por chamada (qual nó foi visitado, em que ordem, e onde a chamada terminou) fica registrado para consulta.',
+      'Os outros 7 tipos de nó (coletar entrada, API externa, transferência, horário, agente de IA, pausar gravação, pesquisa de satisfação) continuam bloqueados para publicação — chegam em entregas futuras.',
+    ],
+  },
 ];

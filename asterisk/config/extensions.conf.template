@@ -129,6 +129,15 @@ exten => _5XXX,n,GotoIf($["${RECORDED}" = "true"]?ingest:done)
 exten => _5XXX,n(ingest),Set(IGNORED_REC=${CURL(http://backend:8080/api/v1/internal/callcenter/recordings,uniqueid=${MY_UUID}&extension=${EXTEN}&filePath=${REC_DIR}/${MY_UUID}.wav&consentPlayed=${CONSENT_PLAYED})})
 exten => _5XXX,n(done),Hangup()
 
+; Fluxo visual (Flow Builder, Fase 5b) — faixa exclusiva do motor ARI/Stasis, nunca sobrepõe
+; as URAs legadas (_2XXX) nem as filas do Call Center (_5XXX). O app Stasis "callcenter" é quem
+; interpreta o grafo publicado a partir daqui; se a app não estiver registrada (backend fora do
+; ar), Stasis() retorna e cai no Hangup abaixo — nunca deixa o canal preso.
+exten => _6XXX,1,NoOp(=== Call Center: fluxo visual ${EXTEN} ===)
+exten => _6XXX,n,Answer()
+exten => _6XXX,n,Stasis(callcenter,${EXTEN})
+exten => _6XXX,n,Hangup()
+
 exten => h,1,NoOp(=== Encerrado ===)
 
 ; ---------------------------------------------------------------
@@ -216,6 +225,14 @@ exten => _90XX,n,Hangup()
 exten => _10XX,1,NoOp(=== WebRTC → Ramal interno ===)
 exten => _10XX,n,Dial(PJSIP/${EXTEN},30,r)
 exten => _10XX,n,Hangup()
+
+; Fluxo visual (Flow Builder, Fase 5b) — mesma faixa/app Stasis do contexto ramais-internos acima.
+exten => _6XXX,1,NoOp(=== WebRTC → Call Center: fluxo visual ${EXTEN} ===)
+exten => _6XXX,n,Progress()
+exten => _6XXX,n,Wait(2)
+exten => _6XXX,n,Answer()
+exten => _6XXX,n,Stasis(callcenter,${EXTEN})
+exten => _6XXX,n,Hangup()
 
 exten => h,1,NoOp(=== WebRTC encerrado ===)
 

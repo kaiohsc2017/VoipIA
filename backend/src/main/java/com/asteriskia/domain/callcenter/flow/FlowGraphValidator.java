@@ -51,7 +51,10 @@ public class FlowGraphValidator {
         Map<String, String> nodeTypesById = new HashMap<>();
         for (JsonNode node : nodes) {
             String id = node.path("id").asText(null);
-            String type = node.path("type").asText(null);
+            // O "type" no topo do nó é o tipo de RENDERIZAÇÃO do React Flow (sempre "generic" no
+            // grafo real persistido pela UI, ver FlowEditor.tsx) — o tipo de domínio do catálogo
+            // vem em data.nodeType. Ler "type" aqui faria todo nó real virar "tipo desconhecido".
+            String type = node.path("data").path("nodeType").asText(null);
             if (id != null) {
                 nodeTypesById.put(id, type);
             }

@@ -317,6 +317,8 @@ services:
       AST_AMI_PORT:               ${AST_AMI_PORT:-5038}
       AST_AMI_USER:               ${AST_AMI_USER}
       AST_AMI_PASSWORD:           ${AST_AMI_PASSWORD}
+      AST_ARI_USER:               ${AST_ARI_USER}
+      AST_ARI_PASSWORD:           ${AST_ARI_PASSWORD}
       AST_CONFIG_DIR:             /etc/asterisk
       ZABBIX_API_URL:             ${ZABBIX_API_URL}
       ZABBIX_USER:                ${ZABBIX_USER}

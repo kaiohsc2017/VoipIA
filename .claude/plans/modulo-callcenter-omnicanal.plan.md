@@ -22,10 +22,40 @@ de consistência (badge "não executável" lido de dado persistido em vez do cat
 por `FlowCatalogContext`). Corrigido também, de passagem: o submenu Call Center do **Telecom**
 nunca tinha ganhado as abas "Desktop do Agente" (Fase 4) e "Supervisão" (Fase 6) — só existiam na
 SPA própria do módulo; ambas adicionadas junto com "Fluxos". Suíte backend: **354/354 verde**.
-`tsc -b`/`npm run build` limpos nas duas SPAs (Call Center e Telecom). Sub-fases 5b-5f (motor de
-execução ARI, simulador, catálogo avançado, horário/feriados/transbordo, traço de execução) ainda
-não iniciadas. Fase 8 (Insights do Call Center) também ainda não iniciada. Decisões D1-D5 e
-perguntas abertas respondidas (§13, 2026-08-06).
+`tsc -b`/`npm run build` limpos nas duas SPAs (Call Center e Telecom).
+
+**Sub-fase 5b (motor de execução ARI/Stasis) implementada e deployada nesta sessão (2026-08-07,
+release notes v1.53)**: migration V53 (`cc_flow_executions`, `cc_flow_execution_steps`). Nova
+extensão `_6XXX` (faixa `6000-6999`) nos contextos `ramais-internos`/`ramais-webrtc` —
+`Answer()`→`Stasis(callcenter,${EXTEN})`→`Hangup()` (o `Hangup` funciona como fallback seguro se o
+app Stasis não estiver registrado). `AriClient`/`AriEventListener` (WebSocket de eventos ARI,
+event-driven, reconexão automática a cada 5s, mesmo padrão do listener AMI da Fase 4) +
+`FlowExecutionEngine` agnóstico de canal via interface `ChannelDriver` (`AriVoiceChannelDriver` é a
+única implementação nesta sub-fase — a 5c/simulador e a Fase 7/chat vão reusar a mesma interface).
+7 tipos de nó passam a `implementado=true`: início, tocar áudio, menu de opções, condição, definir
+variável, enviar para fila (via `continueInDialplan` para `_5XXX`, herdando de graça a
+gravação/consentimento/ingestão da Fase 3) e encerrar. Os outros 7 continuam bloqueados para
+publicação. Guarda anti-loop-infinito de 200 passos; todo handler roda em try/catch com fallback
+seguro (tenta fila, senão hangup) — nunca deixa o canal preso no Stasis. **2 bugs reais
+encontrados e corrigidos durante a própria implementação, antes da revisão**: o validador de grafo
+da 5a lia `node.type` (sempre `"generic"`, é o tipo de renderização do React Flow) em vez de
+`node.data.nodeType` — sem o fix, todo fluxo real seria rejeitado como "tipo de nó desconhecido";
+e o handler de menu não encerrava a chamada no timeout, deixando o canal preso. Revisão de
+segurança (`ecc:security-reviewer`) encontrou e já corrigiu, antes do commit: 1 **HIGH** real (IDOR
+— `steps()` do traço de execução confirmava o escopo por BU do `flowId` da URL, mas não que a
+`executionId` pertencesse de fato a esse fluxo, permitindo ler o traço de outro fluxo/BU só
+adivinhando o id), 1 **HIGH** (credencial ARI do WebSocket ia na query string e podia vazar em
+mensagem de exceção de handshake — mesma classe de achado já corrigida uma vez para a API key do
+Gemini neste projeto; movida para header `Authorization: Basic`), 1 **MEDIUM** (payload de
+diagnóstico do primeiro `StasisStart` real logava o ANI/caller sem redação — corrigido). Suíte
+backend: **377/377 verde**. ARI/dialplan **não validados contra tráfego real** (mesma ressalva já
+registrada nas Fases 4/6) — nomes de campo do payload ARI desta versão do Asterisk só serão
+confirmados com uma chamada de teste real atravessando a extensão `6XXX`; o primeiro `StasisStart`
+real é logado (sem ANI) para permitir ajuste sem adivinhação.
+
+Sub-fases 5c-5f (simulador, catálogo avançado, horário/feriados/transbordo, traço de execução na
+UI) ainda não iniciadas. Fase 8 (Insights do Call Center) também ainda não iniciada. Decisões D1-D5
+e perguntas abertas respondidas (§13, 2026-08-06).
 
 **Fase 1 (AD/LDAP) — backend implementado e commitado (2026-08-06, commit `aae82f5`)**: bind de
 autenticação contra o AD (spring-ldap), espelho local (`ad_users`, migration V45), sincronização

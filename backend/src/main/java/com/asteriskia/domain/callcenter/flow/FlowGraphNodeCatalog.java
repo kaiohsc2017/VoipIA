@@ -1,6 +1,7 @@
 package com.asteriskia.domain.callcenter.flow;
 
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
@@ -9,12 +10,20 @@ import org.springframework.stereotype.Component;
  * frontend não duplica esta lista em TypeScript — evita a divergência já observada entre
  * ResourceCatalog.java/Sidebar.tsx em outros módulos.
  *
- * <p>Nesta sub-fase (5a) nenhum nó está {@code implementado} — o editor persiste o grafo, mas o
- * motor de execução ARI/Stasis só chega na Fase 5b, que vai liberar os primeiros nós marcando
- * {@code implementado=true} aqui.
+ * <p>Sub-fase 5b: o motor de execução ARI/Stasis passou a interpretar 7 tipos de nó —
+ * {@code inicio}, {@code tocar_audio}, {@code menu_opcoes}, {@code condicao},
+ * {@code definir_variavel}, {@code enviar_fila}, {@code encerrar} — marcados
+ * {@code implementado=true}. Os outros 7 ({@code coletar_entrada}, {@code consultar_api},
+ * {@code transferir_ramal}, {@code horario_funcionamento}, {@code agente_ia},
+ * {@code pausar_gravacao}, {@code pesquisa_satisfacao}) continuam {@code false} — ficam para as
+ * sub-fases 5d/5e. {@link FlowGraphValidator} bloqueia a publicação de qualquer fluxo que use um
+ * nó ainda não implementado.
  */
 @Component
 public class FlowGraphNodeCatalog {
+
+    private static final Set<String> IMPLEMENTED_TYPES =
+            Set.of("inicio", "tocar_audio", "menu_opcoes", "condicao", "definir_variavel", "enviar_fila", "encerrar");
 
     private static final List<FlowGraphNodeType> NODE_TYPES =
             List.of(
@@ -91,7 +100,7 @@ public class FlowGraphNodeCatalog {
 
     private static FlowGraphNodeType node(
             String type, String label, String channel, List<FlowGraphNodeType.NodeProperty> properties) {
-        return new FlowGraphNodeType(type, label, channel, false, properties);
+        return new FlowGraphNodeType(type, label, channel, IMPLEMENTED_TYPES.contains(type), properties);
     }
 
     private static FlowGraphNodeType.NodeProperty prop(String name, String label, String propType) {
