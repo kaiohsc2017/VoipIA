@@ -64,6 +64,7 @@ export function RetencaoAlertaTab({ canWrite, onClose }: { canWrite: boolean; on
             <div className="form-group">
               <label className="form-label">Prazo de retenção (dias)</label>
               <input type="number" className="form-input" value={retentionDays} disabled={!canWrite}
+                min={1} max={36500}
                 onChange={e => setRetentionDays(Number(e.target.value))} />
             </div>
           </div>
@@ -89,6 +90,7 @@ export function RetencaoAlertaTab({ canWrite, onClose }: { canWrite: boolean; on
             <div className="form-group">
               <label className="form-label">Limite de uso (%)</label>
               <input type="number" className="form-input" value={thresholdPercent} disabled={!canWrite}
+                min={1} max={100}
                 onChange={e => setThresholdPercent(Number(e.target.value))} />
             </div>
             <div className="form-group">

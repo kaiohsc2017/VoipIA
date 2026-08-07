@@ -105,13 +105,21 @@ export function revokeSession() {
 }
 
 /**
- * Extrai a mensagem de erro de uma resposta Axios (`{error}` ou `{message}` do backend),
- * caindo no `fallback` dado se o erro não tiver esse formato.
+ * Extrai a mensagem de erro de uma resposta Axios, caindo no `fallback` dado se o erro não tiver
+ * um formato reconhecido. Cobre dois formatos do backend: `{error}`/`{message}` (maioria dos
+ * controllers, via GlobalExceptionHandler) e `{campo: "mensagem"}` — o formato que
+ * `MethodArgumentNotValidException` usa para erros de `@Valid` (ex: retenção/alerta de disco desta
+ * tela), onde a chave é o nome do campo inválido, não "error"/"message".
  */
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as { error?: string; message?: string } | undefined;
-    return data?.error ?? data?.message ?? fallback;
+    const data = error.response?.data as Record<string, unknown> | undefined;
+    if (data && typeof data === 'object') {
+      if (typeof data.error === 'string') return data.error;
+      if (typeof data.message === 'string') return data.message;
+      const fieldErrors = Object.values(data).filter((v): v is string => typeof v === 'string');
+      if (fieldErrors.length > 0) return fieldErrors.join('; ');
+    }
   }
   return fallback;
 }
