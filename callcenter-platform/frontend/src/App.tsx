@@ -6,6 +6,7 @@ import { FilasTab } from './components/FilasTab';
 import { SkillsTab } from './components/SkillsTab';
 import { GravacoesTab } from './components/GravacoesTab';
 import { DesktopAgenteTab } from './components/DesktopAgenteTab';
+import { SupervisaoTab } from './components/SupervisaoTab';
 import { revokeSession } from './api/client';
 import { authSessionFromToken } from './hooks/useAuthSession';
 import { useShellBridge } from './hooks/useShellBridge';
@@ -20,6 +21,7 @@ const TAB_RESOURCE = {
   skills: 'callcenter.skills',
   gravacoes: 'callcenter.gravacoes',
   desktop: 'callcenter.desktop',
+  supervisao: 'callcenter.supervisao',
 } as const;
 
 // ─── ErrorBoundary — evita tela em branco em caso de exceção de render ──────
@@ -94,6 +96,7 @@ export default function App() {
     { id: 'skills' },
     { id: 'gravacoes' },
     { id: 'desktop' },
+    { id: 'supervisao' },
   ];
   const visibleTabs = TABS.filter(t => session.hasRead(TAB_RESOURCE[t.id]));
   const currentTab = visibleTabs.some(t => t.id === tab) ? tab : visibleTabs[0]?.id;
@@ -129,6 +132,7 @@ export default function App() {
             {currentTab === 'skills' && <SkillsTab canWrite={session.hasWrite('callcenter.skills')} />}
             {currentTab === 'gravacoes' && <GravacoesTab canWrite={session.hasWrite('callcenter.gravacoes')} />}
             {currentTab === 'desktop' && <DesktopAgenteTab />}
+            {currentTab === 'supervisao' && <SupervisaoTab canWrite={session.hasWrite('callcenter.supervisao')} />}
             {!currentTab && (
               <p style={{ color: 'var(--text-muted)' }}>Você não tem permissão de leitura em nenhuma aba do Call Center.</p>
             )}

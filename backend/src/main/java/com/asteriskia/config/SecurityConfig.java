@@ -196,6 +196,9 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.desktop")
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/interactions/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.desktop")
+                        // Supervisão em tempo real — Fase 6.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/supervision/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.supervisao")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da
@@ -254,6 +257,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.desktop")
                         .requestMatchers("/api/v1/callcenter/interactions/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.desktop")
+                        .requestMatchers("/api/v1/callcenter/supervision/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.supervisao")
 
                         // Todos os demais endpoints exigem apenas autenticação (JWT ou InternalKey)
                         .anyRequest().authenticated()

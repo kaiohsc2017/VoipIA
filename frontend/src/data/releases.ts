@@ -460,4 +460,15 @@ export const RELEASES: ReleaseEntry[] = [
       'Painel de dados do Active Directory na tela do agente ainda não disponível — depende da conclusão da integração com o Domain Controller (Fase 1, pendente de dados reais de conexão).',
     ],
   },
+  {
+    version: 'v1.51',
+    date: '2026-08-07',
+    changes: [
+      'Call Center → nova aba "Supervisão": painel com todas as filas (chamadas em espera, maior espera, atendidas/abandonadas do dia, nível de serviço) e todos os agentes (estado atual, tempo no estado, chamadas atendidas hoje), atualizado a cada poucos segundos.',
+      'Supervisão → ações sobre o agente em atendimento: escutar, sussurrar (só o agente ouve) e interceptar a chamada (o supervisor entra na conversa).',
+      'Supervisão → forçar pausa ou despausa de um agente, e alerta de SLA por fila (espera máxima e/ou nível de serviço mínimo) configurável, enviado por Telegram.',
+      'Modo TV: a tela de Supervisão pode ser aberta em tela cheia, sem menus, para exibição num monitor da operação.',
+      'Grupos de Acesso: novo recurso "Supervisão" no grupo "Call Center".',
+    ],
+  },
 ];

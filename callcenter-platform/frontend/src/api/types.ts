@@ -193,3 +193,45 @@ export interface InteractionView {
   endedAt?: string;
   dispositionLabel?: string;
 }
+
+// Painel de supervisão (Fase 6) — GET /api/v1/callcenter/supervision/snapshot
+export interface QueueSupervisionView {
+  queueId: number;
+  queueName: string;
+  displayName: string;
+  waitingCount: number;
+  longestWaitSeconds?: number;
+  answeredToday: number;
+  abandonedToday: number;
+  serviceLevelPercent?: number;
+}
+
+export interface AgentSupervisionView {
+  agentId: number;
+  agentName: string;
+  extension?: string;
+  state?: AgentState;
+  pauseReasonLabel?: string;
+  secondsInState?: number;
+  answeredToday: number;
+}
+
+export interface SupervisionSnapshot {
+  queues: QueueSupervisionView[];
+  agents: AgentSupervisionView[];
+}
+
+// GET/PUT /api/v1/callcenter/supervision/alert-config/{queueId}
+export interface QueueAlertConfigView {
+  queueId: number;
+  maxWaitingCount?: number;
+  minServiceLevelPercent?: number;
+  enabled: boolean;
+  lastNotifiedDate?: string;
+}
+
+export interface QueueAlertConfigRequest {
+  maxWaitingCount?: number | null;
+  minServiceLevelPercent?: number | null;
+  enabled: boolean;
+}

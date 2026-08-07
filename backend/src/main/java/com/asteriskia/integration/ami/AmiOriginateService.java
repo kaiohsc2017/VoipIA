@@ -111,6 +111,39 @@ public class AmiOriginateService {
         return sendAction(action);
     }
 
+    /**
+     * Origina uma chamada de supervisão (Fase 6 do Call Center) para o ramal do supervisor,
+     * executando {@code ChanSpy} sobre o ramal do agente monitorado ao atender. {@code ChanSpy}
+     * faz correspondência por <b>prefixo</b> do nome do canal — passar só a extensão (ex:
+     * {@code PJSIP/4001}) é suficiente, sem precisar do nome completo do canal ativo (que exigiria
+     * rastrear o evento AMI exato de cada chamada, ainda não validado contra tráfego real).
+     *
+     * @param supervisorExtension ramal do supervisor (softphone WebRTC, ex: 9001) que vai receber
+     *     a chamada de monitoria
+     * @param targetExtension ramal do agente a ser monitorado (faixa 4000-4999)
+     * @param chanSpyOptions opções do ChanSpy: {@code "b"} escuta, {@code "bw"} sussurro,
+     *     {@code "bB"} interceptação (barge-in) — {@code b} restringe a canais em bridge, evitando
+     *     escutar um ramal ocioso
+     * @return true se a ação foi enviada com sucesso ao AMI
+     */
+    public boolean originateChanSpy(String supervisorExtension, String targetExtension, String chanSpyOptions) {
+        String safeSupervisor = sanitizeAmiField(supervisorExtension);
+        String safeTarget = sanitizeAmiField(targetExtension);
+        String safeOptions = sanitizeAmiField(chanSpyOptions);
+
+        Map<String, String> action = new LinkedHashMap<>();
+        action.put("Action", "Originate");
+        action.put("ActionID", UUID.randomUUID().toString());
+        action.put("Channel", "PJSIP/" + safeSupervisor);
+        action.put("Application", "ChanSpy");
+        action.put("Data", "PJSIP/" + safeTarget + "," + safeOptions);
+        action.put("CallerID", "Supervisao <0000>");
+        action.put("Timeout", "30000");
+        action.put("Async", "true");
+
+        return sendAction(action);
+    }
+
     // ---------------------------------------------------------------------------
     // Privado — protocolo AMI TCP raw
     // ---------------------------------------------------------------------------

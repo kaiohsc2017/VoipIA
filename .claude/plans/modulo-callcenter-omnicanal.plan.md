@@ -2,10 +2,10 @@
 
 **Origem**: pedido livre do usuário (2026-08-06)
 **Complexidade**: **Extra-Large** — é um produto, não uma feature. Maior entrega já feita no AsteriskIA.
-**Status**: **Fases 0-3 concluídas, commitadas e deployadas**; **Fase 4 (estados do agente,
-interações, tabulação) implementada e deployada nesta sessão (2026-08-07) — screen pop do AD
-deliberadamente fora do escopo (Fase 1/AD pendente de dados reais do DC); desktop do agente com
-softphone WebRTC embutido e supervisão em tempo real ficam para uma entrega futura**. Decisões
+**Status**: **Fases 0-4 concluídas, commitadas e deployadas**; **Fase 6 (supervisão em tempo
+real) implementada e deployada nesta sessão (2026-08-07)** — transferência de chamada em curso e
+remoção de agente de fila (esta última já cobria pela aba Filas) ficaram fora do escopo desta
+entrega. Fase 5 (flow builder) e Fase 8 (Insights do Call Center) ainda não iniciadas. Decisões
 D1-D5 e perguntas abertas respondidas (§13, 2026-08-06).
 
 **Fase 1 (AD/LDAP) — backend implementado e commitado (2026-08-06, commit `aae82f5`)**: bind de
@@ -81,6 +81,31 @@ carrega, motivos de pausa/tabulações carregam do backend, nenhuma exceção de
 teste sem agente vinculado recebe erro genérico 500 (comportamento intencional e já existente do
 `GlobalExceptionHandler` para `IllegalArgumentException` de regra de negócio, não uma regressão
 desta entrega). Release notes **v1.50** registrada.
+
+**Fase 6 (Supervisão em tempo real) — implementada e deployada (2026-08-07, release notes
+v1.51)**: migration **V51** (`cc_supervision_actions`, `cc_queue_alert_config`).
+`CallCenterSupervisionPanelService` computa estatísticas do dia (chamadas em espera, maior
+espera, atendidas/abandonadas, nível de serviço por fila; estado/tempo no estado/atendidas hoje
+por agente) em memória a partir de `cc_interactions`/`cc_agent_states` — decisão deliberada de
+não escrever SQL agregado dado o volume atual (zero tráfego real de fila ainda validado).
+`AmiOriginateService.originateChanSpy` — escuta/sussurro/interceptação usam `ChanSpy` com
+correspondência por **prefixo** da extensão do agente (`PJSIP/4001`, opções `b`/`bw`/`bB`), o que
+evita depender do nome exato do canal ativo (que exigiria capturar e persistir o campo certo dos
+eventos AMI, ainda não validado — mesma ressalva da Fase 4). Pausa/despausa forçada reusa
+`CallCenterAgentStateService` da Fase 4 sem duplicar lógica. Toda ação de supervisão é auditada
+(`cc_supervision_actions`) — LGPD art. 37, escuta de conversa exige rastro.
+`CallCenterSlaAlertScheduler` (a cada 10min, 8h-20h) dispara alerta via Telegram por fila,
+dedup diário (mesmo padrão do alerta de disco). Nova aba "Supervisão" com painel de
+filas/agentes (polling 4s — sem cliente STOMP na SPA ainda, mesmo padrão do Desktop do Agente) +
+botões de ação por agente + "Modo TV" (overlay fullscreen local, sem rota nova). RBAC: recurso
+`callcenter.supervisao`. 18 testes novos (`CallCenterSupervisionActionServiceTest`,
+`CallCenterSupervisionPanelServiceTest`) — suíte completa **328/328 verde**. Validado via Chrome
+headless + CDP: tela e Modo TV renderizam sem erro de console (sem fila/agente cadastrado nesta
+VPS para validar os botões de ação e os números reais do painel).
+**Deliberadamente fora do escopo**: transferência de chamada em curso (exigiria capturar o nome
+exato do canal ativo do agente para o AMI `Redirect`, mesma incerteza de mapeamento de campo já
+registrada na Fase 4) e um endpoint dedicado de "remover agente da fila" (já coberto pela aba
+Filas existente, `CallCenterQueueService.removeMember`).
 
 ---
 
