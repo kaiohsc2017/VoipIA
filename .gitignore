@@ -24,6 +24,8 @@ asterisk/config/manager.conf
 asterisk/config/extensions.conf
 asterisk/config/ari.conf
 asterisk/config/res_pgsql.conf
+asterisk/config/sorcery.conf
+asterisk/config/extconfig.conf
 
 # --- Java / Maven ---
 backend/target/
@@ -55,6 +57,8 @@ insights-platform/frontend/node_modules/
 insights-platform/frontend/dist/
 agents-platform/frontend/node_modules/
 agents-platform/frontend/dist/
+callcenter-platform/frontend/node_modules/
+callcenter-platform/frontend/dist/
 
 # --- IDEs ---
 .idea/

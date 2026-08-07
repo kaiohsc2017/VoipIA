@@ -5,13 +5,14 @@ import type { AccessGroup, AccessGroupPermission, AccessGroupRequest } from '../
 // Catálogo fixo de recursos (menus) — espelha ResourceCatalog.java, o NAV do
 // agents-platform/frontend e o App.tsx da SPA insights-platform/frontend.
 // Manter em sincronia manual.
-const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agentes' | 'Insights' | 'Financeiro' }[] = [
+const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agentes' | 'Insights' | 'Financeiro' | 'Call Center' }[] = [
   { key: 'telecom.dashboard',    label: 'Dashboard',              system: 'Telecom' },
   { key: 'telecom.modulo1',      label: 'URA',                    system: 'Telecom' },
   { key: 'telecom.insights_link', label: 'Insights (link de nav)', system: 'Telecom' },
   { key: 'telecom.modulo2',      label: 'Conectividade',          system: 'Telecom' },
   { key: 'telecom.modulo3',      label: 'Monitoramento',          system: 'Telecom' },
   { key: 'telecom.agents_link',  label: 'Agentes (link de nav)',  system: 'Telecom' },
+  { key: 'telecom.callcenter_link', label: 'Call Center (link de nav)', system: 'Telecom' },
   { key: 'telecom.masterdata',   label: 'Clientes',               system: 'Telecom' },
   { key: 'telecom.operadoras',   label: 'Operadoras',             system: 'Telecom' },
   { key: 'telecom.0800',         label: '0800',                   system: 'Telecom' },
@@ -40,6 +41,10 @@ const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agent
   { key: 'financeiro.ura',       label: 'URA',                    system: 'Financeiro' },
   { key: 'financeiro.insights',  label: 'Insights',                system: 'Financeiro' },
   { key: 'financeiro.envios',    label: 'Análise Sob Demanda',    system: 'Financeiro' },
+  { key: 'callcenter.agentes',   label: 'Agentes',                system: 'Call Center' },
+  { key: 'callcenter.ramais',    label: 'Senha do ramal (sensível)', system: 'Call Center' },
+  { key: 'callcenter.filas',     label: 'Filas',                  system: 'Call Center' },
+  { key: 'callcenter.skills',    label: 'Skills',                 system: 'Call Center' },
 ];
 
 type PermMap = Record<string, { canRead: boolean; canWrite: boolean }>;

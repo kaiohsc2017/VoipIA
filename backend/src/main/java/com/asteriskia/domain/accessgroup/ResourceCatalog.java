@@ -21,6 +21,7 @@ public final class ResourceCatalog {
             "telecom.modulo2",
             "telecom.modulo3",
             "telecom.agents_link",
+            "telecom.callcenter_link",
             "telecom.masterdata",
             "telecom.0800",
             "telecom.linhas",
@@ -71,9 +72,23 @@ public final class ResourceCatalog {
             "financeiro.envios"
     );
 
+    // Módulo Call Center (voz) — Fase 2 do plano modulo-callcenter-omnicanal.plan.md.
+    // callcenter.ramais protege só a rota sensível de senha do ramal
+    // (GET /callcenter/agentes/{id}/ramal-secret); o CRUD de agente em si usa callcenter.agentes.
+    public static final List<String> CALLCENTER = List.of(
+            "callcenter.agentes",
+            "callcenter.ramais",
+            "callcenter.filas",
+            "callcenter.skills"
+    );
+
     public static List<String> all() {
         return java.util.stream.Stream.of(
-                        TELECOM.stream(), AGENTS.stream(), INSIGHTS.stream(), FINANCEIRO.stream())
+                        TELECOM.stream(),
+                        AGENTS.stream(),
+                        INSIGHTS.stream(),
+                        FINANCEIRO.stream(),
+                        CALLCENTER.stream())
                 .flatMap(s -> s)
                 .toList();
     }

@@ -5,6 +5,7 @@ import {
   Settings, Terminal, ShieldCheck, KeyRound, ClipboardList,
   LogOut, BookOpen, Tag, Phone, Cable, Building2, Lightbulb,
   Wallet, Send, ChevronDown, ChevronRight, TrendingUp, FileText, Upload, Server, Bell,
+  PhoneForwarded, ListOrdered, Tags,
 } from 'lucide-react';
 import { canRead } from '../api/client';
 import { RELEASES } from '../data/releases';
@@ -13,7 +14,8 @@ const CURRENT_VERSION = RELEASES[RELEASES.length - 1].version;
 
 type Page = 'dashboard' | 'modulo1' | 'insights' | 'modulo2' | 'modulo3' | 'masterdata' | 'users' | 'operadoras' | 'cadastro0800' | 'linhas' | 'settings' | 'audit' | 'logs' | 'security' | 'agents' | 'accessGroups' | 'docs' | 'release' | 'finUra' | 'finInsights' | 'finEnvios'
   | 'insCalls' | 'insDashboard' | 'insProcessing' | 'insScorecards' | 'insReports' | 'insUploads'
-  | 'agDashboard' | 'agAgents' | 'agServers' | 'agKnowledge' | 'agLogs' | 'agAlerts' | 'agSecrets' | 'agLlm';
+  | 'agDashboard' | 'agAgents' | 'agServers' | 'agKnowledge' | 'agLogs' | 'agAlerts' | 'agSecrets' | 'agLlm'
+  | 'ccAgentes' | 'ccFilas' | 'ccSkills';
 
 interface SidebarProps {
   currentPage: Page;
@@ -85,6 +87,15 @@ const NAV_ITEMS: NavEntry[] = [
       { page: 'finUra',      icon: Headset,   label: 'URA',                  section: 'MÓDULOS', resource: 'financeiro.ura'      },
       { page: 'finInsights', icon: Lightbulb, label: 'Insights',             section: 'MÓDULOS', resource: 'financeiro.insights' },
       { page: 'finEnvios',   icon: Send,      label: 'Análise Sob Demanda',  section: 'MÓDULOS', resource: 'financeiro.envios'   },
+    ],
+  },
+  {
+    label: 'Call Center', icon: PhoneForwarded, section: 'MÓDULOS',
+    linkResource: 'telecom.callcenter_link',
+    children: [
+      { page: 'ccAgentes', icon: Users,       label: 'Agentes', section: 'MÓDULOS', resource: 'callcenter.agentes' },
+      { page: 'ccFilas',   icon: ListOrdered, label: 'Filas',   section: 'MÓDULOS', resource: 'callcenter.filas'   },
+      { page: 'ccSkills',  icon: Tags,        label: 'Skills',  section: 'MÓDULOS', resource: 'callcenter.skills'  },
     ],
   },
   {

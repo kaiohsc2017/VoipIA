@@ -27,6 +27,7 @@ const Documentacao       = lazy(() => import('./components/Documentacao'));
 const Release            = lazy(() => import('./components/Release'));
 const AgentesPage        = lazy(() => import('./components/AgentesPage'));
 const InsightsPage       = lazy(() => import('./components/InsightsPage'));
+const CallCenterPage     = lazy(() => import('./components/CallCenterPage'));
 const Financeiro         = lazy(() => import('./components/Financeiro'));
 
 // ─── ErrorBoundary ─────────────────────────────────────────────────────────────
@@ -129,6 +130,9 @@ const PAGE_RESOURCE: Partial<Record<Page, string>> = {
   agAlerts:    'agents.reports',
   agSecrets:   'agents.secrets',
   agLlm:       'agents.llm',
+  ccAgentes: 'callcenter.agentes',
+  ccFilas:   'callcenter.filas',
+  ccSkills:  'callcenter.skills',
 };
 
 // Submenus Insights/Agentes: cada aba exige, além do resource_key próprio
@@ -140,10 +144,12 @@ const LINK_RESOURCE: Partial<Record<Page, string>> = {
   agDashboard: 'telecom.agents_link', agAgents: 'telecom.agents_link', agServers: 'telecom.agents_link',
   agKnowledge: 'telecom.agents_link', agLogs: 'telecom.agents_link', agAlerts: 'telecom.agents_link',
   agSecrets: 'telecom.agents_link', agLlm: 'telecom.agents_link',
+  ccAgentes: 'telecom.callcenter_link', ccFilas: 'telecom.callcenter_link', ccSkills: 'telecom.callcenter_link',
 };
 
 const INSIGHTS_SUBPAGES: Page[] = ['insCalls', 'insDashboard', 'insProcessing', 'insScorecards', 'insReports', 'insUploads'];
 const AGENTS_SUBPAGES: Page[] = ['agDashboard', 'agAgents', 'agServers', 'agKnowledge', 'agLogs', 'agAlerts', 'agSecrets', 'agLlm'];
+const CALLCENTER_SUBPAGES: Page[] = ['ccAgentes', 'ccFilas', 'ccSkills'];
 
 // Mapeia Page (id de rota do Telecom) <-> tab/page interno das SPAs embutidas —
 // trocado via postMessage (ver InsightsPage.tsx/AgentesPage.tsx) para não remontar o iframe.
@@ -163,6 +169,12 @@ const AGENTS_TAB_TO_PAGE: Record<string, Page> = {
   dashboard: 'agDashboard', agents: 'agAgents', servers: 'agServers', knowledge: 'agKnowledge',
   logs: 'agLogs', reports: 'agAlerts', secrets: 'agSecrets', llm: 'agLlm',
 };
+const CALLCENTER_PAGE_TO_TAB: Record<string, string> = {
+  ccAgentes: 'agentes', ccFilas: 'filas', ccSkills: 'skills',
+};
+const CALLCENTER_TAB_TO_PAGE: Record<string, Page> = {
+  agentes: 'ccAgentes', filas: 'ccFilas', skills: 'ccSkills',
+};
 
 export default function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('asteriskia_token'));
@@ -173,7 +185,7 @@ export default function App() {
     const hash = window.location.hash.replace('#', '').trim() as Page;
     const valid: Page[] = [
       'dashboard','modulo1','insights','modulo2','modulo3','masterdata','users','operadoras','cadastro0800','linhas','settings','audit','logs','security','accessGroups','docs','release','agents','finUra','finInsights','finEnvios',
-      ...INSIGHTS_SUBPAGES, ...AGENTS_SUBPAGES,
+      ...INSIGHTS_SUBPAGES, ...AGENTS_SUBPAGES, ...CALLCENTER_SUBPAGES,
     ];
     if (!valid.includes(hash)) return 'dashboard';
     // Acesso direto via hash (digitado/favoritado) a uma página sem permissão de
@@ -298,6 +310,12 @@ export default function App() {
                   tab={AGENTS_PAGE_TO_TAB[page] ?? 'dashboard'}
                   onTabChange={(t) => { const p = AGENTS_TAB_TO_PAGE[t]; if (p) navigateTo(p); }}
                   onAlertCount={setAgentsAlertCount}
+                />
+              )}
+              {CALLCENTER_SUBPAGES.includes(page) && (
+                <CallCenterPage
+                  tab={CALLCENTER_PAGE_TO_TAB[page] ?? 'agentes'}
+                  onTabChange={(t) => { const p = CALLCENTER_TAB_TO_PAGE[t]; if (p) navigateTo(p); }}
                 />
               )}
               {page === 'finUra'      && <Financeiro scope="ura" />}

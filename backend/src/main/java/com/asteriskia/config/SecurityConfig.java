@@ -175,6 +175,17 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.insights")
                         .requestMatchers(HttpMethod.GET, "/api/v1/financeiro/cost-alerts/envios")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.envios")
+                        // Módulo Call Center (voz) — Fase 2. ramal-secret precisa vir ANTES do
+                        // matcher genérico de /agentes/**, e é protegido por um resource_key
+                        // próprio (callcenter.ramais) por expor a senha SIP do ramal.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/agentes/*/ramal-secret")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.ramais")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/agentes/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.agentes")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/filas/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.filas")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/skills/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.skills")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da
@@ -221,6 +232,12 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.insights")
                         .requestMatchers("/api/v1/financeiro/cost-alerts/envios")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.envios")
+                        .requestMatchers("/api/v1/callcenter/agentes/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.agentes")
+                        .requestMatchers("/api/v1/callcenter/filas/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.filas")
+                        .requestMatchers("/api/v1/callcenter/skills/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.skills")
 
                         // Todos os demais endpoints exigem apenas autenticação (JWT ou InternalKey)
                         .anyRequest().authenticated()

@@ -80,7 +80,24 @@ ENV VITE_API_URL=$VITE_API_URL
 
 RUN npm run build
 
-# ---------- Stage 4: Nginx ----------
+# ---------- Stage 4: Build da SPA de Call Center ----------
+FROM node:22-alpine AS callcenter-builder
+
+WORKDIR /app
+
+COPY callcenter-platform/frontend/package.json callcenter-platform/frontend/package-lock.json* ./
+RUN npm ci --silent
+
+COPY callcenter-platform/frontend/ .
+
+# Mesma API do backend Java usada pelo Telecom — a SPA de Call Center reusa
+# /api/v1/callcenter/** no mesmo backend Spring Boot (sem backend próprio).
+ARG VITE_API_URL=https://app.voiphash.com.br/api/v1
+ENV VITE_API_URL=$VITE_API_URL
+
+RUN npm run build
+
+# ---------- Stage 5: Nginx ----------
 FROM nginx:1.27-alpine
 
 # Remove default config
@@ -97,6 +114,9 @@ COPY --from=insights-builder /app/dist /usr/share/nginx/html/insights
 
 # Copia build da SPA de Agentes
 COPY --from=agents-builder /app/dist /usr/share/nginx/html/agents
+
+# Copia build da SPA de Call Center
+COPY --from=callcenter-builder /app/dist /usr/share/nginx/html/callcenter
 
 # Achado de segurança (débito aceito): master process do nginx rodava como
 # root (necessário só pra bindar a porta 80, <1024). Roda como o usuário

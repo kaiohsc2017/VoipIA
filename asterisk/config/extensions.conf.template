@@ -87,14 +87,20 @@ exten => _10XX,1,NoOp(=== Chamada entre ramais ===)
 exten => _10XX,n,Dial(PJSIP/${EXTEN},30)
 exten => _10XX,n,Hangup()
 
-; Faixas RESERVADAS para o módulo Call Center (Fase 0 do plano
-; modulo-callcenter-omnicanal.plan.md) — sem uso ainda, dialplan real
-; entra nas Fases 2 (cadastros/ARA) e 5 (flow builder). Documentado
-; aqui só para nenhuma outra feature (URA, ramal de teste, etc.)
-; alocar acidentalmente um número dentro delas:
-;   4000-4999 → ramais de agente do Call Center
-;   5000-5999 → filas do Call Center
-; (URAs do Módulo 1 usam 2000-2999; ramais de teste usam 1000-1002/9001-9002)
+; Ramais de agente do Call Center — faixa 4000-4999 (Fase 2). Cadastrar um
+; agente novo pela web (domain/callcenter) só grava em ps_endpoints/ps_auths/
+; ps_aors (ARA) — nenhuma edição de dialplan é necessária.
+exten => _4XXX,1,NoOp(=== Call Center: ramal de agente ${EXTEN} ===)
+exten => _4XXX,n,Dial(PJSIP/${EXTEN},30)
+exten => _4XXX,n,Hangup()
+
+; Filas do Call Center — faixa 5000-5999 (Fase 2). Cadastrar uma fila nova
+; pela web só grava em `queues`/`queue_members` (ARA) — o número da fila é o
+; próprio ramal dentro desta faixa.
+exten => _5XXX,1,NoOp(=== Call Center: fila ${EXTEN} ===)
+exten => _5XXX,n,Answer()
+exten => _5XXX,n,Queue(${EXTEN})
+exten => _5XXX,n,Hangup()
 
 exten => h,1,NoOp(=== Encerrado ===)
 
