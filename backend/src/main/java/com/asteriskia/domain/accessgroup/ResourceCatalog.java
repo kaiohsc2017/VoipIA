@@ -100,7 +100,13 @@ public final class ResourceCatalog {
             // callcenter.chat (Fase 7a — base interna): fila/conversas/respostas rápidas do
             // agente. Não cobre /callcenter/chat/test/** (simulador de cliente, ROLE_ADMIN puro,
             // sem resource_key — nunca deve virar algo que um grupo customizado possa conceder).
-            "callcenter.chat"
+            "callcenter.chat",
+            // callcenter.reports (Fase 9a): relatório analítico de fila de voz. Distinto de
+            // callcenter.insights.reports (Fase 8, relatório de performance por atendente) —
+            // fontes de dado e granularidade diferentes. Não cobre POST /reports/reprocess
+            // (ROLE_ADMIN puro, sem resource_key — reprocessamento em massa não é ação de rotina
+            // de um grupo customizado).
+            "callcenter.reports"
     );
 
     public static List<String> all() {

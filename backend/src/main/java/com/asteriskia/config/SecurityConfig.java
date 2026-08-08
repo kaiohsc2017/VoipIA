@@ -242,6 +242,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/callcenter/chat/test/**").hasAuthority("ROLE_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/chat/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.chat")
+                        // Relatório analítico de fila de voz — Fase 9a. /reprocess é ROLE_ADMIN
+                        // puro (reprocessamento em massa), precisa vir ANTES do matcher genérico
+                        // de leitura de /reports/** (mesma ordem de /chat/test/** acima).
+                        .requestMatchers("/api/v1/callcenter/reports/reprocess").hasAuthority("ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/reports/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.reports")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da

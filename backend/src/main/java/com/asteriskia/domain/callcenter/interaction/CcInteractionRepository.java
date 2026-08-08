@@ -23,4 +23,7 @@ public interface CcInteractionRepository extends JpaRepository<CcInteraction, Lo
 
     /** Interações do dia atendidas por um agente — contagem de chamadas do painel. */
     long countByAgentIdAndAnsweredAtAfter(Long agentId, LocalDateTime since);
+
+    /** Interações de uma fila num intervalo de `queuedAt` — base do agregado diário (Fase 9a). */
+    List<CcInteraction> findByQueueIdAndQueuedAtBetween(Long queueId, LocalDateTime from, LocalDateTime to);
 }

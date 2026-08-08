@@ -519,4 +519,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Ainda depende de uma fila real ser configurada para o chat público entrar em operação, e continua sem WhatsApp/Telegram (fica para uma entrega futura).',
     ],
   },
+  {
+    version: 'v1.57',
+    date: '2026-08-08',
+    changes: [
+      'Call Center ganha a primeira aba de Relatórios: volume recebido/atendido/abandonado, tempo médio de espera e de atendimento, e nível de serviço por fila — com visão diária, semanal, mensal e anual, e comparação entre dois períodos.',
+      'Por enquanto só cobre o canal de voz — relatórios de agente, de fluxo e de chat, além de um relatório único cruzando voz e chat da mesma pessoa, chegam em entregas futuras.',
+    ],
+  },
 ];

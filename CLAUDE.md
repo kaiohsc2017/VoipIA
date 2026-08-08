@@ -836,6 +836,37 @@ Desenho aprovado pelo usuário antes da implementação (superfície nova expost
   real quando existir, e validação manual do widget embutido numa página de teste — sem acesso a
   browser nesta sessão.
 
+### ✅ Fase 9a do módulo Call Center — agregado diário e relatório de fila de voz (2026-08-08) — implementada, pendente deploy/validação em produção
+Primeira fatia da Fase 9 (Relatórios analíticos) — **deliberadamente só fila de voz**: agregados
+de agente/fluxo/chat, relatório de omnicanalidade/timeline unificada, exportação Excel/PDF e
+agendamento por e-mail/Telegram ficam para fatias 9b/9c futuras (mesmo padrão de fatiamento das
+Fases 7a/7b/8).
+- Migration **V58**: `cc_agg_queue_daily` (um registro por fila/dia, upsert via índice único,
+  nunca acumulado incrementalmente) — recebido/atendido/abandonado, ASA (`avg_wait_seconds`),
+  aproximação de TMA (`avg_talk_seconds` — só tempo de conversação, sem hold/ACW somados, porque
+  ACW hoje é estado do agente em `cc_agent_states`, não da interação; juntar isso com precisão é
+  trabalho de uma fatia futura), nível de serviço (`service_level_pct`, reusando
+  `cc_queues.timeout_seconds` já existente em vez de inventar configuração de SLA nova).
+- `CallCenterQueueAggregationScheduler` consolida o dia anterior toda madrugada (mesmo padrão do
+  `AiModelPricingSyncScheduler`) + reprocessamento manual sob demanda de um intervalo
+  (`ROLE_ADMIN` puro, limite de 400 dias contra reprocessar anos por engano).
+- `CallCenterReportsQueryService` agrupa os agregados diários em semana/mês/ano **ponderando
+  médias e nível de serviço pelo volume de atendidas de cada dia** — nunca a média simples das
+  médias diárias, que distorceria períodos com volumes bem diferentes entre si. Comparação entre
+  dois períodos calcula o delta de cada indicador.
+- RBAC: `callcenter.reports` (leitura); `/callcenter/reports/reprocess` é `ROLE_ADMIN` puro, sem
+  `resource_key`, matcher posicionado antes do genérico.
+- Frontend: aba "Relatórios" nova no `callcenter-platform` (`ReportsQueueTab.tsx`) — tabela por
+  granularidade + comparação entre períodos, sem gráfico (`recharts` não é dependência deste
+  app, mesma decisão já registrada em `InsightsDashboardTab.tsx`).
+- `CallCenterQueueAggregationServiceTest` (7 testes) cobre os casos de borda do cálculo (SLA
+  dentro/fora, abandonada não entra em ASA/TMA, fila sem interação gera registro zerado,
+  reprocessamento rejeita intervalo grande demais).
+- Suíte completa validada em container Maven com cache offline — 418/418 verde (7 novos, 0
+  regressão). `tsc --noEmit` e `npm run build` do `callcenter-platform/frontend` limpos.
+- **Pendente**: deploy real e validação manual/visual no navegador — sem acesso a browser nesta
+  sessão.
+
 ### ✅ Débito de segurança — 2 de 3 fechados (2026-07-03), 1 parcial
 - **CSP**: `Content-Security-Policy-Report-Only` ativo no Caddyfile (não bloqueia nada, só reporta
   violações no console do browser) — validado em produção. Migrar pra enforcement real exige

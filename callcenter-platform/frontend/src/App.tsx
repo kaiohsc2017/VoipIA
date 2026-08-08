@@ -14,6 +14,7 @@ import { InsightsProcessamentoTab } from './components/InsightsProcessamentoTab'
 import { ScorecardsViewTab } from './components/ScorecardsViewTab';
 import { ReportsTab } from './components/ReportsTab';
 import { ChatTab } from './components/ChatTab';
+import { ReportsQueueTab } from './components/ReportsQueueTab';
 import { revokeSession } from './api/client';
 import { authSessionFromToken } from './hooks/useAuthSession';
 import { useShellBridge } from './hooks/useShellBridge';
@@ -37,6 +38,7 @@ const TAB_RESOURCE = {
   insightsScorecards: 'callcenter.insights.scorecards',
   insightsReports: 'callcenter.insights.reports',
   chat: 'callcenter.chat',
+  reports: 'callcenter.reports',
 } as const;
 
 // ─── ErrorBoundary — evita tela em branco em caso de exceção de render ──────
@@ -127,6 +129,7 @@ export default function App() {
     { id: 'insightsScorecards' },
     { id: 'insightsReports' },
     { id: 'chat' },
+    { id: 'reports' },
   ];
   const visibleTabs = TABS.filter(t => session.hasRead(TAB_RESOURCE[t.id]));
   const currentTab = visibleTabs.some(t => t.id === tab) ? tab : visibleTabs[0]?.id;
@@ -174,6 +177,7 @@ export default function App() {
               <ReportsTab canWrite={session.hasWrite('callcenter.insights.reports')} isAdmin={session.role === 'ADMIN'} />
             )}
             {currentTab === 'chat' && <ChatTab isAdmin={session.role === 'ADMIN'} />}
+            {currentTab === 'reports' && <ReportsQueueTab isAdmin={session.role === 'ADMIN'} />}
             {!currentTab && (
               <p style={{ color: 'var(--text-muted)' }}>Você não tem permissão de leitura em nenhuma aba do Call Center.</p>
             )}

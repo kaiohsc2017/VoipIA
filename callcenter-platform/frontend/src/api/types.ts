@@ -578,3 +578,31 @@ export interface CcCannedResponse {
   category?: string;
   active: boolean;
 }
+
+// ---- Relatórios analíticos — Fase 9a (só fila de voz nesta fatia) ----
+export type ReportGranularity = 'day' | 'week' | 'month' | 'year';
+
+export interface QueuePeriodMetrics {
+  queueId: number | null;
+  queueName: string | null;
+  periodLabel: string;
+  received: number;
+  answered: number;
+  abandoned: number;
+  abandonRatePct: number | null;
+  avgWaitSeconds: number | null;
+  avgTalkSeconds: number | null;
+  serviceLevelPct: number | null;
+}
+
+export interface QueuePeriodComparison {
+  periodA: QueuePeriodMetrics;
+  periodB: QueuePeriodMetrics;
+  receivedDelta: number;
+  answeredDelta: number;
+  abandonedDelta: number;
+  abandonRatePctDelta: number | null;
+  avgWaitSecondsDelta: number | null;
+  avgTalkSecondsDelta: number | null;
+  serviceLevelPctDelta: number | null;
+}
