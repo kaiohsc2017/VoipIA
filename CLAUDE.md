@@ -892,7 +892,7 @@ falhas) — todas renderizam sem tela em branco e sem exceção JS.
   "Relatórios" (Fase 9a, agregado de fila) coexistem sem conflito de rota/label na Sidebar,
   apesar do nome parecido.
 
-### ✅ Fase 9b do módulo Call Center — agregado diário de agente de voz (2026-08-08) — implementada, pendente deploy/validação em produção
+### ✅ Fase 9b do módulo Call Center — agregado diário de agente de voz (2026-08-08) — deployada e validada em produção
 Segunda fatia da Fase 9, seguindo o padrão exato da 9a. **Deliberadamente fora desta fatia**:
 agregado de fluxo/URA, agregado de chat, aderência à escala (não existe conceito de escala/turno
 no sistema ainda), rechamada 24h/7d, top motivos de tabulação e transferências — ficam para uma
@@ -918,7 +918,12 @@ fatia 9c futura.
   agora; `occupancyPct` null sem tempo logado; agente sem interação gera registro zerado.
 - Suíte completa validada em container Maven com cache offline — 425/425 verde (7 novos, 0
   regressão). `tsc --noEmit` e `npm run build` do `callcenter-platform/frontend` limpos.
-- **Pendente**: deploy real e validação manual/visual no navegador.
+- Deployado (`docker compose up -d --build backend frontend`, migration V59 confirmada em
+  `flyway_schema_history`) e validado em produção via curl com JWT forjado: `/agents`,
+  `/agents/compare` e `/reprocess` (fila+agente combinado, corpo JSON `{from,to}`) retornam 200
+  para ADMIN e 403 para USER/sem token; resposta vazia (`{}`) esperada — não há agentes
+  cadastrados nesta VPS de dev (`SELECT count(*) FROM cc_agents` = 0). Validação visual no
+  navegador não foi feita (sem acesso a browser nesta sessão).
 
 ### ✅ Débito de segurança — 2 de 3 fechados (2026-07-03), 1 parcial
 - **CSP**: `Content-Security-Policy-Report-Only` ativo no Caddyfile (não bloqueia nada, só reporta
