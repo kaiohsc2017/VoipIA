@@ -89,4 +89,33 @@ class JwtServiceTest {
         String token = jwtService.generateToken("kaio", 9001, "USER", Map.of());
         assertThat(jwtService.extractPermissions(token)).isEmpty();
     }
+
+    @Test
+    void generateChatCustomerToken_validaContraSessionIdCorreto() {
+        String token = jwtService.generateChatCustomerToken(42L);
+        assertThat(jwtService.validateChatCustomerToken(token, 42L)).isTrue();
+    }
+
+    @Test
+    void validateChatCustomerToken_sessionIdErrado_deveRetornarFalse() {
+        String token = jwtService.generateChatCustomerToken(42L);
+        assertThat(jwtService.validateChatCustomerToken(token, 99L)).isFalse();
+    }
+
+    @Test
+    void validateChatCustomerToken_tokenPrincipalDeStaff_deveRetornarFalse() {
+        String token = jwtService.generateToken("kaio", 9001, "ADMIN");
+        assertThat(jwtService.validateChatCustomerToken(token, 42L)).isFalse();
+    }
+
+    @Test
+    void validateChatCustomerToken_tokenDeStreaming_deveRetornarFalse() {
+        String token = jwtService.generateStreamingToken("kaio", "ADMIN", Map.of());
+        assertThat(jwtService.validateChatCustomerToken(token, 42L)).isFalse();
+    }
+
+    @Test
+    void validateChatCustomerToken_tokenInvalido_deveRetornarFalse() {
+        assertThat(jwtService.validateChatCustomerToken("token.invalido.aqui", 42L)).isFalse();
+    }
 }

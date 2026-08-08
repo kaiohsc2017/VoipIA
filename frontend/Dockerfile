@@ -118,6 +118,9 @@ COPY --from=agents-builder /app/dist /usr/share/nginx/html/agents
 # Copia build da SPA de Call Center
 COPY --from=callcenter-builder /app/dist /usr/share/nginx/html/callcenter
 
+# Widget de chat público (Fase 7b) — JS puro, sem estágio de build (sem framework/dependências).
+COPY frontend/public-widget/ /usr/share/nginx/html/widget/
+
 # Achado de segurança (débito aceito): master process do nginx rodava como
 # root (necessário só pra bindar a porta 80, <1024). Roda como o usuário
 # "nginx" (já existe na imagem oficial, UID 101) — precisa de

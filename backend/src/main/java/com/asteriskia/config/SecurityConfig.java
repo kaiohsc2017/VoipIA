@@ -65,7 +65,11 @@ public class SecurityConfig {
                                 "/api/v1/ai/chain/active",    // ai-agent consulta chain via X-Internal-Key
                                 "/api/v1/ai/providers/*/key-internal", // ai-agent busca keys via X-Internal-Key
                                 "/actuator/health",
-                                "/ws/**"            // SockJS handshake (GET /ws/info) e upgrade WebSocket
+                                "/ws/**",           // SockJS handshake (GET /ws/info) e upgrade WebSocket
+                                // Widget de chat público (Fase 7b) — cliente anônimo, sem JWT de
+                                // staff. Autenticação é manual dentro do controller (token de
+                                // sessão validado contra o sessionId da URL), não pelo JwtAuthFilter.
+                                "/api/v1/callcenter/chat/public/**"
                         ).permitAll()
 
                         // Leitura de URAs: qualquer usuário autenticado (filtro do dashboard

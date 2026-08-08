@@ -740,7 +740,7 @@ duplicar lógica de negócio. Plano completo em `.claude/plans/modulo-callcenter
   JWT forjado: endpoints novos retornam 200 para ADMIN e 403 sem token/sem permissão granular.
   Validação visual no navegador não foi feita (sem acesso a browser nesta sessão).
 
-### ✅ Fase 7a do módulo Call Center — base interna do canal de chat (2026-08-07) — implementada, pendente deploy/validação em produção
+### ✅ Fase 7a do módulo Call Center — base interna do canal de chat (2026-08-07) — deployada e validada em produção
 Primeira fatia da Fase 7 (canal de chat) — **deliberadamente sem widget público exposto à
 internet ainda** (decisão tomada com o usuário): o esquema de autenticação anônima pro cliente
 final (diferente do JWT de ramal usado hoje) fica pra uma fatia 7b futura, com mais tempo de
@@ -775,8 +775,51 @@ de cliente restrito a ADMIN pra validar o pipeline ponta a ponta.
   o dono; encerramento rejeita quem não é o dono nem ADMIN.
 - Suíte completa validada em container Maven com cache offline — 399/399 verde (8 novos, 0
   regressão). `tsc --noEmit` e `npm run build` do `callcenter-platform/frontend` limpos.
-- **Pendente**: deploy real e validação manual/visual no navegador — sem acesso a browser nesta
-  sessão.
+- Deployado e validado em produção via curl com JWT forjado: ADMIN 200 no simulador, USER/sem
+  token 403. Validação visual no navegador não foi feita.
+
+### ✅ Fase 7b do módulo Call Center — autenticação anônima e widget público do chat (2026-08-08) — implementada, pendente deploy/validação em produção
+Fecha a lacuna deixada em aberto pela Fase 7a: agora o widget de chat público (cliente final,
+sem login) pode existir de verdade, com um esquema de autenticação **separado** do JWT de staff.
+Desenho aprovado pelo usuário antes da implementação (superfície nova exposta à internet).
+- **Token de sessão, não de identidade**: `JwtService.generateChatCustomerToken`/
+  `validateChatCustomerToken` — mesmo padrão já usado pelo token de streaming (claim `scope`
+  distinta, `chat_customer`), mas validade de 2h (dura a conversa inteira, não só abre uma
+  conexão) e sem nenhuma claim `role`/`perm`/`bu` — esse token nunca ganha autoridade RBAC de
+  staff, só autoriza ações na `sessionId` que carrega (comparada contra o `{id}` da URL a cada
+  chamada).
+- **Fila fixa por configuração**: o cliente não escolhe a fila (evita enumeração/abuso) — resolve
+  de `app.callcenter.chat.public-queue-id` (`CALLCENTER_CHAT_PUBLIC_QUEUE_ID` no `.env`, vazio por
+  ora — não há fila real cadastrada nesta VPS de dev). Sem essa config, o endpoint responde 503
+  claro, nunca 500. Canal fixo `webchat` (migration **V57**, distinto do `internal_test` da
+  Fase 7a).
+- **Rate limiting em memória** (`PublicChatRateLimiter`, sem dependência nova) — 5 sessões/10min
+  por IP, 30 mensagens/min por sessão, janela deslizante sincronizada por chave. Gap aceito:
+  chaves nunca são removidas do mapa (memória cresce com IPs únicos ao longo do tempo de uptime)
+  — aceitável na escala desta VPS de dev; não escala pra múltiplas réplicas do backend (exigiria
+  Redis), mesma decisão já registrada sobre volume real ir para servidor dedicado.
+- **Extração de IP real** confia em `X-Forwarded-For`/`X-Real-IP` só quando a conexão direta vem
+  do container `caddy` (único reverse proxy da stack) — mesmo padrão já usado em outros pontos do
+  código, replicado aqui em vez de extraído para utilitário compartilhado (evita acoplar o
+  controller público a filtros de autenticação de staff).
+- **CORS**: segundo `registry.addMapping` em `AppConfig`, só para `/api/v1/callcenter/chat/
+  public/**`, `allowedOriginPatterns("*")` com `allowCredentials(false)` — seguro porque não há
+  cookie envolvido (token via header/body); o mapping genérico `/api/**` (restrito a
+  `app.cors.allowed-origins`) continua intocado para o resto da API.
+- **Widget** `frontend/public-widget/callcenter-chat-widget.js` — JS puro embeddável via
+  `<script>`, sem build step, sem framework: botão flutuante, polling a cada 3s, `customerRef`
+  via `localStorage`. Mensagens renderizadas com `textContent` (nunca `innerHTML` de conteúdo do
+  usuário) — sem risco de XSS via texto de cliente/agente. Sem retomada de sessão após reload,
+  sem anexos, sem indicador de digitação, sem WebSocket em tempo real pro cliente — tudo isso
+  fica pra Fase 7 completa.
+- Testes novos: `JwtServiceTest` (6 casos do token de chat) + `PublicChatRateLimiterTest` (7
+  casos, incluindo independência entre buckets de IPs/sessões diferentes). Suíte completa
+  411/411 verde (12 novos, 0 regressão) validada em container Maven com cache offline.
+- **Ainda fora de escopo**: WhatsApp Cloud API/Telegram (exigem credenciais externas que o
+  projeto não tem — mesmo gap já registrado para o Jira).
+- **Pendente**: deploy real, configurar `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` com uma fila real
+  quando existir, e validação manual do widget embutido numa página de teste — sem acesso a
+  browser nesta sessão.
 
 ### ✅ Débito de segurança — 2 de 3 fechados (2026-07-03), 1 parcial
 - **CSP**: `Content-Security-Policy-Report-Only` ativo no Caddyfile (não bloqueia nada, só reporta

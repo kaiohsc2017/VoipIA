@@ -511,4 +511,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Grupos de Acesso: novo recurso "Chat" no grupo Call Center.',
     ],
   },
+  {
+    version: 'v1.56',
+    date: '2026-08-08',
+    changes: [
+      'Chat do Call Center ganha o widget público que pode ser embutido no site: o visitante conversa sem precisar de login, com um token de sessão próprio, isolado e de curta duração — nunca com acesso às telas internas.',
+      'Ainda depende de uma fila real ser configurada para o chat público entrar em operação, e continua sem WhatsApp/Telegram (fica para uma entrega futura).',
+    ],
+  },
 ];

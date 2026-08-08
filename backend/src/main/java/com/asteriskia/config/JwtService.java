@@ -299,5 +299,53 @@ public class JwtService {
             return false;
         }
     }
+
+    /** TTL do token de cliente do chat público (Fase 7b) — cobre a duração de uma conversa
+     * inteira (não só a abertura de uma conexão, como o token de streaming de 60s acima). */
+    private static final long CHAT_CUSTOMER_TOKEN_TTL_MS = 2 * 3600 * 1000L;
+
+    /**
+     * Gera um token de vida curta (2h) para o cliente anônimo do widget de chat público
+     * (Fase 7b) — nunca carrega "role"/"perm"/"bu": este token não é de staff e não deve
+     * nunca ganhar autoridade RBAC, só autoriza ações na sessão de chat indicada. A claim
+     * "scope=chat_customer" o distingue do token principal (8h) e do de streaming (60s,
+     * scope=stream) — {@link #validateChatCustomerToken} rejeita qualquer token sem essa
+     * claim exata, então nenhum dos outros dois pode ser usado nos endpoints públicos de chat.
+     */
+    public String generateChatCustomerToken(Long sessionId) {
+        long nowMs = System.currentTimeMillis();
+        return Jwts.builder()
+                .subject("chat-customer")
+                .issuedAt(new Date(nowMs))
+                .expiration(new Date(nowMs + CHAT_CUSTOMER_TOKEN_TTL_MS))
+                .claim("scope", "chat_customer")
+                .claim("sessionId", sessionId)
+                .signWith(key(), Jwts.SIG.HS256)
+                .compact();
+    }
+
+    /**
+     * Valida um token de cliente de chat contra a sessão esperada — nunca lança, só
+     * retorna {@code false} pra qualquer problema (assinatura, expiração, scope errado ou
+     * sessionId de outra conversa). Nunca aceita o JWT principal de staff nem o de
+     * streaming aqui — a claim "scope" distingue os três tipos de token deste serviço.
+     */
+    public boolean validateChatCustomerToken(String token, Long expectedSessionId) {
+        try {
+            var claims = Jwts.parser()
+                    .verifyWith(key())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            if (!"chat_customer".equals(claims.get("scope"))) {
+                return false;
+            }
+            Object sessionIdClaim = claims.get("sessionId");
+            long sessionId = sessionIdClaim instanceof Number n ? n.longValue() : Long.parseLong(sessionIdClaim.toString());
+            return expectedSessionId != null && sessionId == expectedSessionId;
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }
 

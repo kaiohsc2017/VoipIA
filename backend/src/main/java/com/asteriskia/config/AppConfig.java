@@ -43,6 +43,17 @@ public class AppConfig {
                         .allowedHeaders("*")
                         .allowCredentials(true)
                         .maxAge(3600);
+
+                // Widget de chat público (Fase 7b) — embeddável em qualquer site externo, sem
+                // saber de antemão o domínio. Origem "*" só é segura aqui porque não há cookie
+                // envolvido (allowCredentials=false): o token de sessão viaja em header/body,
+                // nunca em cookie, então não há CSRF a mitigar nesta rota específica.
+                registry.addMapping("/api/v1/callcenter/chat/public/**")
+                        .allowedOriginPatterns("*")
+                        .allowedMethods("GET", "POST", "OPTIONS")
+                        .allowedHeaders("*")
+                        .allowCredentials(false)
+                        .maxAge(3600);
             }
         };
     }
