@@ -836,7 +836,7 @@ Desenho aprovado pelo usuário antes da implementação (superfície nova expost
   real quando existir, e validação manual do widget embutido numa página de teste — sem acesso a
   browser nesta sessão.
 
-### ✅ Fase 9a do módulo Call Center — agregado diário e relatório de fila de voz (2026-08-08) — implementada, pendente deploy/validação em produção
+### ✅ Fase 9a do módulo Call Center — agregado diário e relatório de fila de voz (2026-08-08) — deployada e validada em produção
 Primeira fatia da Fase 9 (Relatórios analíticos) — **deliberadamente só fila de voz**: agregados
 de agente/fluxo/chat, relatório de omnicanalidade/timeline unificada, exportação Excel/PDF e
 agendamento por e-mail/Telegram ficam para fatias 9b/9c futuras (mesmo padrão de fatiamento das
@@ -864,8 +864,10 @@ Fases 7a/7b/8).
   reprocessamento rejeita intervalo grande demais).
 - Suíte completa validada em container Maven com cache offline — 418/418 verde (7 novos, 0
   regressão). `tsc --noEmit` e `npm run build` do `callcenter-platform/frontend` limpos.
-- **Pendente**: deploy real e validação manual/visual no navegador — sem acesso a browser nesta
-  sessão.
+- Deployado (migration V58 confirmada em `flyway_schema_history`) e validado em produção via
+  curl: reprocessamento manual funciona de ponta a ponta, RBAC correto (ADMIN 200, USER/sem token
+  403 no `/reprocess`), consulta de relatório retorna `{}` corretamente (não há filas cadastradas
+  nesta VPS de dev). Validação visual no navegador não foi feita.
 
 ### ✅ Débito de segurança — 2 de 3 fechados (2026-07-03), 1 parcial
 - **CSP**: `Content-Security-Policy-Report-Only` ativo no Caddyfile (não bloqueia nada, só reporta
