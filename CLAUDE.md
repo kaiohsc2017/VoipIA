@@ -693,7 +693,7 @@ nesses cadastros), Chamadas (`CallRecordService`, via `uras.business_unit_id`) e
   transcrição/áudio de todas as BUs. Resolver exigiria join de `call_audio_files.ccRecordingId`
   até `cc_recordings.businessUnit` em `InsightsSpecifications` — fora do escopo desta fatia.
 
-### ✅ Fase 8 do módulo Call Center — Insights (pipeline de IA) (2026-08-07) — implementada, pendente deploy/validação em produção
+### ✅ Fase 8 do módulo Call Center — Insights (pipeline de IA) (2026-08-07) — deployada e validada em produção
 Reaproveita integralmente o pipeline de Insights (Verint) — STT/diarização/análise de
 sentimento/achados — aplicado às gravações de fila do Call Center (`cc_recordings`), sem
 duplicar lógica de negócio. Plano completo em `.claude/plans/modulo-callcenter-omnicanal.plan.md`
@@ -735,9 +735,48 @@ duplicar lógica de negócio. Plano completo em `.claude/plans/modulo-callcenter
   `npm run build` do `callcenter-platform/frontend` limpos.
 - Release notes `v1.54` já registrada e corrigida (a primeira redação dizia "ainda sem tela
   própria" — desatualizada pelo trabalho posterior nesta mesma sessão).
-- **Pendente**: deploy real (`docker compose up -d --build backend callcenter-platform-frontend
-  insights`, migrations V54/V55 aplicam no boot) e validação manual/visual das 5 abas no
-  navegador — sem acesso a browser nesta sessão.
+- Deployado (`docker compose up -d --build backend frontend insights`, migrations V54/V55
+  aplicadas no boot, confirmadas em `flyway_schema_history`) e validado em produção via curl com
+  JWT forjado: endpoints novos retornam 200 para ADMIN e 403 sem token/sem permissão granular.
+  Validação visual no navegador não foi feita (sem acesso a browser nesta sessão).
+
+### ✅ Fase 7a do módulo Call Center — base interna do canal de chat (2026-08-07) — implementada, pendente deploy/validação em produção
+Primeira fatia da Fase 7 (canal de chat) — **deliberadamente sem widget público exposto à
+internet ainda** (decisão tomada com o usuário): o esquema de autenticação anônima pro cliente
+final (diferente do JWT de ramal usado hoje) fica pra uma fatia 7b futura, com mais tempo de
+análise de segurança. Esta fatia entrega o modelo de dados, o roteamento interno e um simulador
+de cliente restrito a ADMIN pra validar o pipeline ponta a ponta.
+- **Reaproveitamento deliberado, sem duplicar domínio**: `cc_chat_sessions.queue_id` aponta
+  direto pra `cc_queues` (mesma fila de voz roteia chat, discriminado pelo canal da sessão — sem
+  fila paralela); `disposition_id` reusa o catálogo global `cc_dispositions` (Fase 4); o agente
+  autenticado é resolvido via `CallCenterAgentStateService.currentAgent()` (mesmo mecanismo do
+  resto do domínio `callcenter`); `CcInteraction` (estritamente de voz, tem `channelUniqueId` do
+  Asterisk) não foi reaproveitada — a timeline unificada voz+chat é trabalho da Fase 9.
+- **Modelo de roteamento**: "claim" explícito (o agente puxa uma sessão da fila que está
+  `Disponível` pra assumir) — não é o motor de distribuição automática (ringall/ARI) usado em
+  voz. Blending (limite de chats simultâneos, precedência voz×chat) é escopo da Fase 7 completa,
+  não desta fatia.
+- Migration **V56**: `cc_chat_channels`, `cc_chat_sessions`, `cc_chat_messages`,
+  `cc_canned_responses`. `CcChatService` (`backend/.../domain/callcenter/chat/`) nunca confia em
+  `senderType`/nome do remetente vindo do chamador para mensagens de agente/sistema — só
+  `CallCenterChatController` (fixa `senderType="agent"`) e `CallCenterChatTestController`
+  (`ROLE_ADMIN` puro, `senderType="customer"`) podem publicar mensagem, cada um só no seu papel.
+- RBAC: `callcenter.chat` (leitura/escrita granular) protege o canal real;
+  `/api/v1/callcenter/chat/test/**` (simulador de cliente) é `ROLE_ADMIN` puro, sem
+  `resource_key`, matcher posicionado antes do genérico (mesma ordem de `ramal-secret`) —
+  **nunca exponha esse controller a clientes reais**, é ferramenta de dev/QA para validar o
+  pipeline antes do widget público da Fase 7b.
+- Frontend: aba "Chat" nova no `callcenter-platform` (`ChatTab.tsx`) — fila/minhas
+  conversas/thread/respostas rápidas/tabulação, com painel "Simulador de cliente (dev)" visível
+  só para ADMIN. Atualização em tempo real por polling nesta fatia (a SPA não tem client STOMP
+  genérico ainda — fica pra quando o volume justificar).
+- `CcChatServiceTest` (8 testes) cobre os gates de segurança: claim rejeita agente fora de
+  Disponível ou sessão já assumida; mensagem de agente rejeita sessão inativa ou agente que não é
+  o dono; encerramento rejeita quem não é o dono nem ADMIN.
+- Suíte completa validada em container Maven com cache offline — 399/399 verde (8 novos, 0
+  regressão). `tsc --noEmit` e `npm run build` do `callcenter-platform/frontend` limpos.
+- **Pendente**: deploy real e validação manual/visual no navegador — sem acesso a browser nesta
+  sessão.
 
 ### ✅ Débito de segurança — 2 de 3 fechados (2026-07-03), 1 parcial
 - **CSP**: `Content-Security-Policy-Report-Only` ativo no Caddyfile (não bloqueia nada, só reporta

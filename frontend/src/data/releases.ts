@@ -499,7 +499,16 @@ export const RELEASES: ReleaseEntry[] = [
       'Relatórios de performance por atendente agora distinguem a origem da chamada (Verint ou Call Center) — um atendente com o mesmo nome nos dois sistemas nunca tem os dados agregados no mesmo relatório.',
       'Transcrição de qualquer chamada (Insights, Análise Sob Demanda ou Call Center) passa a mascarar CPF, número de cartão e telefone antes de persistir ou de qualquer análise por IA — nunca chega ao modelo de linguagem em texto puro.',
       'Financeiro: nova frente de custo "Call Center" com alerta de gasto próprio (mesmo padrão de URA/Insights/Análise Sob Demanda).',
-      'Grupos de Acesso: novo recurso "Call Center" no grupo Financeiro, e 3 novos recursos em Call Center (Insights — Chamadas/Dashboard/Processamento) — ainda sem tela associada.',
+      'Grupos de Acesso: novo recurso "Call Center" no grupo Financeiro, e 5 novos recursos em Call Center (Insights — Chamadas/Dashboard/Processamento/Fichas de Qualidade/Relatórios).',
+    ],
+  },
+  {
+    version: 'v1.55',
+    date: '2026-08-07',
+    changes: [
+      'Call Center ganha uma primeira aba de Chat: o agente vê as conversas aguardando na fila e as suas em andamento, pode assumir uma conversa, responder usando respostas rápidas, e encerrar com tabulação — reaproveitando as mesmas filas e tabulações já usadas em voz.',
+      'Ainda não é o canal de chat público (widget do site, WhatsApp, Telegram) — essa parte chega em uma entrega futura, com um esquema de autenticação próprio para o cliente final. Por enquanto, administradores têm um simulador de conversa para validar o fluxo.',
+      'Grupos de Acesso: novo recurso "Chat" no grupo Call Center.',
     ],
   },
 ];

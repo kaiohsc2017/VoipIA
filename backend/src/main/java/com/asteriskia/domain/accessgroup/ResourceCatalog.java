@@ -96,7 +96,11 @@ public final class ResourceCatalog {
             "callcenter.insights.dashboard",
             "callcenter.insights.processing",
             "callcenter.insights.scorecards",
-            "callcenter.insights.reports"
+            "callcenter.insights.reports",
+            // callcenter.chat (Fase 7a — base interna): fila/conversas/respostas rápidas do
+            // agente. Não cobre /callcenter/chat/test/** (simulador de cliente, ROLE_ADMIN puro,
+            // sem resource_key — nunca deve virar algo que um grupo customizado possa conceder).
+            "callcenter.chat"
     );
 
     public static List<String> all() {

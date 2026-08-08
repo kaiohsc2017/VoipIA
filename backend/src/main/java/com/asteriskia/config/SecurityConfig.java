@@ -223,6 +223,13 @@ public class SecurityConfig {
                         // (supervisor só vê o que pediu) aplicada no service, não aqui.
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/insights/reports/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.insights.reports")
+                        // Canal de chat — Fase 7a (base interna, sem widget público ainda).
+                        // /chat/test/** é o simulador de cliente — ROLE_ADMIN puro (dev/QA only,
+                        // nunca exposto a cliente real), precisa vir ANTES do matcher genérico
+                        // de /chat/** (mesma ordem que ramal-secret já ensina acima).
+                        .requestMatchers("/api/v1/callcenter/chat/test/**").hasAuthority("ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/chat/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.chat")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da
@@ -289,6 +296,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.fluxos")
                         .requestMatchers("/api/v1/callcenter/insights/reports/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.insights.reports")
+                        .requestMatchers("/api/v1/callcenter/chat/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.chat")
 
                         // Todos os demais endpoints exigem apenas autenticação (JWT ou InternalKey)
                         .anyRequest().authenticated()

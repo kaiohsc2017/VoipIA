@@ -539,3 +539,42 @@ export interface CcAgentEvolutionSnapshot {
   valor: number;
   createdAt: string;
 }
+
+// ---- Canal de Chat — Fase 7a (base interna, sem widget público ainda) ----
+export interface CcChatChannel {
+  id: number;
+  code: string;
+  displayName: string;
+  active: boolean;
+}
+
+export interface CcChatSession {
+  id: number;
+  channel: CcChatChannel;
+  queue: CcQueue;
+  customerRef: string;
+  customerName?: string;
+  status: 'waiting' | 'active' | 'closed';
+  assignedAgent?: CcAgent;
+  disposition?: CcDisposition;
+  startedAt: string;
+  claimedAt?: string;
+  closedAt?: string;
+}
+
+export interface CcChatMessage {
+  id: number;
+  sessionId: number;
+  senderType: 'customer' | 'agent' | 'system';
+  senderName?: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface CcCannedResponse {
+  id: number;
+  title: string;
+  body: string;
+  category?: string;
+  active: boolean;
+}

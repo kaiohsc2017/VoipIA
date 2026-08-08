@@ -2,12 +2,13 @@ import type { ComponentType } from 'react';
 import { useState } from 'react';
 import {
   Users, ListOrdered, Tags, Disc, LogOut, LayoutDashboard, MonitorPlay, Workflow,
-  PhoneCall, BarChart3, ListChecks, ClipboardList, FileText,
+  PhoneCall, BarChart3, ListChecks, ClipboardList, FileText, MessageSquare,
 } from 'lucide-react';
 import type { AuthSession } from '../hooks/useAuthSession';
 
 type Tab = 'agentes' | 'filas' | 'skills' | 'gravacoes' | 'desktop' | 'supervisao' | 'fluxos'
-  | 'insightsChamadas' | 'insightsDashboard' | 'insightsProcessamento' | 'insightsScorecards' | 'insightsReports';
+  | 'insightsChamadas' | 'insightsDashboard' | 'insightsProcessamento' | 'insightsScorecards' | 'insightsReports'
+  | 'chat';
 
 interface SidebarProps {
   currentTab: Tab;
@@ -35,6 +36,7 @@ const NAV_ITEMS: { tab: Tab; icon: ComponentType<{ size?: number; strokeWidth?: 
   { tab: 'insightsProcessamento', icon: ListChecks, label: 'Insights — Processamento', resource: 'callcenter.insights.processing' },
   { tab: 'insightsScorecards', icon: ClipboardList, label: 'Insights — Fichas de Qualidade', resource: 'callcenter.insights.scorecards' },
   { tab: 'insightsReports', icon: FileText, label: 'Insights — Relatórios', resource: 'callcenter.insights.reports' },
+  { tab: 'chat', icon: MessageSquare, label: 'Chat', resource: 'callcenter.chat' },
 ];
 
 export default function Sidebar({ currentTab, onNavigate, username, session, onLogout, collapsed, onToggleCollapse }: SidebarProps) {
