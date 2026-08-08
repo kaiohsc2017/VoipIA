@@ -6,12 +6,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.util.List;
 
 
 /**
@@ -29,33 +30,49 @@ public class AppConfig {
     private String allowedOrigins;
 
     /**
-     * Configura CORS para permitir chamadas do frontend React.
-     * Em produção, restringir apenas às origens necessárias.
+     * CORS consumido por {@code SecurityConfig} via {@code http.cors(...)} (não
+     * {@code WebMvcConfigurer.addCorsMappings}, e não um {@code CorsFilter} avulso).
+     *
+     * <p>Achado de bug #1: com duas entradas em {@code CorsRegistry} cujos padrões se
+     * sobrepõem ({@code /api/**} e {@code /api/v1/callcenter/chat/public/**}), o
+     * {@code UrlBasedCorsConfigurationSource} do Spring MVC COMBINA as duas configurações pra
+     * qualquer request sob a rota pública — e a combinação de {@code allowCredentials=true}
+     * (da regra geral) com {@code allowedOrigins=*} (da regra do widget) é uma combinação
+     * inválida que o {@code DefaultCorsProcessor} rejeita com 403 "Invalid CORS request".
+     * Resolvido decidindo a configuração inteira por request (branch manual por path), nunca
+     * combinando duas configurações parciais.
+     *
+     * <p>Achado de bug #2: um {@code CorsFilter} criado como {@code @Bean} avulso (sem
+     * {@code @Order}) é registrado pelo Spring Boot com precedência baixa — a cadeia do
+     * Spring Security roda primeiro e barrava o preflight OPTIONS de qualquer rota
+     * autenticada com 403, antes do CorsFilter ter chance de responder. Corrigido consumindo
+     * este bean diretamente em {@code SecurityConfig.http.cors(...)}, que integra o CORS
+     * DENTRO da cadeia de segurança — o Spring Security já sabe reconhecer e liberar
+     * preflight antes da checagem de autorização quando configurado dessa forma.
      */
     @Bean
-    public WebMvcConfigurer corsConfigurer() {
-        return new WebMvcConfigurer() {
-            @Override
-            public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/api/**")
-                        .allowedOriginPatterns(allowedOrigins.split(","))
-                        .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                        .allowedHeaders("*")
-                        .allowCredentials(true)
-                        .maxAge(3600);
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration restricted = new CorsConfiguration();
+        restricted.setAllowedOriginPatterns(List.of(allowedOrigins.split(",")));
+        restricted.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        restricted.setAllowedHeaders(List.of("*"));
+        restricted.setAllowCredentials(true);
+        restricted.setMaxAge(3600L);
 
-                // Widget de chat público (Fase 7b) — embeddável em qualquer site externo, sem
-                // saber de antemão o domínio. Origem "*" só é segura aqui porque não há cookie
-                // envolvido (allowCredentials=false): o token de sessão viaja em header/body,
-                // nunca em cookie, então não há CSRF a mitigar nesta rota específica.
-                registry.addMapping("/api/v1/callcenter/chat/public/**")
-                        .allowedOriginPatterns("*")
-                        .allowedMethods("GET", "POST", "OPTIONS")
-                        .allowedHeaders("*")
-                        .allowCredentials(false)
-                        .maxAge(3600);
-            }
-        };
+        // Widget de chat público (Fase 7b) — embeddável em qualquer site externo, sem saber de
+        // antemão o domínio. Origem "*" só é segura aqui porque não há cookie envolvido
+        // (allowCredentials=false): o token de sessão viaja em header/body, nunca em cookie,
+        // então não há CSRF a mitigar nesta rota específica.
+        CorsConfiguration publicChat = new CorsConfiguration();
+        publicChat.setAllowedOriginPatterns(List.of("*"));
+        publicChat.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+        publicChat.setAllowedHeaders(List.of("*"));
+        publicChat.setAllowCredentials(false);
+        publicChat.setMaxAge(3600L);
+
+        return request -> request.getRequestURI().startsWith("/api/v1/callcenter/chat/public/")
+                ? publicChat
+                : restricted;
     }
 
     /**

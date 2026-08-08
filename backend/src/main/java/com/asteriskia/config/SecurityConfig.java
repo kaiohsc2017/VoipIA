@@ -10,6 +10,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 /**
  * SecurityConfig — Segurança JWT + InternalKey da API REST, com RBAC (ADMIN/USER).
@@ -47,10 +48,17 @@ public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
     private final InternalKeyFilter internalKeyFilter;
     private final StreamingTokenFilter streamingTokenFilter;
+    private final CorsConfigurationSource corsConfigurationSource;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // Achado de bug (Fase 7b): um bean CorsFilter avulso (sem @Order) roda depois
+                // do filtro de segurança na cadeia padrão do Spring Boot — o preflight OPTIONS
+                // de rota autenticada era barrado com 403 antes de chegar no CorsFilter.
+                // http.cors(...) integra o CORS DENTRO da cadeia do Spring Security, que já
+                // sabe reconhecer e liberar preflight antes da checagem de autorização.
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

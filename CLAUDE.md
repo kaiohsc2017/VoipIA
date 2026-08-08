@@ -778,7 +778,7 @@ de cliente restrito a ADMIN pra validar o pipeline ponta a ponta.
 - Deployado e validado em produção via curl com JWT forjado: ADMIN 200 no simulador, USER/sem
   token 403. Validação visual no navegador não foi feita.
 
-### ✅ Fase 7b do módulo Call Center — autenticação anônima e widget público do chat (2026-08-08) — implementada, pendente deploy/validação em produção
+### ✅ Fase 7b do módulo Call Center — autenticação anônima e widget público do chat (2026-08-08) — deployada e validada em produção
 Fecha a lacuna deixada em aberto pela Fase 7a: agora o widget de chat público (cliente final,
 sem login) pode existir de verdade, com um esquema de autenticação **separado** do JWT de staff.
 Desenho aprovado pelo usuário antes da implementação (superfície nova exposta à internet).
@@ -802,10 +802,23 @@ Desenho aprovado pelo usuário antes da implementação (superfície nova expost
   do container `caddy` (único reverse proxy da stack) — mesmo padrão já usado em outros pontos do
   código, replicado aqui em vez de extraído para utilitário compartilhado (evita acoplar o
   controller público a filtros de autenticação de staff).
-- **CORS**: segundo `registry.addMapping` em `AppConfig`, só para `/api/v1/callcenter/chat/
-  public/**`, `allowedOriginPatterns("*")` com `allowCredentials(false)` — seguro porque não há
-  cookie envolvido (token via header/body); o mapping genérico `/api/**` (restrito a
-  `app.cors.allowed-origins`) continua intocado para o resto da API.
+- **CORS — 2 bugs reais encontrados e corrigidos só na validação em produção** (revisão estática
+  não pegou nenhum dos dois): (1) duas entradas sobrepostas em `CorsRegistry`
+  (`WebMvcConfigurer.addCorsMappings`) fazem o Spring MVC **combinar** as duas configurações pra
+  qualquer request sob a rota pública — combinar `allowCredentials=true` (regra geral) com
+  `allowedOrigins=*` (regra do widget) é uma combinação inválida, rejeitada com 403 "Invalid CORS
+  request"; (2) a correção via `CorsFilter` avulso como `@Bean` (sem `@Order`) tem precedência
+  baixa na cadeia de filtros do Spring Boot — a cadeia do Spring Security roda primeiro e barrava
+  o preflight OPTIONS de qualquer rota autenticada com 403, antes do `CorsFilter` responder.
+  Solução final: um único `CorsConfigurationSource` (`AppConfig`) que decide a config inteira por
+  request (branch manual por path — nunca combina duas configs parciais), consumido por
+  `SecurityConfig` via `http.cors(cors -> cors.configurationSource(...))` — integra o CORS DENTRO
+  da cadeia de segurança, que já sabe liberar preflight antes da autorização. `/api/v1/callcenter/
+  chat/public/**` usa `allowedOriginPatterns("*")`/`allowCredentials(false)` (sem cookie
+  envolvido); todo o resto da API mantém `app.cors.allowed-origins`/`allowCredentials(true)`
+  exatamente como antes — confirmado com curl real (preflight de origem externa permitido só na
+  rota pública, bloqueado no resto; preflight da origem legítima do próprio frontend continua
+  liberado; login real continua funcionando).
 - **Widget** `frontend/public-widget/callcenter-chat-widget.js` — JS puro embeddável via
   `<script>`, sem build step, sem framework: botão flutuante, polling a cada 3s, `customerRef`
   via `localStorage`. Mensagens renderizadas com `textContent` (nunca `innerHTML` de conteúdo do
@@ -817,8 +830,10 @@ Desenho aprovado pelo usuário antes da implementação (superfície nova expost
   411/411 verde (12 novos, 0 regressão) validada em container Maven com cache offline.
 - **Ainda fora de escopo**: WhatsApp Cloud API/Telegram (exigem credenciais externas que o
   projeto não tem — mesmo gap já registrado para o Jira).
-- **Pendente**: deploy real, configurar `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` com uma fila real
-  quando existir, e validação manual do widget embutido numa página de teste — sem acesso a
+- Deployado (migration V57 confirmada em `flyway_schema_history`) e validado em produção via
+  curl: 503 sem fila configurada, rate limit e RBAC comportando-se como esperado, CORS correto
+  nos 3 cenários acima. **Pendente**: configurar `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` com uma fila
+  real quando existir, e validação manual do widget embutido numa página de teste — sem acesso a
   browser nesta sessão.
 
 ### ✅ Débito de segurança — 2 de 3 fechados (2026-07-03), 1 parcial
