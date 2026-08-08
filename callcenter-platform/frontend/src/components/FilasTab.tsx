@@ -147,7 +147,7 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
                   </div>
                   <div className="form-group">
                     <label className="form-label">Áudio de aviso de gravação (caminho no volume)</label>
-                    <input className="form-input" placeholder="/opt/telecom/gravacao/avisos/consentimento.wav"
+                    <input className="form-input" placeholder="/opt/gravacoes/audio/avisos/consentimento.wav"
                       value={fd.consentMessagePath ?? ''}
                       onChange={e => setFd(f => ({ ...f, consentMessagePath: e.target.value || null }))} />
                   </div>

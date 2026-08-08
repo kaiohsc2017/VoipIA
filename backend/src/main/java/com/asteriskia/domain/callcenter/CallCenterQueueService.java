@@ -31,7 +31,7 @@ public class CallCenterQueueService {
     // aviso de gravação (Fase 3) — evita que consentMessagePath aponte para um arquivo arbitrário
     // do container Asterisk. Lê a mesma property de CallCenterRecordingService para não divergir
     // se CALLCENTER_RECORDING_PATH for alterado.
-    @Value("${app.callcenter.recording-path:/opt/telecom/gravacao}")
+    @Value("${app.callcenter.recording-path:/opt/gravacoes/audio}")
     private String recordingBasePath;
     // Estratégias nativas do app_queue do Asterisk — mesma lista oferecida no <select> do
     // frontend (FilasTab.tsx). Allowlist evita gravar um valor arbitrário em queues.strategy

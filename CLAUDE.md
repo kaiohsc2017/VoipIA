@@ -699,7 +699,8 @@ sentimento/achados — aplicado às gravações de fila do Call Center (`cc_reco
 duplicar lógica de negócio. Plano completo em `.claude/plans/modulo-callcenter-omnicanal.plan.md`
 (seção Fase 8).
 - **Ingestão push-based, não polling de filesystem**: diferente do desenho original do plano
-  (`discovery.py` varrendo `/opt/telecom/gravacao`), `CallCenterRecordingService.registerInsights`
+  (`discovery.py` varrendo `/opt/gravacoes/audio`, caminho renomeado na Fase 11 do plano —
+  antigo `/opt/telecom/gravacao`), `CallCenterRecordingService.registerInsights`
   já correlaciona a gravação com `cc_interactions` (agente/fila/ANI) no momento do `ingest` e
   enfileira direto no backend — mais confiável que a correlação por XML usada no Verint, e sem
   falha nunca derruba a resposta do CURL do dialplan (só loga).

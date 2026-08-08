@@ -77,4 +77,11 @@ public class CcChatSession {
 
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
+
+    /**
+     * Caminho do transcript (.json/.txt) exportado em /opt/gravacoes/chat ao encerrar a sessão
+     * (Fase 11 do plano omnicanal) — {@code null} até a exportação assíncrona concluir.
+     */
+    @Column(name = "transcript_path", length = 255)
+    private String transcriptPath;
 }

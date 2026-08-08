@@ -55,13 +55,16 @@ class CcChatServiceTest {
     private CallCenterAgentStateService agentStateService;
     @Mock
     private SimpMessagingTemplate messagingTemplate;
+    @Mock
+    private ChatTranscriptExportService transcriptExportService;
 
     private CcChatService service;
 
     @BeforeEach
     void setUp() {
         service = new CcChatService(channelRepository, sessionRepository, messageRepository,
-                queueRepository, dispositionRepository, agentStateService, messagingTemplate);
+                queueRepository, dispositionRepository, agentStateService, messagingTemplate,
+                transcriptExportService);
     }
 
     @AfterEach
@@ -215,5 +218,22 @@ class CcChatServiceTest {
 
         assertThat(result.getStatus()).isEqualTo("closed");
         assertThat(result.getDisposition()).isNull();
+    }
+
+    @Test
+    @DisplayName("close bem-sucedido dispara a exportação do transcript (fora de transação, síncrono)")
+    void close_success_triggersTranscriptExport() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("joao", null));
+        CcAgent agent = agentOf(1L);
+        CcChatSession session = sessionOf(5L, "active", agent);
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        when(agentStateService.currentAgent()).thenReturn(agent);
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.close(5L, null);
+
+        // Fora de uma transação gerenciada (caso do teste), não há afterCommit a esperar — o
+        // serviço precisa disparar a exportação direto, não silenciosamente pular.
+        verify(transcriptExportService).export(5L);
     }
 }

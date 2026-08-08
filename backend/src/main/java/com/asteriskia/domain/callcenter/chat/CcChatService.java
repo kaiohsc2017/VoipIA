@@ -17,6 +17,8 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -42,6 +44,7 @@ public class CcChatService {
     private final CcDispositionRepository dispositionRepository;
     private final CallCenterAgentStateService agentStateService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ChatTranscriptExportService transcriptExportService;
 
     @Transactional
     public CcChatSession startSession(String channelCode, Long queueId, String customerRef, String customerName) {
@@ -152,6 +155,20 @@ public class CcChatService {
         session.setClosedAt(LocalDateTime.now());
         session.setDisposition(disposition);
         sessionRepository.save(session);
+
+        // Transcript exportado só depois do commit desta transação — a exportação carrega a
+        // sessão de novo (já "closed" no banco), evitando que o UPDATE dela sobrescreva o
+        // status/closedAt com um snapshot obtido antes deste commit (Fase 11 do plano omnicanal).
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    transcriptExportService.export(sessionId);
+                }
+            });
+        } else {
+            transcriptExportService.export(sessionId);
+        }
 
         messagingTemplate.convertAndSend("/topic/callcenter/chat/session/" + sessionId, toView(session));
         log.info("Sessão de chat encerrada: id={} dispositionId={}", sessionId, dispositionId);
