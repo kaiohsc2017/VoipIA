@@ -8,10 +8,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * CallCenterAgentStateService — motor de transição de estado do agente (Fase 4). Cada transição
@@ -30,20 +32,27 @@ public class CallCenterAgentStateService {
     private final AppUserRepository appUserRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
-    /** Resolve o {@link CcAgent} do usuário autenticado (JWT) via app_users.id → cc_agents.user_id. */
+    /** Resolve o {@link CcAgent} do usuário autenticado (JWT) via app_users.id → cc_agents.user_id.
+     *
+     * <p>Achado de bug (validação visual pós-deploy da Fase 7a/9a): as duas falhas abaixo eram
+     * {@code IllegalStateException}/{@code IllegalArgumentException} não tratadas pelo
+     * {@code GlobalExceptionHandler} — qualquer usuário sem vínculo de agente (comum: um ADMIN
+     * que administra o sistema mas não é um atendente) recebia 500 genérico ao abrir o Desktop
+     * do Agente ou a aba de Chat, sem nenhuma mensagem útil. Trocado por
+     * {@link ResponseStatusException} (404), mesma convenção já usada no resto do pacote
+     * `callcenter` (ver {@code CcChatService}) — preserva a mensagem e o status corretos. */
     @Transactional(readOnly = true)
     public CcAgent currentAgent() {
         var username = SecurityContextHolder.getContext().getAuthentication().getName();
         var user =
                 appUserRepository
                         .findByUsername(username)
-                        .orElseThrow(() -> new IllegalStateException("Usuário não encontrado: " + username));
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.NOT_FOUND, "Usuário não encontrado: " + username));
         return agentRepository
                 .findByUserId(user.getId())
-                .orElseThrow(
-                        () ->
-                                new IllegalArgumentException(
-                                        "Usuário " + username + " não está vinculado a um agente do Call Center."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Usuário " + username + " não está vinculado a um agente do Call Center."));
     }
 
     @Transactional(readOnly = true)

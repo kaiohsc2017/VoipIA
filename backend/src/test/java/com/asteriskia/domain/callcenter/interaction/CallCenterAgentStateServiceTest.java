@@ -20,9 +20,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * CallCenterAgentStateServiceTest — transição de estado do agente (Fase 4): fecha o estado
@@ -151,7 +153,9 @@ class CallCenterAgentStateServiceTest {
         when(agentRepository.findByUserId(42)).thenReturn(Optional.empty());
 
         assertThatThrownBy(service::currentAgent)
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("não está vinculado");
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("não está vinculado")
+                .satisfies(e -> assertThat(((ResponseStatusException) e).getStatusCode())
+                        .isEqualTo(HttpStatus.NOT_FOUND));
     }
 }

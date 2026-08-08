@@ -10,9 +10,11 @@ import com.asteriskia.integration.ami.AmiOriginateService;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * CallCenterSupervisionActionService — ações do supervisor sobre um agente (Fase 6): escuta,
@@ -98,16 +100,19 @@ public class CallCenterSupervisionActionService {
                         .build());
     }
 
+    /** Achado de bug (mesma revisão que corrigiu {@code CallCenterAgentStateService.currentAgent}):
+     * {@code IllegalArgumentException}/{@code IllegalStateException} aqui viravam 500 genérico —
+     * trocado por {@link ResponseStatusException} (404), preservando a mensagem para o supervisor. */
     private CcAgent findAgent(Long agentId) {
         return agentRepository
                 .findById(agentId)
-                .orElseThrow(() -> new IllegalArgumentException("Agente não encontrado: " + agentId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente não encontrado: " + agentId));
     }
 
     private AppUser currentSupervisorUser() {
         var username = SecurityContextHolder.getContext().getAuthentication().getName();
         return appUserRepository
                 .findByUsername(username)
-                .orElseThrow(() -> new IllegalStateException("Usuário não encontrado: " + username));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado: " + username));
     }
 }

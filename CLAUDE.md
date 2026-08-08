@@ -867,7 +867,31 @@ Fases 7a/7b/8).
 - Deployado (migration V58 confirmada em `flyway_schema_history`) e validado em produção via
   curl: reprocessamento manual funciona de ponta a ponta, RBAC correto (ADMIN 200, USER/sem token
   403 no `/reprocess`), consulta de relatório retorna `{}` corretamente (não há filas cadastradas
-  nesta VPS de dev). Validação visual no navegador não foi feita.
+  nesta VPS de dev).
+
+### ✅ Validação visual em navegador — Fases 7a/7b/8/9a do Call Center (2026-08-08)
+Workaround já documentado (Chrome DevTools MCP falha nesta VPS) — Chrome headless manual + CDP
+puro via WebSocket do Node 22, token ADMIN forjado em runtime (nunca persistido em arquivo).
+16 telas do `callcenter-platform` verificadas (screenshot + console/erros de página/requisições
+falhas) — todas renderizam sem tela em branco e sem exceção JS.
+- **1 bug real encontrado e corrigido**: `CallCenterAgentStateService.currentAgent()` (Fase 4,
+  pré-existente) e `CallCenterSupervisionActionService.currentSupervisorUser()`/`findAgent()`
+  lançavam `IllegalStateException`/`IllegalArgumentException` não tratadas pelo
+  `GlobalExceptionHandler` — qualquer usuário sem vínculo de agente (ex: um ADMIN que administra
+  o sistema mas não é atendente) recebia 500 genérico ao abrir o Desktop do Agente ou a aba de
+  Chat (Fase 7a), sem mensagem útil. Como não há nenhum agente cadastrado nesta VPS de dev
+  (`SELECT count(*) FROM cc_agents` = 0), **isso quebrava essas duas telas para qualquer usuário
+  hoje**, não só um caso extremo. Corrigido para `ResponseStatusException` (404, mesma convenção
+  já usada em `CcChatService`/`CallCenterQueueAggregationService`) — o frontend já tratava bem o
+  erro (tela cai graciosamente em estado "Offline"/"Nenhuma conversa ativa", confirmado por
+  screenshot antes e depois do fix). 1 teste ajustado, suíte completa 418/418 verde.
+- **Achado cosmético, não corrigido**: a aba "Fluxos" ainda mostra a descrição estática "sem
+  execução real ainda" — desatualizada desde a Fase 5b (execução real via ARI/Stasis já existe);
+  é só o texto da subtítulo do cabeçalho, não afeta funcionalidade — ajuste de copy para uma
+  próxima entrega, não vale um deploy isolado só para isso.
+- Confirmado que "Insights — Relatórios" (Fase 8, relatório de performance por atendente) e
+  "Relatórios" (Fase 9a, agregado de fila) coexistem sem conflito de rota/label na Sidebar,
+  apesar do nome parecido.
 
 ### ✅ Débito de segurança — 2 de 3 fechados (2026-07-03), 1 parcial
 - **CSP**: `Content-Security-Policy-Report-Only` ativo no Caddyfile (não bloqueia nada, só reporta
