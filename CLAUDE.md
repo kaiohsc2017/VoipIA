@@ -885,13 +885,40 @@ falhas) — todas renderizam sem tela em branco e sem exceção JS.
   já usada em `CcChatService`/`CallCenterQueueAggregationService`) — o frontend já tratava bem o
   erro (tela cai graciosamente em estado "Offline"/"Nenhuma conversa ativa", confirmado por
   screenshot antes e depois do fix). 1 teste ajustado, suíte completa 418/418 verde.
-- **Achado cosmético, não corrigido**: a aba "Fluxos" ainda mostra a descrição estática "sem
-  execução real ainda" — desatualizada desde a Fase 5b (execução real via ARI/Stasis já existe);
-  é só o texto da subtítulo do cabeçalho, não afeta funcionalidade — ajuste de copy para uma
-  próxima entrega, não vale um deploy isolado só para isso.
+- **Achado cosmético, corrigido em seguida**: a aba "Fluxos" mostrava a descrição estática "sem
+  execução real ainda" — desatualizada desde a Fase 5b (execução real via ARI/Stasis já existe).
+  Ajustado e deployado.
 - Confirmado que "Insights — Relatórios" (Fase 8, relatório de performance por atendente) e
   "Relatórios" (Fase 9a, agregado de fila) coexistem sem conflito de rota/label na Sidebar,
   apesar do nome parecido.
+
+### ✅ Fase 9b do módulo Call Center — agregado diário de agente de voz (2026-08-08) — implementada, pendente deploy/validação em produção
+Segunda fatia da Fase 9, seguindo o padrão exato da 9a. **Deliberadamente fora desta fatia**:
+agregado de fluxo/URA, agregado de chat, aderência à escala (não existe conceito de escala/turno
+no sistema ainda), rechamada 24h/7d, top motivos de tabulação e transferências — ficam para uma
+fatia 9c futura.
+- Migration **V59**: `cc_agg_agent_daily` — volume/TMA de `cc_interactions` (mesma fonte da 9a);
+  ocupação/disponibilidade de `cc_agent_states` (Fase 4), somando a fração de cada período de
+  estado que cai dentro do dia agregado — um período pode cruzar a meia-noite ou ainda estar
+  aberto (`endedAt` null = "vale até agora"), nunca é só "duração do período inteiro". `occupancy_
+  pct = occupied/(occupied+available)`, null se o agente nunca esteve logado no dia.
+  `CallCenterAgentStateRepository.findOverlapping` novo (períodos que se sobrepõem a um
+  intervalo) — coberto por teste dedicado ao recorte de meia-noite e período ainda aberto.
+- `CallCenterAgentAggregationScheduler` roda alguns minutos depois do de fila (mesma madrugada,
+  evita competir por I/O). `POST /reprocess` (já existente da 9a) agora reprocessa fila E agente
+  juntos, na mesma chamada — decisão desta fatia: o supervisor pede "reprocesse esse intervalo"
+  sem precisar saber que são dois agregados internos distintos.
+- `CallCenterReportsQueryService`/`CallCenterReportsController` estendidos com `/agents` e
+  `/agents/compare`, reaproveitando o mesmo resource RBAC `callcenter.reports` (mesma aba
+  "Relatórios", sem `resource_key` novo).
+- Frontend: a mesma aba "Relatórios" ganhou um seletor "Fila (voz)" / "Agente (voz)" no topo —
+  sem entrada de Sidebar nova.
+- `CallCenterAgentAggregationServiceTest` (7 testes) cobre especificamente o algoritmo de
+  recorte: período cruzando meia-noite conta só a fatia do dia; período ainda aberto conta até
+  agora; `occupancyPct` null sem tempo logado; agente sem interação gera registro zerado.
+- Suíte completa validada em container Maven com cache offline — 425/425 verde (7 novos, 0
+  regressão). `tsc --noEmit` e `npm run build` do `callcenter-platform/frontend` limpos.
+- **Pendente**: deploy real e validação manual/visual no navegador.
 
 ### ✅ Débito de segurança — 2 de 3 fechados (2026-07-03), 1 parcial
 - **CSP**: `Content-Security-Policy-Report-Only` ativo no Caddyfile (não bloqueia nada, só reporta

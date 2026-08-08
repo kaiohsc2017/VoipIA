@@ -17,9 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * CallCenterReportsController — relatório analítico de fila de voz (sub-fase 9a do plano
- * modulo-callcenter-omnicanal.plan.md). RBAC via {@code callcenter.reports}; {@code /reprocess}
- * é {@code ROLE_ADMIN} puro (ver SecurityConfig).
+ * CallCenterReportsController — relatório analítico de fila (sub-fase 9a) e de agente (sub-fase
+ * 9b) de voz, do plano modulo-callcenter-omnicanal.plan.md. RBAC via {@code callcenter.reports}
+ * (mesma aba "Relatórios" para os dois sub-relatórios); {@code /reprocess} é {@code ROLE_ADMIN}
+ * puro (ver SecurityConfig).
  */
 @RestController
 @RequestMapping("/api/v1/callcenter/reports")
@@ -28,6 +29,7 @@ public class CallCenterReportsController {
 
     private final CallCenterReportsQueryService queryService;
     private final CallCenterQueueAggregationService aggregationService;
+    private final CallCenterAgentAggregationService agentAggregationService;
 
     public record ReprocessRequest(@NotNull LocalDate from, @NotNull LocalDate to) {}
 
@@ -56,9 +58,39 @@ public class CallCenterReportsController {
         return ResponseEntity.ok(queryService.compare(queueId, periodAFrom, periodATo, periodBFrom, periodBTo));
     }
 
+    @GetMapping("/agents")
+    public ResponseEntity<?> agents(
+            @RequestParam(required = false) Long agentId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "DAY") String granularity) {
+        CallCenterReportsQueryService.Granularity g = parseGranularity(granularity);
+        if (agentId != null) {
+            List<AgentPeriodMetrics> metrics = queryService.queryAgent(agentId, from, to, g);
+            return ResponseEntity.ok(metrics);
+        }
+        Map<Long, List<AgentPeriodMetrics>> byAgent = queryService.queryAllAgents(from, to, g);
+        return ResponseEntity.ok(byAgent);
+    }
+
+    @GetMapping("/agents/compare")
+    public ResponseEntity<AgentPeriodComparison> compareAgents(
+            @RequestParam Long agentId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodAFrom,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodATo,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodBFrom,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodBTo) {
+        return ResponseEntity.ok(queryService.compareAgent(agentId, periodAFrom, periodATo, periodBFrom, periodBTo));
+    }
+
+    /** Reprocessa fila E agente juntos num único endpoint (decisão desta fatia 9b) — o
+     * supervisor pede "reprocesse esse intervalo" sem precisar saber que são dois agregados
+     * internos distintos; os dois cálculos são independentes e baratos o bastante (mesmo limite
+     * de 400 dias) pra rodar em série na mesma chamada. */
     @PostMapping("/reprocess")
     public ResponseEntity<Void> reprocess(@jakarta.validation.Valid @RequestBody ReprocessRequest request) {
         aggregationService.reprocessRange(request.from(), request.to());
+        agentAggregationService.reprocessRange(request.from(), request.to());
         return ResponseEntity.ok().build();
     }
 

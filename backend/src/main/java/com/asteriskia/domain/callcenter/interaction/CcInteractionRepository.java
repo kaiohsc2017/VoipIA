@@ -26,4 +26,8 @@ public interface CcInteractionRepository extends JpaRepository<CcInteraction, Lo
 
     /** Interações de uma fila num intervalo de `queuedAt` — base do agregado diário (Fase 9a). */
     List<CcInteraction> findByQueueIdAndQueuedAtBetween(Long queueId, LocalDateTime from, LocalDateTime to);
+
+    /** Interações de um agente num intervalo de `queuedAt` — base do agregado diário por
+     * agente (Fase 9b), mesmo padrão de {@link #findByQueueIdAndQueuedAtBetween}. */
+    List<CcInteraction> findByAgentIdAndQueuedAtBetween(Long agentId, LocalDateTime from, LocalDateTime to);
 }

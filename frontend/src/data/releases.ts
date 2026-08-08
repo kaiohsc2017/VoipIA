@@ -527,4 +527,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Por enquanto só cobre o canal de voz — relatórios de agente, de fluxo e de chat, além de um relatório único cruzando voz e chat da mesma pessoa, chegam em entregas futuras.',
     ],
   },
+  {
+    version: 'v1.58',
+    date: '2026-08-08',
+    changes: [
+      'Relatórios do Call Center ganham a visão por atendente: quantas chamadas atendeu, tempo médio de atendimento e percentual do tempo logado gasto atendendo (ocupação) — com a mesma visão diária/semanal/mensal/anual e comparação entre períodos da visão por fila.',
+      'Correção de texto: a aba Fluxos não diz mais "sem execução real ainda" — a execução real já existe desde a entrega anterior.',
+    ],
+  },
 ];

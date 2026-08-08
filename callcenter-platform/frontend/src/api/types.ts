@@ -606,3 +606,26 @@ export interface QueuePeriodComparison {
   avgTalkSecondsDelta: number | null;
   serviceLevelPctDelta: number | null;
 }
+
+export interface AgentPeriodMetrics {
+  agentId: number | null;
+  agentName: string | null;
+  periodLabel: string;
+  answered: number;
+  avgTalkSeconds: number | null;
+  occupiedSeconds: number;
+  availableSeconds: number;
+  pausedSeconds: number;
+  offlineSeconds: number;
+  occupancyPct: number | null;
+}
+
+export interface AgentPeriodComparison {
+  periodA: AgentPeriodMetrics;
+  periodB: AgentPeriodMetrics;
+  answeredDelta: number;
+  avgTalkSecondsDelta: number | null;
+  occupiedSecondsDelta: number;
+  availableSecondsDelta: number;
+  occupancyPctDelta: number | null;
+}
