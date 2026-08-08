@@ -64,7 +64,7 @@ export function FluxosTab({ canWrite }: { canWrite: boolean }) {
     <>
       <div className="page-header">
         <div className="flex items-center justify-between">
-          <div><h1>Fluxos</h1><p>Flow Builder — desenhe URAs visualmente (Fase 5a: editor e versionamento, sem execução real ainda)</p></div>
+          <div><h1>Fluxos</h1><p>Flow Builder — desenhe URAs visualmente e publique para execução real em uma ligação</p></div>
           {canWrite && <button className="btn btn-primary" onClick={() => openForm(null)}><Plus size={14} /> Novo fluxo</button>}
         </div>
       </div>
