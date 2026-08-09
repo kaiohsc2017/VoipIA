@@ -134,7 +134,24 @@ public class CallCenterQueueService {
                         .build());
 
         log.info("Fila do Call Center criada: id={} numero={}", queue.getId(), name);
+
+        if (request.copyMembersFromQueueId() != null) {
+            copyMembers(request.copyMembersFromQueueId(), queue);
+        }
         return queue;
+    }
+
+    /**
+     * Fase 12.5 — clona os membros da fila de origem (agente + prioridade) para a fila recém-
+     * criada. {@code findById} aplica o escopo por BU na origem — copiar de uma fila de outra BU
+     * seria vazamento de composição de equipe (quem são os agentes daquela fila) para quem não
+     * deveria nem saber que ela existe.
+     */
+    private void copyMembers(Long sourceQueueId, CcQueue targetQueue) {
+        var sourceQueue = findById(sourceQueueId);
+        memberRepository
+                .findByQueueId(sourceQueue.getId())
+                .forEach(sourceMember -> addMember(targetQueue.getId(), sourceMember.getAgent().getId(), sourceMember.getPenalty()));
     }
 
     @Transactional
@@ -176,6 +193,17 @@ public class CallCenterQueueService {
 
     @Transactional
     public CcQueueMember addMember(Long queueId, Long agentId) {
+        return addMember(queueId, agentId, 0);
+    }
+
+    /**
+     * Prioridade (Fase 12.3): {@code penalty} do Asterisk — menor valor é atendido antes. A UI
+     * expõe como "Prioridade 1-9 (menor = antes)"; aqui aceita qualquer inteiro não-negativo, sem
+     * reimpor a faixa 1-9 no backend (é convenção da UI, não limite real do Asterisk).
+     */
+    @Transactional
+    public CcQueueMember addMember(Long queueId, Long agentId, int penalty) {
+        validatePenalty(penalty);
         var queue = findById(queueId);
         var agent = findAgentInScope(agentId);
         memberRepository
@@ -190,7 +218,9 @@ public class CallCenterQueueService {
                         .orElseThrow(
                                 () -> new IllegalArgumentException("Agente sem ramal provisionado: " + agentId));
 
-        var member = memberRepository.save(CcQueueMember.builder().queue(queue).agent(agent).penalty(0).build());
+        var member =
+                memberRepository.save(
+                        CcQueueMember.builder().queue(queue).agent(agent).penalty(penalty).build());
 
         araQueueMemberRepository.save(
                 AraQueueMember.builder()
@@ -198,11 +228,45 @@ public class CallCenterQueueService {
                         .interfaceName("PJSIP/" + extension.getExtension())
                         .memberName(agent.getName())
                         .stateInterface("PJSIP/" + extension.getExtension())
-                        .penalty(0)
+                        .penalty(penalty)
                         .paused(0)
                         .build());
 
         return member;
+    }
+
+    /**
+     * Atualiza a prioridade de um membro já existente, espelhando em ARA (é o campo que o
+     * Asterisk realmente lê — sem espelhar, a UI mentiria sobre a prioridade real da chamada).
+     */
+    @Transactional
+    public CcQueueMember updateMemberPenalty(Long queueId, Long agentId, int penalty) {
+        validatePenalty(penalty);
+        var queue = findById(queueId);
+        var member =
+                memberRepository
+                        .findByQueueIdAndAgentId(queueId, agentId)
+                        .orElseThrow(() -> new IllegalArgumentException("Agente não está nesta fila."));
+        member.setPenalty(penalty);
+        var saved = memberRepository.save(member);
+
+        var extension = extensionRepository.findByAgentId(agentId);
+        extension.ifPresent(
+                ext ->
+                        araQueueMemberRepository
+                                .findByQueueNameAndInterfaceName(queue.getName(), "PJSIP/" + ext.getExtension())
+                                .ifPresent(
+                                        araMember -> {
+                                            araMember.setPenalty(penalty);
+                                            araQueueMemberRepository.save(araMember);
+                                        }));
+        return saved;
+    }
+
+    private void validatePenalty(int penalty) {
+        if (penalty < 0) {
+            throw new IllegalArgumentException("Prioridade não pode ser negativa.");
+        }
     }
 
     @Transactional
@@ -218,6 +282,26 @@ public class CallCenterQueueService {
                         araQueueMemberRepository.deleteByQueueNameAndInterfaceName(
                                 queue.getName(), "PJSIP/" + ext.getExtension()));
         memberRepository.delete(member);
+    }
+
+    /**
+     * Remove um agente de todas as filas em que estiver — usado ao desativar um atendente
+     * (Fase 12.1): sem isso o Asterisk continua tocando um ramal desligado, e a chamada fica sem
+     * resposta até o timeout da fila. Sem escopo de BU aqui de propósito — quem chama
+     * (CallCenterAgentProvisioningService.deactivateForUser) já resolveu o agente por userId, não
+     * por um id vindo de fora vulnerável a enumeração.
+     */
+    @Transactional
+    public void removeFromAllQueues(Long agentId) {
+        memberRepository.findByAgentId(agentId).forEach(member -> removeMember(member.getQueue().getId(), agentId));
+    }
+
+    /** Filas de um agente (Fase 12.4) — findAgentInScope aplica o mesmo guard de BU usado por
+     * addMember/removeMember antes de listar. */
+    @Transactional(readOnly = true)
+    public List<CcQueueMember> queuesOfAgent(Long agentId) {
+        findAgentInScope(agentId);
+        return memberRepository.findByAgentId(agentId);
     }
 
     @Transactional(readOnly = true)

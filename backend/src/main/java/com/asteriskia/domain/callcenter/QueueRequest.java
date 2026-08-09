@@ -16,4 +16,8 @@ public record QueueRequest(
         String strategy,
         Integer timeoutSeconds,
         Boolean recordingEnabled,
-        String consentMessagePath) {}
+        String consentMessagePath,
+        /** Fase 12.5 — opcional; se informado, clona os membros (agente+prioridade) da fila de
+         * origem para a fila recém-criada, validando que a origem está no escopo de BU do
+         * chamador (senão seria vazamento de composição de equipe entre BUs). */
+        Long copyMembersFromQueueId) {}

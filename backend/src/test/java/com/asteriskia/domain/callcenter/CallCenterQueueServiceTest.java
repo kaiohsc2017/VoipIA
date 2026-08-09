@@ -66,7 +66,7 @@ class CallCenterQueueServiceTest {
     @DisplayName("create rejeita fila fora da faixa 5000-5999")
     void create_outOfRange_throws() {
         var service = newService();
-        var request = new QueueRequest("4999", "Fila Teste", null, null, null, null, null);
+        var request = new QueueRequest("4999", "Fila Teste", null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -77,7 +77,7 @@ class CallCenterQueueServiceTest {
     @DisplayName("create rejeita número de fila já em uso")
     void create_duplicateName_throws() {
         var service = newService();
-        var request = new QueueRequest("5001", "Fila Teste", null, null, null, null, null);
+        var request = new QueueRequest("5001", "Fila Teste", null, null, null, null, null, null);
         when(queueRepository.findByName("5001")).thenReturn(Optional.of(CcQueue.builder().name("5001").build()));
 
         assertThatThrownBy(() -> service.create(request))
@@ -141,7 +141,7 @@ class CallCenterQueueServiceTest {
     @DisplayName("create rejeita estratégia fora da allowlist")
     void create_invalidStrategy_throws() {
         var service = newService();
-        var request = new QueueRequest("5002", "Fila Teste", null, "estrategia-inventada", null, null, null);
+        var request = new QueueRequest("5002", "Fila Teste", null, "estrategia-inventada", null, null, null, null);
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -152,7 +152,7 @@ class CallCenterQueueServiceTest {
     @DisplayName("create rejeita timeout fora dos limites")
     void create_timeoutOutOfBounds_throws() {
         var service = newService();
-        var request = new QueueRequest("5003", "Fila Teste", null, null, -1, null, null);
+        var request = new QueueRequest("5003", "Fila Teste", null, null, -1, null, null, null);
 
         assertThatThrownBy(() -> service.create(request)).isInstanceOf(IllegalArgumentException.class);
     }
@@ -162,7 +162,7 @@ class CallCenterQueueServiceTest {
     void create_businessUnitOutOfScope_throws() {
         restrictToBusinessUnits(1);
         var service = newService();
-        var request = new QueueRequest("5004", "Fila Teste", 2, null, null, null, null);
+        var request = new QueueRequest("5004", "Fila Teste", 2, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -175,7 +175,7 @@ class CallCenterQueueServiceTest {
         var service = newService();
         var request =
                 new QueueRequest(
-                        "5005", "Fila Teste", null, null, null, null, "/etc/passwd");
+                        "5005", "Fila Teste", null, null, null, null, "/etc/passwd", null);
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -194,7 +194,8 @@ class CallCenterQueueServiceTest {
                         null,
                         null,
                         null,
-                        "/opt/telecom/gravacao/avisos/../../../etc/passwd");
+                        "/opt/telecom/gravacao/avisos/../../../etc/passwd",
+                        null);
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -213,7 +214,8 @@ class CallCenterQueueServiceTest {
                         null,
                         null,
                         null,
-                        "/opt/telecom/gravacao/avisos/consentimento.wav");
+                        "/opt/telecom/gravacao/avisos/consentimento.wav",
+                        null);
         when(queueRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         var saved = service.create(request);
@@ -244,5 +246,116 @@ class CallCenterQueueServiceTest {
         var service = newService();
 
         assertThat(service.members(1L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("addMember com prioridade persiste o penalty e espelha em ARA (Fase 12.3)")
+    void addMember_withPenalty_persistsAndMirrors() {
+        var service = newService();
+        var queue = CcQueue.builder().id(1L).name("5001").build();
+        var agent = CcAgent.builder().id(2L).name("Agente Teste").build();
+        var extension = CcExtension.builder().extension("4001").build();
+
+        when(queueRepository.findById(1L)).thenReturn(Optional.of(queue));
+        when(agentRepository.findById(2L)).thenReturn(Optional.of(agent));
+        when(memberRepository.findByQueueIdAndAgentId(1L, 2L)).thenReturn(Optional.empty());
+        when(extensionRepository.findByAgentId(2L)).thenReturn(Optional.of(extension));
+        when(memberRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var member = service.addMember(1L, 2L, 5);
+
+        assertThat(member.getPenalty()).isEqualTo(5);
+        var captor = org.mockito.ArgumentCaptor.forClass(
+                com.asteriskia.domain.callcenter.ara.AraQueueMember.class);
+        verify(araQueueMemberRepository).save(captor.capture());
+        assertThat(captor.getValue().getPenalty()).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("addMember rejeita prioridade negativa")
+    void addMember_negativePenalty_throws() {
+        var service = newService();
+        assertThatThrownBy(() -> service.addMember(1L, 2L, -1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("negativa");
+    }
+
+    @Test
+    @DisplayName("updateMemberPenalty atualiza o penalty do membro e espelha em ARA")
+    void updateMemberPenalty_updatesAndMirrors() {
+        var service = newService();
+        var queue = CcQueue.builder().id(1L).name("5001").build();
+        var agent = CcAgent.builder().id(2L).build();
+        var extension = CcExtension.builder().extension("4001").build();
+        var member = CcQueueMember.builder().id(7L).queue(queue).agent(agent).penalty(0).build();
+        var araMember =
+                com.asteriskia.domain.callcenter.ara.AraQueueMember.builder()
+                        .queueName("5001").interfaceName("PJSIP/4001").penalty(0).build();
+
+        when(queueRepository.findById(1L)).thenReturn(Optional.of(queue));
+        when(memberRepository.findByQueueIdAndAgentId(1L, 2L)).thenReturn(Optional.of(member));
+        when(memberRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(extensionRepository.findByAgentId(2L)).thenReturn(Optional.of(extension));
+        when(araQueueMemberRepository.findByQueueNameAndInterfaceName("5001", "PJSIP/4001"))
+                .thenReturn(Optional.of(araMember));
+
+        var updated = service.updateMemberPenalty(1L, 2L, 3);
+
+        assertThat(updated.getPenalty()).isEqualTo(3);
+        assertThat(araMember.getPenalty()).isEqualTo(3);
+        verify(araQueueMemberRepository).save(araMember);
+    }
+
+    @Test
+    @DisplayName("create com copyMembersFromQueueId clona os membros da fila de origem")
+    void create_withCopyMembersFromQueueId_clonesMembers() {
+        var service = newService();
+        var sourceQueue = CcQueue.builder().id(1L).name("5001").build();
+        var agent = CcAgent.builder().id(2L).name("Agente Teste").build();
+        var sourceMember = CcQueueMember.builder().id(9L).queue(sourceQueue).agent(agent).penalty(4).build();
+        var extension = CcExtension.builder().extension("4001").build();
+
+        when(queueRepository.findByName("5010")).thenReturn(Optional.empty());
+        when(queueRepository.save(any())).thenAnswer(inv -> {
+            CcQueue q = inv.getArgument(0);
+            q.setId(20L);
+            return q;
+        });
+        when(queueRepository.findById(1L)).thenReturn(Optional.of(sourceQueue));
+        when(memberRepository.findByQueueId(1L)).thenReturn(List.of(sourceMember));
+        when(queueRepository.findById(20L)).thenReturn(Optional.of(
+                CcQueue.builder().id(20L).name("5010").build()));
+        when(agentRepository.findById(2L)).thenReturn(Optional.of(agent));
+        when(memberRepository.findByQueueIdAndAgentId(20L, 2L)).thenReturn(Optional.empty());
+        when(extensionRepository.findByAgentId(2L)).thenReturn(Optional.of(extension));
+        when(memberRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var request = new QueueRequest("5010", "Fila Clonada", null, null, null, null, null, 1L);
+        service.create(request);
+
+        verify(memberRepository).findByQueueId(1L);
+        var captor = org.mockito.ArgumentCaptor.forClass(CcQueueMember.class);
+        verify(memberRepository, org.mockito.Mockito.atLeastOnce()).save(captor.capture());
+        assertThat(captor.getAllValues()).anySatisfy(m -> assertThat(m.getPenalty()).isEqualTo(4));
+    }
+
+    @Test
+    @DisplayName("create com copyMembersFromQueueId de fila fora do escopo de BU falha limpo")
+    void create_copyFromQueueOutOfScope_throws() {
+        restrictToBusinessUnits(1);
+        var service = newService();
+        var otherBu = BusinessUnit.builder().id(2).build();
+        var sourceQueue = CcQueue.builder().id(1L).name("5001").businessUnit(otherBu).build();
+
+        when(queueRepository.findByName("5011")).thenReturn(Optional.empty());
+        when(queueRepository.save(any())).thenAnswer(inv -> {
+            CcQueue q = inv.getArgument(0);
+            q.setId(21L);
+            return q;
+        });
+        when(queueRepository.findById(1L)).thenReturn(Optional.of(sourceQueue));
+
+        var request = new QueueRequest("5011", "Fila Nova", null, null, null, null, null, 1L);
+        assertThatThrownBy(() -> service.create(request)).isInstanceOf(IllegalArgumentException.class);
     }
 }

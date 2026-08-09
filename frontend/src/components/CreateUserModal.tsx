@@ -1,17 +1,36 @@
 import type { Dispatch, SetStateAction } from 'react';
-import type { BusinessUnitOption, CreateForm } from './userModalTypes';
+import type { BusinessUnitOption, CcQueueOption, CreateForm } from './userModalTypes';
 import { MAX_ACCESS_DAYS, maxAccessDate, toggleBu } from './userModalTypes';
 
 interface CreateUserModalProps {
   form: CreateForm;
   setForm: Dispatch<SetStateAction<CreateForm>>;
   businessUnits: BusinessUnitOption[];
+  queues: CcQueueOption[];
   saving: boolean;
   onClose: () => void;
   onSave: () => void;
 }
 
-export function CreateUserModal({ form, setForm, businessUnits, saving, onClose, onSave }: CreateUserModalProps) {
+export function CreateUserModal({ form, setForm, businessUnits, queues, saving, onClose, onSave }: CreateUserModalProps) {
+  const toggleQueue = (queueId: number) => {
+    setForm(f => {
+      const exists = f.queueMemberships.some(m => m.queueId === queueId);
+      return {
+        ...f,
+        queueMemberships: exists
+          ? f.queueMemberships.filter(m => m.queueId !== queueId)
+          : [...f.queueMemberships, { queueId, priority: 0 }],
+      };
+    });
+  };
+
+  const updateQueuePriority = (queueId: number, priority: number) => {
+    setForm(f => ({
+      ...f,
+      queueMemberships: f.queueMemberships.map(m => m.queueId === queueId ? { ...m, priority } : m),
+    }));
+  };
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal modal-sm">
@@ -88,6 +107,44 @@ export function CreateUserModal({ form, setForm, businessUnits, saving, onClose,
           <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(0,122,255,0.08)', borderRadius: 8, fontSize: '0.8rem', color: '#4da8ff' }}>
             📞 Um ramal SIP WebRTC será atribuído automaticamente ao novo usuário.
           </div>
+
+          <div className="form-group" style={{ marginTop: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem' }}>
+              <input type="checkbox" checked={form.callCenterAgent}
+                onChange={e => setForm(f => ({ ...f, callCenterAgent: e.target.checked }))} />
+              Atendente do Call Center
+            </label>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+              Provisiona um ramal (4000-4999) e vincula às filas selecionadas abaixo.
+            </div>
+          </div>
+
+          {form.callCenterAgent && (
+            <div className="form-group">
+              <label className="form-label">Filas e prioridade (menor = atendido antes)</label>
+              {queues.length === 0 && (
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Nenhuma fila disponível (ou sem permissão de leitura em Filas do Call Center).
+                </div>
+              )}
+              {queues.map(q => {
+                const membership = form.queueMemberships.find(m => m.queueId === q.id);
+                return (
+                  <div key={q.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, fontSize: '0.85rem' }}>
+                      <input type="checkbox" checked={!!membership} onChange={() => toggleQueue(q.id)} />
+                      {q.displayName} ({q.name})
+                    </label>
+                    {membership && (
+                      <input type="number" min={0} className="form-input" style={{ width: 70 }}
+                        value={membership.priority}
+                        onChange={e => updateQueuePriority(q.id, Number(e.target.value) || 0)} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>

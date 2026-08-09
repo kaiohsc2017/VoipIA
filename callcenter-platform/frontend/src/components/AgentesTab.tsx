@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, ListOrdered } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
 import { ConfirmModal } from './ConfirmModal';
-import type { AgentRequest, BusinessUnit, CcAgent } from '../api/types';
+import type { AgentRequest, AppUserOption, BusinessUnit, CcAgent, CcQueue, CcQueueMember } from '../api/types';
 
 const EMPTY_FORM: AgentRequest = { name: '', userId: null, businessUnitId: null, extension: '' };
 
 export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean; canReadRamalSecret: boolean }) {
   const [agents, setAgents] = useState<CcAgent[]>([]);
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
+  const [users, setUsers] = useState<AppUserOption[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<CcAgent | null>(null);
   const [confirmAgent, setConfirmAgent] = useState<CcAgent | null>(null);
   const [secretFor, setSecretFor] = useState<CcAgent | null>(null);
   const [secret, setSecret] = useState('');
+  const [queuesOf, setQueuesOf] = useState<CcAgent | null>(null);
   const [msg, setMsg] = useState('');
   const [fd, setFd] = useState<AgentRequest>(EMPTY_FORM);
 
@@ -27,6 +29,9 @@ export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean
   useEffect(() => {
     load();
     api.get<BusinessUnit[]>('/business-units?active=true').then(({ data }) => setBusinessUnits(data)).catch(() => setBusinessUnits([]));
+    // Sem telecom.users (grupo customizado sem essa permissão) cai silenciosamente para o
+    // campo numérico manual — o formulário não trava, só perde a conveniência da busca.
+    api.get<AppUserOption[]>('/users').then(({ data }) => setUsers(data)).catch(() => setUsers([]));
   }, []);
 
   const openForm = (a: CcAgent | null) => {
@@ -100,6 +105,11 @@ export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean
           </div>
         )}
 
+        {queuesOf && (
+          <AgentQueuesModal agent={queuesOf} canWrite={canWrite} onClose={() => setQueuesOf(null)}
+            onError={m => flash(m)} />
+        )}
+
         {canWrite && showForm && (
           <div className="modal-overlay" onClick={() => setShowForm(false)}>
             <div className="modal" onClick={e => e.stopPropagation()}>
@@ -126,6 +136,20 @@ export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean
                       {businessUnits.map(bu => <option key={bu.id} value={bu.id}>{bu.name}</option>)}
                     </select>
                   </div>
+                  <div className="form-group">
+                    <label className="form-label">Usuário vinculado (opcional)</label>
+                    {users.length > 0 ? (
+                      <select className="form-input" value={fd.userId ?? ''}
+                        onChange={e => setFd(f => ({ ...f, userId: e.target.value ? Number(e.target.value) : null }))}>
+                        <option value="">— Nenhum —</option>
+                        {users.map(u => <option key={u.id} value={u.id}>{u.displayName} ({u.username})</option>)}
+                      </select>
+                    ) : (
+                      <input className="form-input" type="number" placeholder="ID do usuário (opcional)"
+                        value={fd.userId ?? ''}
+                        onChange={e => setFd(f => ({ ...f, userId: e.target.value ? Number(e.target.value) : null }))} />
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="modal-footer">
@@ -149,6 +173,7 @@ export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean
                   <td>{a.businessUnit?.name ?? '—'}</td>
                   <td><span className={`badge ${a.active ? 'badge-success' : 'badge-gray'}`}>{a.active ? 'Ativo' : 'Inativo'}</span></td>
                   <td>
+                    <button className="btn btn-ghost btn-sm" title="Filas do agente" onClick={() => setQueuesOf(a)}><ListOrdered size={14} /></button>
                     {canReadRamalSecret && a.extension && (
                       <button className="btn btn-ghost btn-sm" title="Ver senha do ramal" onClick={() => revealSecret(a)}><Eye size={14} /></button>
                     )}
@@ -167,5 +192,106 @@ export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * AgentQueuesModal — filas de um agente (Fase 12.4): listar, adicionar, remover e editar
+ * prioridade. Espelha o modal de membros de FilasTab.tsx, na direção inversa (agente → filas).
+ */
+function AgentQueuesModal({ agent, canWrite, onClose, onError }: {
+  agent: CcAgent; canWrite: boolean; onClose: () => void; onError: (m: string) => void;
+}) {
+  const [memberships, setMemberships] = useState<CcQueueMember[]>([]);
+  const [allQueues, setAllQueues] = useState<CcQueue[]>([]);
+  const [addQueueId, setAddQueueId] = useState('');
+  const [addPriority, setAddPriority] = useState('0');
+
+  const load = () => {
+    api.get<CcQueueMember[]>(`/callcenter/agentes/${agent.id}/filas`)
+      .then(({ data }) => setMemberships(data))
+      .catch(err => onError(getErrorMessage(err, 'Erro ao listar filas do agente.')));
+  };
+  useEffect(() => {
+    load();
+    api.get<CcQueue[]>('/callcenter/filas').then(({ data }) => setAllQueues(data)).catch(() => setAllQueues([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agent.id]);
+
+  const availableQueues = allQueues.filter(q => !memberships.some(m => m.queue.id === q.id));
+
+  const add = () => {
+    if (!addQueueId) return;
+    api.post(`/callcenter/agentes/${agent.id}/filas/${addQueueId}`, { penalty: Number(addPriority) || 0 })
+      .then(() => { load(); setAddQueueId(''); setAddPriority('0'); })
+      .catch(err => onError(getErrorMessage(err, 'Erro ao adicionar à fila.')));
+  };
+
+  const updatePriority = (queueId: number, penalty: number) => {
+    api.put(`/callcenter/agentes/${agent.id}/filas/${queueId}/prioridade`, { penalty })
+      .then(load)
+      .catch(err => onError(getErrorMessage(err, 'Erro ao atualizar prioridade.')));
+  };
+
+  const remove = (queueId: number) => {
+    api.delete(`/callcenter/agentes/${agent.id}/filas/${queueId}`)
+      .then(load)
+      .catch(err => onError(getErrorMessage(err, 'Erro ao remover da fila.')));
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Filas de "{agent.name}"</h2>
+          <button className="btn-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <div className="table-wrapper">
+            <table>
+              <thead><tr><th>Fila</th><th>Prioridade</th>{canWrite && <th></th>}</tr></thead>
+              <tbody>
+                {memberships.map(m => (
+                  <tr key={m.id}>
+                    <td>{m.queue.displayName} ({m.queue.name})</td>
+                    <td>
+                      {canWrite ? (
+                        <input type="number" min={0} className="form-input" style={{ width: 70 }}
+                          defaultValue={m.penalty}
+                          onBlur={e => {
+                            const v = Number(e.target.value);
+                            if (!Number.isNaN(v) && v !== m.penalty) updatePriority(m.queue.id, v);
+                          }} />
+                      ) : m.penalty}
+                    </td>
+                    {canWrite && (
+                      <td><button className="btn btn-ghost btn-sm" onClick={() => remove(m.queue.id)}><Trash2 size={14} /></button></td>
+                    )}
+                  </tr>
+                ))}
+                {memberships.length === 0 && <tr><td colSpan={canWrite ? 3 : 2} className="table-empty">Agente não está em nenhuma fila.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {canWrite && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <select className="form-input" value={addQueueId} onChange={e => setAddQueueId(e.target.value)}>
+                <option value="">— Selecione uma fila —</option>
+                {availableQueues.map(q => <option key={q.id} value={q.id}>{q.displayName} ({q.name})</option>)}
+              </select>
+              <input type="number" min={0} className="form-input" style={{ width: 90 }}
+                placeholder="Prioridade" value={addPriority} onChange={e => setAddPriority(e.target.value)} />
+              <button className="btn btn-primary" disabled={!addQueueId} onClick={add}><Plus size={14} /> Adicionar</button>
+            </div>
+          )}
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 8 }}>
+            Prioridade: menor valor é atendido antes (mesma semântica do Asterisk).
+          </p>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
   );
 }

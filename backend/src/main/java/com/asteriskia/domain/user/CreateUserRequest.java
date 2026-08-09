@@ -1,5 +1,6 @@
 package com.asteriskia.domain.user;
 
+import com.asteriskia.domain.callcenter.QueueMembershipRequest;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
@@ -16,4 +17,9 @@ public record CreateUserRequest(
         @NotEmpty(message = "Selecione ao menos uma Unidade de Negócio (BU)")
                 List<Integer> businessUnitIds,
         LocalDate accessExpiresAt,
-        Boolean accessIndeterminate) {}
+        Boolean accessIndeterminate,
+        /** Fase 12.1 — se true, provisiona um CcAgent (ramal 4000-4999 + filas) para este
+         * usuário, na mesma transação da criação. */
+        Boolean callCenterAgent,
+        /** Filas e prioridades do atendente — só considerado quando callCenterAgent=true. */
+        List<QueueMembershipRequest> queueMemberships) {}

@@ -10,4 +10,7 @@ public interface CcQueueMemberRepository extends JpaRepository<CcQueueMember, Lo
     List<CcQueueMember> findByQueueId(Long queueId);
 
     Optional<CcQueueMember> findByQueueIdAndAgentId(Long queueId, Long agentId);
+
+    /** Filas de um agente (Fase 12.4) — via inversa de findByQueueId, que já existia. */
+    List<CcQueueMember> findByAgentId(Long agentId);
 }

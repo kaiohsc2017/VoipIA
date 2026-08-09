@@ -1,6 +1,7 @@
 package com.asteriskia.domain.user;
 
 import com.asteriskia.domain.audit.AuditService;
+import com.asteriskia.domain.callcenter.CallCenterAgentProvisioningService;
 import com.asteriskia.domain.masterdata.BusinessUnit;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -38,7 +40,20 @@ public class UserController {
     private final AppUserRepository userRepo;
     private final AuditService auditService;
     private final UserService userService;
+    private final CallCenterAgentProvisioningService agentProvisioningService;
     private static final BCryptPasswordEncoder ENCODER = new BCryptPasswordEncoder(10);
+
+    /** Fase 12.1 — checagem explícita de autoridade, em complemento ao matcher de rota
+     * (PERM_WRITE_telecom.users), exigida só quando o request tenta vincular filas ao agente. */
+    private boolean hasCallCenterQueueWriteAccess() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null
+                && auth.getAuthorities().stream()
+                        .anyMatch(
+                                a ->
+                                        "ROLE_ADMIN".equals(a.getAuthority())
+                                                || "PERM_WRITE_callcenter.filas".equals(a.getAuthority()));
+    }
 
     // Ramal inicial — o primeiro usuário recebe 9001
     private static final int EXTENSION_START = 9001;
@@ -75,6 +90,14 @@ public class UserController {
     @PostMapping
     public ResponseEntity<?> createUser(
             @Valid @RequestBody CreateUserRequest req, HttpServletRequest httpRequest) {
+        // Achado de segurança (security-reviewer, Fase 12): a rota é protegida só por
+        // PERM_WRITE_telecom.users — sem esta checagem, um grupo customizado com essa permissão
+        // (mas sem PERM_WRITE_callcenter.filas) conseguiria vincular agentes a qualquer fila só
+        // por passar queueMemberships aqui, exercendo uma permissão que não lhe foi concedida.
+        if (req.queueMemberships() != null && !req.queueMemberships().isEmpty() && !hasCallCenterQueueWriteAccess()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ErrorResponse("Vincular atendente a filas requer permissão de escrita em Filas do Call Center."));
+        }
         if (userRepo.findByUsername(req.username()).isPresent()) {
             return ResponseEntity.badRequest()
                     .body(new ErrorResponse("Username já existe: " + req.username()));
@@ -109,6 +132,18 @@ public class UserController {
 
         AppUser saved = userRepo.save(user);
         log.info("Usuário criado: {} → ramal {}", saved.getUsername(), saved.getExtension());
+
+        // Fase 12.1 — provisiona o agente do Call Center na MESMA transação (classe é
+        // @Transactional): se a alocação de ramal ou o vínculo às filas falhar, o rollback
+        // desfaz também a criação do AppUser — nunca fica "usuário criado, agente não".
+        if (Boolean.TRUE.equals(req.callCenterAgent())) {
+            var businessUnitId = req.businessUnitIds() == null || req.businessUnitIds().isEmpty()
+                    ? null
+                    : req.businessUnitIds().get(0);
+            agentProvisioningService.provisionForUser(
+                    saved.getId(), saved.getDisplayName(), businessUnitId, req.queueMemberships());
+        }
+
         auditService.log(
                 httpRequest,
                 "USER_CREATE",
@@ -225,6 +260,11 @@ public class UserController {
                         user -> {
                             user.setIsActive(false);
                             userRepo.save(user);
+                            // Fase 12.1 — se o usuário tiver um agente do Call Center vinculado,
+                            // remove das filas ARA (senão o Asterisk continua tocando um ramal
+                            // desligado) e desativa o CcAgent, preservando a linha para histórico
+                            // de relatórios (Fase 9). Sem-op se não houver agente.
+                            agentProvisioningService.deactivateForUser(user.getId());
                             log.info(
                                     "Usuário desativado: {} (ramal {})",
                                     user.getUsername(),

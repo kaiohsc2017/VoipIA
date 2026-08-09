@@ -22,6 +22,19 @@ export interface BusinessUnitOption {
   name: string;
 }
 
+/** Fila do Call Center para o seletor "atendente" do cadastro de usuário (Fase 12.1). */
+export interface CcQueueOption {
+  id: number;
+  name: string;
+  displayName: string;
+}
+
+/** Uma fila e a prioridade do atendente nela — espelha QueueMembershipRequest.java. */
+export interface QueueMembership {
+  queueId: number;
+  priority: number;
+}
+
 export interface CreateForm {
   username: string;
   password: string;
@@ -30,6 +43,9 @@ export interface CreateForm {
   businessUnitIds: number[];
   accessExpiresAt: string;
   accessIndeterminate: boolean;
+  /** Fase 12.1 — se true, provisiona um agente do Call Center (ramal 4000-4999 + filas). */
+  callCenterAgent: boolean;
+  queueMemberships: QueueMembership[];
 }
 
 export interface EditForm {
@@ -63,4 +79,5 @@ export const toggleBu = (ids: number[], id: number): number[] =>
 export const EMPTY_CREATE: CreateForm = {
   username: '', password: '', displayName: '', role: 'USER',
   businessUnitIds: [], accessExpiresAt: maxAccessDate(), accessIndeterminate: false,
+  callCenterAgent: false, queueMemberships: [],
 };

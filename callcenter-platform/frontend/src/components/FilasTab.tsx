@@ -8,7 +8,7 @@ const STRATEGIES = ['ringall', 'leastrecent', 'fewestcalls', 'random', 'rrmemory
 
 const EMPTY_FORM: QueueRequest = {
   name: '', displayName: '', businessUnitId: null, strategy: 'ringall', timeoutSeconds: 15,
-  recordingEnabled: true, consentMessagePath: null,
+  recordingEnabled: true, consentMessagePath: null, copyMembersFromQueueId: null,
 };
 
 export function FilasTab({ canWrite }: { canWrite: boolean }) {
@@ -22,6 +22,7 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
   const [members, setMembers] = useState<CcQueueMember[]>([]);
   const [msg, setMsg] = useState('');
   const [fd, setFd] = useState<QueueRequest>(EMPTY_FORM);
+  const [addPriority, setAddPriority] = useState('0');
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
 
@@ -65,11 +66,18 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
     api.get<CcQueueMember[]>(`/callcenter/filas/${q.id}/membros`).then(({ data }) => setMembers(data)).catch(() => setMembers([]));
   };
 
-  const addMember = (agentId: number) => {
+  const addMember = (agentId: number, penalty: number) => {
     if (!membersOf) return;
-    api.post<CcQueueMember>(`/callcenter/filas/${membersOf.id}/membros/${agentId}`)
+    api.post<CcQueueMember>(`/callcenter/filas/${membersOf.id}/membros/${agentId}`, { penalty })
       .then(({ data }) => setMembers(list => [...list, data]))
       .catch(err => flash(getErrorMessage(err, 'Erro ao adicionar agente na fila.')));
+  };
+
+  const updateMemberPriority = (agentId: number, penalty: number) => {
+    if (!membersOf) return;
+    api.put(`/callcenter/filas/${membersOf.id}/membros/${agentId}/prioridade`, { penalty })
+      .then(() => setMembers(list => list.map(m => m.agent.id === agentId ? { ...m, penalty } : m)))
+      .catch(err => flash(getErrorMessage(err, 'Erro ao atualizar prioridade.')));
   };
 
   const removeMember = (agentId: number) => {
@@ -151,6 +159,21 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
                       value={fd.consentMessagePath ?? ''}
                       onChange={e => setFd(f => ({ ...f, consentMessagePath: e.target.value || null }))} />
                   </div>
+                  {!editing && (
+                    <div className="form-group">
+                      <label className="form-label">
+                        <input type="checkbox" checked={!!fd.copyMembersFromQueueId}
+                          onChange={e => setFd(f => ({ ...f, copyMembersFromQueueId: e.target.checked ? (queues[0]?.id ?? null) : null }))} />
+                        {' '}Copiar membros de outra fila
+                      </label>
+                      {fd.copyMembersFromQueueId != null && (
+                        <select className="form-input" style={{ marginTop: 6 }} value={fd.copyMembersFromQueueId}
+                          onChange={e => setFd(f => ({ ...f, copyMembersFromQueueId: Number(e.target.value) }))}>
+                          {queues.map(q => <option key={q.id} value={q.id}>{q.displayName} ({q.name})</option>)}
+                        </select>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="modal-footer">
@@ -171,28 +194,42 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
               <div className="modal-body">
                 <div className="table-wrapper">
                   <table>
-                    <thead><tr><th>Agente</th><th>Ramal</th>{canWrite && <th></th>}</tr></thead>
+                    <thead><tr><th>Agente</th><th>Ramal</th><th>Prioridade</th>{canWrite && <th></th>}</tr></thead>
                     <tbody>
                       {members.map(m => (
                         <tr key={m.agent.id}>
                           <td>{m.agent.name}</td>
                           <td>{m.agent.extension?.extension}</td>
+                          <td>
+                            {canWrite ? (
+                              <input type="number" min={0} className="form-input" style={{ width: 70 }}
+                                defaultValue={m.penalty}
+                                onBlur={e => {
+                                  const v = Number(e.target.value);
+                                  if (!Number.isNaN(v) && v !== m.penalty) updateMemberPriority(m.agent.id, v);
+                                }} />
+                            ) : m.penalty}
+                          </td>
                           {canWrite && <td><button className="btn btn-ghost btn-sm" onClick={() => removeMember(m.agent.id)}><X size={14} /></button></td>}
                         </tr>
                       ))}
-                      {members.length === 0 && <tr><td colSpan={canWrite ? 3 : 2} className="table-empty">Nenhum agente nesta fila.</td></tr>}
+                      {members.length === 0 && <tr><td colSpan={canWrite ? 4 : 3} className="table-empty">Nenhum agente nesta fila.</td></tr>}
                     </tbody>
                   </table>
                 </div>
                 {canWrite && availableAgents.length > 0 && (
-                  <div className="form-group" style={{ marginTop: 16 }}>
-                    <label className="form-label">Adicionar agente</label>
-                    <select className="form-input" value="" onChange={e => { if (e.target.value) addMember(Number(e.target.value)); }}>
-                      <option value="">— Selecione —</option>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                    <select className="form-input" value="" onChange={e => { if (e.target.value) { addMember(Number(e.target.value), Number(addPriority) || 0); setAddPriority('0'); } }}>
+                      <option value="">— Selecione um agente —</option>
                       {availableAgents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                     </select>
+                    <input type="number" min={0} className="form-input" style={{ width: 90 }}
+                      placeholder="Prioridade" value={addPriority} onChange={e => setAddPriority(e.target.value)} />
                   </div>
                 )}
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 8 }}>
+                  Prioridade: menor valor é atendido antes (mesma semântica do Asterisk).
+                </p>
               </div>
             </div>
           </div>

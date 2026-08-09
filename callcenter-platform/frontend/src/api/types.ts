@@ -78,6 +78,8 @@ export interface QueueRequest {
   timeoutSeconds?: number;
   recordingEnabled?: boolean | null;
   consentMessagePath?: string | null;
+  /** Fase 12.5 — só considerado na criação; clona os membros (agente+prioridade) da fila de origem. */
+  copyMembersFromQueueId?: number | null;
 }
 
 export interface CcQueueMember {
@@ -98,6 +100,50 @@ export interface CcSkill {
 export interface SkillRequest {
   name: string;
   description?: string;
+}
+
+// ---- Call Center — Motivos de pausa (Fase 12.6, GET/POST/PUT/DELETE /callcenter/pause-reasons) ----
+export interface CcPauseReason {
+  id: number;
+  code: string;
+  label: string;
+  productive: boolean;
+  active: boolean;
+}
+
+export interface PauseReasonRequest {
+  code: string;
+  label: string;
+  productive?: boolean;
+  active?: boolean;
+}
+
+// ---- Call Center — Tabulações (Fase 12.6, GET/POST/PUT/DELETE /callcenter/dispositions) ----
+export interface CcDisposition {
+  id: number;
+  code: string;
+  label: string;
+  active: boolean;
+}
+
+export interface DispositionRequest {
+  code: string;
+  label: string;
+  active?: boolean;
+}
+
+// ---- Call Center — filas de um agente / prioridade (Fase 12.3/12.4) ----
+export interface QueueMemberBody {
+  penalty?: number;
+}
+
+// ---- Usuário do Telecom (GET /users) — só os campos usados no seletor de "usuário
+// vinculado" do agente (Fase 12.4). ADMIN sempre lê; grupo customizado sem telecom.users
+// recebe 403 e o formulário cai para digitação manual do id. ----
+export interface AppUserOption {
+  id: number;
+  username: string;
+  displayName: string;
 }
 
 // ---- Call Center — Gravações (Fase 3) ----

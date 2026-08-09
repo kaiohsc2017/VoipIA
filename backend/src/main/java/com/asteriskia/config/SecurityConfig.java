@@ -204,6 +204,11 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.filas")
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/skills/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.skills")
+                        // Motivos de pausa e tabulações (Fase 12.6) — catálogos de configuração.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/pause-reasons/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.config")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/dispositions/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.config")
                         // Gravação/retenção/alerta de disco — Fase 3. /api/v1/internal/callcenter/**
                         // (ingestão via dialplan) NÃO entra aqui — fica só sob o InternalKeyFilter,
                         // mesmo padrão de /api/v1/internal/ura-routing.
@@ -302,6 +307,10 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.filas")
                         .requestMatchers("/api/v1/callcenter/skills/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.skills")
+                        .requestMatchers("/api/v1/callcenter/pause-reasons/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.config")
+                        .requestMatchers("/api/v1/callcenter/dispositions/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.config")
                         .requestMatchers("/api/v1/callcenter/recordings/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.gravacoes")
                         .requestMatchers("/api/v1/callcenter/agent-state/**")

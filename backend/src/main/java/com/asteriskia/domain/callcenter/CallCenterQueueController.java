@@ -1,6 +1,7 @@
 package com.asteriskia.domain.callcenter;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -15,14 +16,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * CallCenterQueueController — CRUD de filas e membros do Call Center (Fase 2).
+ * CallCenterQueueController — CRUD de filas e membros do Call Center (Fase 2/12).
  *
  * GET    /api/v1/callcenter/filas                          — lista (escopo por BU)
  * POST   /api/v1/callcenter/filas                           — cria fila + espelha em ARA
  * PUT    /api/v1/callcenter/filas/{id}                      — atualiza fila
  * DELETE /api/v1/callcenter/filas/{id}                      — remove fila
  * GET    /api/v1/callcenter/filas/{id}/membros              — lista agentes da fila
- * POST   /api/v1/callcenter/filas/{id}/membros/{agentId}    — inclui agente na fila
+ * POST   /api/v1/callcenter/filas/{id}/membros/{agentId}    — inclui agente na fila (body opcional {penalty})
+ * PUT    /api/v1/callcenter/filas/{id}/membros/{agentId}/prioridade — atualiza a prioridade
  * DELETE /api/v1/callcenter/filas/{id}/membros/{agentId}    — remove agente da fila
  */
 @RestController
@@ -63,9 +65,23 @@ public class CallCenterQueueController {
         return ResponseEntity.ok(service.members(id));
     }
 
+    public record MemberRequest(@PositiveOrZero Integer penalty) {}
+
     @PostMapping("/{id}/membros/{agentId}")
-    public ResponseEntity<CcQueueMember> addMember(@PathVariable Long id, @PathVariable Long agentId) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.addMember(id, agentId));
+    public ResponseEntity<CcQueueMember> addMember(
+            @PathVariable Long id, @PathVariable Long agentId,
+            @RequestBody(required = false) MemberRequest request) {
+        int penalty = request != null && request.penalty() != null ? request.penalty() : 0;
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.addMember(id, agentId, penalty));
+    }
+
+    @PutMapping("/{id}/membros/{agentId}/prioridade")
+    public ResponseEntity<CcQueueMember> updateMemberPenalty(
+            @PathVariable Long id, @PathVariable Long agentId, @Valid @RequestBody MemberRequest request) {
+        if (request.penalty() == null) {
+            throw new IllegalArgumentException("Prioridade é obrigatória.");
+        }
+        return ResponseEntity.ok(service.updateMemberPenalty(id, agentId, request.penalty()));
     }
 
     @DeleteMapping("/{id}/membros/{agentId}")

@@ -106,7 +106,10 @@ public final class ResourceCatalog {
             // fontes de dado e granularidade diferentes. Não cobre POST /reports/reprocess
             // (ROLE_ADMIN puro, sem resource_key — reprocessamento em massa não é ação de rotina
             // de um grupo customizado).
-            "callcenter.reports"
+            "callcenter.reports",
+            // callcenter.config (Fase 12.6): CRUD de motivos de pausa e tabulações — catálogos
+            // de configuração do Call Center que antes só existiam via seed (V47), sem UI própria.
+            "callcenter.config"
     );
 
     public static List<String> all() {

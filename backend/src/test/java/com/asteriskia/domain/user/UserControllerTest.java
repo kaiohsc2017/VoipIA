@@ -10,6 +10,7 @@ import com.asteriskia.config.JwtService;
 import com.asteriskia.domain.accessgroup.AccessGroup;
 import com.asteriskia.domain.accessgroup.AccessGroupRepository;
 import com.asteriskia.domain.audit.AuditService;
+import com.asteriskia.domain.callcenter.CallCenterAgentProvisioningService;
 import com.asteriskia.domain.masterdata.BusinessUnit;
 import com.asteriskia.domain.masterdata.BusinessUnitRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -59,6 +60,8 @@ class UserControllerTest {
     @MockBean private AuditService auditService;
 
     @MockBean private JwtService jwtService;
+
+    @MockBean private CallCenterAgentProvisioningService agentProvisioningService;
 
     private static final BCryptPasswordEncoder ENCODER = new BCryptPasswordEncoder(10);
 
@@ -457,6 +460,60 @@ class UserControllerTest {
 
             mockMvc.perform(post("/api/v1/users").contentType("application/json").content(body))
                     .andExpect(status().isCreated());
+        }
+
+        @Test
+        @WithMockUser(authorities = "PERM_WRITE_telecom.users")
+        void createUser_comQueueMemberships_semPermissaoDeFilas_deveRetornar403() throws Exception {
+            String body =
+                    """
+                    {
+                        "username": "novo",
+                        "password": "senha123",
+                        "displayName": "Usuário Novo",
+                        "role": "USER",
+                        "businessUnitIds": [5],
+                        "accessIndeterminate": true,
+                        "callCenterAgent": true,
+                        "queueMemberships": [{"queueId": 1, "priority": 0}]
+                    }
+                    """;
+
+            mockMvc.perform(post("/api/v1/users").contentType("application/json").content(body))
+                    .andExpect(status().isForbidden());
+
+            verify(userRepo, never()).save(any());
+        }
+
+        @Test
+        @WithMockUser(authorities = {"PERM_WRITE_telecom.users", "PERM_WRITE_callcenter.filas"})
+        void createUser_comQueueMemberships_comPermissaoDeFilas_deveProsseguir() throws Exception {
+            mockGrupos();
+            when(userRepo.findByUsername("novo")).thenReturn(Optional.empty());
+            when(userRepo.findNextExtension(9001)).thenReturn(9002);
+            when(businessUnitRepo.findAllById(List.of(5))).thenReturn(List.of(bu(5)));
+            when(userRepo.save(any(AppUser.class)))
+                    .thenReturn(baseUser().id(2).username("novo").extension(9002).accessIndeterminate(true).build());
+            doNothing().when(auditService).log(any(), any(), any(), anyBoolean());
+
+            String body =
+                    """
+                    {
+                        "username": "novo",
+                        "password": "senha123",
+                        "displayName": "Usuário Novo",
+                        "role": "USER",
+                        "businessUnitIds": [5],
+                        "accessIndeterminate": true,
+                        "callCenterAgent": true,
+                        "queueMemberships": [{"queueId": 1, "priority": 0}]
+                    }
+                    """;
+
+            mockMvc.perform(post("/api/v1/users").contentType("application/json").content(body))
+                    .andExpect(status().isCreated());
+
+            verify(agentProvisioningService).provisionForUser(eq(2), eq("Kaio Correa"), eq(5), any());
         }
     }
 

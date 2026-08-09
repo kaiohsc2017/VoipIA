@@ -26,8 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CallCenterAgentService {
 
-    private static final int RANGE_START = 4000;
-    private static final int RANGE_END = 4999;
+    // Público — reusado por CallCenterAgentProvisioningService (Fase 12.1) para alocar o
+    // próximo ramal livre sem duplicar a faixa em dois lugares.
+    public static final int RANGE_START = 4000;
+    public static final int RANGE_END = 4999;
 
     private final CcAgentRepository agentRepository;
     private final CcExtensionRepository extensionRepository;

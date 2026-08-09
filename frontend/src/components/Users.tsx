@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api, { getErrorMessage } from '../api/client';
-import type { AppUser, BusinessUnitOption, CreateForm, EditForm, TotpSetup } from './userModalTypes';
+import type { AppUser, BusinessUnitOption, CcQueueOption, CreateForm, EditForm, TotpSetup } from './userModalTypes';
 import { EMPTY_CREATE, maxAccessDate } from './userModalTypes';
 import { CreateUserModal } from './CreateUserModal';
 import { EditUserModal } from './EditUserModal';
@@ -9,6 +9,11 @@ import { TotpModal } from './TotpModal';
 export default function Users() {
   const [users, setUsers]         = useState<AppUser[]>([]);
   const [businessUnits, setBusinessUnits] = useState<BusinessUnitOption[]>([]);
+  // Fase 12.1 — filas do Call Center para o seletor "atendente" do cadastro de usuário.
+  // Sem PERM_READ_callcenter.filas (grupo customizado sem essa permissão), a chamada retorna
+  // 403 e a lista fica vazia — o checkbox "atendente" fica sem opção de fila, o que é o
+  // comportamento correto (não deveria atribuir fila que não pode ver).
+  const [queues, setQueues] = useState<CcQueueOption[]>([]);
   const [loading, setLoading]     = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser]   = useState<AppUser | null>(null);
@@ -58,6 +63,9 @@ export default function Users() {
     api.get<BusinessUnitOption[]>('/business-units')
       .then(r => setBusinessUnits(r.data ?? []))
       .catch(() => setBusinessUnits([]));
+    api.get<CcQueueOption[]>('/callcenter/filas')
+      .then(r => setQueues(r.data ?? []))
+      .catch(() => setQueues([]));
   }, []);
 
   // ---- Criar usuário ----
@@ -402,7 +410,7 @@ export default function Users() {
       {/* Modal — Criar Usuário */}
       {showCreate && (
         <CreateUserModal
-          form={createForm} setForm={setCreateForm} businessUnits={businessUnits}
+          form={createForm} setForm={setCreateForm} businessUnits={businessUnits} queues={queues}
           saving={saving} onClose={() => setShowCreate(false)} onSave={handleCreate}
         />
       )}

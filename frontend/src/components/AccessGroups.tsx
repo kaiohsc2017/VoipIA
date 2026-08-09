@@ -53,6 +53,7 @@ const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agent
   { key: 'callcenter.insights.calls',       label: 'Insights — Chamadas',       system: 'Call Center' },
   { key: 'callcenter.insights.dashboard',   label: 'Insights — Dashboard',      system: 'Call Center' },
   { key: 'callcenter.insights.processing',  label: 'Insights — Processamento',  system: 'Call Center' },
+  { key: 'callcenter.config',    label: 'Configurações (pausas/tabulações)', system: 'Call Center' },
 ];
 
 type PermMap = Record<string, { canRead: boolean; canWrite: boolean }>;

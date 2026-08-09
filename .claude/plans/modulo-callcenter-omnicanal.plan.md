@@ -30,7 +30,7 @@ tabela de status, histórico verboso movido para §16.
 | Fase | Escopo | Pedido | Status |
 |---|---|---|---|
 | **11** | Padronização dos caminhos de gravação | P10 | ✅ **implementada, testada e deployada** (2026-08-08) |
-| **12** | Provisionamento de atendente e gestão de filas | P3, P4 | ❌ não iniciada |
+| **12** | Provisionamento de atendente e gestão de filas | P3, P4 | ✅ **implementada, testada e deployada** (2026-08-08) |
 | **13** | Softphone do agente (fixo + global + credencial própria) | P2 | ❌ não iniciada |
 | **5c** | Menu com ramificação 1-9 + biblioteca de áudios | P5, P6 | ❌ não iniciada (repriorizada acima do simulador) |
 | **14** | Identidade do contato e screen pop | P1 | ❌ não iniciada — **bloqueada pela Fase 1** |
@@ -663,15 +663,42 @@ consumo read-only no Desktop. Como a tabulação é **obrigatória** para o agen
 operação real fica presa ao seed. Duas abas pequenas de CRUD (ou uma aba "Configurações do Call
 Center" com as duas seções), sob `callcenter.agentes` ou resource novo `callcenter.config`.
 
-**Testes:** `CallCenterAgentProvisioningServiceTest` (aloca ramal livre; falha se a faixa estourar;
-idempotência; rollback transacional quando o ARA falha; desativação remove das filas ARA e preserva
-o agente), `CallCenterQueueServiceTest` (penalty persistido e espelhado; cópia de membros respeita
-BU; cópia de fila inexistente falha limpo).
+**Testes:** `CallCenterAgentProvisioningServiceTest` (7 testes: aloca ramal livre; idempotência —
+usuário já com agente falha com 409; faixa esgotada falha com 409; falha de fila convertida em 400,
+não 500; desativação remove das filas ARA e preserva o agente; sem-op sem agente vinculado),
+`CallCenterQueueServiceTest` (+5: penalty persistido e espelhado em ARA; prioridade negativa
+rejeitada; `updateMemberPenalty` espelha; cópia de membros respeita escopo de BU da origem; cópia
+de fila fora do escopo falha limpo). Suíte completa **443/443 verde** (+14 desta fase).
 
-**Validação:** criar um usuário atendente pela UI → conferir `cc_agents`/`cc_extensions`/
-`cc_queue_members`/`ps_endpoints`/`queue_members` no banco → registrar um softphone no ramal
-alocado → ligar para a fila → ser atendido. **É a primeira validação real de ponta a ponta do
-módulo** e a que confirma o mapeamento de eventos AMI da Fase 4.
+**Achado real corrigido antes do commit (revisão de segurança)**: `POST /users` era protegido só
+por `PERM_WRITE_telecom.users` — um grupo customizado com essa permissão e **sem**
+`PERM_WRITE_callcenter.filas` conseguia, via `queueMemberships`, vincular um agente a qualquer
+fila, exercendo uma permissão que não lhe foi concedida (escalação de privilégio real, atenuada
+pelo contexto de rede interna). Corrigido com checagem explícita em `UserController.createUser` —
+`ROLE_ADMIN` ou `PERM_WRITE_callcenter.filas` exigida sempre que `queueMemberships` não vier vazio,
+com teste dedicado (403 sem a permissão, 200 com ela).
+
+**Achado real, também corrigido**: `IllegalArgumentException` lançada por `CallCenterAgentService`/
+`CallCenterQueueService` caía no catch-all do `GlobalExceptionHandler` (500 genérico), não no
+padrão de erro claro do resto do módulo — `CallCenterAgentProvisioningService` reconverte para
+`ResponseStatusException` antes de propagar.
+
+**Gap conhecido, não introduzido por esta fase (pré-existente no módulo, não corrigido)**:
+`CallCenterAgentService.findById`/`CallCenterQueueService.findById` lançam `IllegalArgumentException`
+para "não encontrado", que ainda cai no catch-all 500 nos endpoints de leitura antigos
+(`GET /agentes/{id}`, `GET /filas/{id}/membros`) e nos novos que os reusam
+(`GET /agentes/{id}/filas`) — confirmado com um agente/fila inexistente retornando 500 em vez de
+404. Fora do escopo desta fase corrigir todo o padrão do módulo (mesmo tipo de achado já corrigido
+pontualmente na validação visual das Fases 7a/7b/8/9a, mas nunca generalizado).
+
+**Validado em produção via curl com JWT forjado inline**: fila e usuário atendente criados de
+ponta a ponta → confirmado no banco `cc_agents`/`cc_extensions`/`cc_queue_members` (`penalty=3`
+persistido e espelhado em `queue_members`/ARA com o ramal `4000`, primeiro da faixa) →
+`DELETE /users/{id}` → agente desativado (`active=false`), linha preservada, removido de
+`cc_queue_members` e `queue_members`. Dados de teste limpos ao final. **Softphone real e chamada
+atravessando a fila ainda não validados nesta VPS** — depende da Fase 13 (softphone do agente) e
+de tráfego real, que segue como incerteza aberta do módulo (mapeamento de eventos AMI/ARI nunca
+confirmado contra o Asterisk real).
 
 ---
 
