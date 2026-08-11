@@ -1,0 +1,178 @@
+# =============================================================================
+# Caddyfile — AsteriskIA
+# Proxy reverso HTTPS com TLS automático (Let's Encrypt).
+#
+# Rotas:
+#   app.voiphash.com.br          → Telecom (frontend + API + WebSockets)
+#   app.voiphash.com.br/agents   → Plataforma de Agentes (frontend + API + WS)
+#   app.voiphash.com.br/insights → Insights (frontend próprio, backend Spring Boot reusado)
+#   app.voiphash.com.br/docs     → Documentação estática (HTML)
+#   claw.voiphash.com.br       → Proxy interno (10.0.3.1:18789)
+# =============================================================================
+{
+	# API de administração — socket Unix em vez de TCP: um bind TCP em
+	# 0.0.0.0:2019 fica alcançável por QUALQUER container da bridge
+	# asteriskia-net (a publicação "127.0.0.1:2019:2019" só restringe o
+	# acesso vindo do host, não de outros containers). Socket Unix não é
+	# alcançável via rede — só por quem tem o arquivo montado (host e o
+	# próprio container do Caddy).
+	admin unix//run/caddy-admin/admin.sock
+}
+
+app.voiphash.com.br {
+	# ── Headers de segurança — aplicados a todas as respostas deste site ──────
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+
+		# Achado de segurança (débito aceito, ver CLAUDE.md): CSP estava
+		# deliberadamente ausente. Modo Report-Only primeiro — só reporta
+		# violações no console do browser, NUNCA bloqueia nada, então é seguro
+		# ativar sem o teste manual completo do softphone (mas ainda assim
+		# recomendado observar o console durante uma chamada de teste antes
+		# de eventualmente migrar pra Content-Security-Policy real/enforcing).
+		# script-src/style-src precisam de 'unsafe-inline' porque o frontend
+		# de Agentes (agents-platform/frontend/index.html) é React 18 UMD sem
+		# build step, com <script> inline puro — endurecer isso exigiria
+		# nonce por requisição (Caddy não gera nonce nativamente sem plugin)
+		# ou migrar esse frontend pra um build step de verdade.
+		Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+	}
+
+	# ── Agentes — API (FastAPI) ───────────────────────────────────────────────
+	# Prefixo /agents é removido antes de encaminhar ao backend de agentes.
+	@agents-api {
+		path /agents/api/*
+	}
+	handle @agents-api {
+		uri strip_prefix /agents
+		reverse_proxy asteriskia-agents-api:8000
+	}
+
+	# ── Agentes — WebSocket (logs em tempo real) ──────────────────────────────
+	@agents-ws {
+		header Connection *Upgrade*
+		header Upgrade websocket
+		path /agents/ws/*
+	}
+	handle @agents-ws {
+		uri strip_prefix /agents
+		reverse_proxy asteriskia-agents-api:8000
+	}
+
+	# ── Agentes — Frontend (React SPA servida pelo nginx do frontend) ─────────
+	# NÃO remover o prefixo /agents — o nginx tem location /agents/ com alias
+	# para servir os arquivos corretos. Se strip_prefix fosse feito aqui,
+	# o nginx receberia "/" e serviria o dashboard Telecom.
+	@agents-ui {
+		path /agents*
+	}
+	handle @agents-ui {
+		reverse_proxy asteriskia-frontend:80
+	}
+
+	# ── Insights — Frontend (React SPA servida pelo nginx do frontend) ────────
+	# Sem @insights-api/@insights-ws: o backend do Insights continua no Spring
+	# Boot (mesmo @api abaixo), diferente de Agentes que tem FastAPI dedicado.
+	# NÃO remover o prefixo /insights — mesmo motivo do @agents-ui: o nginx tem
+	# location /insights/ com alias para servir os arquivos corretos.
+	@insights-ui {
+		path /insights*
+	}
+	handle @insights-ui {
+		reverse_proxy asteriskia-frontend:80
+	}
+
+	# ── Call Center — Frontend (React SPA servida pelo nginx do frontend) ────
+	# Sem @callcenter-api/@callcenter-ws: reusa o mesmo backend Spring Boot do
+	# Telecom (@api abaixo), mesmo padrão de Insights. NÃO remover o prefixo
+	# /callcenter — mesmo motivo do @agents-ui/@insights-ui acima: o nginx tem
+	# location /callcenter/ com alias para servir os arquivos corretos.
+	@callcenter-ui {
+		path /callcenter*
+	}
+	handle @callcenter-ui {
+		reverse_proxy asteriskia-frontend:80
+	}
+
+	# ── Documentação estática ─────────────────────────────────────────────────
+	# Arquivos HTML servidos diretamente pelo Caddy a partir do volume montado.
+	# Achado: faltava strip_prefix — sem isso, uma requisição a /docs/x.html
+	# procurava o arquivo em /srv/docs/docs/x.html (que não existe) em vez de
+	# /srv/docs/x.html, dando 404 sempre. Nunca funcionou nessa URL.
+	@docs {
+		path /docs/*
+	}
+	handle @docs {
+		uri strip_prefix /docs
+		root * /srv/docs
+		file_server
+	}
+
+	# ── Telecom — API (Spring Boot) ───────────────────────────────────────────
+	@api {
+		path /api/*
+	}
+	handle @api {
+		reverse_proxy asteriskia-backend:8080
+	}
+
+	# ── Telecom — WebSocket STOMP (dashboard em tempo real) ───────────────────
+	@ws {
+		header Connection *Upgrade*
+		header Upgrade websocket
+		path /ws/*
+	}
+	handle @ws {
+		reverse_proxy asteriskia-backend:8080
+	}
+
+	# ── Telecom — WebSocket Asterisk (softphone WebRTC) ───────────────────────
+	# Caddy termina TLS (wss://) e repassa como ws:// para o Asterisk na 8088.
+	@asterisk-ws {
+		header Connection *Upgrade*
+		header Upgrade websocket
+		path /asterisk-ws*
+	}
+	handle @asterisk-ws {
+		rewrite * /ws
+		reverse_proxy asteriskia-asterisk:8088
+	}
+
+	# ── Telecom — Frontend React (catch-all) ──────────────────────────────────
+	handle {
+		reverse_proxy asteriskia-frontend:80
+	}
+}
+
+# ── Claw — proxy para serviço interno ────────────────────────────────────────
+claw.voiphash.com.br {
+	reverse_proxy 10.0.3.1:18789 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+# ── ASC SAC HSM (app à parte, ascsac-web) ────────────────────────────────────
+# Frontend React (SPA) + reverse proxy interno para a API (via nginx do
+# próprio container ascsac-web, que repassa /api, /callbacks e /ingest para
+# ascsac-api-1:8000 dentro da rede ascsac_default). Callback receiver e
+# webhook de ingestão do backend ficam expostos por aqui, sem sessão de
+# usuário (autenticação própria — token na URL / HMAC).
+api.voiphash.com.br {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	reverse_proxy ascsac-web:80 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}

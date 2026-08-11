@@ -1,0 +1,18 @@
+; =============================================================
+; ari.conf — AsteriskIA
+; Habilita a REST API + WebSocket ARI, usada pelo motor de fluxo
+; (ARI/Stasis) do módulo Call Center. Depende de http.conf habilitado
+; na porta 8088 (já ativo para o WebRTC do softphone).
+; =============================================================
+
+[general]
+enabled = yes
+pretty = yes
+; websocket_write_timeout em ms — padrão é suficiente para o cc-engine
+
+[${AST_ARI_USER}]
+type = user
+read_only = no
+password = ${AST_ARI_PASSWORD}
+; Sem exposição de porta 8088 ao host (ver docker-compose.yml) — acesso
+; restrito à rede interna asteriskia-net, mesmo modelo do manager.conf

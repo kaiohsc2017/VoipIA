@@ -1,0 +1,16 @@
+; =============================================================
+; res_pgsql.conf — AsteriskIA
+; Conexão do módulo res_config_pgsql (ARA — Asterisk Realtime
+; Architecture) ao PostgreSQL compartilhado do stack. Usado para
+; validar o PoC de configuração dinâmica do módulo Call Center
+; (Fase 0) — endpoints/aors/auths criados via INSERT no banco.
+; =============================================================
+
+[general]
+dbhost = postgres
+dbport = 5432
+dbname = ${POSTGRES_DB}
+dbuser = ${POSTGRES_USER}
+dbpass = ${POSTGRES_PASSWORD}
+dbappname = asterisk-ara
+requiressl = no

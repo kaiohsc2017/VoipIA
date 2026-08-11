@@ -1,0 +1,35 @@
+{
+  "env": {
+    "CLAUDE_PACKAGE_MANAGER": "npm",
+    "ECC_HOOK_PROFILE": "standard",
+    "ECC_DISABLED_HOOKS": "pre:edit-write:gateguard-fact-force"
+  },
+  "permissions": {
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)",
+      "Bash(eval *)",
+      "Bash(* | sh)",
+      "Bash(* | bash)",
+      "Bash(curl * | *)",
+      "Bash(wget * | *)",
+      "Bash(sudo *)",
+      "Bash(chmod 777 *)",
+      "Bash(ssh *)",
+      "Bash(* > /dev/*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-dangerous-git.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

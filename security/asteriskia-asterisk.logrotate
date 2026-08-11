@@ -1,0 +1,19 @@
+# AsteriskIA — rotação do log /var/log/asterisk/full (consumido pelo fail2ban
+# no container asteriskia-security, montado read-only). Gerenciado fora do
+# container porque o volume Docker é acessado diretamente pelo caminho no host.
+#
+# Regras: no máximo 100M por arquivo ativo, no máximo 10 rotações mantidas
+# (~1G no total sem compressão) e no máximo 10 dias de retenção — o que
+# vencer primeiro.
+/var/lib/docker/volumes/asteriskia_asterisk_log/_data/full {
+    size 100M
+    rotate 10
+    maxage 10
+    missingok
+    notifempty
+    dateext
+    dateformat -%Y%m%d-%s
+    postrotate
+        /usr/bin/docker exec asteriskia-asterisk asterisk -rx "logger rotate" > /dev/null 2>&1 || true
+    endscript
+}

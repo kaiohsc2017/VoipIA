@@ -1,0 +1,20 @@
+; =============================================================
+; extconfig.conf — AsteriskIA
+; Mapeia as famílias Realtime do módulo Call Center (Fase 2) para o
+; backend res_config_pgsql (ver res_pgsql.conf — seção [general]).
+; O nome do "database" abaixo (general) é ignorado pelo res_config_pgsql
+; (ele usa sempre a seção [general] do próprio res_pgsql.conf) — mantido
+; só por exigência de sintaxe do arquivo.
+;
+; ps_endpoints/ps_auths/ps_aors — consultadas por sorcery.conf (res_pjsip)
+; como fallback do que não está em pjsip.conf estático.
+; queues/queue_members — consultadas nativamente pelo app_queue quando
+; não há fila com esse nome definida em queues.conf.
+; =============================================================
+
+[settings]
+ps_endpoints => pgsql,general,ps_endpoints
+ps_auths => pgsql,general,ps_auths
+ps_aors => pgsql,general,ps_aors
+queues => pgsql,general,queues
+queue_members => pgsql,general,queue_members

@@ -1,0 +1,283 @@
+; =============================================================
+; extensions.conf — Plano de Discagem AsteriskIA
+; Define o comportamento de cada contexto/extensão do sistema.
+;
+; Contextos:
+;   recepcao-tronco     → Chamadas recebidas do tronco SIP
+;   ramais-internos     → Ramais de teste (softphones)
+;   asteriskia-jira     → Módulo 1: URA para abertura de chamado Jira
+;   asteriskia-test     → Módulo 2: Testes de conectividade
+;   asteriskia-alert    → Módulo 3: Ligações de alerta Zabbix
+; =============================================================
+
+; ---------------------------------------------------------------
+; Contexto: recepcao-tronco
+; Chamadas entrantes do tronco SIP da operadora.
+; ---------------------------------------------------------------
+[recepcao-tronco]
+
+; DID padrão → URA de abertura de chamado Jira (Módulo 1)
+exten => s,1,NoOp(=== MÓDULO 1: Chamada entrada DID ===)
+exten => s,n,Answer()
+exten => s,n,Wait(1)
+; Grava a chamada em WAV 16bit mono
+exten => s,n,MixMonitor(/var/spool/asterisk/monitor/_jira.wav,b)
+; Conecta ao Agente de IA via Audiosocket → JiraCallFlow
+; CRÍTICO: AudioSocket exige a sintaxe AudioSocket(uuid,service)
+exten => s,n,Set(MY_UUID=${UUID()})
+exten => s,n,AudioSocket(${MY_UUID},ai-agent:9092)
+exten => s,n,Hangup()
+
+; Qualquer extensão numérica recebida → mesmo fluxo
+exten => _X.,1,Goto(s,1)
+
+; Handler de encerramento
+exten => h,1,NoOp(=== Chamada encerrada ===)
+
+; ---------------------------------------------------------------
+; Contexto: ramais-internos
+; Ramais registrados via softphone para testes locais.
+; ---------------------------------------------------------------
+[ramais-internos]
+
+; Ramal 1000 → URA Jira (Módulo 1 - teste local)
+exten => 1000,1,NoOp(=== Ramal interno → URA Jira ===)
+exten => 1000,n,Answer()
+exten => 1000,n,Wait(1)
+exten => 1000,n,Set(MY_UUID=${UUID()})
+; Grava com UUID único — evita sobrescrever chamadas anteriores
+exten => 1000,n,MixMonitor(/var/spool/asterisk/monitor/${MY_UUID}.wav,b)
+; Passa o CALLERID para o ai-agent via variável de canal
+exten => 1000,n,Set(CALLER_NUM=${CALLERID(num)})
+exten => 1000,n,AudioSocket(${MY_UUID},ai-agent:9092)
+exten => 1000,n,Hangup()
+
+; Ramal 1001 → Simula alerta Zabbix (Módulo 3 - teste local)
+exten => 1001,1,NoOp(=== Ramal interno → Teste Alerta Zabbix ===)
+exten => 1001,n,Answer()
+exten => 1001,n,Wait(1)
+exten => 1001,n,MixMonitor(/var/spool/asterisk/monitor/_alerta.wav,b)
+exten => 1001,n,Set(FLOW_TYPE=ZABBIX_ALERT)
+exten => 1001,n,Set(MY_UUID=${UUID()})
+exten => 1001,n,AudioSocket(${MY_UUID},ai-agent:9092)
+exten => 1001,n,Hangup()
+
+; URAs customizadas — faixa reservada 2000-2999 (nenhuma URA nova exige
+; editar este dialplan; basta cadastrá-la na tela de administração com um
+; ramal dentro dessa faixa). Como o AudioSocket só transmite um UUID
+; binário, o CURL abaixo avisa o backend a qual URA (ramal) este UUID
+; pertence, ANTES de conectar ao ai-agent — mesma ideia do lookup que já
+; existe hoje para o fluxo de alerta Zabbix, só que disparado pelo dialplan.
+exten => _2XXX,1,NoOp(=== URA customizada: ${EXTEN} ===)
+exten => _2XXX,n,Answer()
+exten => _2XXX,n,Wait(1)
+exten => _2XXX,n,Set(MY_UUID=${UUID()})
+exten => _2XXX,n,MixMonitor(/var/spool/asterisk/monitor/${MY_UUID}.wav,b)
+exten => _2XXX,n,Set(CALLER_NUM=${CALLERID(num)})
+exten => _2XXX,n,Set(CURLOPT(httptimeout)=2)
+exten => _2XXX,n,Set(CURLOPT(httpheader)=X-Internal-Key: ${INTERNAL_API_KEY})
+; Timeout curto e resultado ignorado de propósito — se o backend não responder
+; a tempo, o ai-agent simplesmente não encontra a correlação e cai na URA padrão.
+exten => _2XXX,n,Set(IGNORED=${CURL(http://backend:8080/api/v1/internal/ura-routing,uuid=${MY_UUID}&extension=${EXTEN})})
+exten => _2XXX,n,AudioSocket(${MY_UUID},ai-agent:9092)
+exten => _2XXX,n,Hangup()
+
+; Discagem entre ramais (10XX)
+exten => _10XX,1,NoOp(=== Chamada entre ramais ===)
+exten => _10XX,n,Dial(PJSIP/${EXTEN},30)
+exten => _10XX,n,Hangup()
+
+; Ramais de agente do Call Center — faixa 4000-4999 (Fase 2). Cadastrar um
+; agente novo pela web (domain/callcenter) só grava em ps_endpoints/ps_auths/
+; ps_aors (ARA) — nenhuma edição de dialplan é necessária.
+exten => _4XXX,1,NoOp(=== Call Center: ramal de agente ${EXTEN} ===)
+exten => _4XXX,n,Dial(PJSIP/${EXTEN},30)
+exten => _4XXX,n,Hangup()
+
+; Filas do Call Center — faixa 5000-5999 (Fase 2/3). Cadastrar uma fila nova
+; pela web só grava em `queues`/`queue_members` (ARA) — o número da fila é o
+; próprio ramal dentro desta faixa. Fase 3: toda chamada de fila é gravada
+; (MixMonitor) em /opt/gravacoes/audio, com aviso de consentimento opcional
+; por fila — configuração consultada em tempo real no backend via CURL (mesmo
+; padrão de lookup do _2XXX acima). CURL de config falha/timeout → REC_FLAG
+; fica vazio (≠ "false") → grava por padrão, nunca deixa de gravar por falha
+; de rede transitória.
+exten => _5XXX,1,NoOp(=== Call Center: fila ${EXTEN} ===)
+exten => _5XXX,n,Answer()
+exten => _5XXX,n,Set(CURLOPT(httptimeout)=2)
+exten => _5XXX,n,Set(CURLOPT(httpheader)=X-Internal-Key: ${INTERNAL_API_KEY})
+exten => _5XXX,n,Set(REC_CONFIG=${CURL(http://backend:8080/api/v1/internal/callcenter/queue-recording-config,extension=${EXTEN})})
+exten => _5XXX,n,Set(REC_PART=${CUT(REC_CONFIG,;,1)})
+exten => _5XXX,n,Set(REC_FLAG=${CUT(REC_PART,=,2)})
+exten => _5XXX,n,Set(CONSENT_PART=${CUT(REC_CONFIG,;,2)})
+exten => _5XXX,n,Set(CONSENT_PATH=${CUT(CONSENT_PART,=,2)})
+exten => _5XXX,n,Set(MY_UUID=${UNIQUEID})
+exten => _5XXX,n,Set(REC_DIR=/opt/gravacoes/audio/${STRFTIME(${EPOCH},,%Y/%m/%d)})
+exten => _5XXX,n,System(mkdir -p ${REC_DIR})
+exten => _5XXX,n,Set(RECORDED=false)
+exten => _5XXX,n,Set(CONSENT_PLAYED=false)
+exten => _5XXX,n,GotoIf($["${REC_FLAG}" = "false"]?skiprec)
+exten => _5XXX,n,GotoIf($["${CONSENT_PATH}" = ""]?domixmonitor)
+exten => _5XXX,n,Playback(${CONSENT_PATH})
+exten => _5XXX,n,Set(CONSENT_PLAYED=true)
+exten => _5XXX,n(domixmonitor),MixMonitor(${REC_DIR}/${MY_UUID}.wav,b)
+exten => _5XXX,n,Set(RECORDED=true)
+exten => _5XXX,n(skiprec),Queue(${EXTEN})
+; Registro fire-and-forget (resultado ignorado), mesmo padrão do lookup de URA em _2XXX —
+; falha de CURL aqui vira arquivo órfão sem catalogação (risco residual documentado).
+exten => _5XXX,n,GotoIf($["${RECORDED}" = "true"]?ingest:done)
+exten => _5XXX,n(ingest),Set(IGNORED_REC=${CURL(http://backend:8080/api/v1/internal/callcenter/recordings,uniqueid=${MY_UUID}&extension=${EXTEN}&filePath=${REC_DIR}/${MY_UUID}.wav&consentPlayed=${CONSENT_PLAYED})})
+exten => _5XXX,n(done),Hangup()
+
+; Fluxo visual (Flow Builder, Fase 5b) — faixa exclusiva do motor ARI/Stasis, nunca sobrepõe
+; as URAs legadas (_2XXX) nem as filas do Call Center (_5XXX). O app Stasis "callcenter" é quem
+; interpreta o grafo publicado a partir daqui; se a app não estiver registrada (backend fora do
+; ar), Stasis() retorna e cai no Hangup abaixo — nunca deixa o canal preso.
+exten => _6XXX,1,NoOp(=== Call Center: fluxo visual ${EXTEN} ===)
+exten => _6XXX,n,Answer()
+exten => _6XXX,n,Stasis(callcenter,${EXTEN})
+exten => _6XXX,n,Hangup()
+
+exten => h,1,NoOp(=== Encerrado ===)
+
+; ---------------------------------------------------------------
+; Contexto: ramais-webrtc
+; Ramais WebRTC dos usuários do sistema (9001, 9002, ...).
+; Permite discagem entre softphones e acesso aos módulos de teste.
+; ---------------------------------------------------------------
+[ramais-webrtc]
+
+; Ramal 1000 → URA Jira (Módulo 1 - teste via softphone)
+exten => 1000,1,NoOp(=== WebRTC → URA Jira ===)
+; Progress + Wait(2) dá tempo para ICE/DTLS completar antes do Answer
+exten => 1000,n,Progress()
+exten => 1000,n,Wait(2)
+exten => 1000,n,Answer()
+exten => 1000,n,Set(MY_UUID=${UUID()})
+exten => 1000,n,MixMonitor(/var/spool/asterisk/monitor/${MY_UUID}.wav,b)
+exten => 1000,n,Set(CALLER_NUM=${CALLERID(num)})
+exten => 1000,n,Wait(2)
+exten => 1000,n,AudioSocket(${MY_UUID},ai-agent:9092)
+exten => 1000,n,Hangup()
+
+; Ramal 1001 → Simula alerta Zabbix (Módulo 3 - teste via softphone)
+exten => 1001,1,NoOp(=== WebRTC → Teste Alerta Zabbix ===)
+exten => 1001,n,Answer()
+exten => 1001,n,Wait(1)
+exten => 1001,n,MixMonitor(/var/spool/asterisk/monitor/_alerta.wav,b)
+exten => 1001,n,Set(FLOW_TYPE=ZABBIX_ALERT)
+exten => 1001,n,Set(MY_UUID=${UUID()})
+exten => 1001,n,AudioSocket(${MY_UUID},ai-agent:9092)
+exten => 1001,n,Hangup()
+
+; URAs customizadas — faixa reservada 2000-2999 (ver comentário em ramais-internos)
+exten => _2XXX,1,NoOp(=== WebRTC → URA customizada: ${EXTEN} ===)
+; Progress + Wait(2) dá tempo para ICE/DTLS completar antes do Answer
+exten => _2XXX,n,Progress()
+exten => _2XXX,n,Wait(2)
+exten => _2XXX,n,Answer()
+exten => _2XXX,n,Set(MY_UUID=${UUID()})
+exten => _2XXX,n,MixMonitor(/var/spool/asterisk/monitor/${MY_UUID}.wav,b)
+exten => _2XXX,n,Set(CALLER_NUM=${CALLERID(num)})
+exten => _2XXX,n,Set(CURLOPT(httptimeout)=2)
+exten => _2XXX,n,Set(CURLOPT(httpheader)=X-Internal-Key: ${INTERNAL_API_KEY})
+exten => _2XXX,n,Set(IGNORED=${CURL(http://backend:8080/api/v1/internal/ura-routing,uuid=${MY_UUID}&extension=${EXTEN})})
+exten => _2XXX,n,Wait(2)
+exten => _2XXX,n,AudioSocket(${MY_UUID},ai-agent:9092)
+exten => _2XXX,n,Hangup()
+
+; Filas do Call Center — faixa 5000-5999 (ver comentário em ramais-internos, Fase 3)
+exten => _5XXX,1,NoOp(=== WebRTC → Call Center: fila ${EXTEN} ===)
+; Progress + Wait(2) dá tempo para ICE/DTLS completar antes do Answer
+exten => _5XXX,n,Progress()
+exten => _5XXX,n,Wait(2)
+exten => _5XXX,n,Answer()
+exten => _5XXX,n,Set(CURLOPT(httptimeout)=2)
+exten => _5XXX,n,Set(CURLOPT(httpheader)=X-Internal-Key: ${INTERNAL_API_KEY})
+exten => _5XXX,n,Set(REC_CONFIG=${CURL(http://backend:8080/api/v1/internal/callcenter/queue-recording-config,extension=${EXTEN})})
+exten => _5XXX,n,Set(REC_PART=${CUT(REC_CONFIG,;,1)})
+exten => _5XXX,n,Set(REC_FLAG=${CUT(REC_PART,=,2)})
+exten => _5XXX,n,Set(CONSENT_PART=${CUT(REC_CONFIG,;,2)})
+exten => _5XXX,n,Set(CONSENT_PATH=${CUT(CONSENT_PART,=,2)})
+exten => _5XXX,n,Set(MY_UUID=${UNIQUEID})
+exten => _5XXX,n,Set(REC_DIR=/opt/gravacoes/audio/${STRFTIME(${EPOCH},,%Y/%m/%d)})
+exten => _5XXX,n,System(mkdir -p ${REC_DIR})
+exten => _5XXX,n,Set(RECORDED=false)
+exten => _5XXX,n,Set(CONSENT_PLAYED=false)
+exten => _5XXX,n,GotoIf($["${REC_FLAG}" = "false"]?skiprec)
+exten => _5XXX,n,GotoIf($["${CONSENT_PATH}" = ""]?domixmonitor)
+exten => _5XXX,n,Playback(${CONSENT_PATH})
+exten => _5XXX,n,Set(CONSENT_PLAYED=true)
+exten => _5XXX,n(domixmonitor),MixMonitor(${REC_DIR}/${MY_UUID}.wav,b)
+exten => _5XXX,n,Set(RECORDED=true)
+exten => _5XXX,n(skiprec),Queue(${EXTEN})
+exten => _5XXX,n,GotoIf($["${RECORDED}" = "true"]?ingest:done)
+exten => _5XXX,n(ingest),Set(IGNORED_REC=${CURL(http://backend:8080/api/v1/internal/callcenter/recordings,uniqueid=${MY_UUID}&extension=${EXTEN}&filePath=${REC_DIR}/${MY_UUID}.wav&consentPlayed=${CONSENT_PLAYED})})
+exten => _5XXX,n(done),Hangup()
+
+; Discagem entre softphones WebRTC (90XX → 90XX)
+exten => _90XX,1,NoOp(=== Chamada WebRTC entre ramais ===)
+; r = gera ringback local (caller ouve tom de chamando)
+exten => _90XX,n,Dial(PJSIP/${EXTEN},30,r)
+exten => _90XX,n,Hangup()
+
+; Discagem para ramais internos (10XX)
+exten => _10XX,1,NoOp(=== WebRTC → Ramal interno ===)
+exten => _10XX,n,Dial(PJSIP/${EXTEN},30,r)
+exten => _10XX,n,Hangup()
+
+; Fluxo visual (Flow Builder, Fase 5b) — mesma faixa/app Stasis do contexto ramais-internos acima.
+exten => _6XXX,1,NoOp(=== WebRTC → Call Center: fluxo visual ${EXTEN} ===)
+exten => _6XXX,n,Progress()
+exten => _6XXX,n,Wait(2)
+exten => _6XXX,n,Answer()
+exten => _6XXX,n,Stasis(callcenter,${EXTEN})
+exten => _6XXX,n,Hangup()
+
+exten => h,1,NoOp(=== WebRTC encerrado ===)
+
+
+; ---------------------------------------------------------------
+; Contexto: asteriskia-jira (=== MÓDULO 1 ===)
+; Originado pelo JiraCallFlow para chamadas de saída URA.
+; ---------------------------------------------------------------
+[asteriskia-jira]
+exten => s,1,NoOp(=== Módulo 1: Chamada URA de retorno ===)
+exten => s,n,Answer()
+exten => s,n,Wait(1)
+exten => s,n,MixMonitor(/var/spool/asterisk/monitor/_jira.wav,b)
+exten => s,n,Set(MY_UUID=${UUID()})
+exten => s,n,AudioSocket(${MY_UUID},ai-agent:9092)
+exten => s,n,Hangup()
+exten => h,1,NoOp(=== Encerrado ===)
+
+; ---------------------------------------------------------------
+; Contexto: asteriskia-test (=== MÓDULO 2 ===)
+; Originado pelo Scheduler Python para testes de conectividade.
+; ---------------------------------------------------------------
+[asteriskia-test]
+exten => s,1,NoOp(=== MÓDULO 2: Teste de Conectividade ===)
+exten => s,n,Set(DIAL_TIMEOUT=20)
+exten => s,n,Dial(${PJSIP_CHANNEL},${DIAL_TIMEOUT})
+exten => s,n,Hangup()
+
+exten => h,1,NoOp(=== Teste encerrado ===)
+
+; ---------------------------------------------------------------
+; Contexto: asteriskia-alert (=== MÓDULO 3 ===)
+; Originado pelo AmiOriginateService (backend Java) para alertas Zabbix.
+; ---------------------------------------------------------------
+[asteriskia-alert]
+exten => s,1,NoOp(=== MÓDULO 3: Alerta Zabbix ===)
+exten => s,n,Answer()
+exten => s,n,Wait(1)
+; Grava a chamada de alerta para auditoria
+exten => s,n,MixMonitor(/var/spool/asterisk/monitor/_alerta.wav,b)
+exten => s,n,Set(FLOW_TYPE=ZABBIX_ALERT)
+; CRÍTICO: Extrai o UUID puro enviado pelo backend (remove o prefixo "alert-")
+; Se CALL_UUID não estiver definido, gera um UUIDv4 aleatório como fallback
+exten => s,n,Set(MY_UUID=${IF($[ "${CALL_UUID}" != "" ]?${CALL_UUID:6}:${UUID()})})
+exten => s,n,AudioSocket(${MY_UUID},ai-agent:9092)
+exten => s,n,Hangup()
+
+exten => h,1,NoOp(=== Alerta encerrado ===)

@@ -1,0 +1,26 @@
+; =============================================================
+; sorcery.conf — AsteriskIA
+; Mapeia os tipos de objeto do res_pjsip (endpoint/auth/aor) para o
+; backend Realtime (res_config_pgsql) — módulo Call Center, Fase 2.
+; A partir daqui, criar/editar um ramal de agente é um INSERT/UPDATE
+; nas tabelas ps_endpoints/ps_auths/ps_aors do Postgres: o Asterisk
+; lê on-demand, sem gerar .conf e sem reload.
+;
+; Os ramais de teste estáticos (1001/1002/9001/9002, tronco) continuam
+; 100% em pjsip.conf: cada tipo de objeto abaixo tem DUAS mappings, na
+; ordem em que aparecem (documentado pelo próprio sorcery.conf.sample —
+; "each mapping will be consulted in the order in which it appears").
+; O wizard "config" (pjsip.conf estático) é tentado primeiro; só se o
+; objeto não existir ali, o wizard "realtime" (Postgres/ARA) é consultado.
+; Sem essa declaração explícita, res_pjsip usa só o mapeamento implícito
+; para pjsip.conf — é exatamente por isso que hoje (antes desta fase)
+; tudo é estático.
+; =============================================================
+
+[res_pjsip]
+endpoint = config,pjsip.conf,criteria=type=endpoint
+endpoint = realtime,ps_endpoints
+auth = config,pjsip.conf,criteria=type=auth
+auth = realtime,ps_auths
+aor = config,pjsip.conf,criteria=type=aor
+aor = realtime,ps_aors
