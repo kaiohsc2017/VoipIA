@@ -1,0 +1,181 @@
+package com.asteriskia.domain.callcenter;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.asteriskia.domain.callcenter.ara.AraQueueMemberRepository;
+import com.asteriskia.domain.callcenter.ara.PsAorRepository;
+import com.asteriskia.domain.callcenter.ara.PsAuthRepository;
+import com.asteriskia.domain.callcenter.ara.PsEndpoint;
+import com.asteriskia.domain.callcenter.ara.PsEndpointRepository;
+import com.asteriskia.domain.masterdata.BusinessUnitRepository;
+import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+/**
+ * CallCenterAgentServiceTest — provisionamento de ramal ARA (Fase 2 do Call Center Omnicanal):
+ * faixa de numeração reservada (4000-4999), ramal duplicado bloqueado, criação escreve tanto o
+ * metadado (cc_agents/cc_extensions) quanto as tabelas ARA (ps_endpoints/ps_auths/ps_aors).
+ */
+@ExtendWith(MockitoExtension.class)
+class CallCenterAgentServiceTest {
+
+    @Mock private CcAgentRepository agentRepository;
+    @Mock private CcExtensionRepository extensionRepository;
+    @Mock private BusinessUnitRepository businessUnitRepository;
+    @Mock private PsEndpointRepository psEndpointRepository;
+    @Mock private PsAuthRepository psAuthRepository;
+    @Mock private PsAorRepository psAorRepository;
+    @Mock private AraQueueMemberRepository araQueueMemberRepository;
+
+    private CallCenterAgentService newService() {
+        return new CallCenterAgentService(
+                agentRepository,
+                extensionRepository,
+                businessUnitRepository,
+                psEndpointRepository,
+                psAuthRepository,
+                psAorRepository,
+                araQueueMemberRepository);
+    }
+
+    @Test
+    @DisplayName("create rejeita ramal fora da faixa 4000-4999")
+    void create_extensionOutOfRange_throws() {
+        var service = newService();
+        var request = new AgentRequest("Agente Teste", null, null, "1999");
+
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("4000")
+                .hasMessageContaining("4999");
+    }
+
+    @Test
+    @DisplayName("create rejeita ramal já em uso por outro agente")
+    void create_duplicateExtension_throws() {
+        var service = newService();
+        var request = new AgentRequest("Agente Teste", null, null, "4001");
+        when(extensionRepository.findByExtension("4001"))
+                .thenReturn(Optional.of(CcExtension.builder().extension("4001").build()));
+
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("4001");
+    }
+
+    @Test
+    @DisplayName("create provisiona endpoint/auth/aor em ARA além do metadado próprio")
+    void create_validRequest_provisionsAraAndMetadata() {
+        var service = newService();
+        var request = new AgentRequest("Agente Teste", null, null, "4001");
+        when(extensionRepository.findByExtension("4001")).thenReturn(Optional.empty());
+        when(agentRepository.save(any(CcAgent.class)))
+                .thenAnswer(inv -> {
+                    CcAgent a = inv.getArgument(0);
+                    a.setId(1L);
+                    return a;
+                });
+        when(extensionRepository.save(any(CcExtension.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var agent = service.create(request);
+
+        assertThat(agent.getId()).isEqualTo(1L);
+        assertThat(agent.getExtension().getExtension()).isEqualTo("4001");
+
+        var endpointCaptor = ArgumentCaptor.forClass(PsEndpoint.class);
+        verify(psEndpointRepository).save(endpointCaptor.capture());
+        var endpoint = endpointCaptor.getValue();
+        assertThat(endpoint.getId()).isEqualTo("4001");
+        assertThat(endpoint.getAors()).isEqualTo("4001");
+        assertThat(endpoint.getAuth()).isEqualTo("4001-auth");
+        assertThat(endpoint.getContext()).isEqualTo("ramais-internos");
+
+        verify(psAuthRepository).save(any());
+        verify(psAorRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("delete desprovisiona ps_endpoints/ps_auths/ps_aors quando o agente tem ramal")
+    void delete_agentWithExtension_deprovisionsAra() {
+        var service = newService();
+        var agent = CcAgent.builder().id(1L).name("Agente Teste").build();
+        when(agentRepository.findById(1L)).thenReturn(Optional.of(agent));
+        when(extensionRepository.findByAgentId(1L))
+                .thenReturn(Optional.of(CcExtension.builder().extension("4001").build()));
+
+        service.delete(1L);
+
+        verify(psEndpointRepository).deleteById("4001");
+        verify(psAorRepository).deleteById("4001");
+        verify(psAuthRepository).deleteById("4001-auth");
+        verify(araQueueMemberRepository).deleteByInterfaceName("PJSIP/4001");
+        verify(agentRepository).delete(agent);
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void restrictToBusinessUnits(int... buIds) {
+        var authorities = new java.util.ArrayList<SimpleGrantedAuthority>();
+        for (int id : buIds) {
+            authorities.add(new SimpleGrantedAuthority("BU_" + id));
+        }
+        SecurityContextHolder.getContext()
+                .setAuthentication(new TestingAuthenticationToken("user", null, authorities));
+    }
+
+    @Test
+    @DisplayName("create rejeita businessUnitId fora do escopo do usuário restrito")
+    void create_businessUnitOutOfScope_throws() {
+        restrictToBusinessUnits(1);
+        var service = newService();
+        var request = new AgentRequest("Agente Teste", null, 2, "4002");
+
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("BU");
+    }
+
+    @Test
+    @DisplayName("update rejeita alteração do ramal do agente")
+    void update_extensionChanged_throws() {
+        var service = newService();
+        var extension = CcExtension.builder().extension("4001").build();
+        var agent = CcAgent.builder().id(1L).name("Agente Teste").extension(extension).build();
+        when(agentRepository.findById(1L)).thenReturn(Optional.of(agent));
+
+        var request = new AgentRequest("Agente Teste", null, null, "4002");
+
+        assertThatThrownBy(() -> service.update(1L, request)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("update aceita o mesmo ramal do agente")
+    void update_sameExtension_succeeds() {
+        var service = newService();
+        var extension = CcExtension.builder().extension("4001").build();
+        var agent = CcAgent.builder().id(1L).name("Agente Teste").extension(extension).build();
+        when(agentRepository.findById(1L)).thenReturn(Optional.of(agent));
+        when(agentRepository.save(any(CcAgent.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var request = new AgentRequest("Agente Renomeado", null, null, "4001");
+        var updated = service.update(1L, request);
+
+        assertThat(updated.getName()).isEqualTo("Agente Renomeado");
+    }
+}

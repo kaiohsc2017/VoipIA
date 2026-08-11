@@ -1,0 +1,609 @@
+# =============================================================================
+# AsteriskIA — Docker Compose
+# Stack completo: banco, PBX, IA, backend, frontend, agentes e proxy.
+#
+# Uso:
+#   docker compose up -d              → sobe todos os serviços
+#   docker compose up -d --build      → rebuild + sobe
+#   docker compose logs -f <serviço>  → acompanha logs
+# =============================================================================
+
+networks:
+  asteriskia-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.7.0/24
+          # IPs reservados — NÃO atribuir a containers:
+          #   172.16.7.1  – .9   → gateway + reserva de infraestrutura
+          #   172.16.7.10          → asteriskia-caddy (proxy — IP fixo reservado)
+          #   172.16.7.250 – .254  → reserva de infraestrutura
+          # Containers: 172.16.7.11 – 172.16.7.249
+
+volumes:
+  postgres_data:          # Dados persistentes do PostgreSQL
+  asterisk_recordings:    # Gravações de chamadas (WAV)
+  asterisk_log:           # Logs do Asterisk (consumidos pelo fail2ban)
+  fail2ban_socket:        # Socket do fail2ban (compartilhado com o backend)
+  security_cmds:          # Fila de comandos nftables (backend → security)
+  agents_knowledge:       # Base de conhecimento da plataforma de agentes
+  caddy_data:             # Certificados TLS gerenciados pelo Caddy
+  caddy_config:           # Cache de configuração interno do Caddy
+  ura_audio_cache:        # PCM pré-gerado para mensagens estáticas da URA
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16 — Banco de dados unificado (Telecom + Agentes)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: asteriskia-postgres
+    restart: unless-stopped
+    # Achado de segurança (débito aceito): nenhum serviço tinha resource limits —
+    # um container comprometido ou com bug de memória podia consumir todo o host.
+    # Valores conservadores-mas-generosos (safety net, não tuning fino) — ajustar
+    # com métricas reais de produção quando disponíveis.
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB}
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Vinculado a 127.0.0.1 — acesso só a partir do próprio host (ex: DBeaver via
+      # túnel SSH, psql local). Achado de segurança: antes publicava em 0.0.0.0,
+      # exposto à internet e só protegido por regra incidental do fail2ban/lockdown.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    networks:
+      asteriskia-net:
+          ipv4_address: 172.16.7.11
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Asterisk 21 LTS — PBX principal
+  # Codecs: G.711a/u · Protocolos: SIP/UDP, WebRTC/WS, AudioSocket, AMI
+  # ---------------------------------------------------------------------------
+  asterisk:
+    build:
+      context: ./asterisk
+      dockerfile: Dockerfile
+    container_name: asteriskia-asterisk
+    restart: unless-stopped
+    # Resource limit (ver comentário completo no serviço postgres) — folga maior
+    # aqui por ser processamento de áudio em tempo real (RTP/codecs).
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.5"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AST_AMI_USER:           ${AST_AMI_USER}
+      AST_AMI_PASSWORD:       ${AST_AMI_PASSWORD}
+      AST_ARI_USER:           ${AST_ARI_USER}
+      AST_ARI_PASSWORD:       ${AST_ARI_PASSWORD}
+      # ARA (Asterisk Realtime Architecture) — PoC do módulo Call Center (Fase 0)
+      POSTGRES_DB:            ${POSTGRES_DB}
+      POSTGRES_USER:          ${POSTGRES_USER}
+      POSTGRES_PASSWORD:      ${POSTGRES_PASSWORD}
+      SIP_TRUNK_HOST:         ${SIP_TRUNK_HOST}
+      SIP_TRUNK_FROM_DOMAIN:  ${SIP_TRUNK_FROM_DOMAIN:-asteriskia.local}
+      SIP_DOMAIN:             ${SIP_DOMAIN:-localhost}
+      # CRÍTICO: deve conter o IP público do VPS para NAT correto do RTP.
+      # Se ficar vazio após restart, execute:
+      #   docker exec asteriskia-asterisk sed -i \
+      #     's/external_media_address = $/external_media_address = SEU_IP/' \
+      #     /etc/asterisk/pjsip.conf
+      SIP_PUBLIC_IP:          ${SIP_PUBLIC_IP}
+      # Usado pelo dialplan (CURL) para autenticar no backend ao registrar
+      # a qual URA uma chamada pertence — mesma chave usada pelo ai-agent.
+      INTERNAL_API_KEY:       ${INTERNAL_API_KEY}
+      # Senhas SIP dos ramais — injetadas no pjsip.conf no boot (envsubst).
+      # NUNCA hardcodar no .template versionado. RAMAL_9001 deve casar com
+      # VITE_SIP_PASSWORD (softphone WebRTC do frontend).
+      RAMAL_1001_PASSWORD:    ${RAMAL_1001_PASSWORD}
+      RAMAL_1002_PASSWORD:    ${RAMAL_1002_PASSWORD}
+      RAMAL_9001_PASSWORD:    ${RAMAL_9001_PASSWORD}
+      RAMAL_9002_PASSWORD:    ${RAMAL_9002_PASSWORD}
+    volumes:
+      - ./asterisk/config:/etc/asterisk
+      - asterisk_recordings:/var/spool/asterisk/monitor
+      - asterisk_log:/var/log/asterisk
+      # Gravações do módulo Call Center (Fase 0/3) — apartado de asterisk_recordings,
+      # que é exclusivo do fluxo de IA (Módulo 1/3). Bind mount direto (não volume
+      # nomeado) para ficar acessível fora do Docker, igual /opt/audio do Insights.
+      - /opt/gravacoes/audio:/opt/gravacoes/audio
+    ports:
+      - "5060:5060/udp"              # SIP UDP (tronco + softphones)
+      - "5060:5060/tcp"              # SIP TCP
+      # AMI (5038) e HTTP/WS (8088) NÃO são publicados no host: o backend
+      # acessa a AMI via rede Docker interna (AST_AMI_HOST=asterisk) e o
+      # WebRTC já passa pelo Caddy (rota /asterisk-ws → asterisk:8088).
+      # Publicá-los no host expunha a interface de gerência e o WS diretamente
+      # à internet sem necessidade.
+      - "15000-15500:15000-15500/udp" # RTP — fluxo de mídia
+    networks:
+      asteriskia-net:
+          ipv4_address: 172.16.7.12
+    healthcheck:
+      test: ["CMD", "asterisk", "-rx", "core show uptime"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # AI Agent — Python asyncio (AudioSocket server)
+  # Fluxo por chamada: áudio PCM → STT → LLM → TTS → Asterisk
+  # Porta 9092 não exposta publicamente: Asterisk acessa via rede Docker interna.
+  # ---------------------------------------------------------------------------
+  ai-agent:
+    build:
+      context: ./ai-agent
+      dockerfile: Dockerfile
+    container_name: asteriskia-ai-agent
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    depends_on:
+      asterisk:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      AUDIOSOCKET_PORT:   ${AUDIOSOCKET_PORT:-9092}
+      GEMINI_API_KEY:     ${GEMINI_API_KEY}
+      GEMINI_MODEL_STT:   ${GEMINI_MODEL_STT}
+      GEMINI_MODEL_LLM:   ${GEMINI_MODEL_LLM}
+      GEMINI_MODEL_TTS:   ${GEMINI_MODEL_TTS}
+      # Usa porta interna 8080 do backend (não a porta exposta no host)
+      BACKEND_URL:        http://backend:8080
+      INTERNAL_API_KEY:   ${INTERNAL_API_KEY}
+      AUDIO_STORAGE_PATH: ${AUDIO_STORAGE_PATH:-/var/spool/asterisk/monitor}
+      DOTENV_PATH:        /opt/asteriskia/env/.env
+      URA_CACHE_DIR:      /cache/ura
+    volumes:
+      - ura_audio_cache:/cache/ura
+      - asterisk_recordings:/var/spool/asterisk/monitor
+      - /opt/AsteriskIA/env:/opt/asteriskia/env:ro
+    networks:
+      asteriskia-net:
+          ipv4_address: 172.16.7.13
+    healthcheck:
+      # Verifica se o servidor TCP AudioSocket está aceitando conexões na porta 9092
+      test: ['CMD', 'python', '-c', 'import socket,sys; s=socket.socket(); s.settimeout(3); r=s.connect_ex(("localhost",9092)); s.close(); sys.exit(r)']
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Insights — transcrição e análise de IA de gravações do call center Verint
+  # Módulo apartado do domínio Asterisk (não interage com call_records/uras) —
+  # lê /opt/audio (compartilhado com outros serviços, read-only) em busca de
+  # pares .wav+.xml novos, transcreve/analisa via Gemini e envia o resultado
+  # ao backend via /api/v1/internal/insights (INTERNAL_API_KEY). Sem porta
+  # publicada — não é um servidor, é um loop de polling em background.
+  # ---------------------------------------------------------------------------
+  insights:
+    build:
+      context: ./insights
+      dockerfile: Dockerfile
+    container_name: asteriskia-insights
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      GEMINI_API_KEY:               ${GEMINI_API_KEY}
+      GEMINI_MODEL_STT:             ${GEMINI_MODEL_STT}
+      GEMINI_MODEL_LLM:             ${GEMINI_MODEL_LLM}
+      BACKEND_URL:                  http://backend:8080
+      INTERNAL_API_KEY:             ${INTERNAL_API_KEY}
+      DOTENV_PATH:                  /opt/asteriskia/env/.env
+      INSIGHTS_AUDIO_DIR:           ${INSIGHTS_AUDIO_DIR:-/opt/audio}
+      INSIGHTS_UPLOAD_AUDIO_DIR:    ${INSIGHTS_UPLOAD_AUDIO_DIR:-/opt/audio_upload}
+      INSIGHTS_POLL_INTERVAL_SECONDS: ${INSIGHTS_POLL_INTERVAL_SECONDS:-60}
+      INSIGHTS_MAX_CONCURRENCY:     ${INSIGHTS_MAX_CONCURRENCY:-2}
+    volumes:
+      - /opt/audio:/opt/audio:ro
+      # Portal do supervisor (Fase 3 do Quality Management, V40) — pasta separada de
+      # /opt/audio (não subpasta), só leitura: o backend é quem grava os uploads.
+      - /opt/audio_upload:/opt/audio_upload:ro
+      # Gravações do Call Center (Fase 8) — só leitura: o backend (Asterisk MixMonitor)
+      # é quem grava; este serviço só lê o .wav pelo caminho já resolvido pelo Java
+      # (CallAudioFile.wavPath), sem descoberta própria de arquivo neste diretório.
+      - /opt/gravacoes/audio:/opt/gravacoes/audio:ro
+      - /opt/AsteriskIA/env:/opt/asteriskia/env:ro
+    networks:
+      asteriskia-net:
+          ipv4_address: 172.16.7.18
+    healthcheck:
+      # Sem porta própria (loop de polling, não servidor) — confirma que o
+      # processo Python ainda está de pé.
+      test: ["CMD-SHELL", "pgrep -f 'src.main' > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 8s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Docker Helper — único container do stack com acesso ao docker.sock (F-CRIT-10)
+  # Antes, o backend montava o socket direto para rodar 'docker compose up',
+  # 'docker logs' e 'docker exec' via ProcessBuilder — qualquer RCE no backend
+  # virava root no host. Agora só este serviço toca o socket, sem porta
+  # publicada no host (só alcançável pela rede interna) e atrás de
+  # X-Internal-Key. Nenhum exec genérico: só as operações que já existiam.
+  # ---------------------------------------------------------------------------
+  docker-helper:
+    build:
+      context: ./docker-helper
+      dockerfile: Dockerfile
+    container_name: asteriskia-docker-helper
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    environment:
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/AsteriskIA:/opt/AsteriskIA:ro
+    networks:
+      asteriskia-net:
+          ipv4_address: 172.16.7.17
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health', timeout=4)"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Backend — Spring Boot 3.3 (Tomcat 11, JRE 21)
+  # Porta 8080 não exposta ao host: acesso exclusivo via Caddy (porta 443).
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: asteriskia-backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      docker-helper:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      BACKEND_JWT_SECRET:         ${BACKEND_JWT_SECRET}
+      TZ:                         America/Sao_Paulo
+      BACKEND_ALLOWED_ORIGINS:    ${BACKEND_ALLOWED_ORIGINS}
+      ADMIN_USERNAME:             ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD:             ${ADMIN_PASSWORD}
+      INTERNAL_API_KEY:           ${INTERNAL_API_KEY}
+      JIRA_BASE_URL:              ${JIRA_BASE_URL}
+      JIRA_USER_EMAIL:            ${JIRA_USER_EMAIL}
+      JIRA_API_TOKEN:             ${JIRA_API_TOKEN}
+      JIRA_PROJECT_KEY:           ${JIRA_PROJECT_KEY}
+      TELEGRAM_BOT_TOKEN:         ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID:           ${TELEGRAM_CHAT_ID}
+      AUDIO_STORAGE_PATH:         ${AUDIO_STORAGE_PATH:-/var/spool/asterisk/monitor}
+      AST_AMI_HOST:               asterisk
+      AST_AMI_PORT:               ${AST_AMI_PORT:-5038}
+      AST_AMI_USER:               ${AST_AMI_USER}
+      AST_AMI_PASSWORD:           ${AST_AMI_PASSWORD}
+      AST_ARI_USER:               ${AST_ARI_USER}
+      AST_ARI_PASSWORD:           ${AST_ARI_PASSWORD}
+      AST_CONFIG_DIR:             /etc/asterisk
+      ZABBIX_API_URL:             ${ZABBIX_API_URL}
+      ZABBIX_USER:                ${ZABBIX_USER}
+      ZABBIX_PASSWORD:            ${ZABBIX_PASSWORD}
+      ZABBIX_MIN_SEVERITY:        ${ZABBIX_MIN_SEVERITY:-4}
+      ZABBIX_POLL_INTERVAL_MINUTES: ${ZABBIX_POLL_INTERVAL_MINUTES:-5}
+      # SettingsService: reescreve .env localmente; reinicia containers via
+      # docker-helper (HTTP interno — backend não toca mais no docker.sock)
+      SETTINGS_FILE_PATH:         /opt/asteriskia/env/.env
+      DOCKER_HELPER_URL:          http://docker-helper:8090
+      # Insights — streaming de áudio (InsightsController.getAudio transcodifica
+      # via ffmpeg); módulo apartado, mesmo caminho lido pelo serviço insights.
+      INSIGHTS_AUDIO_PATH:        ${INSIGHTS_AUDIO_DIR:-/opt/audio}
+      # Portal do supervisor (Fase 3 do Quality Management, V40) — InsightsUploadService
+      # grava os arquivos enviados aqui; hoje o backend não montava RW nenhum áudio.
+      INSIGHTS_UPLOAD_AUDIO_PATH: ${INSIGHTS_UPLOAD_AUDIO_DIR:-/opt/audio_upload}
+      # Call Center (voz) — gravação/retenção/alerta de disco (Fase 3); o job de
+      # expurgo precisa deletar o arquivo físico, por isso o mount abaixo é RW.
+      CALLCENTER_RECORDING_PATH:  ${CALLCENTER_RECORDING_PATH:-/opt/gravacoes/audio}
+      CALLCENTER_CHAT_TRANSCRIPT_PATH: ${CALLCENTER_CHAT_TRANSCRIPT_PATH:-/opt/gravacoes/chat}
+      # Canal de chat público (Fase 7b) — fila-alvo do widget; vazio nesta VPS (sem fila
+      # real cadastrada ainda), endpoint público responde 503 enquanto estiver vazio.
+      CALLCENTER_CHAT_PUBLIC_QUEUE_ID: ${CALLCENTER_CHAT_PUBLIC_QUEUE_ID:-}
+    volumes:
+      - asterisk_recordings:/var/spool/asterisk/monitor
+      - /opt/AsteriskIA/env:/opt/asteriskia/env
+      - /opt/AsteriskIA/asterisk/config:/etc/asterisk
+      - fail2ban_socket:/var/run/fail2ban
+      - security_cmds:/var/run/asteriskia-security
+      - /opt/AsteriskIA/security/config:/opt/asteriskia/security/config
+      # fail2ban-client (usado por FailToBanClient) lê seu PRÓPRIO
+      # /etc/fail2ban/jail.d local pra saber quais jails existem antes de
+      # falar com o daemon via socket — sem isso ele só enxerga o jail.d
+      # padrão do pacote (sshd com backend=systemd, que não inicializa num
+      # container), e TODO "reload"/"reload <jail>" falha silenciosamente
+      # (SecurityController não valida o retorno). Precisa ser o mesmo
+      # jail.d/filter.d real, senão "No section: 'asterisk-auth'".
+      - ./security/config/jail.d:/etc/fail2ban/jail.d:ro
+      - ./security/config/filter.d:/etc/fail2ban/filter.d:ro
+      - asterisk_log:/var/log/asterisk:ro
+      - /opt/audio:/opt/audio:ro
+      # Portal do supervisor (Fase 3 do Quality Management, V40) — único mount RW de
+      # áudio do stack; pasta separada de /opt/audio (nunca subpasta), elimina por
+      # construção o risco de o watcher do Verint (scan não-recursivo) cruzar os dois
+      # fluxos mesmo que um ajuste futuro torne o scan recursivo.
+      - /opt/audio_upload:/opt/audio_upload:rw
+      # Call Center (voz) — gravação/retenção/alerta de disco (Fase 3). RW: o job de
+      # expurgo (CallCenterRecordingRetentionService) deleta o arquivo físico expirado;
+      # mesmo volume já montado (RW) no serviço asterisk, que é quem grava via MixMonitor.
+      - /opt/gravacoes/audio:/opt/gravacoes/audio:rw
+      # Call Center (chat) — transcript exportado ao encerrar a sessão (Fase 11.3). Sem este
+      # mount o backend grava na camada de escrita efêmera do container e o arquivo é perdido
+      # a cada rebuild/restart — achado de revisão de segurança antes do deploy.
+      - /opt/gravacoes/chat:/opt/gravacoes/chat:rw
+      # Achado de segurança: montava o diretório security/ INTEIRO em RW,
+      # incluindo entrypoint.sh/lockdown-watcher.sh — um RCE no backend
+      # escreveria o script que o container security executa como root
+      # (NET_ADMIN + network_mode: host). Restrito a só o estado que o
+      # SecurityController lê/escreve (lockdown.flag, whitelist.txt,
+      # manual-bans.csv) — nenhum script do container security os lê.
+      - /opt/AsteriskIA/security/state:/opt/asteriskia/security
+    networks:
+      asteriskia-net:
+          ipv4_address: 172.16.7.14
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Frontend — React 18 + TypeScript (build Vite, servido por Nginx)
+  # Serve também os arquivos estáticos da plataforma de Agentes em /agents/.
+  # Porta 80 não exposta ao host: acesso exclusivo via Caddy.
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL:      ${VITE_API_URL:-https://app.voiphash.com.br/api/v1}
+        VITE_ASTERISK_WS:  ${VITE_ASTERISK_WS:-wss://app.voiphash.com.br/asterisk-ws}
+        VITE_SIP_URI:      ${VITE_SIP_URI:-sip:9001@app.voiphash.com.br}
+        VITE_SIP_PASSWORD: ${VITE_SIP_PASSWORD:-webrtc9001pass}
+        VITE_STUN_URL:        ${VITE_STUN_URL:-stun:stun.l.google.com:19302}
+        VITE_TURN_URL:        ${VITE_TURN_URL:-}
+        VITE_TURN_USER:       ${VITE_TURN_USER:-asteriskia}
+        VITE_TURN_CREDENTIAL: ${VITE_TURN_CREDENTIAL:-}
+    container_name: asteriskia-frontend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    # Necessário pra bindar a porta 80 (<1024) rodando como usuário não-root
+    # "nginx" (ver Dockerfile) em vez de root.
+    cap_add:
+      - NET_BIND_SERVICE
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      asteriskia-net:
+          ipv4_address: 172.16.7.15
+
+  # ---------------------------------------------------------------------------
+  # TURN Server — Coturn para relay de RTP WebRTC
+  # network_mode: host é obrigatório: o TURN aloca portas UDP no host para
+  # relay bidirecional entre browser e Asterisk.
+  # Achado de segurança: --user=asteriskia:${TURN_CREDENTIAL} na linha de comando
+  # deixava a credencial em texto claro em `docker top`/`docker inspect` (Config.Cmd)
+  # pra qualquer um com acesso ao socket Docker. Credencial agora só via variável de
+  # ambiente — o entrypoint injeta no arquivo de config em runtime, então o comando
+  # final do processo (turnserver -c ...) não contém o valor. Resíduo aceito: a
+  # credencial continua visível via `docker inspect` (Config.Env) — mesmo nível de
+  # exposição de POSTGRES_PASSWORD e demais segredos já passados por `environment:`
+  # no resto deste arquivo, que já exige acesso ao Docker (gate do docker-helper).
+  # ---------------------------------------------------------------------------
+  coturn:
+    image: coturn/coturn:4.6.2
+    container_name: asteriskia-coturn
+    restart: unless-stopped
+    network_mode: host
+    user: root
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+    environment:
+      TURN_CREDENTIAL: ${TURN_CREDENTIAL}
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - /var/lib/docker/volumes/asteriskia_caddy_data/_data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/app.voiphash.com.br:/etc/coturn/tls:ro
+    # Achado (deploy): `command:` como string era tokenizado pelo Docker Compose
+    # (shlex, sem entender && / redirecionamento) e truncava no primeiro "&&" —
+    # só "cp ..." executava, o resto virava argv solto ($0/$1/... nunca lidos
+    # pelo `sh -c`). Script inteiro precisa ser UM item de lista em `entrypoint`
+    # pra ser tratado como string única, sem tokenização.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        cp /etc/coturn/turnserver.conf /tmp/turnserver.conf &&
+        echo "user=asteriskia:$$TURN_CREDENTIAL" >> /tmp/turnserver.conf &&
+        exec turnserver -c /tmp/turnserver.conf
+
+  # ---------------------------------------------------------------------------
+  # Security — Fail2ban + nftables (lockdown SIP)
+  # Usa network_mode: host para acesso direto às interfaces de rede do host,
+  # necessário para que o fail2ban e o nftables operem nas regras do host.
+  # Nota: network_mode host ignora a declaração de networks — é comportamento esperado.
+  # ---------------------------------------------------------------------------
+  security:
+    build:
+      context: ./security
+      dockerfile: Dockerfile
+    container_name: asteriskia-security
+    restart: unless-stopped
+    network_mode: host
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    depends_on:
+      asterisk:
+        condition: service_healthy
+    environment:
+      ASTERISK_LOG_FILE: /var/log/asterisk/full
+    volumes:
+      - asterisk_log:/var/log/asterisk:ro
+      - ./security/config/jail.d:/etc/fail2ban/jail.d
+      - ./security/config/filter.d:/etc/fail2ban/filter.d
+      # action.d NÃO é montado: os jails usam apenas actions nativas do fail2ban
+      # (iptables-multiport, iptables-allports). Montar um dir vazio aqui
+      # apagaria essas actions e quebraria os bans.
+      - fail2ban_socket:/var/run/fail2ban
+      - security_cmds:/var/run/asteriskia-security
+      - /etc/ufw:/etc/ufw
+      - /run/ufw.lock:/run/ufw.lock
+    healthcheck:
+      test: ["CMD", "fail2ban-client", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Agents Backend — FastAPI + Python 3.12
+  # Plataforma de automação com agentes IA.
+  # Porta 8000 não exposta ao host: acesso exclusivo via Caddy (/agents/api/*).
+  # ---------------------------------------------------------------------------
+  agents-backend:
+    build:
+      context: ./agents-platform/backend
+      dockerfile: Dockerfile
+    container_name: asteriskia-agents-api
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AGENTS_DB_HOST:     postgres
+      AGENTS_DB_PORT:     5432
+      AGENTS_DB_NAME:     ${POSTGRES_DB:-asteriskia}
+      AGENTS_DB_USER:     ${POSTGRES_USER:-asteriskia}
+      AGENTS_DB_PASS:     ${POSTGRES_PASSWORD}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      # ── LLM ────────────────────────────────────────────────────────────────
+      # Provedor ativo: google | anthropic | openai | minimax | openai_compat
+      AGENTS_LLM_PROVIDER:        ${AGENTS_LLM_PROVIDER:-google}
+      AGENTS_LLM_MODEL:           ${AGENTS_LLM_MODEL:-gemini-2.5-flash}
+      AGENTS_LLM_ENABLED:         ${AGENTS_LLM_ENABLED:-false}
+      AGENTS_LLM_GOOGLE_KEY:      ${AGENTS_LLM_GOOGLE_KEY:-${GEMINI_API_KEY:-}}
+      AGENTS_LLM_ANTHROPIC_KEY:   ${AGENTS_LLM_ANTHROPIC_KEY:-}
+      AGENTS_LLM_OPENAI_KEY:      ${AGENTS_LLM_OPENAI_KEY:-}
+      AGENTS_LLM_MINIMAX_KEY:     ${AGENTS_LLM_MINIMAX_KEY:-}
+      AGENTS_LLM_MINIMAX_GROUP_ID: ${AGENTS_LLM_MINIMAX_GROUP_ID:-}
+      # URL base para APIs compatíveis com OpenAI (Ollama, Groq, Together…)
+      AGENTS_LLM_COMPAT_URL:      ${AGENTS_LLM_COMPAT_URL:-http://localhost:11434/v1}
+      AGENTS_LLM_COMPAT_KEY:      ${AGENTS_LLM_COMPAT_KEY:-}
+      BACKEND_JWT_SECRET:         ${BACKEND_JWT_SECRET}
+      # CORS — mesmas origens do backend Telecom (frontend é same-origin)
+      BACKEND_ALLOWED_ORIGINS:    ${BACKEND_ALLOWED_ORIGINS}
+    volumes:
+      - agents_knowledge:/app/knowledge_docs
+      - /opt/AsteriskIA/env:/opt/AsteriskIA/env
+    networks:
+      asteriskia-net:
+          ipv4_address: 172.16.7.16
+    healthcheck:
+      # Usa o endpoint público de health do FastAPI (curl não existe na imagem slim)
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://localhost:8000/api/system/health', timeout=4)"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 40s
+
+  # ---------------------------------------------------------------------------
+  # Caddy 2 — Proxy reverso HTTPS com TLS automático (Let's Encrypt)
+  # Ponto de entrada único para todo tráfego externo (porta 80 e 443).
+  # A porta 2019 da admin API fica exposta apenas internamente (127.0.0.1).
+  # ---------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    container_name: asteriskia-caddy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    depends_on:
+      frontend:
+        condition: service_started   # nginx não tem healthcheck — started é suficiente
+      backend:
+        condition: service_healthy
+      agents-backend:
+        condition: service_healthy
+      asterisk:
+        condition: service_healthy
+    ports:
+      - "80:80"      # HTTP → redireciona automaticamente para HTTPS
+      - "443:443"    # HTTPS (TLS gerenciado pelo Caddy / Let's Encrypt)
+      - "443:443/udp" # HTTP/3 (QUIC)
+      # Admin API NÃO é mais publicada como porta TCP — ver Caddyfile (socket Unix).
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro  # Configuração do proxy
+      - ./docs:/srv/docs:ro                  # Documentação estática (/docs/*)
+      - caddy_data:/data                     # Certificados TLS (persistente)
+      - caddy_config:/config                 # Cache interno do Caddy
+      - ./caddy-admin:/run/caddy-admin       # Socket Unix da admin API (acesso do host para reload)
+    networks:
+      asteriskia-net:
+          ipv4_address: 172.16.7.10

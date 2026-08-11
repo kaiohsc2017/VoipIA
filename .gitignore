@@ -1,0 +1,91 @@
+# ============================================
+# .gitignore — AsteriskIA
+# ============================================
+
+# Variáveis de ambiente (NUNCA commitar)
+.env
+
+# Credenciais anotadas manualmente (PAT do GitHub, chaves) — NUNCA commitar
+git.txt
+
+# Arquivos soltos antigos e backups de banco — organizados fora do controle
+# de versão (podem conter dumps/credenciais anotadas manualmente)
+old/
+backups/
+
+# Diretório de secrets de produção — NÃO É PARTE DO REPOSITÓRIO
+# Fica em /opt/AsteriskIA/env/ na VPS (fora do git working tree)
+env/
+
+# Configs Asterisk COM credenciais reais (versionadas como .template)
+# O arquivo .template fica no git; o real fica no servidor ou é gerado
+asterisk/config/pjsip.conf
+asterisk/config/manager.conf
+asterisk/config/extensions.conf
+asterisk/config/ari.conf
+asterisk/config/res_pgsql.conf
+asterisk/config/sorcery.conf
+asterisk/config/extconfig.conf
+
+# --- Java / Maven ---
+backend/target/
+backend/.mvn/
+*.class
+*.jar
+*.war
+*.ear
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+ai-agent/.venv/
+scheduler/.venv/
+*.egg-info/
+
+# --- Node.js / React ---
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+insights-platform/frontend/node_modules/
+insights-platform/frontend/dist/
+agents-platform/frontend/node_modules/
+agents-platform/frontend/dist/
+callcenter-platform/frontend/node_modules/
+callcenter-platform/frontend/dist/
+
+# --- IDEs ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Docker ---
+.docker/
+
+# --- Gravações de áudio (dados sensíveis) ---
+recordings/
+
+# --- Logs ---
+*.log
+/logs/
+
+# --- Backups e arquivos temporários locais ---
+*.bak*
+bkp-config/
+security/config/action.d/
+
+# --- Arquivos de estado runtime (gerados em execução, não versionar) ---
+security/state/
+asterisk/config/acl.conf
+
+# --- Claude Code (sessão local — não versionar) ---
+.claude/settings.local.json

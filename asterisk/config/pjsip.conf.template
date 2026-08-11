@@ -1,0 +1,209 @@
+; =============================================================
+; pjsip.conf — Configuração SIP (chan_pjsip)
+; Define: transporte, tronco SIP da operadora e ramais de teste
+; =============================================================
+
+; ---------------------------------------------------------------
+; GLOBAL — Define o realm padrão para autenticação digest
+; Deve bater com o domínio usado pelo softphone (window.location.hostname)
+; ---------------------------------------------------------------
+[global]
+type = global
+default_realm = ${SIP_DOMAIN}
+keep_alive_interval = 30
+
+; ---------------------------------------------------------------
+; TRANSPORTE UDP
+; ---------------------------------------------------------------
+[transport-udp]
+type = transport
+protocol = udp
+bind = 0.0.0.0:5060
+; IP público do VPS — necessário para NAT/Cloud (Docker isola o container)
+; Injetado via SIP_PUBLIC_IP no .env
+external_media_address = ${SIP_PUBLIC_IP}
+external_signaling_address = ${SIP_PUBLIC_IP}
+local_net = 172.16.0.0/12
+local_net = 10.0.0.0/8
+local_net = 192.168.0.0/16
+
+; ---------------------------------------------------------------
+; TRANSPORTE WEBSOCKET (WebRTC via Caddy proxy)
+; O Caddy termina o TLS (wss://) e repassa como ws:// para o
+; Asterisk na porta 8088. O transport-ws recebe essas conexões.
+; ---------------------------------------------------------------
+[transport-ws]
+type = transport
+protocol = ws
+bind = 0.0.0.0:8088
+; Permite conexões de qualquer origem (Caddy proxy)
+; local_net informa ao Asterisk quais redes são locais (não requerem NAT).
+; 172.16.0.0/12 cobre a subnet Docker 172.16.7.0/24 usada pelo stack.
+local_net = 172.16.0.0/12
+local_net = 10.0.0.0/8
+local_net = 192.168.0.0/16
+
+; ---------------------------------------------------------------
+; TRONCO SIP — Peer IP-based (sem usuário/senha)
+; Fechado por IP com a operadora: 186.233.141.64
+; Não requer autenticação digest nem registro.
+; ---------------------------------------------------------------
+
+[tronco-sip-aor]
+type = aor
+; Contato direto com o IP da operadora (peer)
+contact = sip:${SIP_TRUNK_HOST}
+qualify_frequency = 60
+qualify_timeout = 3.0
+
+[tronco-sip]
+type = endpoint
+transport = transport-udp
+context = recepcao-tronco
+disallow = all
+allow = alaw
+allow = ulaw
+; Sem outbound_auth — autenticação por IP (peer)
+aors = tronco-sip-aor
+from_domain = ${SIP_TRUNK_FROM_DOMAIN}
+; Garante que o RTP passe pelo Asterisk (NAT/Docker)
+direct_media = no
+force_rport = yes
+rewrite_contact = yes
+
+; Identifica chamadas recebidas do IP da operadora
+[tronco-sip-identify]
+type = identify
+endpoint = tronco-sip
+match = ${SIP_TRUNK_HOST}
+
+; ---------------------------------------------------------------
+; RAMAIS DE TESTE — Para desenvolvimento e testes locais
+; Use um softphone (Zoiper / MicroSIP) com estas credenciais
+; ---------------------------------------------------------------
+
+; --- Ramal 1001 — Teste Geral ---
+[ramal-1001-auth]
+type = auth
+auth_type = userpass
+username = 1001
+password = ${RAMAL_1001_PASSWORD}
+
+[1001]
+type = aor
+max_contacts = 1
+qualify_frequency = 30
+
+[1001]
+type = endpoint
+context = ramais-internos
+disallow = all
+allow = alaw
+allow = ulaw
+auth = ramal-1001-auth
+aors = 1001
+callerid = "Teste Geral" <1001>
+
+; --- Ramal 1002 — Teste Conectividade ---
+[ramal-1002-auth]
+type = auth
+auth_type = userpass
+username = 1002
+password = ${RAMAL_1002_PASSWORD}
+
+[1002]
+type = aor
+max_contacts = 1
+qualify_frequency = 30
+
+[1002]
+type = endpoint
+context = ramais-internos
+disallow = all
+allow = alaw
+allow = ulaw
+auth = ramal-1002-auth
+aors = 1002
+callerid = "Teste Conectividade" <1002>
+
+; --- Ramal 9001 — WebRTC Softphone (React) ---
+[ramal-9001-auth]
+type = auth
+auth_type = userpass
+username = 9001
+password = ${RAMAL_9001_PASSWORD}
+; realm deve bater com o domínio SIP usado pelo browser
+realm = ${SIP_DOMAIN}
+
+[9001]
+type = aor
+max_contacts = 1
+remove_existing = yes
+qualify_frequency = 0
+
+[9001]
+type = endpoint
+; CRÍTICO: transport-ws para receber REGISTER via WebSocket
+transport = transport-ws
+context = ramais-webrtc
+disallow = all
+; WebRTC não suporta G.729 — usa G.711 com DTLS/SRTP
+allow = alaw
+allow = ulaw
+auth = ramal-9001-auth
+aors = 9001
+callerid = "WebRTC React" <9001>
+; CRÍTICO: identifica pelo username do header Authorization (auth_username)
+; Necessário para WebRTC — o JsSIP envia o username no Authorization, não no From
+identify_by = auth_username,username
+; CRÍTICO: força o Asterisk a fazer bridge de mídia internamente
+direct_media = no
+; WebRTC — habilita todas as opções necessárias
+webrtc = yes
+dtls_auto_generate_cert = yes
+use_avpf = yes
+media_encryption = dtls
+ice_support = yes
+; STUN público para ICE — necessário para WebRTC funcionar atrás de NAT/Docker
+; O browser e o Asterisk usam o STUN para descobrir o IP público nos candidatos ICE
+rtcp_mux = yes
+force_rport = yes
+rewrite_contact = yes
+
+; --- Ramal 9002 — Softphone físico (Zoiper, Linphone, MicroSIP etc.) ---
+; Usa SIP/UDP padrão — sem WebRTC, sem DTLS
+[ramal-9002-auth]
+type = auth
+auth_type = userpass
+username = 9002
+password = ${RAMAL_9002_PASSWORD}
+realm = ${SIP_DOMAIN}
+
+[9002]
+type = aor
+max_contacts = 2
+remove_existing = yes
+qualify_frequency = 30
+
+[9002]
+type = endpoint
+transport = transport-udp
+context = ramais-webrtc
+disallow = all
+allow = alaw
+allow = ulaw
+auth = ramal-9002-auth
+aors = 9002
+callerid = "Softphone" <9002>
+identify_by = username,auth_username
+; NAT — essencial para softphone atrás de NAT
+direct_media = no
+force_rport = yes
+rewrite_contact = yes
+rtp_symmetric = yes
+; Sem WebRTC/DTLS — SIP padrão com RTP simples
+media_encryption = no
+use_avpf = no
+ice_support = no
+; Garante que o Asterisk sempre faça bridge (não tenta RTP direto)
+media_use_received_transport = yes

@@ -1,0 +1,211 @@
+/* ── Página de Documentação — usa os tokens globais definidos em App.css ── */
+
+.docs-layout {
+  display: flex;
+  /* Ocupa 100vh igual ao AgentesPage — sem page-header do Telecom acima */
+  height: 100vh;
+  background: var(--bg-deep);
+  overflow: hidden;
+}
+
+/* ── TOC lateral — coluna fixa, rola internamente ── */
+.docs-toc {
+  width: 260px;
+  flex-shrink: 0;
+  background: var(--gradient-sidebar);
+  padding: 24px 0 40px;
+  overflow-y: auto;
+  height: 100%;
+  position: static;
+}
+
+.docs-toc-group {
+  padding: 18px 16px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.docs-toc-link {
+  display: block;
+  padding: 8px 20px;
+  margin: 1px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.docs-toc-link:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.docs-toc-link.active { background: var(--clr-primary); color: #fff; }
+
+/* ── Conteúdo ── */
+.docs-content {
+  flex: 1;
+  max-width: 960px;
+  padding: 40px 48px 96px;
+  overflow-y: auto;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* Título da documentação integrado ao conteúdo (substitui o page-header) */
+.docs-content-header {
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-glass);
+}
+.docs-content-header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+.docs-content-header p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.docs-hero {
+  background: var(--gradient-brand);
+  border-radius: var(--radius-lg);
+  padding: 40px 44px;
+  color: #fff;
+  margin-bottom: 48px;
+}
+
+.docs-hero h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 10px; }
+.docs-hero p { font-size: 15px; opacity: 0.9; max-width: 640px; line-height: 1.7; color: #fff; }
+
+.docs-hero-meta { display: flex; gap: 16px; margin-top: 24px; flex-wrap: wrap; }
+.docs-hero-badge {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.docs-hero-badge b { display: block; font-size: 16px; font-weight: 800; margin-top: 2px; }
+
+.docs-section { margin-bottom: 56px; scroll-margin-top: 24px; }
+
+.docs-section h2 {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--border-accent);
+}
+
+.docs-section h3 { font-size: 15px; font-weight: 700; color: var(--text-primary); margin: 24px 0 10px; }
+.docs-section h4 { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.6px; margin: 16px 0 6px; }
+.docs-section p { font-size: 13.5px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.75; }
+.docs-section p strong { color: var(--text-primary); }
+.docs-section code { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; background: var(--bg-input); border-radius: 4px; padding: 1px 5px; }
+
+/* ── Cards ── */
+.docs-card { background: var(--bg-card); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 20px 22px; margin-bottom: 18px; box-shadow: var(--shadow-card); }
+.docs-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.docs-card-sm { background: var(--bg-card); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 16px 18px; box-shadow: var(--shadow-card); }
+.docs-card-sm h4 { margin-top: 0; color: var(--text-primary); text-transform: none; letter-spacing: 0; font-size: 13px; }
+.docs-card-sm p { margin-bottom: 0; font-size: 12.5px; }
+
+/* ── Tabelas de campos ── */
+.docs-field-table { width: 100%; border-collapse: collapse; margin: 10px 0 20px; }
+.docs-field-table th {
+  padding: 9px 12px; text-align: left; font-size: 10.5px; font-weight: 700;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;
+  background: var(--bg-input); border-bottom: 2px solid var(--border-glass);
+}
+.docs-field-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-glass); font-size: 12.5px; vertical-align: top; color: var(--text-secondary); }
+.docs-field-table tr:last-child td { border-bottom: none; }
+
+.docs-field-name {
+  font-family: 'JetBrains Mono', monospace; font-size: 11.5px; font-weight: 700;
+  color: var(--clr-primary); background: var(--gradient-card); padding: 2px 7px; border-radius: 4px; white-space: nowrap;
+}
+.docs-field-type { font-size: 10.5px; color: var(--text-muted); background: var(--bg-input); border: 1px solid var(--border-glass); padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.docs-req { color: var(--clr-danger); font-size: 10px; font-weight: 700; }
+.docs-opt { color: var(--text-muted); font-size: 10px; }
+
+/* ── Badges ── */
+.docs-badge { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 10.5px; font-weight: 700; }
+.docs-badge-ok      { background: rgba(22, 163, 74, 0.12); color: var(--clr-success); }
+.docs-badge-err     { background: rgba(239, 68, 68, 0.12); color: var(--clr-danger); }
+.docs-badge-warn    { background: rgba(217, 119, 6, 0.12); color: var(--clr-warning); }
+.docs-badge-info    { background: rgba(56, 189, 248, 0.12); color: #0284c7; }
+.docs-badge-purple  { background: var(--gradient-card); color: var(--clr-primary); }
+.docs-badge-gray    { background: var(--bg-input); color: var(--text-secondary); }
+
+/* ── Callouts ── */
+.docs-callout { padding: 14px 18px; border-radius: var(--radius-sm); margin: 14px 0; border-left: 4px solid; font-size: 12.5px; line-height: 1.65; color: var(--text-primary); }
+.docs-callout p, .docs-callout { margin: 0; }
+.docs-callout-info  { background: rgba(56, 189, 248, 0.08);  border-color: #0284c7; }
+.docs-callout-ok    { background: rgba(22, 163, 74, 0.08);   border-color: var(--clr-success); }
+.docs-callout-warn  { background: rgba(217, 119, 6, 0.08);   border-color: var(--clr-warning); }
+.docs-callout-err   { background: rgba(239, 68, 68, 0.08);   border-color: var(--clr-danger); }
+
+/* ── Blocos de código ── */
+.docs-code-block { background: var(--bg-sidebar); border-radius: var(--radius-sm); padding: 18px 22px; margin: 14px 0; overflow-x: auto; }
+.docs-code-block pre { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12.5px; line-height: 1.65; color: #e2e8f0; white-space: pre; }
+.docs-code-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: rgba(255, 255, 255, 0.35); margin-bottom: 8px; }
+.docs-hl-key { color: #79c0ff; }
+.docs-hl-str { color: #a5d6ff; }
+.docs-hl-num { color: #f2cc60; }
+.docs-hl-bool { color: #ff7b72; }
+.docs-hl-cmt { color: #8b949e; }
+
+/* ── Check card ── */
+.docs-check-card { border: 1px solid var(--border-glass); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 14px; }
+.docs-check-header { background: var(--clr-primary); color: #fff; padding: 9px 16px; font-size: 12.5px; font-weight: 700; }
+.docs-check-body .docs-code-block { margin: 0; border-radius: 0; }
+
+/* ── Passo a passo ── */
+.docs-steps { margin: 16px 0; }
+.docs-step { display: flex; gap: 14px; margin-bottom: 16px; align-items: flex-start; }
+.docs-step-num {
+  width: 28px; height: 28px; border-radius: 50%; background: var(--clr-primary); color: #fff;
+  font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.docs-step-body h4 { margin: 0 0 4px; font-size: 13px; color: var(--text-primary); text-transform: none; letter-spacing: 0; }
+.docs-step-body p { margin-bottom: 0; }
+
+/* ── Endpoints de API ── */
+.docs-api-endpoint {
+  display: flex; align-items: center; gap: 10px; background: var(--bg-sidebar); border-radius: var(--radius-sm);
+  padding: 9px 14px; margin: 10px 0; font-family: monospace; font-size: 12.5px; color: #e2e8f0;
+}
+.docs-method { font-weight: 800; font-size: 10.5px; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.5px; }
+.docs-method-get    { background: #166534; color: #86efac; }
+.docs-method-post   { background: #1e3a5f; color: #93c5fd; }
+.docs-method-put    { background: #451a03; color: #fed7aa; }
+.docs-method-delete { background: #450a0a; color: #fca5a5; }
+.docs-method-ws     { background: #3a3000; color: #f2cc60; }
+.docs-api-note { color: #8b949e; font-size: 11px; margin-left: auto; }
+
+/* ── Fluxo ── */
+.docs-flow { display: flex; align-items: center; gap: 0; flex-wrap: wrap; margin: 16px 0; }
+.docs-flow-step {
+  background: var(--gradient-card); border: 2px solid var(--clr-primary); border-radius: var(--radius-sm);
+  padding: 9px 14px; font-size: 11.5px; font-weight: 600; color: var(--clr-primary-dark, #1a1c2e); text-align: center; min-width: 110px;
+}
+.docs-flow-arrow { color: var(--text-muted); font-size: 18px; padding: 0 8px; font-weight: 300; }
+
+/* ── Footer ── */
+.docs-footer { margin-top: 64px; padding-top: 28px; border-top: 1px solid var(--border-glass); text-align: center; font-size: 11.5px; color: var(--text-muted); }
+.docs-footer strong { color: var(--text-secondary); }
+
+/* ── Responsivo ── */
+@media (max-width: 900px) {
+  .docs-toc { display: none; }
+  .docs-content { padding: 24px; }
+  .docs-card-grid { grid-template-columns: 1fr; }
+}

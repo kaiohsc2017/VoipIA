@@ -1,0 +1,114 @@
+package com.asteriskia.domain.insights;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+
+/**
+ * IngestInsightsRequest — payload enviado pelo serviço asteriskia-insights ao
+ * final do processamento de uma chamada (POST /api/v1/internal/insights).
+ * Estrutura espelha exatamente o payload montado em insights/src/main.py::_build_payload.
+ */
+public record IngestInsightsRequest(
+        @NotBlank String callRef,
+        @NotBlank String wavPath,
+        // Sem @NotBlank desde a V40 — uploads do portal do supervisor (source='upload')
+        // não têm XML da Verint.
+        String xmlPath,
+        Integer durationSeconds,
+        OffsetDateTime callStarttime,
+        String agentName,
+        String agentIdVerint,
+        String agentLoginId,
+        String extension,
+        String ani,
+        String dnis,
+        String direction,
+        String skill,
+        JsonNode xmlRaw,
+        // ─── V43 — campos restantes do XML Verint (plano insights-chamadas-campos-xml) ───
+        String customerNumber,
+        String organization,
+        String disconnectedBy,
+        Integer numberOfHolds,
+        Integer totalHoldTime,
+        Integer numberOfTransfers,
+        Integer numberOfConferences,
+        Integer wrapupTime,
+        String codec,
+        Integer missedRtpPackets,
+        Integer decodingErrors,
+        String switchCallId,
+        String trunk,
+        String captureType,
+        String datasourceName,
+        List<TransferEventPayload> transferEvents,
+        Integer sttTokensIn,
+        Integer sttTokensOut,
+        String sttModel,
+        Integer llmTokensIn,
+        Integer llmTokensOut,
+        String llmModel,
+        // Achado em produção (2026-07-17): @NotEmpty rejeitava com 400 chamadas cuja
+        // transcrição veio com 0 segmentos (ex: áudio muito curto/silencioso) — como a
+        // ingestão falhava sem persistir, o watcher reprocessava a MESMA chamada pra
+        // sempre a cada ciclo de poll, gastando API do Gemini sem nunca conseguir
+        // persistir uma chamada genuinamente sem fala. @NotNull permite lista vazia.
+        @NotNull @Valid List<SegmentPayload> segments,
+        @NotNull @Valid InsightsPayload insights,
+        @Valid List<FindingPayload> findings,
+        // Opcional/retrocompatível — só vem preenchido quando havia ficha de avaliação
+        // ativa no momento do processamento (Fase 1 do Quality Management, V38).
+        @Valid EvaluationPayload evaluation
+) {
+    public record SegmentPayload(
+            @NotBlank String speaker,
+            @NotNull Integer startMs,
+            @NotNull Integer endMs,
+            @NotBlank String text,
+            String toneSemantic,
+            String toneAcoustic
+    ) {}
+
+    public record InsightsPayload(
+            String resumo,
+            String categoriaAssunto,
+            String sentimentoGeral,
+            Double aderenciaScript,
+            @NotBlank String criticidade,
+            JsonNode insightsJson
+    ) {}
+
+    public record FindingPayload(
+            @NotBlank String tipo,
+            @NotBlank String descricao,
+            String trechoReferencia,
+            String prioridade
+    ) {}
+
+    public record EvaluationPayload(
+            @NotNull Long scorecardId,
+            @NotNull @Valid List<EvaluationItemPayload> items,
+            Integer llmTokensIn,
+            Integer llmTokensOut,
+            String llmModel
+    ) {}
+
+    public record EvaluationItemPayload(
+            @NotNull Long itemId,
+            @NotNull Double nota,
+            String justificativa,
+            String trechoReferencia
+    ) {}
+
+    /** Evento de transferência (grupo D) — espelha src/xml_parser.py::TransferEvent. */
+    public record TransferEventPayload(
+            OffsetDateTime transferredAt,
+            String disconnectedBy,
+            String targetSwitchCallId
+    ) {}
+}

@@ -1,0 +1,22 @@
+; =============================================================
+; manager.conf — AMI (Asterisk Manager Interface)
+; Permite que o backend e o scheduler controlem o Asterisk
+; via TCP (originar chamadas, monitorar eventos, etc.)
+; =============================================================
+
+[general]
+enabled = yes
+port = 5038
+bindaddr = 0.0.0.0
+
+; --- Usuário do AsteriskIA (backend + scheduler) ---
+[${AST_AMI_USER}]
+secret = ${AST_AMI_PASSWORD}
+deny = 0.0.0.0/0.0.0.0
+; Permite acesso apenas de containers na rede Docker
+permit = 172.16.0.0/12
+permit = 10.0.0.0/8
+permit = 192.168.0.0/16
+read = all
+write = all
+writetimeout = 5000
