@@ -1365,7 +1365,9 @@ Cada fase segue o ciclo já estabelecido no repositório:
 5. **Validação visual** — Chrome headless + CDP puro via WebSocket do Node 22 (o Chrome DevTools
    MCP falha nesta VPS com "Target closed").
 6. **Registro** — release notes em `releases.ts`, `CLAUDE.md` atualizado, memória gravada.
-7. **Espelho** — `git push origin main` **e** `git push azure main`.
+7. **Espelho** — `git push origin main` **e** `git push azure main:desenvolvimento`. **Nunca**
+   `git push azure main` — `main` no Azure DevOps fica congelada (regra fixada em 2026-08-13, ver
+   `.claude/plans/callcenter-parte-iii-revisado.plan.md` §8).
 
 ---
 

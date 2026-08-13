@@ -67,8 +67,10 @@ Rede Docker: `asteriskia-net` — bridge `172.16.7.0/24`
 # Alterar código → commitar → rebuildar apenas o container afetado
 git add <arquivos>
 git commit -m "descrição clara"
-git push origin desenvolvimento
-git push azure desenvolvimento   # espelho obrigatório no Azure DevOps (grp-atg-bu-ti-corporativa) — todo commit
+git push origin main
+git push azure main:desenvolvimento   # espelho obrigatório no Azure DevOps (grp-atg-bu-ti-corporativa) — SEMPRE
+                                       # para a branch desenvolvimento, NUNCA para main do Azure (main do Azure
+                                       # fica congelada — decisão de 2026-08-13, nunca reescrever/forçar nela)
 
 # Rebuildar serviço específico (mais rápido)
 docker compose up -d --build <nome-do-serviço>

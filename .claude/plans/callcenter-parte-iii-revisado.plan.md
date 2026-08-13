@@ -790,7 +790,11 @@ cegamente.
 - [ ] Sem CRITICAL/HIGH em `ecc:security-reviewer` por fase
 - [ ] Suíte completa verde por fase (hoje 443/443)
 - [ ] Release notes + `CLAUDE.md` + memória por fase
-- [ ] `git push origin main` **e** `git push azure main`
+- [ ] `git push origin main` **e** `git push azure main:desenvolvimento` — **NUNCA** `git push azure main`
+      (regra fixada em 2026-08-13, depois de um lapso desta sessão que empurrou `main` pro Azure por
+      4 fases seguidas antes de ser corrigido: `main` no Azure DevOps fica congelada como está, todo
+      trabalho novo vai para a branch `desenvolvimento` de lá — nunca reescrever/forçar em nenhuma
+      das duas)
 
 ---
 
