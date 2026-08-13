@@ -85,8 +85,10 @@ public class AriVoiceChannelDriver implements ChannelDriver {
                 Thread.currentThread().interrupt();
                 return PromptResult.hungUp();
             }
-            if (digit != null && validChoices.contains(digit)) {
-                return PromptResult.chosen(digit);
+            if (digit != null) {
+                // Fase 5c: dígito fora do menu não é mais descartado em silêncio — o handler
+                // decide se repete o prompt ou segue o ramo "opção inválida".
+                return validChoices.contains(digit) ? PromptResult.chosen(digit) : PromptResult.invalid(digit);
             }
         }
         return PromptResult.timeout();

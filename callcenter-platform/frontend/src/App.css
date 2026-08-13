@@ -1240,6 +1240,34 @@ tbody td {
   font-size: 0.62rem;
 }
 
+/* Fase 5c — menu com ramificação por handle nomeado (um por opção + timeout/inválido). */
+.flow-node-menu {
+  min-width: 180px;
+  text-align: left;
+}
+
+.flow-node-menu-hint {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.flow-node-menu-options {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.flow-node-menu-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  gap: 8px;
+}
+
 .flow-issues {
   padding: 8px 20px;
   border-bottom: 1px solid var(--border-glass);

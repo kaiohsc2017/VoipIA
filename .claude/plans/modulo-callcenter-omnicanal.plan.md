@@ -910,6 +910,11 @@ widget informando login e confirmar que o widget não recebe nenhum dado do AD.
 
 ### FASE 15 — Supervisão avançada _(P7, P8, P9)_
 
+**Nota de numeração de migration**: as referências a `V64` abaixo estão desatualizadas — V64
+(saída/outbound, Fase 23), V65 (NPS, Fase 21) e V66 (biblioteca de áudio, Fase 5c) já foram
+usadas. Use `V67` (confirme com `ls backend/src/main/resources/db/migration/ | sort -V | tail -1`
+antes de criar o arquivo).
+
 **Objetivo:** o supervisor vê cada cliente na fila e age sobre a chamada específica.
 **Complexidade:** **G**. **Depende da Fase 12** (sem agente/fila real não há o que supervisionar).
 

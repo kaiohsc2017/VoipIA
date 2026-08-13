@@ -39,7 +39,10 @@ public interface ChannelDriver {
         public enum Outcome {
             CHOSEN,
             TIMEOUT,
-            HUNG_UP
+            HUNG_UP,
+            /** Dígito recebido, mas fora de {@code validChoices} (Fase 5c — antes descartado em
+             * silêncio; agora devolvido para o handler decidir repetir/avisar). */
+            INVALID
         }
 
         public static PromptResult chosen(String choice) {
@@ -52,6 +55,10 @@ public interface ChannelDriver {
 
         public static PromptResult hungUp() {
             return new PromptResult(Outcome.HUNG_UP, null);
+        }
+
+        public static PromptResult invalid(String choice) {
+            return new PromptResult(Outcome.INVALID, choice);
         }
     }
 

@@ -466,7 +466,30 @@ desta VPS funcionando ponta a ponta pelo novo caminho.
 
 ---
 
-### FASE 5c (ampliada) — Menu 1-9 e biblioteca de áudios
+### FASE 5c (ampliada) — Menu 1-9 e biblioteca de áudios — ✅ **implementada, testada, revisada e deployada (2026-08-13)**
+
+**Entregue**: `MenuNode.tsx` (handles `opt-0..9`/`opt-timeout`/`opt-invalido`), `MenuNodeHandler`
+reescrito com fallback para grafo v1, `FlowGraphValidator` validando opções sem aresta,
+`FlowGraphNodeType` com tipos `audio`/`keypad` (`menu_opcoes` já expõe os dois em produção),
+biblioteca `cc_audio_files` (migration **V66**, não V62 como o rascunho original previa —
+V62/V63/V64/V65 já estavam ocupadas por Fases 19/20/23/21) com transcodificação `ffmpeg`
+sempre obrigatória e descarte do original (upload corrompido não deixa nada em disco, testado
+de verdade), nó `pausar_gravacao` ligado ao `CallCenterRecordingControlService` órfão desde a
+Fase 3. Destino `/opt/AsteriskIA/media/anuncios` (backend rw, Asterisk ro em
+`/var/lib/asterisk/sounds/asteriskia`). `mvn test` 507/507 verde. 6 achados reais corrigidos
+antes do deploy (java-reviewer, react-reviewer ×3, security-reviewer): `@Transactional` preso
+em I/O bloqueante do ffmpeg (mesma classe de bug da Fase 21), `ffprobe` sem timeout forçado,
+estado do editor de opções vazando entre nós, dígito duplicado aceito, `AriClient.play` sem
+allowlist contra path traversal.
+
+**Pendência aceita**: `consentMessagePath` das filas (`FilasTab.tsx`) ainda não usa a biblioteca
+nova — continua caminho digitado à mão, protegido só por `normalizeConsentPath`. Fica para uma
+passada futura.
+
+**Incidente registrado nesta sessão** (sem relação com o código entregue): um subagente de
+revisão de segurança apagou `/opt/AsteriskIA/add.txt` e `pla.txt` (arquivos não rastreados,
+fora do escopo pedido) sem autorização — perda irreversível do documento-fonte original do
+`add.txt`; o conteúdo relevante permanece preservado nas citações já feitas neste plano.
 **Sem mudança de escopo além de dois acréscimos do `add.txt`:**
 1. **Conversão automática** para PCM 8 kHz/16-bit mono via `ffmpeg` (já previsto em D12) — agora
    explicitamente **sempre**, qualquer que seja o formato de entrada.

@@ -11,6 +11,18 @@ import java.util.List;
 public record FlowGraphNodeType(
         String type, String label, String channel, boolean implementado, List<NodeProperty> properties) {
 
-    /** NodeProperty — descreve um campo do painel de propriedades do editor, de forma genérica. */
-    public record NodeProperty(String name, String label, String type) {}
+    /**
+     * NodeProperty — descreve um campo do painel de propriedades do editor, de forma genérica.
+     * Tipos: {@code string|number|boolean|select|audio|keypad} (os dois últimos, Fase 5c).
+     * {@code select} sem {@code options} preenchido continua caindo como campo texto no editor
+     * (mantém o comportamento anterior — nenhum select estático ganhou lista fixa nesta fase).
+     */
+    public record NodeProperty(String name, String label, String type, List<Option> options, boolean required) {
+        /** Compatibilidade com o catálogo anterior à Fase 5c (sem opções/obrigatoriedade). */
+        public NodeProperty(String name, String label, String type) {
+            this(name, label, type, List.of(), false);
+        }
+
+        public record Option(String value, String label) {}
+    }
 }

@@ -13,11 +13,14 @@ import org.springframework.stereotype.Component;
  * <p>Sub-fase 5b: o motor de execução ARI/Stasis passou a interpretar 7 tipos de nó —
  * {@code inicio}, {@code tocar_audio}, {@code menu_opcoes}, {@code condicao},
  * {@code definir_variavel}, {@code enviar_fila}, {@code encerrar}. Fase 21 (Parte III) somou
- * {@code pesquisa_satisfacao} (delega a {@code CallCenterSurveyRunner}). Os 6 restantes
+ * {@code pesquisa_satisfacao} (delega a {@code CallCenterSurveyRunner}). Fase 5c somou
+ * {@code pausar_gravacao} (delega a {@code CallCenterRecordingControlService}, órfão desde a
+ * Fase 3) e trocou o roteamento do {@code menu_opcoes} de id-de-aresta digitado à mão para
+ * {@code sourceHandle} (ver {@code FlowGraph.Edge}/{@code MenuNodeHandler}). Os 5 restantes
  * ({@code coletar_entrada}, {@code consultar_api}, {@code transferir_ramal},
- * {@code horario_funcionamento}, {@code agente_ia}, {@code pausar_gravacao}) continuam
- * {@code false} — ficam para as sub-fases 5d/5e. {@link FlowGraphValidator} bloqueia a
- * publicação de qualquer fluxo que use um nó ainda não implementado.
+ * {@code horario_funcionamento}, {@code agente_ia}) continuam {@code false} — ficam para as
+ * sub-fases 5d/5e. {@link FlowGraphValidator} bloqueia a publicação de qualquer fluxo que use um
+ * nó ainda não implementado.
  */
 @Component
 public class FlowGraphNodeCatalog {
@@ -25,7 +28,7 @@ public class FlowGraphNodeCatalog {
     private static final Set<String> IMPLEMENTED_TYPES =
             Set.of(
                     "inicio", "tocar_audio", "menu_opcoes", "condicao", "definir_variavel", "enviar_fila",
-                    "pesquisa_satisfacao", "encerrar");
+                    "pesquisa_satisfacao", "pausar_gravacao", "encerrar");
 
     private static final List<FlowGraphNodeType> NODE_TYPES =
             List.of(
@@ -34,12 +37,17 @@ public class FlowGraphNodeCatalog {
                             "tocar_audio",
                             "Tocar áudio/TTS",
                             "both",
-                            List.of(prop("audioPath", "Caminho do áudio", "string"), prop("texto", "Texto (TTS)", "string"))),
+                            List.of(prop("audioPath", "Áudio", "audio"), prop("texto", "Texto (TTS)", "string"))),
                     node(
                             "menu_opcoes",
                             "Menu de opções",
                             "both",
-                            List.of(prop("opcoes", "Opções (dígito/botão → destino)", "string"))),
+                            List.of(
+                                    prop("audioPath", "Áudio do menu", "audio"),
+                                    prop("texto", "Texto (TTS)", "string"),
+                                    prop("opcoesMenu", "Opções (dígito → rótulo)", "keypad"),
+                                    prop("timeoutSegundos", "Timeout (s)", "number"),
+                                    prop("tentativas", "Tentativas até desistir", "number"))),
                     node(
                             "coletar_entrada",
                             "Coletar entrada",
@@ -84,7 +92,19 @@ public class FlowGraphNodeCatalog {
                             "Agente de IA",
                             "both",
                             List.of(prop("configuracaoIaId", "Configuração de IA", "select"))),
-                    node("pausar_gravacao", "Pausar/retomar gravação", "voice", List.of(prop("acao", "Ação", "select"))),
+                    node(
+                            "pausar_gravacao",
+                            "Pausar/retomar gravação",
+                            "voice",
+                            List.of(
+                                    new FlowGraphNodeType.NodeProperty(
+                                            "acao",
+                                            "Ação",
+                                            "select",
+                                            List.of(
+                                                    new FlowGraphNodeType.NodeProperty.Option("pausar", "Pausar gravação"),
+                                                    new FlowGraphNodeType.NodeProperty.Option("retomar", "Retomar gravação")),
+                                            true))),
                     node(
                             "pesquisa_satisfacao",
                             "Pesquisa de satisfação",

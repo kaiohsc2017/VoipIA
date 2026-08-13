@@ -17,6 +17,7 @@ import '@xyflow/react/dist/style.css';
 import { ArrowLeft, Save, Rocket, Undo2, Redo2 } from 'lucide-react';
 import api, { getErrorMessage } from '../../api/client';
 import { GenericNode, FlowCatalogContext, type GenericNodeData } from './nodes/GenericNode';
+import { MenuNode } from './nodes/MenuNode';
 import { NodePalette } from './NodePalette';
 import { NodePropertiesPanel } from './NodePropertiesPanel';
 import type { FlowGraphDocument, FlowGraphNodeType, FlowGraphValidationResult, FlowVersionView, FlowView } from '../../api/types';
@@ -27,9 +28,15 @@ interface FlowEditorProps {
   onBack: () => void;
 }
 
-const NODE_TYPES: NodeTypes = { generic: GenericNode };
+// Fase 5c: 'menu_opcoes' ganha renderização própria (handles nomeados por opção) — os demais
+// tipos continuam no nó genérico único da 5a. Grafos publicados antes desta fase têm
+// `type: "generic"` gravado em todo nó (inclusive menus antigos, formato v1) e continuam
+// renderizando como sempre; só nós menu_opcoes criados a partir de agora ganham `type:
+// "menu_opcoes"` (ver addNodeAtCenter/onDrop) e passam a usar o MenuNode.
+const NODE_TYPES: NodeTypes = { generic: GenericNode, menu_opcoes: MenuNode };
 let nodeSeq = 0;
 const nextNodeId = () => `node-${Date.now()}-${nodeSeq++}`;
+const renderTypeFor = (domainType: string) => (domainType === 'menu_opcoes' ? 'menu_opcoes' : 'generic');
 
 type FlowNode = Node<GenericNodeData>;
 
@@ -86,7 +93,7 @@ export function FlowEditor({ flow, canWrite, onBack }: FlowEditorProps) {
   // própria navegação do histórico — desfazer/refazer — é quem está aplicando o snapshot).
   useEffect(() => {
     if (skipHistoryRef.current) { skipHistoryRef.current = false; return; }
-    const doc: FlowGraphDocument = { schemaVersion: 1, nodes: nodes as FlowGraphDocument['nodes'], edges: edges as FlowGraphDocument['edges'] };
+    const doc: FlowGraphDocument = { schemaVersion: 2, nodes: nodes as FlowGraphDocument['nodes'], edges: edges as FlowGraphDocument['edges'] };
     const h = historyRef.current;
     const truncated = h.stack.slice(0, h.index + 1);
     truncated.push(doc);
@@ -130,7 +137,7 @@ export function FlowEditor({ flow, canWrite, onBack }: FlowEditorProps) {
     const position = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
     const newNode: FlowNode = {
       id: nextNodeId(),
-      type: 'generic',
+      type: renderTypeFor(nodeType.type),
       position,
       data: { nodeType: nodeType.type, label: nodeType.label, properties: {} },
     };
@@ -142,7 +149,7 @@ export function FlowEditor({ flow, canWrite, onBack }: FlowEditorProps) {
   const addNodeAtCenter = useCallback((nodeType: FlowGraphNodeType) => {
     const newNode: FlowNode = {
       id: nextNodeId(),
-      type: 'generic',
+      type: renderTypeFor(nodeType.type),
       position: { x: 200, y: 150 },
       data: { nodeType: nodeType.type, label: nodeType.label, properties: {} },
     };
@@ -166,7 +173,11 @@ export function FlowEditor({ flow, canWrite, onBack }: FlowEditorProps) {
     setSelectedNodeId(null);
   };
 
-  const currentGraph = (): string => JSON.stringify({ schemaVersion: 1, nodes, edges });
+  // Fase 5c: sobe pra 2 — ramificação de menu passou a viajar via sourceHandle de cada aresta
+  // (preenchido nativamente pelo React Flow quando o handle de origem é nomeado, ver MenuNode),
+  // não mais por id de aresta digitado à mão. Grafos v1 sem sourceHandle continuam lidos pelo
+  // parser de fallback do MenuNodeHandler no backend.
+  const currentGraph = (): string => JSON.stringify({ schemaVersion: 2, nodes, edges });
 
   const saveDraft = () => {
     api.put<FlowGraphValidationResult>(`/callcenter/fluxos/${flow.id}/draft`, { graph: currentGraph() })
@@ -240,6 +251,10 @@ export function FlowEditor({ flow, canWrite, onBack }: FlowEditorProps) {
           </div>
           {canWrite && (
             <NodePropertiesPanel
+              // Força remontagem ao trocar de nó — sem isso, estado local de upload de áudio
+              // (Fase 5c) vazava entre nós: iniciar um upload, selecionar outro nó antes de
+              // terminar, e o "Enviando…"/erro aparecia sob o nó errado (achado de revisão).
+              key={selectedNode?.id ?? 'none'}
               node={selectedNode}
               catalog={catalog}
               onChange={updateNodeProperties}

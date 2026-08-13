@@ -42,6 +42,13 @@ public record FlowGraph(int schemaVersion, List<Node> nodes, List<Edge> edges) {
                 .toList();
     }
 
+    /** Aresta de saída de um nó com o {@code sourceHandle} exato (schemaVersion 2 — Fase 5c). */
+    public Optional<Edge> outgoingEdge(String nodeId, String sourceHandle) {
+        return edges.stream()
+                .filter(e -> e.source().equals(nodeId) && sourceHandle.equals(e.sourceHandle()))
+                .findFirst();
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Node(String id, String type, NodeData data) {}
 
@@ -53,6 +60,17 @@ public record FlowGraph(int schemaVersion, List<Node> nodes, List<Edge> edges) {
         }
     }
 
+    /**
+     * {@code sourceHandle} é {@code null} em grafos {@code schemaVersion 1} (handle único por nó,
+     * ver convenção da classe) e vem preenchido pelo editor a partir de {@code schemaVersion 2}
+     * (ex.: {@code "opt-3"}, {@code "opt-timeout"}, {@code "opt-invalido"} para {@code menu_opcoes}
+     * — Fase 5c).
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Edge(String id, String source, String target) {}
+    public record Edge(String id, String source, String target, String sourceHandle) {
+        /** Compatibilidade com grafos/testes anteriores à Fase 5c, sem {@code sourceHandle}. */
+        public Edge(String id, String source, String target) {
+            this(id, source, target, null);
+        }
+    }
 }

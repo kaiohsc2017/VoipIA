@@ -576,4 +576,14 @@ export const RELEASES: ReleaseEntry[] = [
       'Correção interna: a chave de acesso à IA usada na transcrição de respostas faladas nunca mais aparece em nenhum log de erro, e a gravação da resposta passa a ficar organizada junto com as demais gravações do sistema.',
     ],
   },
+  {
+    version: 'v1.64',
+    date: '2026-08-13',
+    changes: [
+      'Editor de fluxos do Call Center: o nó de menu com opções (1-9) ganha um editor visual de dígito + rótulo, com uma saída própria para cada opção, para "sem resposta" e para "opção inválida" — sem mais precisar digitar o identificador interno da seta à mão.',
+      'Nova biblioteca de áudios: envie um arquivo de áudio direto pelo editor de fluxo e ele já fica disponível para os nós de menu e de reprodução de áudio — o arquivo é sempre convertido para o formato correto do sistema de telefonia, e o original enviado não é mantido.',
+      'O nó "Pausar gravação" do editor de fluxos passa a funcionar de verdade — permite interromper e retomar a gravação da chamada durante a coleta de um dado sensível.',
+      'Correção interna: número de dígito repetido no menu não é mais aceito silenciosamente, e trocar de nó no editor sem salvar não confunde mais os campos exibidos.',
+    ],
+  },
 ];

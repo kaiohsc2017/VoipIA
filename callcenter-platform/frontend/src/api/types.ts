@@ -388,10 +388,18 @@ export interface FlowGraphValidationResult {
 // Catálogo de tipos de nó — fonte única servida pelo backend (GET .../fluxos/catalogo),
 // nunca duplicado em código: nesta sub-fase todo nó vem com implementado=false (o motor
 // de execução ARI/Stasis só chega na Fase 5b).
+export interface FlowGraphNodePropertyOption {
+  value: string;
+  label: string;
+}
+
 export interface FlowGraphNodeProperty {
   name: string;
   label: string;
+  // 'audio'/'keypad' (Fase 5c) somam-se a string|number|boolean|select.
   type: string;
+  options?: FlowGraphNodePropertyOption[];
+  required?: boolean;
 }
 
 export interface FlowGraphNodeType {
@@ -400,6 +408,16 @@ export interface FlowGraphNodeType {
   channel: FlowChannel;
   implementado: boolean;
   properties: FlowGraphNodeProperty[];
+}
+
+// Biblioteca de áudios do Flow Builder (Fase 5c) — sempre PCM 8kHz/16-bit mono.
+export interface CcAudioFile {
+  id: number;
+  name: string;
+  fileName: string;
+  durationSeconds: number | null;
+  businessUnitId: number | null;
+  createdAt: string;
 }
 
 // Grafo persistido no campo `graph` (JSON.stringify) — formato nativo do React Flow.

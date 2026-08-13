@@ -3,9 +3,11 @@ package com.asteriskia.domain.callcenter.flow.engine;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.asteriskia.domain.callcenter.CcQueue;
+import com.asteriskia.domain.callcenter.flow.audio.CallCenterAudioService;
 import com.asteriskia.domain.callcenter.CcQueueRepository;
 import com.asteriskia.domain.callcenter.flow.CcFlow;
 import com.asteriskia.domain.callcenter.flow.CcFlowRepository;
@@ -86,8 +88,8 @@ class FlowExecutionEngineTest {
                 new ArrayList<>(
                         List.of(
                                 new StartNodeHandler(),
-                                new PlayAudioNodeHandler(),
-                                new MenuNodeHandler(),
+                                new PlayAudioNodeHandler(mock(CallCenterAudioService.class)),
+                                new MenuNodeHandler(objectMapper, mock(CallCenterAudioService.class)),
                                 new ConditionNodeHandler(),
                                 new SetVariableNodeHandler(),
                                 new SendToQueueNodeHandler(queueRepository),

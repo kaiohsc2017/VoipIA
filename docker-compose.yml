@@ -131,6 +131,10 @@ services:
       # Fase 20 (Call Center Parte III): /opt/gravacoes/audio → /opt/AsteriskIA/media/gravacao
       # (padronização de mídia sob a raiz do repo — media/ é git-ignorado, ver .gitignore).
       - /opt/AsteriskIA/media/gravacao:/opt/AsteriskIA/media/gravacao
+      # Fase 5c (Call Center Parte III): biblioteca de áudios do Flow Builder — o backend
+      # transcodifica e grava aqui (rw, ver volume no serviço backend); o Asterisk só lê,
+      # resolvendo "sound:asteriskia/<file_name>" (convenção de sounds dir custom).
+      - /opt/AsteriskIA/media/anuncios:/var/lib/asterisk/sounds/asteriskia:ro
     ports:
       - "5060:5060/udp"              # SIP UDP (tronco + softphones)
       - "5060:5060/tcp"              # SIP TCP
@@ -358,6 +362,9 @@ services:
       # Canal de chat público (Fase 7b) — fila-alvo do widget; vazio nesta VPS (sem fila
       # real cadastrada ainda), endpoint público responde 503 enquanto estiver vazio.
       CALLCENTER_CHAT_PUBLIC_QUEUE_ID: ${CALLCENTER_CHAT_PUBLIC_QUEUE_ID:-}
+      # Biblioteca de áudios do Flow Builder (Fase 5c) — o backend transcodifica com ffmpeg
+      # e grava aqui; o Asterisk só lê (mount ro, ver serviço asterisk).
+      CALLCENTER_AUDIO_LIBRARY_PATH: ${CALLCENTER_AUDIO_LIBRARY_PATH:-/opt/AsteriskIA/media/anuncios}
     volumes:
       - asterisk_recordings:/var/spool/asterisk/monitor
       - /opt/AsteriskIA/env:/opt/asteriskia/env
@@ -392,6 +399,10 @@ services:
       # a cada rebuild/restart — achado de revisão de segurança antes do deploy.
       # Fase 20: /opt/gravacoes/chat → /opt/AsteriskIA/media/chat.
       - /opt/AsteriskIA/media/chat:/opt/AsteriskIA/media/chat:rw
+      # Biblioteca de áudios do Flow Builder (Fase 5c). RW: CallCenterAudioService grava o
+      # arquivo já transcodificado (PCM 8kHz/16-bit mono) aqui; o Asterisk só lê (mount ro
+      # no serviço asterisk, resolvendo sound:asteriskia/<file_name>).
+      - /opt/AsteriskIA/media/anuncios:/opt/AsteriskIA/media/anuncios:rw
       # Spool transiente da gravação ARI de pesquisa de satisfação (Fase 21) — mesmo volume do
       # serviço asterisk (que grava via Stasis record); o backend move o arquivo pronto pra
       # /opt/AsteriskIA/media/gravacao/nps e apaga o original daqui.

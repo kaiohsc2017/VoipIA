@@ -239,6 +239,10 @@ public class SecurityConfig {
                         // mesmo matcher (sem regra de escrita própria).
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/fluxos/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.fluxos")
+                        // Biblioteca de áudios do Flow Builder — Fase 5c. Ferramenta do próprio
+                        // editor de fluxos, reusa o resource callcenter.fluxos (sem tela própria).
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/audios/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.fluxos")
                         // Insights do Call Center — Fase 8. Mesmo pipeline de IA do módulo
                         // Insights (Verint), aplicado às gravações source=callcenter; namespace
                         // granular por aba, espelhando insights.* acima.
@@ -344,6 +348,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/callcenter/supervision/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.supervisao")
                         .requestMatchers("/api/v1/callcenter/fluxos/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.fluxos")
+                        .requestMatchers("/api/v1/callcenter/audios/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.fluxos")
                         .requestMatchers("/api/v1/callcenter/insights/reports/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.insights.reports")

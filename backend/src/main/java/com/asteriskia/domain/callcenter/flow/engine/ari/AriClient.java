@@ -37,8 +37,17 @@ public class AriClient {
         webClient.post().uri("/channels/" + channelId + "/answer").retrieve().toBodilessEntity().block(REQUEST_TIMEOUT);
     }
 
+    // Fase 5c: audioPath referencia a biblioteca de áudios (cc_audio_files), mas o valor ainda
+    // chega aqui como string livre — allowlist defensiva contra path traversal mesmo com a
+    // resolução por id já feita a montante (PlayAudioNodeHandler/MenuNodeHandler).
+    private static final java.util.regex.Pattern SAFE_MEDIA = java.util.regex.Pattern.compile("^[A-Za-z0-9_:/-]+$");
+
     /** Inicia a reprodução e devolve o {@code playbackId} do ARI (correlacionado por {@link AriPlaybackTracker}). */
     public String play(String channelId, String media) {
+        if (media == null || media.contains("..") || !SAFE_MEDIA.matcher(media).matches()) {
+            log.warn("AriClient.play recusado — media fora do allowlist: {}", media);
+            return null;
+        }
         var uri = UriComponentsBuilder.fromPath("/channels/{id}/play").queryParam("media", media).build(channelId);
         var response = webClient.post().uri(uri).retrieve().bodyToMono(JsonNode.class).block(REQUEST_TIMEOUT);
         return response == null ? null : response.path("id").asText(null);

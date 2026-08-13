@@ -156,6 +156,79 @@ class FlowGraphValidatorTest {
         assertThat(result.isValid()).isTrue();
     }
 
+    private static String menuNodeV2(String id, String opcoesMenuJson) {
+        var escaped = opcoesMenuJson.replace("\"", "\\\"");
+        return "{\"id\":\"" + id + "\",\"type\":\"generic\",\"data\":{\"nodeType\":\"menu_opcoes\","
+                + "\"properties\":{\"opcoesMenu\":\"" + escaped + "\"}}}";
+    }
+
+    @Test
+    @DisplayName("Fase 5c: menu v2 sem nenhuma opção configurada é rejeitado")
+    void menuV2_noOptions_rejected() {
+        var nodes = "[" + n("n1", "inicio") + "," + menuNodeV2("n2", "[]") + "]";
+        var edges = "[{\"id\":\"e1\",\"source\":\"n1\",\"target\":\"n2\"}]";
+        var result = validator.validate(graph(nodes, edges), "voice", false);
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.errors()).anyMatch(e -> "n2".equals(e.nodeId()) && e.message().contains("nenhuma opção"));
+    }
+
+    @Test
+    @DisplayName("Fase 5c: opção do menu v2 sem aresta correspondente é rejeitada")
+    void menuV2_optionWithoutEdge_rejected() {
+        var nodes =
+                "["
+                        + n("n1", "inicio") + ","
+                        + menuNodeV2("n2", "[{\"digito\":\"1\",\"rotulo\":\"Vendas\"},{\"digito\":\"2\",\"rotulo\":\"Suporte\"}]") + ","
+                        + n("n3", "encerrar")
+                        + "]";
+        var edges =
+                "[{\"id\":\"e1\",\"source\":\"n1\",\"target\":\"n2\"},"
+                        + "{\"id\":\"e2\",\"source\":\"n2\",\"target\":\"n3\",\"sourceHandle\":\"opt-1\"}]";
+        var result = validator.validate(graph(nodes, edges), "voice", false);
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.errors()).anyMatch(e -> "n2".equals(e.nodeId()) && e.message().contains("\"2\""));
+    }
+
+    @Test
+    @DisplayName("Fase 5c: aresta com handle inexistente no menu v2 é rejeitada")
+    void menuV2_edgeWithUnknownHandle_rejected() {
+        var nodes =
+                "["
+                        + n("n1", "inicio") + ","
+                        + menuNodeV2("n2", "[{\"digito\":\"1\",\"rotulo\":\"Vendas\"}]") + ","
+                        + n("n3", "encerrar")
+                        + "]";
+        var edges =
+                "[{\"id\":\"e1\",\"source\":\"n1\",\"target\":\"n2\"},"
+                        + "{\"id\":\"e2\",\"source\":\"n2\",\"target\":\"n3\",\"sourceHandle\":\"opt-1\"},"
+                        + "{\"id\":\"e3\",\"source\":\"n2\",\"target\":\"n3\",\"sourceHandle\":\"opt-9\"}]";
+        var result = validator.validate(graph(nodes, edges), "voice", false);
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.errors()).anyMatch(e -> "n2".equals(e.nodeId()) && e.message().contains("opção inexistente"));
+    }
+
+    @Test
+    @DisplayName("Fase 5c: menu v2 completo (todas as opções + opt-timeout/opt-invalido) é válido")
+    void menuV2_complete_valid() {
+        var nodes =
+                "["
+                        + n("n1", "inicio") + ","
+                        + menuNodeV2("n2", "[{\"digito\":\"1\",\"rotulo\":\"Vendas\"}]") + ","
+                        + n("n3", "encerrar")
+                        + "]";
+        var edges =
+                "[{\"id\":\"e1\",\"source\":\"n1\",\"target\":\"n2\"},"
+                        + "{\"id\":\"e2\",\"source\":\"n2\",\"target\":\"n3\",\"sourceHandle\":\"opt-1\"},"
+                        + "{\"id\":\"e3\",\"source\":\"n2\",\"target\":\"n3\",\"sourceHandle\":\"opt-timeout\"},"
+                        + "{\"id\":\"e4\",\"source\":\"n2\",\"target\":\"n3\",\"sourceHandle\":\"opt-invalido\"}]";
+        var result = validator.validate(graph(nodes, edges), "voice", false);
+
+        assertThat(result.isValid()).isTrue();
+    }
+
     @Test
     @DisplayName("ciclo simples gera só aviso, não bloqueia")
     void cycle_isWarningOnly() {
