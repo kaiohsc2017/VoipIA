@@ -42,7 +42,8 @@ public class InsightsController {
     // Pasta separada dos uploads do portal do supervisor (Fase 3 do Quality Management,
     // V40) — nunca subpasta de insightsAudioPath, decisão deliberada para o watcher do
     // Verint (discovery.py, scan não-recursivo) nunca cruzar os dois fluxos.
-    @Value("${app.insights.upload-audio-path:/opt/audio_upload}")
+    // Fase 20 (Call Center Parte III): /opt/audio_upload → /opt/AsteriskIA/media/sobdemanda.
+    @Value("${app.insights.upload-audio-path:/opt/AsteriskIA/media/sobdemanda}")
     private String insightsUploadAudioPath;
 
     @GetMapping("/calls")
@@ -183,8 +184,9 @@ public class InsightsController {
         }
 
         // Uploads do portal do supervisor (Fase 3, V40) vivem em subpastas por lote
-        // (/opt/audio_upload/{batchId}/...) — precisa preservar o subcaminho, não só o
-        // nome do arquivo. Verint continua flat em /opt/audio (basename já bastava).
+        // (/opt/AsteriskIA/media/sobdemanda/{batchId}/..., Fase 20) — precisa preservar o
+        // subcaminho, não só o nome do arquivo. Verint continua flat em /opt/audio (basename
+        // já bastava).
         boolean isUpload = "upload".equals(audioFile.getSource());
         if (isUpload && !canAccessUpload(audioFile)) {
             // 404 (não 403) — mesmo padrão de posse do resto do portal do supervisor

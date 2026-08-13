@@ -39,7 +39,8 @@ public class InsightsUploadService {
     private final CallAudioFileRepository audioFileRepository;
     private final InsightsIngestionService ingestionService;
 
-    @Value("${app.insights.upload-audio-path:/opt/audio_upload}")
+    // Fase 20 (Call Center Parte III): /opt/audio_upload → /opt/AsteriskIA/media/sobdemanda.
+    @Value("${app.insights.upload-audio-path:/opt/AsteriskIA/media/sobdemanda}")
     private String uploadBasePath;
 
     @Transactional

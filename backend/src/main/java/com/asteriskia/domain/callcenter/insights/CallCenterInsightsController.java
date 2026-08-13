@@ -63,7 +63,7 @@ public class CallCenterInsightsController {
 
     private final InsightsQueryService queryService;
 
-    @Value("${app.callcenter.recording-path:/opt/gravacoes/audio}")
+    @Value("${app.callcenter.recording-path:/opt/AsteriskIA/media/gravacao}")
     private String recordingBasePath;
 
     @GetMapping("/calls")

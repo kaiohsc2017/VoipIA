@@ -1,0 +1,5 @@
+# Defesa em profundidade — mesmo se a entrada "media/" do .gitignore raiz for editada ou
+# removida por engano, este arquivo garante que nada dentro de media/ é comitado por acidente.
+# Ver a entrada correspondente em /opt/AsteriskIA/.gitignore (Fase 20).
+*
+!.gitignore

@@ -17,6 +17,16 @@ backups/
 # Fica em /opt/AsteriskIA/env/ na VPS (fora do git working tree)
 env/
 
+# Fase 20 (plano Call Center Parte III) — mídia de produção (gravação de chamada, transcript de
+# chat, biblioteca de anúncios, upload de análise sob demanda) passou a viver sob a raiz do repo
+# (/opt/AsteriskIA/media/) em vez de /opt/gravacoes/. É dado de cliente/PII — NUNCA pode ser
+# commitado, nem por acidente de um `git add -A`. Ignorado ANTES do bind mount existir (verificado
+# com `git check-ignore -v media/`), reforçado por .git/hooks/pre-commit e por media/.gitignore.
+# "media/*" (não "media/") de propósito — um diretório ignorado como unidade impede o git de
+# aplicar a negação abaixo, então o próprio media/.gitignore ficaria de fora do controle de versão.
+media/*
+!media/.gitignore
+
 # Configs Asterisk COM credenciais reais (versionadas como .template)
 # O arquivo .template fica no git; o real fica no servidor ou é gerado
 asterisk/config/pjsip.conf

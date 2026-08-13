@@ -97,7 +97,7 @@ exten => _4XXX,n,Hangup()
 ; Filas do Call Center — faixa 5000-5999 (Fase 2/3). Cadastrar uma fila nova
 ; pela web só grava em `queues`/`queue_members` (ARA) — o número da fila é o
 ; próprio ramal dentro desta faixa. Fase 3: toda chamada de fila é gravada
-; (MixMonitor) em /opt/gravacoes/audio, com aviso de consentimento opcional
+; (MixMonitor) em /opt/AsteriskIA/media/gravacao, com aviso de consentimento opcional
 ; por fila — configuração consultada em tempo real no backend via CURL (mesmo
 ; padrão de lookup do _2XXX acima). CURL de config falha/timeout → REC_FLAG
 ; fica vazio (≠ "false") → grava por padrão, nunca deixa de gravar por falha
@@ -112,7 +112,7 @@ exten => _5XXX,n,Set(REC_FLAG=${CUT(REC_PART,=,2)})
 exten => _5XXX,n,Set(CONSENT_PART=${CUT(REC_CONFIG,;,2)})
 exten => _5XXX,n,Set(CONSENT_PATH=${CUT(CONSENT_PART,=,2)})
 exten => _5XXX,n,Set(MY_UUID=${UNIQUEID})
-exten => _5XXX,n,Set(REC_DIR=/opt/gravacoes/audio/${STRFTIME(${EPOCH},,%Y/%m/%d)})
+exten => _5XXX,n,Set(REC_DIR=/opt/AsteriskIA/media/gravacao/${STRFTIME(${EPOCH},,%Y/%m/%d)})
 exten => _5XXX,n,System(mkdir -p ${REC_DIR})
 exten => _5XXX,n,Set(RECORDED=false)
 exten => _5XXX,n,Set(CONSENT_PLAYED=false)
@@ -200,7 +200,7 @@ exten => _5XXX,n,Set(REC_FLAG=${CUT(REC_PART,=,2)})
 exten => _5XXX,n,Set(CONSENT_PART=${CUT(REC_CONFIG,;,2)})
 exten => _5XXX,n,Set(CONSENT_PATH=${CUT(CONSENT_PART,=,2)})
 exten => _5XXX,n,Set(MY_UUID=${UNIQUEID})
-exten => _5XXX,n,Set(REC_DIR=/opt/gravacoes/audio/${STRFTIME(${EPOCH},,%Y/%m/%d)})
+exten => _5XXX,n,Set(REC_DIR=/opt/AsteriskIA/media/gravacao/${STRFTIME(${EPOCH},,%Y/%m/%d)})
 exten => _5XXX,n,System(mkdir -p ${REC_DIR})
 exten => _5XXX,n,Set(RECORDED=false)
 exten => _5XXX,n,Set(CONSENT_PLAYED=false)
