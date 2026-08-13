@@ -76,6 +76,18 @@ public class CcInteraction {
     @Column(name = "ended_at")
     private LocalDateTime endedAt;
 
+    /** Posição na fila no instante do {@code QueueCallerJoin} — dado de relatório (Fase 15.1,
+     * D11-B); a posição/espera exibidas ao vivo no painel de supervisão vêm do AMI
+     * {@code QueueStatus} ({@link com.asteriskia.domain.callcenter.supervision.AmiQueueStatusClient}),
+     * não desta coluna. */
+    @Column(name = "position_on_join")
+    private Integer positionOnJoin;
+
+    /** Nome do canal Asterisk (ex: {@code PJSIP/tronco-0000001a}) no instante do join — necessário
+     * para {@code Redirect} via AMI (Fase 15.3), que exige o nome, não o {@code Uniqueid}. */
+    @Column(name = "channel_name", length = 80)
+    private String channelName;
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "disposition_id")
     private CcDisposition disposition;

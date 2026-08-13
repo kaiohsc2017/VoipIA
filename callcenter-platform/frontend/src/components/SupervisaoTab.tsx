@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Headphones, Mic, LogIn, Pause, Play, Maximize2, X } from 'lucide-react';
+import { Headphones, Mic, LogIn, Pause, Play, Maximize2, X, ChevronDown, ChevronRight } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
-import type { SupervisionSnapshot, AgentSupervisionView } from '../api/types';
+import type { SupervisionSnapshot, AgentSupervisionView, QueueSupervisionView, CcQueue, CcAgent } from '../api/types';
 
 const STATE_LABEL: Record<string, string> = {
   DISPONIVEL: 'Disponível',
@@ -26,11 +26,15 @@ function formatSeconds(seconds?: number): string {
  * STOMP pelo backend para consumidores futuros, mas esta SPA ainda não tem cliente STOMP
  * próprio (padrão já usado em DesktopAgenteTab).
  */
-export function SupervisaoTab({ canWrite }: { canWrite: boolean }) {
+export function SupervisaoTab({ canWrite, canRedirect }: { canWrite: boolean; canRedirect: boolean }) {
   const [snapshot, setSnapshot] = useState<SupervisionSnapshot>({ queues: [], agents: [] });
   const [error, setError] = useState('');
   const [wallboard, setWallboard] = useState(false);
   const [busyAgentId, setBusyAgentId] = useState<number | null>(null);
+  const [expandedQueueId, setExpandedQueueId] = useState<number | null>(null);
+  const [queues, setQueues] = useState<CcQueue[]>([]);
+  const [agents, setAgents] = useState<CcAgent[]>([]);
+  const [busyChannelUniqueId, setBusyChannelUniqueId] = useState<string | null>(null);
 
   const load = () => {
     api.get<SupervisionSnapshot>('/callcenter/supervision/snapshot')
@@ -44,12 +48,28 @@ export function SupervisaoTab({ canWrite }: { canWrite: boolean }) {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    if (!canRedirect) return;
+    api.get<CcQueue[]>('/callcenter/filas').then(({ data }) => setQueues(data)).catch(() => {});
+    api.get<CcAgent[]>('/callcenter/agentes').then(({ data }) => setAgents(data)).catch(() => {});
+  }, [canRedirect]);
+
   const runAction = (agentId: number, action: string) => {
     setError('');
     setBusyAgentId(agentId);
     api.post(`/callcenter/supervision/agents/${agentId}/${action}`)
       .catch(err => setError(getErrorMessage(err, 'Erro ao executar a ação de supervisão.')))
       .finally(() => setBusyAgentId(null));
+  };
+
+  const runRedirect = (queue: QueueSupervisionView, channelUniqueId: string, body: { targetQueueId: number } | { targetAgentId: number }) => {
+    setError('');
+    setBusyChannelUniqueId(channelUniqueId);
+    const path = 'targetQueueId' in body ? 'queue' : 'agent';
+    api.post(`/callcenter/supervision/redirect/${path}`, { sourceQueueName: queue.queueName, channelUniqueId, ...body })
+      .then(load)
+      .catch(err => setError(getErrorMessage(err, 'Erro ao redirecionar a chamada.')))
+      .finally(() => setBusyChannelUniqueId(null));
   };
 
   const renderAgentRow = (agent: AgentSupervisionView) => {
@@ -65,15 +85,15 @@ export function SupervisaoTab({ canWrite }: { canWrite: boolean }) {
           <td>
             <div className="flex items-center" style={{ gap: 4 }}>
               <button className="btn btn-ghost btn-sm" disabled={!isInCall || busyAgentId === agent.agentId}
-                title="Escutar" onClick={() => runAction(agent.agentId, 'listen')}>
+                title="Ouvir a chamada (ninguém ouve o supervisor)" onClick={() => runAction(agent.agentId, 'listen')}>
                 <Headphones size={14} />
               </button>
               <button className="btn btn-ghost btn-sm" disabled={!isInCall || busyAgentId === agent.agentId}
-                title="Sussurrar" onClick={() => runAction(agent.agentId, 'whisper')}>
+                title="Falar com o agente (o cliente não ouve)" onClick={() => runAction(agent.agentId, 'whisper')}>
                 <Mic size={14} />
               </button>
               <button className="btn btn-ghost btn-sm" disabled={!isInCall || busyAgentId === agent.agentId}
-                title="Interceptar" onClick={() => runAction(agent.agentId, 'barge')}>
+                title="Entrar na conversa (os dois ouvem)" onClick={() => runAction(agent.agentId, 'barge')}>
                 <LogIn size={14} />
               </button>
               {isPausa ? (
@@ -94,6 +114,96 @@ export function SupervisaoTab({ canWrite }: { canWrite: boolean }) {
     );
   };
 
+  const renderQueueRows = (q: QueueSupervisionView) => {
+    const isExpanded = expandedQueueId === q.queueId;
+    const rows = [
+      <tr key={q.queueId} style={{ cursor: 'pointer' }} onClick={() => setExpandedQueueId(isExpanded ? null : q.queueId)}>
+        <td className="flex items-center" style={{ gap: 4 }}>
+          {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          {q.displayName}
+        </td>
+        <td>{q.waitingCount}</td>
+        <td>{formatSeconds(q.longestWaitSeconds)}</td>
+        <td>{q.answeredToday}</td>
+        <td>{q.abandonedToday}</td>
+        <td>{q.serviceLevelPercent == null ? '—' : `${q.serviceLevelPercent.toFixed(0)}%`}</td>
+      </tr>,
+    ];
+    if (isExpanded) {
+      rows.push(
+        <tr key={`${q.queueId}-detail`}>
+          <td colSpan={6} style={{ padding: 0 }}>
+            {renderWaitingCallers(q)}
+          </td>
+        </tr>
+      );
+    }
+    return rows;
+  };
+
+  const renderWaitingCallers = (q: QueueSupervisionView) => (
+    <div style={{ padding: 12, background: 'var(--bg-subtle)' }}>
+      {q.waitingCallers.length === 0 ? (
+        <p style={{ color: 'var(--text-muted)', margin: 0 }}>
+          Ninguém em espera nesta fila no momento (ou o AMI não respondeu à consulta).
+        </p>
+      ) : (
+        <table>
+          <thead>
+            <tr><th>Posição</th><th>ANI</th><th>Espera</th>{canRedirect && <th>Ações</th>}</tr>
+          </thead>
+          <tbody>
+            {q.waitingCallers.map(w => (
+              <tr key={w.channelUniqueId}>
+                <td>{w.position ?? '—'}</td>
+                <td>{w.ani ?? '—'}</td>
+                <td>{formatSeconds(w.waitSeconds)}</td>
+                {canRedirect && (
+                  <td>
+                    <div className="flex items-center" style={{ gap: 4 }}>
+                      <select
+                        className="input input-sm"
+                        disabled={busyChannelUniqueId === w.channelUniqueId}
+                        defaultValue=""
+                        onChange={e => {
+                          const targetQueueId = Number(e.target.value);
+                          if (targetQueueId) runRedirect(q, w.channelUniqueId, { targetQueueId });
+                          e.target.value = '';
+                        }}
+                        title="Mover para outra fila"
+                      >
+                        <option value="" disabled>Mover para fila...</option>
+                        {queues.filter(other => other.id !== q.queueId).map(other => (
+                          <option key={other.id} value={other.id}>{other.displayName}</option>
+                        ))}
+                      </select>
+                      <select
+                        className="input input-sm"
+                        disabled={busyChannelUniqueId === w.channelUniqueId}
+                        defaultValue=""
+                        onChange={e => {
+                          const targetAgentId = Number(e.target.value);
+                          if (targetAgentId) runRedirect(q, w.channelUniqueId, { targetAgentId });
+                          e.target.value = '';
+                        }}
+                        title="Direcionar para agente"
+                      >
+                        <option value="" disabled>Direcionar p/ agente...</option>
+                        {agents.map(a => (
+                          <option key={a.id} value={a.id}>{a.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+
   const content = (
     <div className={wallboard ? 'page-body' : undefined}>
       {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
@@ -104,16 +214,7 @@ export function SupervisaoTab({ canWrite }: { canWrite: boolean }) {
             <tr><th>Fila</th><th>Em espera</th><th>Maior espera</th><th>Atendidas hoje</th><th>Abandonadas hoje</th><th>Nível de serviço</th></tr>
           </thead>
           <tbody>
-            {snapshot.queues.map(q => (
-              <tr key={q.queueId}>
-                <td>{q.displayName}</td>
-                <td>{q.waitingCount}</td>
-                <td>{formatSeconds(q.longestWaitSeconds)}</td>
-                <td>{q.answeredToday}</td>
-                <td>{q.abandonedToday}</td>
-                <td>{q.serviceLevelPercent == null ? '—' : `${q.serviceLevelPercent.toFixed(0)}%`}</td>
-              </tr>
-            ))}
+            {snapshot.queues.flatMap(renderQueueRows)}
             {snapshot.queues.length === 0 && <tr><td colSpan={6} className="table-empty">Nenhuma fila cadastrada.</td></tr>}
           </tbody>
         </table>

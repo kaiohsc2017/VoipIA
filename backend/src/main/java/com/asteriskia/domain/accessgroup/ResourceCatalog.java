@@ -92,6 +92,10 @@ public final class ResourceCatalog {
             "callcenter.gravacoes",
             "callcenter.desktop",
             "callcenter.supervisao",
+            // callcenter.supervisao.redirect (Fase 15.3): ação de "perfil específico" — retirar
+            // chamada da fila e redirecionar. Ação sensível dentro da tela de Supervisão, não um
+            // menu próprio — mesmo padrão de callcenter.ramais (senha do ramal).
+            "callcenter.supervisao.redirect",
             "callcenter.fluxos",
             "callcenter.insights.calls",
             "callcenter.insights.dashboard",

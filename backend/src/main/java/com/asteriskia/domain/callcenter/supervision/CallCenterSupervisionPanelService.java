@@ -33,6 +33,7 @@ public class CallCenterSupervisionPanelService {
     private final CcAgentRepository agentRepository;
     private final CcInteractionRepository interactionRepository;
     private final CcAgentStateRepository agentStateRepository;
+    private final AmiQueueStatusClient amiQueueStatusClient;
 
     @Transactional(readOnly = true)
     public SupervisionSnapshot snapshot() {
@@ -67,6 +68,12 @@ public class CallCenterSupervisionPanelService {
             serviceLevel = (withinTimeout * 100.0) / answered.size();
         }
 
+        var waitingCallers =
+                amiQueueStatusClient.queueStatus(queue.getName()).stream()
+                        .sorted(java.util.Comparator.comparing(
+                                WaitingCallerView::position, java.util.Comparator.nullsLast(Integer::compareTo)))
+                        .toList();
+
         return new QueueSupervisionView(
                 queue.getId(),
                 queue.getName(),
@@ -75,7 +82,8 @@ public class CallCenterSupervisionPanelService {
                 longestWaitSeconds,
                 answered.size(),
                 abandoned.size(),
-                serviceLevel);
+                serviceLevel,
+                waitingCallers);
     }
 
     private AgentSupervisionView buildAgentView(CcAgent agent, LocalDateTime todayStart) {

@@ -345,6 +345,11 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.desktop")
                         .requestMatchers("/api/v1/callcenter/interactions/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.desktop")
+                        // Redirect de chamada em fila (Fase 15.3) — resource dedicado, pedido
+                        // literal de "perfil específico"; precisa vir ANTES do matcher genérico
+                        // de /supervision/** (mesma ordem de rotate-secret/chat/test acima).
+                        .requestMatchers("/api/v1/callcenter/supervision/redirect/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.supervisao.redirect")
                         .requestMatchers("/api/v1/callcenter/supervision/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.supervisao")
                         .requestMatchers("/api/v1/callcenter/fluxos/**")

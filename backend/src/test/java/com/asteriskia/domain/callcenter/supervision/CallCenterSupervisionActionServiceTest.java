@@ -10,11 +10,14 @@ import static org.mockito.Mockito.when;
 import com.asteriskia.domain.callcenter.CcAgent;
 import com.asteriskia.domain.callcenter.CcAgentRepository;
 import com.asteriskia.domain.callcenter.CcExtension;
+import com.asteriskia.domain.callcenter.CcQueue;
+import com.asteriskia.domain.callcenter.CcQueueRepository;
 import com.asteriskia.domain.callcenter.interaction.AgentState;
 import com.asteriskia.domain.callcenter.interaction.CallCenterAgentStateService;
 import com.asteriskia.domain.user.AppUser;
 import com.asteriskia.domain.user.AppUserRepository;
 import com.asteriskia.integration.ami.AmiOriginateService;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * CallCenterSupervisionActionServiceTest — ações do supervisor (Fase 6): ChanSpy exige ramal
@@ -35,14 +39,22 @@ import org.springframework.security.core.context.SecurityContextHolder;
 class CallCenterSupervisionActionServiceTest {
 
     @Mock private CcAgentRepository agentRepository;
+    @Mock private CcQueueRepository queueRepository;
     @Mock private AppUserRepository appUserRepository;
     @Mock private CcSupervisionActionRepository actionRepository;
     @Mock private AmiOriginateService amiOriginateService;
     @Mock private CallCenterAgentStateService agentStateService;
+    @Mock private AmiQueueStatusClient amiQueueStatusClient;
 
     private CallCenterSupervisionActionService newService() {
         return new CallCenterSupervisionActionService(
-                agentRepository, appUserRepository, actionRepository, amiOriginateService, agentStateService);
+                agentRepository,
+                queueRepository,
+                appUserRepository,
+                actionRepository,
+                amiOriginateService,
+                agentStateService,
+                amiQueueStatusClient);
     }
 
     @AfterEach
@@ -161,6 +173,112 @@ class CallCenterSupervisionActionServiceTest {
         service.forceUnpause(10L);
 
         verify(agentStateService).setState(agent, AgentState.DISPONIVEL, null);
+    }
+
+    @Test
+    @DisplayName("whisper prefere o ramal do supervisor-como-agente (Fase 15.2) em vez do ramal do usuário")
+    void whisper_supervisorIsAlsoAgent_usesAgentExtension() {
+        var service = newService();
+        loginAs("supervisor", 1, 9001);
+        var supervisorAsAgent = agentWithExtension(2L, "4099");
+        when(agentRepository.findByUserId(1)).thenReturn(Optional.of(supervisorAsAgent));
+        var target = agentWithExtension(10L, "4001");
+        when(agentRepository.findById(10L)).thenReturn(Optional.of(target));
+        when(amiOriginateService.originateChanSpy("4099", "4001", "bw")).thenReturn(true);
+
+        service.whisper(10L);
+
+        verify(amiOriginateService).originateChanSpy("4099", "4001", "bw");
+    }
+
+    @Test
+    @DisplayName("whisper falha com mensagem clara quando supervisor não tem ramal de nenhuma fonte")
+    void whisper_supervisorWithoutAnyExtension_throwsClearError() {
+        var service = newService();
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("supervisor", null));
+        when(appUserRepository.findByUsername("supervisor"))
+                .thenReturn(Optional.of(AppUser.builder().id(1).username("supervisor").extension(null).build()));
+        when(agentRepository.findByUserId(1)).thenReturn(Optional.empty());
+        var target = agentWithExtension(10L, "4001");
+        when(agentRepository.findById(10L)).thenReturn(Optional.of(target));
+
+        assertThatThrownBy(() -> service.whisper(10L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Supervisor sem ramal provisionado");
+
+        verify(amiOriginateService, never()).originateChanSpy(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("redirectToQueue resolve o nome do canal ao vivo e chama Redirect via AMI")
+    void redirectToQueue_success_callsRedirectWithLiveChannelName() {
+        var service = newService();
+        loginAs("supervisor", 1, 9001);
+        var targetQueue = CcQueue.builder().id(2L).name("5002").displayName("Fila 2").build();
+        when(queueRepository.findById(2L)).thenReturn(Optional.of(targetQueue));
+        when(amiQueueStatusClient.queueStatus("5001"))
+                .thenReturn(List.of(new WaitingCallerView(1, "1199999999", 10L, "uid-1", "PJSIP/tronco-1")));
+        when(amiOriginateService.redirectChannel("PJSIP/tronco-1", "ramais-internos", "5002", 1)).thenReturn(true);
+
+        service.redirectToQueue("5001", "uid-1", 2L);
+
+        verify(amiOriginateService).redirectChannel("PJSIP/tronco-1", "ramais-internos", "5002", 1);
+        verify(actionRepository)
+                .save(
+                        org.mockito.ArgumentMatchers.argThat(
+                                a ->
+                                        a.getActionType() == SupervisionActionType.REDIRECT_QUEUE
+                                                && a.getTargetQueue() == targetQueue
+                                                && a.getAgent() == null));
+    }
+
+    @Test
+    @DisplayName("redirectToQueue lança 404 se o chamador não estiver mais na fila (já saiu/atendido)")
+    void redirectToQueue_callerNoLongerInQueue_throwsNotFound() {
+        var service = newService();
+        var targetQueue = CcQueue.builder().id(2L).name("5002").displayName("Fila 2").build();
+        when(queueRepository.findById(2L)).thenReturn(Optional.of(targetQueue));
+        when(amiQueueStatusClient.queueStatus("5001")).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.redirectToQueue("5001", "uid-1", 2L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("não encontrado");
+
+        verify(amiOriginateService, never()).redirectChannel(any(), any(), any(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    @DisplayName("redirectToAgent rejeita agente de destino sem ramal provisionado")
+    void redirectToAgent_targetWithoutExtension_throws() {
+        var service = newService();
+        var targetAgent = CcAgent.builder().id(20L).name("Agente Sem Ramal").build();
+        when(agentRepository.findById(20L)).thenReturn(Optional.of(targetAgent));
+
+        assertThatThrownBy(() -> service.redirectToAgent("5001", "uid-1", 20L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sem ramal provisionado");
+
+        verify(amiOriginateService, never()).redirectChannel(any(), any(), any(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    @DisplayName("redirectToAgent resolve o ramal do agente de destino e chama Redirect via AMI")
+    void redirectToAgent_success_callsRedirectToAgentExtension() {
+        var service = newService();
+        loginAs("supervisor", 1, 9001);
+        var targetAgent = agentWithExtension(20L, "4020");
+        when(agentRepository.findById(20L)).thenReturn(Optional.of(targetAgent));
+        when(amiQueueStatusClient.queueStatus("5001"))
+                .thenReturn(List.of(new WaitingCallerView(1, "1199999999", 10L, "uid-1", "PJSIP/tronco-1")));
+        when(amiOriginateService.redirectChannel("PJSIP/tronco-1", "ramais-internos", "4020", 1)).thenReturn(true);
+
+        service.redirectToAgent("5001", "uid-1", 20L);
+
+        verify(amiOriginateService).redirectChannel("PJSIP/tronco-1", "ramais-internos", "4020", 1);
+        verify(actionRepository)
+                .save(
+                        org.mockito.ArgumentMatchers.argThat(
+                                a -> a.getActionType() == SupervisionActionType.REDIRECT_AGENT && a.getTargetAgent() == targetAgent));
     }
 
     private CcAgent agentWithExtension(Long id, String extension) {

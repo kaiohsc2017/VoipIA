@@ -35,10 +35,11 @@ class CallCenterSupervisionPanelServiceTest {
     @Mock private CcAgentRepository agentRepository;
     @Mock private CcInteractionRepository interactionRepository;
     @Mock private CcAgentStateRepository agentStateRepository;
+    @Mock private AmiQueueStatusClient amiQueueStatusClient;
 
     private CallCenterSupervisionPanelService newService() {
         return new CallCenterSupervisionPanelService(
-                queueRepository, agentRepository, interactionRepository, agentStateRepository);
+                queueRepository, agentRepository, interactionRepository, agentStateRepository, amiQueueStatusClient);
     }
 
     private CcQueue queue(Long id, int timeoutSeconds) {
@@ -139,5 +140,41 @@ class CallCenterSupervisionPanelServiceTest {
         assertThat(view.state()).isEqualTo(AgentState.EM_ATENDIMENTO);
         assertThat(view.secondsInState()).isGreaterThanOrEqualTo(60);
         assertThat(view.answeredToday()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("waitingCallers vem ordenado por posição, mesmo que o AMI retorne fora de ordem")
+    void snapshot_waitingCallers_sortedByPosition() {
+        var service = newService();
+        var q = queue(1L, 15);
+        when(queueRepository.findAll()).thenReturn(List.of(q));
+        when(agentRepository.findAll()).thenReturn(List.of());
+        when(interactionRepository.findByQueueIdAndQueuedAtAfter(eq(1L), ArgumentMatchers.any()))
+                .thenReturn(List.of());
+        when(amiQueueStatusClient.queueStatus("5001"))
+                .thenReturn(
+                        List.of(
+                                new WaitingCallerView(2, "222", 30L, "uid-2", "PJSIP/tronco-2"),
+                                new WaitingCallerView(1, "111", 10L, "uid-1", "PJSIP/tronco-1")));
+
+        var view = service.snapshot().queues().get(0);
+
+        assertThat(view.waitingCallers()).extracting(WaitingCallerView::channelUniqueId)
+                .containsExactly("uid-1", "uid-2");
+    }
+
+    @Test
+    @DisplayName("waitingCallers vem vazio (não quebra) quando o AMI está indisponível")
+    void snapshot_waitingCallers_amiUnavailable_returnsEmpty() {
+        var service = newService();
+        var q = queue(1L, 15);
+        when(queueRepository.findAll()).thenReturn(List.of(q));
+        when(agentRepository.findAll()).thenReturn(List.of());
+        when(interactionRepository.findByQueueIdAndQueuedAtAfter(eq(1L), ArgumentMatchers.any()))
+                .thenReturn(List.of());
+
+        var view = service.snapshot().queues().get(0);
+
+        assertThat(view.waitingCallers()).isEmpty();
     }
 }

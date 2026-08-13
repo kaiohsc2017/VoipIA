@@ -293,6 +293,15 @@ export interface InteractionView {
 }
 
 // Painel de supervisão (Fase 6) — GET /api/v1/callcenter/supervision/snapshot
+// Fase 15.1 — chamador em espera ao vivo (AMI QueueStatus).
+export interface WaitingCallerView {
+  position?: number;
+  ani?: string;
+  waitSeconds?: number;
+  channelUniqueId: string;
+  channelName?: string;
+}
+
 export interface QueueSupervisionView {
   queueId: number;
   queueName: string;
@@ -302,6 +311,7 @@ export interface QueueSupervisionView {
   answeredToday: number;
   abandonedToday: number;
   serviceLevelPercent?: number;
+  waitingCallers: WaitingCallerView[];
 }
 
 export interface AgentSupervisionView {

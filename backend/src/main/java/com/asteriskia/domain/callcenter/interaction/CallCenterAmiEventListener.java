@@ -153,6 +153,7 @@ public class CallCenterAmiEventListener {
                 case "AgentConnect" -> onAgentConnect(event);
                 case "AgentComplete" -> onAgentComplete(event);
                 case "QueueCallerAbandon" -> onQueueCallerAbandon(event);
+                case "QueueCallerLeave" -> onQueueCallerLeave(event);
                 default -> {
                     // Demais eventos AMI (heartbeat, status de peer, etc.) — fora do escopo desta fase.
                 }
@@ -178,8 +179,39 @@ public class CallCenterAmiEventListener {
                                 .ani(event.get("CallerIDNum"))
                                 .businessUnit(queue == null ? null : queue.getBusinessUnit())
                                 .queuedAt(LocalDateTime.now())
+                                .positionOnJoin(parsePositionOrNull(event.get("Position")))
+                                .channelName(event.get("Channel"))
                                 .build());
         recordEvent(interaction, "QueueCallerJoin", event);
+    }
+
+    private Integer parsePositionOrNull(String raw) {
+        try {
+            return raw == null ? null : Integer.valueOf(raw);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Chamador saiu da fila sem ser atendido nem marcado como {@code Abandon} (ex: transbordo
+     * para outra fila via {@code QueueTransfer}, ou {@code Redirect} manual do supervisor —
+     * Fase 15.3). Sem tratar este evento, a interação ficava marcada como "esperando" pra sempre,
+     * porque só {@code QueueCallerAbandon} fechava {@code endedAt}. */
+    @Transactional
+    void onQueueCallerLeave(Map<String, String> event) {
+        var uniqueId = event.get("Uniqueid");
+        if (uniqueId == null) {
+            return;
+        }
+        interactionRepository
+                .findByChannelUniqueId(uniqueId)
+                .filter(interaction -> interaction.getAnsweredAt() == null && interaction.getEndedAt() == null)
+                .ifPresent(
+                        interaction -> {
+                            interaction.setEndedAt(LocalDateTime.now());
+                            interactionRepository.save(interaction);
+                            recordEvent(interaction, "QueueCallerLeave", event);
+                        });
     }
 
     @Transactional

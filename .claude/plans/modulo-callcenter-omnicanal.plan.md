@@ -908,12 +908,25 @@ widget informando login e confirmar que o widget não recebe nenhum dado do AD.
 
 ---
 
-### FASE 15 — Supervisão avançada _(P7, P8, P9)_
+### FASE 15 — Supervisão avançada _(P7, P8, P9)_ — ✅ **implementada, testada, revisada e deployada (2026-08-13)**
 
-**Nota de numeração de migration**: as referências a `V64` abaixo estão desatualizadas — V64
-(saída/outbound, Fase 23), V65 (NPS, Fase 21) e V66 (biblioteca de áudio, Fase 5c) já foram
-usadas. Use `V67` (confirme com `ls backend/src/main/resources/db/migration/ | sort -V | tail -1`
-antes de criar o arquivo).
+**Entregue**: `AmiQueueStatusClient` novo (conexão AMI dedicada e curta, `Events: on` +
+`ActionID`, correlacionando `QueueParams`→`QueueMember`→`QueueEntry`→`QueueStatusComplete` —
+decisão deliberada de não multiplexar no socket persistente do listener, por risco de
+concorrência); `QueueSupervisionView.waitingCallers` populado ao vivo, fail-open se o AMI cair.
+`QueueCallerLeave` passou a fechar `endedAt` (antes só `QueueCallerAbandon` era tratado — uma
+chamada que saía por transbordo ficava presa "esperando" pra sempre). Whisper corrigido:
+`resolveSupervisorExtension` prioriza o ramal do `CcAgent` do supervisor (4xxx) antes do
+`AppUser.extension` legado (9xxx), com erro claro se nenhum existir; rótulos da UI trocados
+pelos definidos no plano. `AmiOriginateService.redirectChannel` novo, resolvendo o nome do
+canal AO VIVO no instante da ação (nunca o valor persistido, evita corrida); RBAC dedicado
+`callcenter.supervisao.redirect`, separado de `callcenter.supervisao`. Migration **V67** (não
+V64, já ocupada pela Fase 23). `mvn test` 525/525 verde (18 novos, 0 regressão). `tsc --noEmit`
+e `npm run build` limpos nas duas SPAs.
+
+**Pendência aceita, documentada**: nenhuma validação com tráfego SIP real do whisper/redirect —
+mesma ressalva já registrada para todo o motor de voz desde a Fase 5b (sem chamada real
+disponível nesta VPS de dev).
 
 **Objetivo:** o supervisor vê cada cliente na fila e age sobre a chamada específica.
 **Complexidade:** **G**. **Depende da Fase 12** (sem agente/fila real não há o que supervisionar).

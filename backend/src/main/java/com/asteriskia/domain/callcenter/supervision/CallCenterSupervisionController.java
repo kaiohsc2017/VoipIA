@@ -62,4 +62,19 @@ public class CallCenterSupervisionController {
         actionService.forceUnpause(agentId);
         return ResponseEntity.noContent().build();
     }
+
+    /** Ação de "perfil específico" (Fase 15.3) — RBAC próprio {@code callcenter.supervisao.redirect},
+     * separado de {@code callcenter.supervisao} (ver matcher dedicado em SecurityConfig, antes do
+     * genérico de {@code /supervision/**}). */
+    @PostMapping("/redirect/queue")
+    public ResponseEntity<Void> redirectToQueue(@Valid @RequestBody RedirectQueueRequest request) {
+        actionService.redirectToQueue(request.sourceQueueName(), request.channelUniqueId(), request.targetQueueId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/redirect/agent")
+    public ResponseEntity<Void> redirectToAgent(@Valid @RequestBody RedirectAgentRequest request) {
+        actionService.redirectToAgent(request.sourceQueueName(), request.channelUniqueId(), request.targetAgentId());
+        return ResponseEntity.noContent().build();
+    }
 }

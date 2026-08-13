@@ -586,4 +586,14 @@ export const RELEASES: ReleaseEntry[] = [
       'Correção interna: número de dígito repetido no menu não é mais aceito silenciosamente, e trocar de nó no editor sem salvar não confunde mais os campos exibidos.',
     ],
   },
+  {
+    version: 'v1.65',
+    date: '2026-08-13',
+    changes: [
+      'Supervisão do Call Center: a tela de filas agora mostra, em tempo real, cada cliente esperando na fila com sua posição e tempo de espera.',
+      'Novas ações do supervisor sobre uma chamada específica em espera: mover para outra fila ou direcionar direto para um agente — liberadas só para o perfil com a permissão dedicada.',
+      'Os botões de escuta do supervisor ganham rótulos mais claros sobre o que cada um faz: falar com o agente sem o cliente ouvir, ouvir a chamada sem ninguém perceber, ou entrar na conversa com os dois participantes.',
+      'Correção interna: quando o próprio supervisor também é agente do Call Center, a função de falar com o agente passa a usar o ramal correto em vez de falhar silenciosamente.',
+    ],
+  },
 ];

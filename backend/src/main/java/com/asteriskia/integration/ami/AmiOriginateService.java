@@ -144,6 +144,33 @@ public class AmiOriginateService {
         return sendAction(action);
     }
 
+    /**
+     * Retira um canal ativo de onde estiver (ex: em fila) e o redireciona para outro
+     * contexto/extensão/prioridade do dialplan (Fase 15.3 — Call Center, ação de supervisão).
+     *
+     * @param channelName nome REAL do canal Asterisk (ex: {@code PJSIP/tronco-0000001a}) — a
+     *     ação {@code Redirect} exige o nome, não o {@code Uniqueid}.
+     * @param context contexto de destino no dialplan (ex: {@code ramais-internos})
+     * @param exten extensão de destino (ramal de fila {@code _5XXX} ou de agente {@code _4XXX})
+     * @param priority prioridade de destino no dialplan
+     * @return true se a ação foi enviada com sucesso ao AMI
+     */
+    public boolean redirectChannel(String channelName, String context, String exten, int priority) {
+        String safeChannel = sanitizeAmiField(channelName);
+        String safeContext = sanitizeAmiField(context);
+        String safeExten = sanitizeAmiField(exten);
+
+        Map<String, String> action = new LinkedHashMap<>();
+        action.put("Action", "Redirect");
+        action.put("ActionID", UUID.randomUUID().toString());
+        action.put("Channel", safeChannel);
+        action.put("Context", safeContext);
+        action.put("Exten", safeExten);
+        action.put("Priority", String.valueOf(priority));
+
+        return sendAction(action);
+    }
+
     // ---------------------------------------------------------------------------
     // Privado — protocolo AMI TCP raw
     // ---------------------------------------------------------------------------

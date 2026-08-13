@@ -6,5 +6,9 @@ public enum SupervisionActionType {
     WHISPER,
     BARGE,
     FORCE_PAUSE,
-    FORCE_UNPAUSE
+    FORCE_UNPAUSE,
+    /** Retirar chamada da fila e redirecionar para outra fila (Fase 15.3). */
+    REDIRECT_QUEUE,
+    /** Retirar chamada da fila e redirecionar direto para um agente (Fase 15.3). */
+    REDIRECT_AGENT
 }

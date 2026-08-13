@@ -173,7 +173,7 @@ export default function App() {
             {currentTab === 'desktop' && (
               <DesktopAgenteTab isEmbedded={isEmbedded} callState={callState} sendCallAction={sendCallAction} />
             )}
-            {currentTab === 'supervisao' && <SupervisaoTab canWrite={session.hasWrite('callcenter.supervisao')} />}
+            {currentTab === 'supervisao' && <SupervisaoTab canWrite={session.hasWrite('callcenter.supervisao')} canRedirect={session.hasWrite('callcenter.supervisao.redirect')} />}
             {currentTab === 'fluxos' && <FluxosTab canWrite={session.hasWrite('callcenter.fluxos')} />}
             {currentTab === 'insightsChamadas' && (
               <InsightsChamadasTab pendingDrillDown={pendingDrillDown} onDrillDownConsumed={handleDrillDownConsumed} />
