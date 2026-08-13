@@ -640,8 +640,31 @@ ramal. Suíte 466/466 verde, deployado e validado em produção.
 
 ---
 
-### FASE 24 — Canais de chat e flow builder de chat _(D16)_
+### FASE 24 — Canais de chat e flow builder de chat _(D16)_ — ✅ **implementada, testada, revisada e deployada (2026-08-13)**
 **Complexidade: G.** Depende da **5c** (o editor precisa da ramificação por handle nomeado).
+
+**Nota de entrega**: CRUD de canais (24.1) e o `ChatChannelDriver`/nó `coletar_texto` (24.2) —
+tempo real por polling, sem WebSocket, como já previsto no texto original. Revisão de segurança
++ Java + React em paralelo (`ecc:security-reviewer`/`ecc:java-reviewer`/`ecc:react-reviewer`)
+achou e corrigiu antes do deploy: (1) **HIGH** — sessão de bot podia ser "ressuscitada" depois de
+um agente/ADMIN encerrar a conversa manualmente (nenhuma guarda de status em
+`postBotMessage`/`transferToHumanQueue`/`closeByBot`, e `ChatChannelDriver.onSessionEnded()` era
+código morto); corrigido com guarda de status `"bot"` nos três métodos + evento
+`ChatSessionEndedEvent` que destrava a thread do fluxo; (2) **HIGH** — `ChatBotSessionStartedEvent`
+publicado ainda dentro da transação de `startSession` podia disparar a thread do fluxo antes do
+commit (READ_COMMITTED), falha intermitente na primeira mensagem do bot — listener virou
+`@TransactionalEventListener(AFTER_COMMIT, fallbackExecution=true)`; (3) **HIGH** — nó
+`coletar_texto` com resultado `COLLECTED` e sem aresta de saída nunca chamava `driver.end()`,
+prendendo a sessão em `status="bot"` para sempre (nenhum agente conseguia assumir); corrigido
+espelhando o padrão `followOrEnd` já usado por `menu_opcoes`; (4) **MEDIUM** — thread daemon por
+sessão sem pool/limite (vetor de esgotamento de threads) trocada por `ExecutorService` com pool
+limitado (30) e shutdown gracioso; (5) **MEDIUM** — `update()` de canal não checava código
+duplicado (500 genérico em vez de 400 claro); `split(",")` do CORS não fazia `trim()`; formulário
+de canal sem `aria-label` nos inputs novos e sem campos para mensagem de saudação/ausência —
+todos corrigidos. Backend 568/568 verde (18 testes novos), `tsc --noEmit`/`npm run build` do
+`callcenter-platform/frontend` limpos. Deployado (`docker compose up -d --build backend frontend`,
+migration V68 confirmada em `flyway_schema_history`) e validado em produção via curl com JWT
+forjado: `GET /callcenter/chat/channels` 200 para ADMIN, 403 sem token.
 
 #### 24.1 Tela de canais
 - CRUD de `cc_chat_channels`: nome, tipo (`webchat` por ora), fila padrão, horário de

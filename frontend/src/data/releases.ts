@@ -604,4 +604,13 @@ export const RELEASES: ReleaseEntry[] = [
       'Cada agente só enxerga o próprio histórico e métricas — nunca dados de outro colega.',
     ],
   },
+  {
+    version: 'v1.67',
+    date: '2026-08-13',
+    changes: [
+      'Chat do Call Center ganha uma tela de canais: cada canal agora define sua própria fila padrão e, opcionalmente, um fluxo de atendimento automático (bot) do editor de fluxos — antes a fila do widget de chat vinha de uma configuração fixa única.',
+      'Editor de fluxos ganha um novo nó exclusivo do canal de chat: "Coletar texto", para registrar uma resposta livre digitada pelo cliente numa variável do fluxo.',
+      'Correção interna: uma conversa atendida por um fluxo automático não ficava mais travada para sempre quando o fluxo terminava sem transferir para uma fila humana.',
+    ],
+  },
 ];
