@@ -535,4 +535,28 @@ export const RELEASES: ReleaseEntry[] = [
       'Correção de texto: a aba Fluxos não diz mais "sem execução real ainda" — a execução real já existe desde a entrega anterior.',
     ],
   },
+  {
+    version: 'v1.59',
+    date: '2026-08-13',
+    changes: [
+      'Call Center ganha a aba "Configurações → Ranges de ramal e pesquisa de satisfação": as faixas de numeração de agente, fila e fluxo deixam de ser fixas no código e passam a ser configuráveis pela tela, com aviso de quantos ramais ficam fora da faixa nova (nada é realocado automaticamente).',
+      'Novo interruptor global de pesquisa de satisfação (NPS) — desligado aqui, nenhuma fila pesquisa; será usado pela pesquisa de satisfação por chamada, em entrega futura.',
+      'Correção interna: telas de agente/fila/fluxo do Call Center agora respondem "não encontrado" corretamente para um id inexistente, em vez de um erro genérico de servidor.',
+    ],
+  },
+  {
+    version: 'v1.60',
+    date: '2026-08-13',
+    changes: [
+      'Padronização interna: gravações do Call Center, transcript de chat e uploads de análise sob demanda passam a ficar organizados sob um único diretório de mídia do sistema — sem mudança visível para o usuário.',
+    ],
+  },
+  {
+    version: 'v1.61',
+    date: '2026-08-13',
+    changes: [
+      'Softphone do agente do Call Center: cada atendente passa a registrar com a credencial do próprio ramal (em vez de uma senha única compartilhada), e ganha um painel de chamada fixo no Desktop do Agente — atender, encerrar, mudo, teclado e discagem manual — dentro da mesma tela onde já acompanha estado e tabulação.',
+      'Correção interna: a credencial SIP do agente é limitada em frequência de leitura e nunca fica exposta a outro agente.',
+    ],
+  },
 ];

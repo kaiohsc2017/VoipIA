@@ -67,8 +67,8 @@ Rede Docker: `asteriskia-net` — bridge `172.16.7.0/24`
 # Alterar código → commitar → rebuildar apenas o container afetado
 git add <arquivos>
 git commit -m "descrição clara"
-git push origin main
-git push azure main   # espelho obrigatório no Azure DevOps (grp-atg-bu-ti-corporativa) — todo commit
+git push origin desenvolvimento
+git push azure desenvolvimento   # espelho obrigatório no Azure DevOps (grp-atg-bu-ti-corporativa) — todo commit
 
 # Rebuildar serviço específico (mais rápido)
 docker compose up -d --build <nome-do-serviço>
@@ -438,6 +438,115 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > de verificação de sempre continuam válidos: `SIP_PUBLIC_IP` injetado no `pjsip.conf`,
 > `external_media_address`/`external_signaling_address` não vazios, portas RTP `15000-15500/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
+
+### ✅ Fase 13 do plano Call Center Parte III — softphone do agente (2026-08-13) — deployada e validada em produção
+Softphone WebRTC do shell do Telecom passa a registrar com a **credencial do próprio ramal do
+agente de Call Center** (4xxx), não mais uma senha única compartilhada — e ganha um painel de
+chamada fixo no Desktop do Agente da SPA do Call Center, arquitetura de **um único UA SIP** por
+sessão de navegador (D10-A do plano).
+- **Credencial (D9-A)**: `GET /callcenter/agentes/me/sip-credentials` resolve sempre pelo agente do
+  usuário logado (`currentAgent()`, nunca aceita id do chamador) — RBAC `callcenter.desktop`,
+  limitado a 10 requisições/min por usuário (`SipCredentialsRateLimiter`, mesmo padrão em memória
+  de `PublicChatRateLimiter`), auditado a cada leitura. `POST /agentes/{id}/rotate-secret` (RBAC
+  `callcenter.ramais`, não `callcenter.desktop` — rotacionar não é ação do próprio agente sobre
+  si mesmo) gera novo secret e espelha no auth ARA (`PsAuth`) na mesma transação.
+- **`Softphone.tsx`**: lógica JsSIP extraída para `hooks/useSipPhone.ts`, reusável. Ordem de
+  resolução de credencial: (1) agente de Call Center → ramal 4xxx + secret próprio; (2) claim
+  `extension` do JWT + `VITE_SIP_PASSWORD` (ramais legados 9xxx); (3) nenhum dos dois → estado
+  explícito `'no-extension'`, **sem** o fallback silencioso para `'9001'` que existia antes (o
+  achado de segurança que motivou esta fase — o softphone registrava silenciosamente no ramal de
+  outra pessoa).
+- **Painel fixo no Desktop do Agente (D10-A)**: `useShellBridge` ganhou as mensagens `callState`
+  (shell→iframe) e `callAction` (iframe→shell), com a mesma tripla validação de origem já usada
+  pelo resto da ponte. Quando a SPA do Call Center roda **embutida** no shell, o painel só reflete
+  o estado do softphone do shell e envia comandos via `callBridge.ts` (pub/sub em memória,
+  `Softphone.tsx` ↔ `CallCenterPage.tsx`, mesma janela) — nunca instancia o próprio UA. Quando a
+  SPA roda **direta** em `/callcenter/` (sem shell), instancia o próprio `useSipPhone`, agora com
+  um parâmetro `enabled` para nunca haver dois UAs registrados no mesmo ramal.
+- **1 achado real CRITICAL/HIGH corrigido antes do deploy** (`ecc:security-reviewer` +
+  `ecc:react-reviewer`, unânimes): a primeira versão de `DesktopAgenteTab.tsx` chamava
+  `useSipPhone()` sem condição — como o endpoint ARA do ramal usa `maxContacts(1)` com
+  `removeExisting("yes")`, abrir a aba Desktop do Agente embutida no shell registraria um segundo
+  UA que **evictava o registro real do softphone do shell**, podendo derrubar uma chamada em
+  andamento. Corrigido passando `enabled=!isEmbedded` ao hook — achado de ambas as revisões, já
+  corrigido no código antes de qualquer uma delas terminar.
+- **1 achado MEDIUM corrigido**: dois `setTimeout` que retornavam o estado para `'idle'` (em
+  `endSession` e no handler de reconexão de WebSocket) não eram rastreados em ref e não eram
+  limpos no cleanup do efeito — podiam disparar `setState` após desmonte. Corrigido com
+  `idleTimerRef`, nas duas cópias do hook.
+- **1 achado LOW corrigido**: `useShellBridge.ts` aceitava o payload de `callState` só checando
+  truthiness, sem validar o shape — agora exige `typeof data.payload.status === 'string'`, mesmo
+  padrão já usado por `navigate`/`tabChanged` no mesmo arquivo.
+- Suíte completa do backend **459/459 verde** (3 novos testes do rate limiter, 0 regressão),
+  `tsc --noEmit` e `npm run build` das duas SPAs limpos. Deployado
+  (`docker compose up -d --build backend frontend`) e validado em produção via curl com JWT
+  forjado: `GET /sip-credentials` 403 sem token, 404 (não 500) para usuário sem vínculo de agente;
+  `POST /rotate-secret` 403 sem token; rate limit confirmado (10 requisições passam, a 11ª retorna
+  429). Validação visual no navegador não foi feita (sem acesso a browser nesta sessão).
+
+### ✅ Fase 20 do plano Call Center Parte III — padronização de mídia em /opt/AsteriskIA/media/ (2026-08-13) — deployada e validada em produção
+Move a mídia de produção do Call Center e do Insights (gravação de voz, transcript de chat, upload
+de "análise sob demanda") de caminhos fora do repo (`/opt/gravacoes/*`, `/opt/audio_upload`) para
+`/opt/AsteriskIA/media/{gravacao,chat,anuncios,sobdemanda}`, sob a raiz do repositório.
+- **Risco central tratado primeiro**: mídia sob a raiz do repo é dado de cliente/PII, e o repo é
+  espelhado em GitHub e Azure DevOps — `media/` nunca pode ser comitado. `.gitignore` (`media/*` +
+  `!media/.gitignore`) verificado com `git check-ignore -v` **antes** de qualquer bind mount
+  existir, mais `scripts/git-hooks/pre-commit-media-guard.sh` instalado como
+  `.git/hooks/pre-commit` (segunda camada, recusa qualquer arquivo staged sob `media/`).
+- **1 achado real de segurança (HIGH) corrigido antes do deploy**: a primeira versão do hook usava
+  `--diff-filter=ACM`, que exclui renomeação (`git mv <arquivo-já-rastreado> media/...` passava
+  sem bloqueio, sem precisar de `-f`) — corrigido para `ACMR`, validado em repositório git isolado
+  reproduzindo o cenário exato do achado.
+- **`add.txt` também pedia `/opt/AsteriskIA/media/sobdemanda`** para uploads de análise sob
+  demanda — mapeado para o portal do supervisor (Quality Management, V40,
+  `INSIGHTS_UPLOAD_AUDIO_DIR`, antes `/opt/audio_upload`), incorporado à fase por ser a mesma
+  classe de problema.
+- **1 bug real de leitura, descoberto antes de migrar dado nenhum**: diferente da gravação de voz
+  (`resolveAudioFile` usa só o nome-base, indiferente ao prefixo persistido), o streaming de
+  upload sob demanda (`InsightsController.pathRelativeToBase`) compara o caminho persistido contra
+  o **baseDir atual** para preservar o subcaminho `{batchId}/{arquivo}` — sem um `UPDATE` real (não
+  cosmético) de `call_audio_files.wav_path`, todo upload já enviado pararia de ser encontrado após
+  mover os arquivos físicos. Migration **V63** cobre isso, escopado só a `source='upload'`.
+- **1 bug real de execução, encontrado ao migrar o único arquivo real desta VPS**:
+  `rsync -a origem/ destino/` sincroniza os atributos do próprio diretório de destino contra a
+  origem, sobrescrevendo o `chown root:asteriskia-app` + `chmod 2770` (setgid) aplicado antes da
+  cópia — bug latente desde a Fase 11 (nunca disparado lá porque a origem estava vazia).
+  `scripts/migrar-gravacoes.sh` (generalizado para N pares origem/destino) corrigido reaplicando a
+  permissão depois do `rsync`.
+- Suíte completa do backend **452/452 verde** (0 regressão). Deployado
+  (`docker compose up -d --build backend insights frontend` + `docker compose up -d asterisk` para
+  regenerar `extensions.conf`) e validado em produção: dialplan gerado já com `REC_DIR` novo,
+  `dialplan reload` sem erro, e o streaming do único áudio real desta VPS (upload sob demanda)
+  funcionando ponta a ponta pelo novo caminho (200, tamanho correto).
+
+### ✅ Fase 19 do plano Call Center Parte III — tela de Gestão (ranges + NPS global) (2026-08-13) — deployada e validada em produção
+Primeira fase do plano revisado em `.claude/plans/callcenter-parte-iii-revisado.plan.md`, que
+confrontou o pedido novo do usuário (`add.txt`) com o código já entregue — 7 telas pedidas de novo
+já existiam (confirmado na Fase 0-III via Chrome headless, sem nenhuma exceção JS) e saíram do
+escopo; esta fase cobre uma lacuna real.
+- **Migration V62** (`cc_settings`, chave/valor genérico) + `CcSettingsService` — as faixas de
+  ramal de agente (`4000-4999`), fila (`5000-5999`) e fluxo (`6000-6999`), antes constantes fixas
+  em `CallCenterAgentService`/`CallCenterQueueService`/validação de `CallCenterFlowService`, agora
+  são lidas de configuração, com o valor atual como default (deploy sem configurar se comporta
+  igual a antes). **Mudar o range nunca realoca ramal existente** (decisão do usuário, D20) — a
+  tela só avisa quantos ramais ativos ficaram fora da faixa nova.
+- **Interruptor global de pesquisa de satisfação (NPS)** em `cc_settings` — desligado, nenhuma
+  fila pesquisa; será consumido pela pesquisa de satisfação por chamada numa fase futura.
+- **Correção transversal do padrão de erro**: `findById` de agente, fila e fluxo, e o `update` de
+  skill, passaram de `IllegalArgumentException` (caía no catch-all e virava 500 genérico) para
+  `ResponseStatusException(404)` — mesmo padrão já usado em `CcChatService`.
+- **1 achado real de segurança corrigido antes do deploy** (`ecc:security-reviewer`): a validação
+  de range aceitava faixa negativa (`start=-1000, end=-1` passava porque, em Java, `-1000 % 1000
+  == 0`), permitindo a um usuário com `PERM_WRITE_callcenter.config` persistir uma faixa
+  inutilizável e travar para sempre a alocação de ramal/fila/fluxo daquele tipo — corrigido com
+  piso explícito (`start >= 1000`).
+- **3 achados reais de qualidade corrigidos no frontend** (`ecc:react-reviewer`): botão "Salvar"
+  do modal de range sem `disabled` (permitia enviar `NaN`→`null` ao backend sem aviso claro);
+  banner de aviso sem auto-dismiss; non-null assertion numa leitura que pode ser `undefined`.
+- Suíte completa do backend **451/451 verde** (0 regressão), `tsc --noEmit` e `npm run build` da
+  SPA do Call Center limpos. Validado em produção via curl com JWT forjado inline (GET 200 para
+  ADMIN, 403 sem token; PUT com range inválido/colidindo com o Telecom → 400 claro) e validação
+  visual via Chrome headless (tela renderiza sem exceção JS).
 
 ### ✅ Submenu Insights/Agentes na Sidebar do Telecom (2026-08-01) — deployada e validada em navegador headless
 Pedido do usuário: Insights e Agentes eram itens *folha* na Sidebar — clicar abria um iframe em
