@@ -3,6 +3,7 @@ package com.asteriskia.domain.callcenter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,8 +38,14 @@ class CallCenterQueueServiceTest {
     @Mock private BusinessUnitRepository businessUnitRepository;
     @Mock private AraQueueRepository araQueueRepository;
     @Mock private AraQueueMemberRepository araQueueMemberRepository;
+    @Mock private CcSettingsService settingsService;
 
     private CallCenterQueueService newService() {
+        // Fase 19 (Parte III): range deixou de ser constante estática — lenient() porque nem
+        // todo teste chega a validar o range (ex.: falha antecipada por nome duplicado).
+        lenient()
+                .when(settingsService.getRange(CcSettingsService.RangeType.QUEUE))
+                .thenReturn(new CcSettingsService.ExtensionRange(5000, 5999));
         var service =
                 new CallCenterQueueService(
                         queueRepository,
@@ -47,7 +54,8 @@ class CallCenterQueueServiceTest {
                         extensionRepository,
                         businessUnitRepository,
                         araQueueRepository,
-                        araQueueMemberRepository);
+                        araQueueMemberRepository,
+                        settingsService);
         setRecordingBasePath(service, "/opt/telecom/gravacao");
         return service;
     }
@@ -232,7 +240,10 @@ class CallCenterQueueServiceTest {
         when(queueRepository.findById(1L)).thenReturn(Optional.of(queue));
         var service = newService();
 
-        assertThatThrownBy(() -> service.members(1L)).isInstanceOf(IllegalArgumentException.class);
+        // Fase 19 (Parte III): findById passou a lançar ResponseStatusException(404), não
+        // IllegalArgumentException — antes caía no catch-all e virava 500 genérico.
+        assertThatThrownBy(() -> service.members(1L))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
     }
 
     @Test
@@ -356,6 +367,9 @@ class CallCenterQueueServiceTest {
         when(queueRepository.findById(1L)).thenReturn(Optional.of(sourceQueue));
 
         var request = new QueueRequest("5011", "Fila Nova", null, null, null, null, null, 1L);
-        assertThatThrownBy(() -> service.create(request)).isInstanceOf(IllegalArgumentException.class);
+        // Fase 19 (Parte III): findById (usado por copyMembers) passou a lançar
+        // ResponseStatusException(404), não IllegalArgumentException.
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
     }
 }

@@ -1,5 +1,6 @@
 package com.asteriskia.domain.callcenter.flow;
 
+import com.asteriskia.domain.callcenter.CcSettingsService;
 import com.asteriskia.domain.masterdata.BusinessUnit;
 import com.asteriskia.domain.masterdata.BusinessUnitContext;
 import com.asteriskia.domain.masterdata.BusinessUnitRepository;
@@ -31,6 +32,25 @@ public class CallCenterFlowService {
     private final CcFlowVersionRepository versionRepository;
     private final BusinessUnitRepository businessUnitRepository;
     private final FlowGraphValidator graphValidator;
+    private final CcSettingsService settingsService;
+
+    /** Range vigente de ramal de fluxo (Fase 19 — configurável, default 6000-6999). */
+    private void validateExtensionRange(String entryExtension) {
+        if (entryExtension == null) {
+            return;
+        }
+        int num;
+        try {
+            num = Integer.parseInt(entryExtension.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Ramal de fluxo inválido: " + entryExtension);
+        }
+        var range = settingsService.getRange(CcSettingsService.RangeType.FLOW);
+        if (num < range.start() || num > range.end()) {
+            throw new IllegalArgumentException(
+                    "Ramais de fluxo devem usar um número entre " + range.start() + " e " + range.end() + ".");
+        }
+    }
 
     @Transactional(readOnly = true)
     public List<CcFlow> findAll() {
@@ -56,6 +76,7 @@ public class CallCenterFlowService {
                         f -> {
                             throw new IllegalArgumentException("Já existe um fluxo chamado \"" + name + "\".");
                         });
+        validateExtensionRange(request.entryExtension());
         if (request.entryExtension() != null) {
             flowRepository
                     .findByEntryExtension(request.entryExtension())
@@ -103,6 +124,7 @@ public class CallCenterFlowService {
                         f -> {
                             throw new IllegalArgumentException("Já existe um fluxo chamado \"" + name + "\".");
                         });
+        validateExtensionRange(request.entryExtension());
         if (request.entryExtension() != null) {
             flowRepository
                     .findByEntryExtension(request.entryExtension())
@@ -292,7 +314,11 @@ public class CallCenterFlowService {
         return authentication == null ? "sistema" : authentication.getName();
     }
 
-    private IllegalArgumentException notFound(Long id) {
-        return new IllegalArgumentException("Fluxo não encontrado: " + id);
+    // Fase 19 (Parte III) — antes lançava IllegalArgumentException, que caía no catch-all de
+    // RuntimeException do GlobalExceptionHandler e virava 500 genérico para um id inexistente.
+    // Mesma correção já aplicada em CallCenterAgentService/CallCenterQueueService.
+    private org.springframework.web.server.ResponseStatusException notFound(Long id) {
+        return new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_FOUND, "Fluxo não encontrado: " + id);
     }
 }

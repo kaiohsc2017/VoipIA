@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
 import { ConfirmModal } from './ConfirmModal';
-import type { CcPauseReason, PauseReasonRequest, CcDisposition, DispositionRequest } from '../api/types';
+import type {
+  CcPauseReason, PauseReasonRequest, CcDisposition, DispositionRequest,
+  CcRangeType, CcSettingsView, CcUpdateRangeResult,
+} from '../api/types';
 
 const EMPTY_PAUSE: PauseReasonRequest = { code: '', label: '', productive: false, active: true };
 const EMPTY_DISPOSITION: DispositionRequest = { code: '', label: '', active: true };
@@ -20,11 +23,168 @@ export function ConfiguracoesTab({ canWrite }: { canWrite: boolean }) {
         <p>Motivos de pausa (Desktop do Agente) e tabulações (encerramento do ACW)</p>
       </div>
       <div className="page-body">
+        <RangesAndNpsSection canWrite={canWrite} />
+        <div style={{ height: 32 }} />
         <PauseReasonsSection canWrite={canWrite} />
         <div style={{ height: 32 }} />
         <DispositionsSection canWrite={canWrite} />
       </div>
     </>
+  );
+}
+
+/**
+ * RangesAndNpsSection — ranges de ramal de agente/fila/fluxo (Fase 19 do plano Call Center Parte
+ * III) e o interruptor global de pesquisa de satisfação (consumido pela Fase 21). Mudar um range
+ * nunca realoca ramal existente (D20) — a tela só avisa quantos ficam fora da faixa nova.
+ */
+function RangesAndNpsSection({ canWrite }: { canWrite: boolean }) {
+  const [settings, setSettings] = useState<CcSettingsView | null>(null);
+  const [editing, setEditing] = useState<{ type: CcRangeType; start: string; end: string } | null>(null);
+  const [warning, setWarning] = useState<{ type: CcRangeType; outsideCount: number } | null>(null);
+  const [msg, setMsg] = useState('');
+
+  const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 5000); };
+  const flashWarning = (w: { type: CcRangeType; outsideCount: number }) => {
+    setWarning(w);
+    setTimeout(() => setWarning(null), 8000);
+  };
+  const load = () => {
+    api.get<CcSettingsView>('/callcenter/settings')
+      .then(({ data }) => setSettings(data))
+      .catch(() => setSettings(null));
+  };
+  useEffect(load, []);
+
+  const rangeOf = (type: CcRangeType) =>
+    settings && (type === 'AGENT' ? settings.agentRange : type === 'QUEUE' ? settings.queueRange : settings.flowRange);
+
+  const openEdit = (type: CcRangeType) => {
+    const range = rangeOf(type);
+    if (!range) return;
+    setEditing({ type, start: String(range.start), end: String(range.end) });
+    setWarning(null);
+  };
+
+  const editingStart = editing ? Number(editing.start) : NaN;
+  const editingEnd = editing ? Number(editing.end) : NaN;
+  const editingIsValid = Number.isFinite(editingStart) && Number.isFinite(editingEnd) && editingStart < editingEnd;
+
+  const saveRange = () => {
+    if (!editing || !editingIsValid) return;
+    api.put<CcUpdateRangeResult>(`/callcenter/settings/ranges/${editing.type.toLowerCase()}`, { start: editingStart, end: editingEnd })
+      .then(({ data }) => {
+        load();
+        flashWarning({ type: editing.type, outsideCount: data.extensionsOutsideRange });
+        setEditing(null);
+      })
+      .catch(err => flash(getErrorMessage(err, 'Erro ao atualizar range.')));
+  };
+
+  const toggleNps = (enabled: boolean) => {
+    api.put('/callcenter/settings/nps-enabled', { enabled })
+      .then(load)
+      .catch(err => flash(getErrorMessage(err, 'Erro ao atualizar o interruptor de NPS.')));
+  };
+
+  if (!settings) return null;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <h2 style={{ margin: 0 }}>Ranges de ramal e pesquisa de satisfação</h2>
+      </div>
+      {msg && <div className="flash-message" style={{ background: 'var(--bg-danger-soft)', color: 'var(--clr-danger)' }}>{msg}</div>}
+      {warning && (
+        <div className="flash-message" style={{ background: 'var(--bg-warning-soft, #fff8e1)', color: 'var(--clr-warning, #a06a00)' }}>
+          Range atualizado. {warning.outsideCount > 0
+            ? `${warning.outsideCount} ramal(is) ativo(s) ficaram fora da nova faixa — nada foi realocado, eles continuam funcionando com o ramal atual.`
+            : 'Nenhum ramal ativo ficou fora da nova faixa.'}
+        </div>
+      )}
+      <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>
+        Mudar um range vale só para as próximas alocações — ninguém que já tem ramal é realocado.
+        Cada faixa precisa ser um bloco de milhar completo (ex.: 4000-4999), é o único formato que
+        o dialplan atual roteia sem edição manual.
+      </p>
+      <div className="table-wrapper">
+        <table>
+          <thead><tr><th>Faixa</th><th>Início</th><th>Fim</th>{canWrite && <th></th>}</tr></thead>
+          <tbody>
+            {(['AGENT', 'QUEUE', 'FLOW'] as CcRangeType[]).map(type => {
+              const range = rangeOf(type);
+              if (!range) return null;
+              return (
+                <tr key={type}>
+                  <td>{range.label}</td>
+                  <td>{range.start}</td>
+                  <td>{range.end}</td>
+                  {canWrite && (
+                    <td>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openEdit(type)}><Pencil size={14} /></button>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ marginTop: 20 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={settings.npsEnabledGlobally}
+            disabled={!canWrite}
+            onChange={e => toggleNps(e.target.checked)}
+          />
+          Pesquisa de satisfação (NPS) ativada globalmente
+        </label>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>
+          Desligado aqui, nenhuma fila pesquisa, mesmo que tenha uma pesquisa configurada. Ligado,
+          cada fila decide se e qual pesquisa usar (aba Filas).
+        </p>
+      </div>
+
+      {canWrite && editing && (
+        <div className="modal-overlay" onClick={() => setEditing(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Editar faixa de {rangeOf(editing.type)?.label}</h2>
+              <button className="btn-close" onClick={() => setEditing(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label className="form-label">Início</label>
+                  <input
+                    className="form-input" type="number" value={editing.start}
+                    onChange={e => setEditing(v => v && ({ ...v, start: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Fim</label>
+                  <input
+                    className="form-input" type="number" value={editing.end}
+                    onChange={e => setEditing(v => v && ({ ...v, end: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+            {!editingIsValid && (
+              <p style={{ color: 'var(--clr-danger)', fontSize: 13, margin: '0 16px' }}>
+                Início e fim devem ser números válidos, com início menor que fim.
+              </p>
+            )}
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setEditing(null)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={saveRange} disabled={!editingIsValid}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

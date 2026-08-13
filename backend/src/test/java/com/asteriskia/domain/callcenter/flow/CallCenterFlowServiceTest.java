@@ -3,9 +3,11 @@ package com.asteriskia.domain.callcenter.flow;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.asteriskia.domain.callcenter.CcSettingsService;
 import com.asteriskia.domain.masterdata.BusinessUnit;
 import com.asteriskia.domain.masterdata.BusinessUnitRepository;
 import java.util.List;
@@ -34,9 +36,16 @@ class CallCenterFlowServiceTest {
     @Mock private CcFlowVersionRepository versionRepository;
     @Mock private BusinessUnitRepository businessUnitRepository;
     @Mock private FlowGraphValidator graphValidator;
+    @Mock private CcSettingsService settingsService;
 
     private CallCenterFlowService newService() {
-        return new CallCenterFlowService(flowRepository, versionRepository, businessUnitRepository, graphValidator);
+        // Fase 19 (Parte III): range de ramal de fluxo deixou de ser fixo em código —
+        // lenient() porque a maioria dos testes desta classe não passa entryExtension.
+        lenient()
+                .when(settingsService.getRange(CcSettingsService.RangeType.FLOW))
+                .thenReturn(new CcSettingsService.ExtensionRange(6000, 6999));
+        return new CallCenterFlowService(
+                flowRepository, versionRepository, businessUnitRepository, graphValidator, settingsService);
     }
 
     @AfterEach
@@ -289,7 +298,10 @@ class CallCenterFlowServiceTest {
         flow.setBusinessUnit(BusinessUnit.builder().id(2).build());
         when(flowRepository.findById(1L)).thenReturn(Optional.of(flow));
 
-        assertThatThrownBy(() -> service.findById(1L)).isInstanceOf(IllegalArgumentException.class);
+        // Fase 19 (Parte III): findById passou a lançar ResponseStatusException(404), não
+        // IllegalArgumentException — antes caía no catch-all e virava 500 genérico.
+        assertThatThrownBy(() -> service.findById(1L))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
     }
 
     @Test
@@ -302,7 +314,8 @@ class CallCenterFlowServiceTest {
         var version = CcFlowVersion.builder().id(20L).flow(flow).versionNumber(1).status(FlowStatus.ARCHIVED).build();
         when(flowRepository.findById(1L)).thenReturn(Optional.of(flow));
 
-        assertThatThrownBy(() -> service.findVersion(1L, 20L)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.findVersion(1L, 20L))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
         verify(versionRepository, org.mockito.Mockito.never()).findById(any());
     }
 }

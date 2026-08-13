@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -20,4 +21,12 @@ public interface CcFlowRepository extends JpaRepository<CcFlow, Long>, JpaSpecif
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select f from CcFlow f where f.id = :id")
     Optional<CcFlow> findByIdForUpdate(Long id);
+
+    /** Quantos fluxos já cadastrados têm ramal de entrada fora de [start, end] (Fase 19 — D20). */
+    @Query(value = """
+        SELECT count(*) FROM cc_flows
+        WHERE entry_extension IS NOT NULL
+          AND entry_extension::int NOT BETWEEN :start AND :end
+        """, nativeQuery = true)
+    long countOutsideRange(@Param("start") int start, @Param("end") int end);
 }

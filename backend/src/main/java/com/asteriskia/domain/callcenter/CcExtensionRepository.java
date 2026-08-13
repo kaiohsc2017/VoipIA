@@ -25,4 +25,14 @@ public interface CcExtensionRepository extends JpaRepository<CcExtension, Long> 
         ORDER BY s.ext LIMIT 1
         """, nativeQuery = true)
     Integer findNextExtension(@Param("start") int start, @Param("end") int end);
+
+    /**
+     * Quantos ramais de agente já provisionados ficam fora de [start, end] (Fase 19 — D20: mudar
+     * o range não realoca nada; a tela só avisa quanto ficou fora).
+     */
+    @Query(value = """
+        SELECT count(*) FROM cc_extensions
+        WHERE extension::int NOT BETWEEN :start AND :end
+        """, nativeQuery = true)
+    long countOutsideRange(@Param("start") int start, @Param("end") int end);
 }

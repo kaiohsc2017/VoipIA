@@ -39,9 +39,9 @@ class CallCenterAgentProvisioningServiceTest {
     @DisplayName("provisionForUser aloca o próximo ramal livre e cria o agente")
     void provisionForUser_allocatesExtensionAndCreatesAgent() {
         when(agentRepository.findByUserId(10)).thenReturn(Optional.empty());
-        when(extensionRepository.findNextExtension(
-                        CallCenterAgentService.RANGE_START, CallCenterAgentService.RANGE_END))
-                .thenReturn(4001);
+        when(agentService.extensionRange())
+                .thenReturn(new CcSettingsService.ExtensionRange(4000, 4999));
+        when(extensionRepository.findNextExtension(4000, 4999)).thenReturn(4001);
         var createdAgent = CcAgent.builder().id(99L).name("Fulano").build();
         when(agentService.create(any())).thenReturn(createdAgent);
 
@@ -59,9 +59,9 @@ class CallCenterAgentProvisioningServiceTest {
     @DisplayName("provisionForUser insere o agente em cada fila com a prioridade informada")
     void provisionForUser_addsToEachQueueWithPriority() {
         when(agentRepository.findByUserId(10)).thenReturn(Optional.empty());
-        when(extensionRepository.findNextExtension(
-                        CallCenterAgentService.RANGE_START, CallCenterAgentService.RANGE_END))
-                .thenReturn(4001);
+        when(agentService.extensionRange())
+                .thenReturn(new CcSettingsService.ExtensionRange(4000, 4999));
+        when(extensionRepository.findNextExtension(4000, 4999)).thenReturn(4001);
         var createdAgent = CcAgent.builder().id(99L).build();
         when(agentService.create(any())).thenReturn(createdAgent);
 
@@ -92,9 +92,9 @@ class CallCenterAgentProvisioningServiceTest {
     @DisplayName("provisionForUser falha com erro claro se a faixa de ramais estiver esgotada")
     void provisionForUser_extensionRangeExhausted_throwsConflict() {
         when(agentRepository.findByUserId(10)).thenReturn(Optional.empty());
-        when(extensionRepository.findNextExtension(
-                        CallCenterAgentService.RANGE_START, CallCenterAgentService.RANGE_END))
-                .thenReturn(null);
+        when(agentService.extensionRange())
+                .thenReturn(new CcSettingsService.ExtensionRange(4000, 4999));
+        when(extensionRepository.findNextExtension(4000, 4999)).thenReturn(null);
 
         var service = service();
         assertThatThrownBy(() -> service.provisionForUser(10, "Fulano", 1, List.of()))
@@ -108,9 +108,9 @@ class CallCenterAgentProvisioningServiceTest {
     @DisplayName("provisionForUser converte falha do addMember em erro claro (400), não deixa cair no catch-all")
     void provisionForUser_queueFailure_convertsToResponseStatusException() {
         when(agentRepository.findByUserId(10)).thenReturn(Optional.empty());
-        when(extensionRepository.findNextExtension(
-                        CallCenterAgentService.RANGE_START, CallCenterAgentService.RANGE_END))
-                .thenReturn(4001);
+        when(agentService.extensionRange())
+                .thenReturn(new CcSettingsService.ExtensionRange(4000, 4999));
+        when(extensionRepository.findNextExtension(4000, 4999)).thenReturn(4001);
         when(agentService.create(any())).thenReturn(CcAgent.builder().id(99L).build());
         when(queueService.addMember(eq(999L), eq(99L), any(Integer.class)))
                 .thenThrow(new IllegalArgumentException("Fila não encontrada: 999"));

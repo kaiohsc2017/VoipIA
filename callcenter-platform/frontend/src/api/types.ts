@@ -675,3 +675,25 @@ export interface AgentPeriodComparison {
   availableSecondsDelta: number;
   occupancyPctDelta: number | null;
 }
+
+// Fase 19 (Parte III) — ranges de ramal configuráveis + interruptor global de NPS.
+export type CcRangeType = 'AGENT' | 'QUEUE' | 'FLOW';
+
+export interface CcRangeView {
+  type: CcRangeType;
+  label: string;
+  start: number;
+  end: number;
+}
+
+export interface CcSettingsView {
+  agentRange: CcRangeView;
+  queueRange: CcRangeView;
+  flowRange: CcRangeView;
+  npsEnabledGlobally: boolean;
+}
+
+export interface CcUpdateRangeResult {
+  range: CcRangeView;
+  extensionsOutsideRange: number;
+}

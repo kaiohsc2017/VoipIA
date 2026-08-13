@@ -12,8 +12,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * CallCenterQueueService — CRUD de filas do Call Center (Fase 2). Espelha cada fila e cada
@@ -24,14 +26,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CallCenterQueueService {
 
-    private static final int RANGE_START = 5000;
-    private static final int RANGE_END = 5999;
     private static final int MAX_TIMEOUT_SECONDS = 3600;
     // Subdiretório fixo (dentro do mesmo caminho configurável de gravação) para os áudios de
     // aviso de gravação (Fase 3) — evita que consentMessagePath aponte para um arquivo arbitrário
     // do container Asterisk. Lê a mesma property de CallCenterRecordingService para não divergir
     // se CALLCENTER_RECORDING_PATH for alterado.
-    @Value("${app.callcenter.recording-path:/opt/gravacoes/audio}")
+    @Value("${app.callcenter.recording-path:/opt/AsteriskIA/media/gravacao}")
     private String recordingBasePath;
     // Estratégias nativas do app_queue do Asterisk — mesma lista oferecida no <select> do
     // frontend (FilasTab.tsx). Allowlist evita gravar um valor arbitrário em queues.strategy
@@ -46,6 +46,7 @@ public class CallCenterQueueService {
     private final BusinessUnitRepository businessUnitRepository;
     private final AraQueueRepository araQueueRepository;
     private final AraQueueMemberRepository araQueueMemberRepository;
+    private final CcSettingsService settingsService;
 
     @Transactional(readOnly = true)
     public List<CcQueue> findAll() {
@@ -55,14 +56,22 @@ public class CallCenterQueueService {
 
     @Transactional(readOnly = true)
     public CcQueue findById(Long id) {
-        var queue =
-                queueRepository
-                        .findById(id)
-                        .orElseThrow(() -> new IllegalArgumentException("Fila não encontrada: " + id));
+        // Fase 19 (Parte III) — ResponseStatusException(404), não IllegalArgumentException:
+        // antes caía no catch-all de RuntimeException e virava 500 genérico para id inexistente.
+        var queue = queueRepository.findById(id).orElseThrow(() -> queueNotFound(id));
         if (!inBusinessUnitScope(queue)) {
-            throw new IllegalArgumentException("Fila não encontrada: " + id);
+            throw queueNotFound(id);
         }
         return queue;
+    }
+
+    private ResponseStatusException queueNotFound(Long id) {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Fila não encontrada: " + id);
+    }
+
+    /** Range vigente de ramal de fila (Fase 19 — configurável, default 5000-5999). */
+    public CcSettingsService.ExtensionRange extensionRange() {
+        return settingsService.getRange(CcSettingsService.RangeType.QUEUE);
     }
 
     /** Mesmo achado de segurança do CallCenterAgentService — findById é reusado por
@@ -370,9 +379,10 @@ public class CallCenterQueueService {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Número de fila inválido: " + name);
         }
-        if (num < RANGE_START || num > RANGE_END) {
+        var range = extensionRange();
+        if (num < range.start() || num > range.end()) {
             throw new IllegalArgumentException(
-                    "Filas devem usar um número entre " + RANGE_START + " e " + RANGE_END + ".");
+                    "Filas devem usar um número entre " + range.start() + " e " + range.end() + ".");
         }
     }
 

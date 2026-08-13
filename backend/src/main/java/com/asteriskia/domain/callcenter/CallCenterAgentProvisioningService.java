@@ -29,7 +29,8 @@ public class CallCenterAgentProvisioningService {
     private final CcAgentRepository agentRepository;
 
     /**
-     * Aloca o próximo ramal livre em {@code 4000-4999}, cria o {@link CcAgent} (reusando {@link
+     * Aloca o próximo ramal livre no range vigente de agente (Fase 19 — configurável, default
+     * {@code 4000-4999}), cria o {@link CcAgent} (reusando {@link
      * CallCenterAgentService#create}) e insere o agente em cada fila da lista, com a prioridade
      * informada. Idempotente por usuário: se já existir um {@link CcAgent} para este {@code
      * userId} (índice único de V61), falha com mensagem clara em vez de duplicar.
@@ -47,14 +48,14 @@ public class CallCenterAgentProvisioningService {
                                             + existing.getId() + ").");
                         });
 
-        Integer nextExtension =
-                extensionRepository.findNextExtension(
-                        CallCenterAgentService.RANGE_START, CallCenterAgentService.RANGE_END);
+        // Fase 19 (Parte III): faixa lida de CcSettingsService (default 4000-4999 se nunca
+        // configurada) — deixou de ser constante estática para permitir range configurável.
+        var range = agentService.extensionRange();
+        Integer nextExtension = extensionRepository.findNextExtension(range.start(), range.end());
         if (nextExtension == null) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "Faixa de ramais de agente (" + CallCenterAgentService.RANGE_START + "-"
-                            + CallCenterAgentService.RANGE_END + ") está esgotada.");
+                    "Faixa de ramais de agente (" + range.start() + "-" + range.end() + ") está esgotada.");
         }
 
         CcAgent agent;

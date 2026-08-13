@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /** CallCenterSkillController — CRUD simples de skills (Fase 2; roteamento por skill entra na Fase 5). */
 @RestController
@@ -38,10 +39,15 @@ public class CallCenterSkillController {
 
     @PutMapping("/{id}")
     public ResponseEntity<CcSkill> update(@PathVariable Long id, @Valid @RequestBody SkillRequest request) {
+        // Fase 19 (Parte III) — ResponseStatusException(404), não IllegalArgumentException:
+        // antes caía no catch-all de RuntimeException e virava 500 genérico para id inexistente.
         var skill =
                 repository
                         .findById(id)
-                        .orElseThrow(() -> new IllegalArgumentException("Skill não encontrada: " + id));
+                        .orElseThrow(
+                                () ->
+                                        new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND, "Skill não encontrada: " + id));
         skill.setName(request.name());
         skill.setDescription(request.description());
         return ResponseEntity.ok(repository.save(skill));
