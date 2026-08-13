@@ -439,6 +439,65 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > `external_media_address`/`external_signaling_address` não vazios, portas RTP `15000-15500/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
 
+### ✅ Fase 21 do plano Call Center Parte III — pesquisa de satisfação/NPS (2026-08-13) — deployada e validada em produção
+Maior fase do plano (complexidade G) — entregue por completo, incluindo a capacidade de
+gravação real via ARI (inédita no projeto) e a chamada direta do backend Java à API do Gemini
+(antes só o serviço Python fazia STT/LLM).
+- **4 modos, escolhidos na criação da pesquisa (D17)**: `DTMF_SIMPLES`/`DTMF_MULTI` (dígito por
+  pergunta, zero custo), `FALADA_IA` (resposta falada, gravada e depois transcrita+classificada
+  por IA de forma **assíncrona** — nunca durante a chamada), `DTMF_COMENTARIO` (nota por dígito +
+  comentário gravado opcional, transcrito só sob demanda, D21, nunca automático). Migration
+  **V65**: `cc_surveys`/`cc_survey_questions`/`cc_survey_responses`, `cc_queues.survey_id` +
+  `nps_alert_enabled`/`nps_alert_threshold`, `cc_interactions.nps_score`,
+  `cc_agg_queue_daily`/`cc_agg_agent_daily.avg_nps_score`, mais o scope `callcenter_nps` no
+  Financeiro (CHECK constraint de `financeiro_cost_alerts`).
+- **Disparo pós-atendimento sem motor novo**: `Queue(${EXTEN},F(nps,${EXTEN},1))` (nos dois
+  contextos `_5XXX`) manda o cliente para o contexto `[nps]` só quando o **agente** desliga
+  primeiro — `Stasis(callcenter,nps-${EXTEN})` reusa o mesmo app ARI do Flow Builder;
+  `AriEventListener` distingue pelo prefixo `"nps-"` no argumento e chama
+  `CallCenterNpsExecutionService` em vez do motor de fluxo. O nó `pesquisa_satisfacao` (antes
+  `implementado=false`) também passou a funcionar dentro de um fluxo comum — os dois caminhos
+  compartilham `CallCenterSurveyRunner`, sem duplicar lógica de pergunta/resposta/nota.
+- **Capacidade de gravação ARI nova** (`AriClient.record`, `AriRecordingTracker` espelhando
+  `AriPlaybackTracker`, evento `RecordingFinished`) — grava no spool do próprio Asterisk
+  (`/var/spool/asterisk/recording`, volume novo `asterisk_ari_recordings` compartilhado com o
+  backend) e o backend move o arquivo pronto para `/opt/AsteriskIA/media/gravacao/nps` (mesma
+  raiz de mídia permanente da Fase 20), apagando o original do spool.
+- **Nota desnormalizada + alerta em tempo real**: `cc_interactions.nps_score` é recalculada a
+  cada resposta com nota (`CallCenterSurveyRunner.recomputeInteractionNpsScore`) — dispara
+  Telegram na hora se a fila tiver `nps_alert_threshold` configurado e a nota vier igual ou
+  abaixo dele, sem esperar um job diário (diferente do padrão de `CallCenterSlaAlertService`,
+  decisão desta fase por a pesquisa já ser um evento discreto, não uma taxa contínua).
+- **Transcrição/classificação assíncrona** (`CallCenterNpsTranscriptionScheduler`, a cada 2 min):
+  chama o Gemini direto via `WebClient`, reaproveitando a mesma chave já configurada em
+  IA→Provedores (`AiProviderService.getRawKey("gemini")`) — nunca durante a chamada. Custo real
+  calculado via `AiModelPricingRepository` (mesmo cálculo de `InsightsCostService`) e visível na
+  nova aba "Pesquisas (NPS)" do Call Center, seção "Alerta de gasto de IA".
+- **4 achados reais corrigidos antes do deploy** (`ecc:security-reviewer` + `ecc:java-reviewer`,
+  em paralelo): (1) **CRITICAL** — a chave do Gemini ia na query string (`?key=...`); qualquer
+  erro HTTP (`WebClientResponseException`) inclui a URI completa na mensagem, vazando a chave em
+  log de erro — mesma classe de achado já corrigida antes neste projeto (API key do Gemini em
+  `llm.py`), agora fechada também no primeiro ponto do backend Java que chama o Gemini direto
+  (movida para header `x-goog-api-key`, e o catch genérico do scheduler não usa mais
+  `e.getMessage()`); (2) **MEDIUM** — o áudio gravado nunca era de fato movido do spool
+  transiente do ARI para `media/gravacao/nps` (a intenção estava documentada no
+  `docker-compose.yml` mas a lógica nunca foi escrita) — corrigido, com teste real de arquivo
+  temporário confirmando a movimentação; (3-4) **HIGH** (2×) — `CallCenterSurveyRunner.run` e
+  `CallCenterNpsTranscriptionScheduler.processOne` estavam `@Transactional` envolvendo I/O
+  bloqueante (até ~65s esperando o cliente na chamada; até 30s de chamada HTTP ao Gemini),
+  prendendo uma conexão do pool sem fazer trabalho de banco na maior parte do tempo — corrigido
+  removendo a anotação do nível externo (cada `save()` já é transacional por conta própria via
+  Spring Data, e o recálculo de nota tem sua própria transação curta).
+- Suíte completa do backend **491/491 verde** (24 novos, 0 regressão), `tsc --noEmit` e
+  `npm run build` da SPA do Call Center limpos. Deployado (`docker compose up -d --build backend
+  frontend` + `docker compose up -d --build asterisk`, migration V65 confirmada, dialplan reload
+  sem erro) e validado em produção via curl: CRUD de pesquisa funcionando ponta a ponta (criada e
+  desativada de novo — sem hard delete, só `active=false`), scope `callcenter_nps` do Financeiro
+  respondendo 200.
+- **Gap aceito, documentado**: nenhum teste desta fase envolveu tráfego de voz real (mesma
+  ressalva já registrada para todo o motor ARI/Stasis desde a Fase 5b) — nomes de campo do
+  evento `RecordingFinished` não confirmados contra este Asterisk real.
+
 ### ✅ Fase 23 do plano Call Center Parte III — chamadas de saída (2026-08-13) — deployada e validada em produção
 Agente que disca um número externo pelo próprio softphone (ramal 4xxx) passa a gerar uma
 `cc_interactions` como qualquer chamada receptiva — `direction` (`INBOUND`|`OUTBOUND`, migration

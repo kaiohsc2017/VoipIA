@@ -567,4 +567,13 @@ export const RELEASES: ReleaseEntry[] = [
       'Correção interna: reforça a proteção dos endpoints internos usados pela própria central telefônica e corrige o estado do agente após uma chamada de saída não atendida.',
     ],
   },
+  {
+    version: 'v1.63',
+    date: '2026-08-13',
+    changes: [
+      'Nova aba "Pesquisas (NPS)" no Call Center: crie pesquisas de satisfação pós-atendimento com 4 formatos — nota por dígito (uma ou várias perguntas), resposta falada, ou nota mais comentário gravado opcional — e associe cada fila à pesquisa que ela deve usar, com alerta no Telegram quando a nota vier baixa.',
+      'A nota da pesquisa passa a aparecer no histórico da chamada e nos relatórios de fila e de agente.',
+      'Correção interna: a chave de acesso à IA usada na transcrição de respostas faladas nunca mais aparece em nenhum log de erro, e a gravação da resposta passa a ficar organizada junto com as demais gravações do sistema.',
+    ],
+  },
 ];

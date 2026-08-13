@@ -477,7 +477,20 @@ desta VPS funcionando ponta a ponta pelo novo caminho.
 
 ---
 
-### FASE 21 — Pesquisa de satisfação (NPS) _(add.txt)_
+### FASE 21 — Pesquisa de satisfação (NPS) _(add.txt)_ — ✅ **implementada por completo, testada, revisada e deployada (2026-08-13)**
+
+**Entregue integralmente** (nenhum modo cortado — usuário pediu explicitamente a fase completa,
+incluindo a capacidade de gravação ARI que originalmente estava proposta como corte de escopo):
+detalhe completo em `CLAUDE.md`. Os 4 modos (D17), disparo pós-fila via `Queue(F(...))` sem motor
+novo, nó `pesquisa_satisfacao` implementado, gravação real via ARI (capacidade nova), transcrição
+assíncrona via Gemini (primeira chamada direta do backend Java à API, fora do serviço Python),
+nota desnormalizada + alerta Telegram em tempo real, agregados 9a/9b com `avg_nps_score`, frente
+`callcenter_nps` no Financeiro. 4 achados reais (1 CRITICAL — vazamento de API key em log de
+erro: 2 HIGH — transação de banco presa em I/O bloqueante; 1 MEDIUM — áudio nunca movido pra
+media/gravacao) corrigidos antes do deploy pela revisão paralela de segurança + Java. Suíte
+491/491 verde, deployado e validado em produção.
+
+
 **Complexidade: G.** Depende da **19** (interruptor) e da **12** ✅. **Quarta.**
 
 #### 21.1 Modelo de pesquisa configurável _(D17)_
