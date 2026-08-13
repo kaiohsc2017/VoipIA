@@ -57,6 +57,15 @@ public class CcAggAgentDaily {
     @Column(name = "avg_talk_seconds")
     private BigDecimal avgTalkSeconds;
 
+    /** Chamadas OUTBOUND atendidas pelo destino neste dia (Fase 23) — answered/avgTalkSeconds
+     * acima ficam restritos a INBOUND desde essa fase, para não misturar os dois sentidos. */
+    @Builder.Default
+    @Column(name = "outbound_placed", nullable = false)
+    private Integer outboundPlaced = 0;
+
+    @Column(name = "avg_outbound_talk_seconds")
+    private BigDecimal avgOutboundTalkSeconds;
+
     @Builder.Default
     @Column(name = "occupied_seconds", nullable = false)
     private Integer occupiedSeconds = 0;

@@ -7,6 +7,7 @@ import com.asteriskia.domain.callcenter.interaction.CcAgentState;
 import com.asteriskia.domain.callcenter.interaction.CcAgentStateRepository;
 import com.asteriskia.domain.callcenter.interaction.CcInteraction;
 import com.asteriskia.domain.callcenter.interaction.CcInteractionRepository;
+import com.asteriskia.domain.callcenter.interaction.Direction;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
@@ -70,10 +71,25 @@ public class CallCenterAgentAggregationService {
                         .multiply(BigDecimal.valueOf(100))
                         .setScale(2, RoundingMode.HALF_UP);
 
+        // Fase 23: findByAgentIdAndQueuedAtBetween traz os dois sentidos (INBOUND/OUTBOUND) —
+        // sem o corte por direção abaixo, uma chamada de saída se misturaria no receptivo.
         List<CcInteraction> interactions = interactionRepository.findByAgentIdAndQueuedAtBetween(
                 agent.getId(), dayStart, dayEnd);
-        List<CcInteraction> answered = interactions.stream().filter(i -> i.getAnsweredAt() != null).toList();
+        List<CcInteraction> inbound = interactions.stream()
+                .filter(i -> i.getDirection() == Direction.INBOUND)
+                .toList();
+        List<CcInteraction> outbound = interactions.stream()
+                .filter(i -> i.getDirection() == Direction.OUTBOUND)
+                .toList();
+
+        List<CcInteraction> answered = inbound.stream().filter(i -> i.getAnsweredAt() != null).toList();
         BigDecimal avgTalkSeconds = average(answered.stream()
+                .filter(i -> i.getEndedAt() != null)
+                .map(i -> Duration.between(i.getAnsweredAt(), i.getEndedAt()).toSeconds())
+                .toList());
+
+        List<CcInteraction> outboundAnswered = outbound.stream().filter(i -> i.getAnsweredAt() != null).toList();
+        BigDecimal avgOutboundTalkSeconds = average(outboundAnswered.stream()
                 .filter(i -> i.getEndedAt() != null)
                 .map(i -> Duration.between(i.getAnsweredAt(), i.getEndedAt()).toSeconds())
                 .toList());
@@ -84,6 +100,8 @@ public class CallCenterAgentAggregationService {
         agg.setBusinessUnit(agent.getBusinessUnit());
         agg.setAnswered(answered.size());
         agg.setAvgTalkSeconds(avgTalkSeconds);
+        agg.setOutboundPlaced(outboundAnswered.size());
+        agg.setAvgOutboundTalkSeconds(avgOutboundTalkSeconds);
         agg.setOccupiedSeconds((int) occupiedSeconds);
         agg.setAvailableSeconds((int) availableSeconds);
         agg.setPausedSeconds((int) pausedSeconds);

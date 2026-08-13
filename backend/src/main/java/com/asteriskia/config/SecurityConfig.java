@@ -341,6 +341,15 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/callcenter/chat/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.chat")
 
+                        // Endpoints internos (dialplan/serviços via X-Internal-Key: ura-routing,
+                        // ingestão de gravação, chamada de saída — Fase 23) exigem ROLE_INTERNAL
+                        // explicitamente, não authenticated() genérico — sem este matcher, um
+                        // JWT comum de qualquer usuário do Telecom (mesmo sem nenhuma permissão
+                        // de Call Center) já satisfaz authenticated() e conseguia chamar esses
+                        // endpoints como se fosse o próprio Asterisk (achado de
+                        // ecc:security-reviewer na Fase 23, pré-existente mas fechado aqui).
+                        .requestMatchers("/api/v1/internal/**").hasAuthority("ROLE_INTERNAL")
+
                         // Todos os demais endpoints exigem apenas autenticação (JWT ou InternalKey)
                         .anyRequest().authenticated()
                 )

@@ -234,6 +234,8 @@ export interface InteractionView {
   id: number;
   queueName?: string;
   ani?: string;
+  // Fase 23 — INBOUND (fila) ou OUTBOUND (ativo manual do agente, sem fila).
+  direction: 'INBOUND' | 'OUTBOUND';
   queuedAt?: string;
   answeredAt?: string;
   endedAt?: string;

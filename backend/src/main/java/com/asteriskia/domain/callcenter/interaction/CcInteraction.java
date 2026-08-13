@@ -5,6 +5,8 @@ import com.asteriskia.domain.callcenter.CcQueue;
 import com.asteriskia.domain.masterdata.BusinessUnit;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -43,6 +45,12 @@ public class CcInteraction {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "queue_id")
     private CcQueue queue;
+
+    /** INBOUND (fila, {@code queue} sempre preenchido) ou OUTBOUND (ativo manual do agente,
+     * {@code queue} sempre nulo — Fase 23). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "direction", nullable = false, length = 10)
+    private Direction direction;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "agent_id")

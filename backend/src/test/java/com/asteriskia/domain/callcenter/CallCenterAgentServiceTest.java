@@ -110,6 +110,10 @@ class CallCenterAgentServiceTest {
         assertThat(endpoint.getAors()).isEqualTo("4001");
         assertThat(endpoint.getAuth()).isEqualTo("4001-auth");
         assertThat(endpoint.getContext()).isEqualTo("ramais-internos");
+        // Fase 23 — callerid fixo no endpoint (mesmo padrão dos ramais estáticos em
+        // pjsip.conf.template): sem isso, CALLERID(num) viria do From/Contact que o cliente SIP
+        // mandasse no INVITE, permitindo se passar por outro agente numa chamada de saída.
+        assertThat(endpoint.getCallerid()).contains("Agente Teste").contains("4001");
 
         verify(psAuthRepository).save(any());
         verify(psAorRepository).save(any());

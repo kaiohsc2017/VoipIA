@@ -142,6 +142,7 @@ class CallCenterAgentAggregationServiceTest {
     void aggregateDate_answeredInteractions_computesAvgTalkSeconds() {
         LocalDateTime queuedAt = DATE.atTime(10, 0);
         CcInteraction i = CcInteraction.builder()
+                .direction(com.asteriskia.domain.callcenter.interaction.Direction.INBOUND)
                 .queuedAt(queuedAt).answeredAt(queuedAt.plusSeconds(5)).endedAt(queuedAt.plusSeconds(65))
                 .build();
         when(agentRepository.findByActiveTrue()).thenReturn(List.of(agent));
@@ -156,6 +157,35 @@ class CallCenterAgentAggregationServiceTest {
         CcAggAgentDaily saved = captor.getValue();
         assertThat(saved.getAnswered()).isEqualTo(1);
         assertThat(saved.getAvgTalkSeconds()).isEqualByComparingTo("60.00");
+    }
+
+    @Test
+    @DisplayName("Fase 23 — interação OUTBOUND não entra em answered/avgTalkSeconds (INBOUND), só em outboundPlaced/avgOutboundTalkSeconds")
+    void aggregateDate_outboundInteraction_countsSeparatelyFromInbound() {
+        LocalDateTime queuedAt = DATE.atTime(10, 0);
+        CcInteraction inbound = CcInteraction.builder()
+                .direction(com.asteriskia.domain.callcenter.interaction.Direction.INBOUND)
+                .queuedAt(queuedAt).answeredAt(queuedAt.plusSeconds(5)).endedAt(queuedAt.plusSeconds(65))
+                .build();
+        CcInteraction outbound = CcInteraction.builder()
+                .direction(com.asteriskia.domain.callcenter.interaction.Direction.OUTBOUND)
+                .queuedAt(queuedAt).answeredAt(queuedAt.plusSeconds(3)).endedAt(queuedAt.plusSeconds(23))
+                .build();
+        when(agentRepository.findByActiveTrue()).thenReturn(List.of(agent));
+        when(aggRepository.findByAgentIdAndDate(1L, DATE)).thenReturn(Optional.empty());
+        when(interactionRepository.findByAgentIdAndQueuedAtBetween(eq(1L), any(), any()))
+                .thenReturn(List.of(inbound, outbound));
+        when(agentStateRepository.findOverlapping(1L, DAY_START, DAY_END)).thenReturn(List.of());
+
+        service.aggregateDate(DATE);
+
+        var captor = org.mockito.ArgumentCaptor.forClass(CcAggAgentDaily.class);
+        verify(aggRepository).save(captor.capture());
+        CcAggAgentDaily saved = captor.getValue();
+        assertThat(saved.getAnswered()).isEqualTo(1);
+        assertThat(saved.getAvgTalkSeconds()).isEqualByComparingTo("60.00");
+        assertThat(saved.getOutboundPlaced()).isEqualTo(1);
+        assertThat(saved.getAvgOutboundTalkSeconds()).isEqualByComparingTo("20.00");
     }
 
     @Test

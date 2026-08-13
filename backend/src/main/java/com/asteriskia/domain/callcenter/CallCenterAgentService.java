@@ -106,7 +106,7 @@ public class CallCenterAgentService {
         agent = agentRepository.save(agent);
 
         var secret = ExtensionSecretGenerator.generate();
-        provisionAra(extensionNumber, secret);
+        provisionAra(extensionNumber, secret, agent.getName());
 
         var extension =
                 CcExtension.builder()
@@ -210,7 +210,7 @@ public class CallCenterAgentService {
         return newSecret;
     }
 
-    private void provisionAra(String extension, String secret) {
+    private void provisionAra(String extension, String secret, String agentName) {
         psAuthRepository.save(
                 PsAuth.builder()
                         .id(extension + "-auth")
@@ -233,6 +233,13 @@ public class CallCenterAgentService {
                         .forceRport("yes")
                         .rewriteContact("yes")
                         .identifyBy("username,auth_username")
+                        // Fixo no endpoint, mesmo padrão já usado pelos ramais estáticos
+                        // (1001/1002/9001/9002 em pjsip.conf.template) — sem isso, CALLERID(num)
+                        // vem de qualquer From/Contact que o cliente SIP mandar no INVITE, e a
+                        // Fase 23 (chamada de saída) correlaciona a interação por esse valor:
+                        // um cliente SIP malicioso usando as credenciais deste ramal poderia se
+                        // passar por outro agente só mudando o CallerID enviado.
+                        .callerid("\"" + agentName + "\" <" + extension + ">")
                         .build());
     }
 

@@ -173,6 +173,7 @@ public class CallCenterAmiEventListener {
                 interactionRepository.save(
                         CcInteraction.builder()
                                 .queue(queue)
+                                .direction(Direction.INBOUND)
                                 .channelUniqueId(uniqueId)
                                 .ani(event.get("CallerIDNum"))
                                 .businessUnit(queue == null ? null : queue.getBusinessUnit())

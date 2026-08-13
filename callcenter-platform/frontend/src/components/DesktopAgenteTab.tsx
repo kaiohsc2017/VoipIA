@@ -195,9 +195,15 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
           </div>
           {interaction ? (
             <div className="form-grid">
-              <div><span style={{ color: 'var(--text-muted)' }}>Fila:</span> {interaction.queueName ?? '—'}</div>
-              <div><span style={{ color: 'var(--text-muted)' }}>ANI:</span> {interaction.ani ?? '—'}</div>
-              <div><span style={{ color: 'var(--text-muted)' }}>Na fila desde:</span> {interaction.queuedAt ? new Date(interaction.queuedAt).toLocaleTimeString('pt-BR') : '—'}</div>
+              {interaction.direction === 'OUTBOUND' ? (
+                <div><span style={{ color: 'var(--text-muted)' }}>Chamada de saída para:</span> {interaction.ani ?? '—'}</div>
+              ) : (
+                <>
+                  <div><span style={{ color: 'var(--text-muted)' }}>Fila:</span> {interaction.queueName ?? '—'}</div>
+                  <div><span style={{ color: 'var(--text-muted)' }}>ANI:</span> {interaction.ani ?? '—'}</div>
+                </>
+              )}
+              <div><span style={{ color: 'var(--text-muted)' }}>{interaction.direction === 'OUTBOUND' ? 'Discada às:' : 'Na fila desde:'}</span> {interaction.queuedAt ? new Date(interaction.queuedAt).toLocaleTimeString('pt-BR') : '—'}</div>
               <div><span style={{ color: 'var(--text-muted)' }}>Atendida às:</span> {interaction.answeredAt ? new Date(interaction.answeredAt).toLocaleTimeString('pt-BR') : '—'}</div>
             </div>
           ) : (

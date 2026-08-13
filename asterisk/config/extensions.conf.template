@@ -138,6 +138,30 @@ exten => _6XXX,n,Answer()
 exten => _6XXX,n,Stasis(callcenter,${EXTEN})
 exten => _6XXX,n,Hangup()
 
+; Chamada de saída — ativo manual do agente do Call Center (Fase 23). Catch-all: só casa o que
+; nenhum padrão específico acima já capturou (1000/1001/_2XXX/_10XX/_4XXX/_5XXX/_6XXX). Restrito
+; a ramal de agente (4XXX, mesmo range hardcoded do padrão _4XXX acima — Fase 19 já aceitou essa
+; limitação de o dialplan não ler faixa dinâmica) — sem essa checagem, QUALQUER ramal deste
+; contexto (inclusive 1001/1002 de teste) discaria de saída pelo tronco sem limite algum, achado
+; de segurança (HIGH) da revisão desta fase: a chamada real saía mesmo quando o backend não
+; registrava a interação. ${CALLERID(num)} é fixo por ramal (callerid do PsEndpoint, provisionado
+; pelo backend) — não é controlado por quem disca.
+exten => _X.,1,NoOp(=== Ramal ${CALLERID(num)}: chamada de saída para ${EXTEN} ===)
+exten => _X.,n,GotoIf($[${REGEX("^4[0-9][0-9][0-9]$",${CALLERID(num)})}]?permitido:bloqueado)
+exten => _X.,n(bloqueado),NoOp(=== Discagem de saída bloqueada — ramal ${CALLERID(num)} fora da faixa de agente de Call Center ===)
+exten => _X.,n,Hangup(21)
+exten => _X.,n(permitido),Set(MY_UUID=${UNIQUEID})
+exten => _X.,n,Set(CURLOPT(httptimeout)=2)
+exten => _X.,n,Set(CURLOPT(httpheader)=X-Internal-Key: ${INTERNAL_API_KEY})
+exten => _X.,n,Set(IGNORED_OUT_START=${CURL(http://backend:8080/api/v1/internal/callcenter/outbound-start,uniqueid=${MY_UUID}&extension=${CALLERID(num)}&dialed=${EXTEN})})
+exten => _X.,n,Set(REC_DIR=/opt/AsteriskIA/media/gravacao/${STRFTIME(${EPOCH},,%Y/%m/%d)})
+exten => _X.,n,System(mkdir -p ${REC_DIR})
+exten => _X.,n,MixMonitor(${REC_DIR}/${MY_UUID}.wav,b)
+exten => _X.,n,Dial(PJSIP/${EXTEN}@tronco-sip,60)
+exten => _X.,n,Set(IGNORED_OUT_END=${CURL(http://backend:8080/api/v1/internal/callcenter/outbound-end,uniqueid=${MY_UUID}&dialstatus=${DIALSTATUS}&answeredSeconds=${ANSWEREDTIME})})
+exten => _X.,n,Set(IGNORED_REC=${CURL(http://backend:8080/api/v1/internal/callcenter/recordings,uniqueid=${MY_UUID}&extension=${CALLERID(num)}&filePath=${REC_DIR}/${MY_UUID}.wav&consentPlayed=false)})
+exten => _X.,n,Hangup()
+
 exten => h,1,NoOp(=== Encerrado ===)
 
 ; ---------------------------------------------------------------
