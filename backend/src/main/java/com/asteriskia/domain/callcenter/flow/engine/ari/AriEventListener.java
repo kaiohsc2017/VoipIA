@@ -55,7 +55,9 @@ public class AriEventListener extends TextWebSocketHandler {
 
     private final AriClient ariClient;
     private final AriPlaybackTracker playbackTracker;
+    private final AriRecordingTracker recordingTracker;
     private final FlowExecutionEngine engine;
+    private final com.asteriskia.domain.callcenter.nps.CallCenterNpsExecutionService npsExecutionService;
     private final ObjectMapper objectMapper;
 
     private final ConcurrentHashMap<String, AriVoiceChannelDriver> driversByChannelId = new ConcurrentHashMap<>();
@@ -157,11 +159,14 @@ public class AriEventListener extends TextWebSocketHandler {
             case "ChannelDtmfReceived" -> onDtmf(event);
             case "StasisEnd" -> onStasisEnd(event);
             case "PlaybackFinished" -> onPlaybackFinished(event);
+            case "RecordingFinished" -> onRecordingFinished(event);
             default -> {
                 // Demais eventos ARI (ChannelStateChange, etc.) — fora do escopo desta sub-fase.
             }
         }
     }
+
+    private static final String NPS_ARG_PREFIX = "nps-";
 
     private void onStasisStart(JsonNode event) {
         if (!firstStasisStartLogged) {
@@ -179,14 +184,29 @@ public class AriEventListener extends TextWebSocketHandler {
         if (context == null || context.isBlank()) {
             context = ariClient.getChannelContext(channelId);
         }
-        var driver = new AriVoiceChannelDriver(ariClient, playbackTracker, channelId, context);
+        var driver = new AriVoiceChannelDriver(ariClient, playbackTracker, recordingTracker, channelId, context);
         driversByChannelId.put(channelId, driver);
 
         // channelUniqueId: assume-se igual ao channelId do ARI (formato usual do Asterisk 21) —
         // não confirmado contra tráfego real nesta VPS, mesma ressalva da Fase 4.
-        var thread = new Thread(() -> engine.start(channelId, extension, channelId, driver), "callcenter-flow-" + channelId);
+        // Fase 21: mesmo app Stasis ("callcenter") atende dois casos — um fluxo comum
+        // (extension = ramal 6XXX) e a pesquisa de NPS pós-fila (extension = "nps-<ramal fila>",
+        // vindo do contexto [nps] via Queue(F(...))) — distingue pelo prefixo, sem precisar de
+        // um segundo app Stasis nem reconfigurar o Asterisk.
+        Runnable task =
+                extension.startsWith(NPS_ARG_PREFIX)
+                        ? () -> npsExecutionService.start(channelId, extension.substring(NPS_ARG_PREFIX.length()), driver)
+                        : () -> engine.start(channelId, extension, channelId, driver);
+        var thread = new Thread(task, "callcenter-flow-" + channelId);
         thread.setDaemon(true);
         thread.start();
+    }
+
+    private void onRecordingFinished(JsonNode event) {
+        var name = event.path("recording").path("name").asText(null);
+        if (name != null) {
+            recordingTracker.complete(name);
+        }
     }
 
     private void onDtmf(JsonNode event) {

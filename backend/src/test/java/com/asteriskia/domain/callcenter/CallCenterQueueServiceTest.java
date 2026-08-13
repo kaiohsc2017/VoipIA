@@ -39,6 +39,7 @@ class CallCenterQueueServiceTest {
     @Mock private AraQueueRepository araQueueRepository;
     @Mock private AraQueueMemberRepository araQueueMemberRepository;
     @Mock private CcSettingsService settingsService;
+    @Mock private com.asteriskia.domain.callcenter.nps.CcSurveyRepository surveyRepository;
 
     private CallCenterQueueService newService() {
         // Fase 19 (Parte III): range deixou de ser constante estática — lenient() porque nem
@@ -55,7 +56,8 @@ class CallCenterQueueServiceTest {
                         businessUnitRepository,
                         araQueueRepository,
                         araQueueMemberRepository,
-                        settingsService);
+                        settingsService,
+                        surveyRepository);
         setRecordingBasePath(service, "/opt/telecom/gravacao");
         return service;
     }
@@ -74,7 +76,7 @@ class CallCenterQueueServiceTest {
     @DisplayName("create rejeita fila fora da faixa 5000-5999")
     void create_outOfRange_throws() {
         var service = newService();
-        var request = new QueueRequest("4999", "Fila Teste", null, null, null, null, null, null);
+        var request = new QueueRequest("4999", "Fila Teste", null, null, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -85,7 +87,7 @@ class CallCenterQueueServiceTest {
     @DisplayName("create rejeita número de fila já em uso")
     void create_duplicateName_throws() {
         var service = newService();
-        var request = new QueueRequest("5001", "Fila Teste", null, null, null, null, null, null);
+        var request = new QueueRequest("5001", "Fila Teste", null, null, null, null, null, null, null, null, null);
         when(queueRepository.findByName("5001")).thenReturn(Optional.of(CcQueue.builder().name("5001").build()));
 
         assertThatThrownBy(() -> service.create(request))
@@ -149,7 +151,7 @@ class CallCenterQueueServiceTest {
     @DisplayName("create rejeita estratégia fora da allowlist")
     void create_invalidStrategy_throws() {
         var service = newService();
-        var request = new QueueRequest("5002", "Fila Teste", null, "estrategia-inventada", null, null, null, null);
+        var request = new QueueRequest("5002", "Fila Teste", null, "estrategia-inventada", null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -160,7 +162,7 @@ class CallCenterQueueServiceTest {
     @DisplayName("create rejeita timeout fora dos limites")
     void create_timeoutOutOfBounds_throws() {
         var service = newService();
-        var request = new QueueRequest("5003", "Fila Teste", null, null, -1, null, null, null);
+        var request = new QueueRequest("5003", "Fila Teste", null, null, -1, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.create(request)).isInstanceOf(IllegalArgumentException.class);
     }
@@ -170,7 +172,7 @@ class CallCenterQueueServiceTest {
     void create_businessUnitOutOfScope_throws() {
         restrictToBusinessUnits(1);
         var service = newService();
-        var request = new QueueRequest("5004", "Fila Teste", 2, null, null, null, null, null);
+        var request = new QueueRequest("5004", "Fila Teste", 2, null, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -183,7 +185,7 @@ class CallCenterQueueServiceTest {
         var service = newService();
         var request =
                 new QueueRequest(
-                        "5005", "Fila Teste", null, null, null, null, "/etc/passwd", null);
+                        "5005", "Fila Teste", null, null, null, null, "/etc/passwd", null, null, null, null);
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -203,7 +205,7 @@ class CallCenterQueueServiceTest {
                         null,
                         null,
                         "/opt/telecom/gravacao/avisos/../../../etc/passwd",
-                        null);
+                        null, null, null, null);
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -223,12 +225,38 @@ class CallCenterQueueServiceTest {
                         null,
                         null,
                         "/opt/telecom/gravacao/avisos/consentimento.wav",
-                        null);
+                        null, null, null, null);
         when(queueRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         var saved = service.create(request);
 
         assertThat(saved.getConsentMessagePath()).isEqualTo("/opt/telecom/gravacao/avisos/consentimento.wav");
+    }
+
+    @Test
+    @DisplayName("create resolve e persiste a pesquisa de satisfação (Fase 21) e a config de alerta de NPS")
+    void create_withSurveyId_resolvesSurveyAndPersistsNpsConfig() {
+        var service = newService();
+        var survey = com.asteriskia.domain.callcenter.nps.CcSurvey.builder().id(9L).build();
+        when(surveyRepository.findById(9L)).thenReturn(Optional.of(survey));
+        var request = new QueueRequest("5008", "Fila Teste", null, null, null, null, null, null, 9L, true, 3);
+        when(queueRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var saved = service.create(request);
+
+        assertThat(saved.getSurvey()).isEqualTo(survey);
+        assertThat(saved.getNpsAlertEnabled()).isTrue();
+        assertThat(saved.getNpsAlertThreshold()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("create rejeita surveyId inexistente")
+    void create_withUnknownSurveyId_throws() {
+        var service = newService();
+        when(surveyRepository.findById(99L)).thenReturn(Optional.empty());
+        var request = new QueueRequest("5009", "Fila Teste", null, null, null, null, null, null, 99L, null, null);
+
+        assertThatThrownBy(() -> service.create(request)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -341,7 +369,7 @@ class CallCenterQueueServiceTest {
         when(extensionRepository.findByAgentId(2L)).thenReturn(Optional.of(extension));
         when(memberRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var request = new QueueRequest("5010", "Fila Clonada", null, null, null, null, null, 1L);
+        var request = new QueueRequest("5010", "Fila Clonada", null, null, null, null, null, 1L, null, null, null);
         service.create(request);
 
         verify(memberRepository).findByQueueId(1L);
@@ -366,7 +394,7 @@ class CallCenterQueueServiceTest {
         });
         when(queueRepository.findById(1L)).thenReturn(Optional.of(sourceQueue));
 
-        var request = new QueueRequest("5011", "Fila Nova", null, null, null, null, null, 1L);
+        var request = new QueueRequest("5011", "Fila Nova", null, null, null, null, null, 1L, null, null, null);
         // Fase 19 (Parte III): findById (usado por copyMembers) passou a lançar
         // ResponseStatusException(404), não IllegalArgumentException.
         assertThatThrownBy(() -> service.create(request))

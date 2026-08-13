@@ -328,6 +328,11 @@ class FlowExecutionEngineTest {
         }
 
         @Override
+        public RecordResult recordResponse(Duration maxDuration) {
+            return RecordResult.hungUp();
+        }
+
+        @Override
         public void setVariable(String name, String value) {
             variables.put(name, value);
         }

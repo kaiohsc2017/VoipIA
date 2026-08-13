@@ -107,6 +107,7 @@ public class CallCenterAgentAggregationService {
         agg.setPausedSeconds((int) pausedSeconds);
         agg.setOfflineSeconds((int) offlineSeconds);
         agg.setOccupancyPct(occupancyPct);
+        agg.setAvgNpsScore(averageNpsScore(interactions));
         agg.setComputedAt(LocalDateTime.now());
         aggRepository.save(agg);
     }
@@ -153,5 +154,16 @@ public class CallCenterAgentAggregationService {
         long sum = secondsValues.stream().mapToLong(Long::longValue).sum();
         return BigDecimal.valueOf(sum)
                 .divide(BigDecimal.valueOf(secondsValues.size()), 2, RoundingMode.HALF_UP);
+    }
+
+    /** Fase 21 — média de {@code nps_score} das interações do agente no dia (INBOUND+OUTBOUND)
+     * que têm nota; ignora as sem pesquisa/sem nota ainda. */
+    private BigDecimal averageNpsScore(List<CcInteraction> interactions) {
+        var scores = interactions.stream().map(CcInteraction::getNpsScore).filter(java.util.Objects::nonNull).toList();
+        if (scores.isEmpty()) {
+            return null;
+        }
+        var sum = scores.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        return sum.divide(BigDecimal.valueOf(scores.size()), 1, RoundingMode.HALF_UP);
     }
 }

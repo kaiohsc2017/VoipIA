@@ -18,6 +18,12 @@ public interface ChannelDriver {
     /** Aguarda uma escolha do usuário entre os dígitos/opções válidos, ou timeout/desistência. */
     PromptResult promptChoice(List<String> validChoices, Duration timeout);
 
+    /** Grava a resposta falada/comentário do usuário (Fase 21 — pesquisa de satisfação, modos
+     * FALADA_IA/DTMF_COMENTARIO), até {@code maxDuration} ou até o cliente encerrar com {@code #}.
+     * {@code audioPath} do resultado é absoluto e já resolvido — {@code null} se nada foi
+     * capturado (desistência/hangup antes de começar a falar). */
+    RecordResult recordResponse(Duration maxDuration);
+
     void setVariable(String name, String value);
 
     String getVariable(String name);
@@ -46,6 +52,22 @@ public interface ChannelDriver {
 
         public static PromptResult hungUp() {
             return new PromptResult(Outcome.HUNG_UP, null);
+        }
+    }
+
+    /** Resultado de {@link #recordResponse}. */
+    record RecordResult(Outcome outcome, String audioPath) {
+        public enum Outcome {
+            RECORDED,
+            HUNG_UP
+        }
+
+        public static RecordResult recorded(String audioPath) {
+            return new RecordResult(Outcome.RECORDED, audioPath);
+        }
+
+        public static RecordResult hungUp() {
+            return new RecordResult(Outcome.HUNG_UP, null);
         }
     }
 }

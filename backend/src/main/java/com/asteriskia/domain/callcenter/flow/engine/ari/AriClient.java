@@ -88,4 +88,22 @@ public class AriClient {
         }
     }
 
+    /** Grava o canal (Fase 21 — resposta falada/comentário de NPS) em
+     * {@code &lt;astspooldir&gt;/recording/&lt;recordingName&gt;.wav}. {@code beep} avisa o cliente que a
+     * gravação começou; {@code terminateOn} ("#" ou "none") permite ao cliente encerrar a
+     * resposta antes do {@code maxDurationSeconds}. Não bloqueia até o fim — quem chama espera
+     * {@code RecordingFinished} via {@link AriRecordingTracker}. */
+    public void record(String channelId, String recordingName, int maxDurationSeconds, boolean beep, String terminateOn) {
+        var uri =
+                UriComponentsBuilder.fromPath("/channels/{id}/record")
+                        .queryParam("name", recordingName)
+                        .queryParam("format", "wav")
+                        .queryParam("maxDurationSeconds", maxDurationSeconds)
+                        .queryParam("beep", beep)
+                        .queryParam("terminateOn", terminateOn)
+                        .queryParam("ifExists", "overwrite")
+                        .build(channelId);
+        webClient.post().uri(uri).retrieve().toBodilessEntity().block(REQUEST_TIMEOUT);
+    }
+
 }

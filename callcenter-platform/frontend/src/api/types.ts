@@ -65,6 +65,11 @@ export interface CcQueue {
   recordingEnabled: boolean;
   /** Fase 3 — caminho do áudio de consentimento tocado antes de MixMonitor (null = sem aviso). */
   consentMessagePath?: string | null;
+  /** Fase 21 — pesquisa de satisfação desta fila (null = sem pesquisa). O interruptor global
+   * (aba Configurações) sobrepõe mesmo com pesquisa configurada. */
+  survey?: SurveySummary | null;
+  npsAlertEnabled: boolean;
+  npsAlertThreshold?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -80,6 +85,51 @@ export interface QueueRequest {
   consentMessagePath?: string | null;
   /** Fase 12.5 — só considerado na criação; clona os membros (agente+prioridade) da fila de origem. */
   copyMembersFromQueueId?: number | null;
+  surveyId?: number | null;
+  npsAlertEnabled?: boolean | null;
+  npsAlertThreshold?: number | null;
+}
+
+// Pesquisa de satisfação (NPS) — Fase 21. Espelha SurveyDto.java.
+export type SurveyMode = 'DTMF_SIMPLES' | 'DTMF_MULTI' | 'FALADA_IA' | 'DTMF_COMENTARIO';
+
+export interface SurveySummary {
+  id: number;
+  name: string;
+  mode: SurveyMode;
+  scaleMax: number;
+  active: boolean;
+}
+
+export interface SurveyQuestion {
+  id?: number;
+  orderIndex: number;
+  text: string;
+  audioPath?: string | null;
+}
+
+export interface Survey extends SurveySummary {
+  businessUnitId?: number | null;
+  questions: SurveyQuestion[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SurveyRequest {
+  name: string;
+  mode: SurveyMode;
+  scaleMax: number;
+  businessUnitId?: number | null;
+  questions: SurveyQuestion[];
+}
+
+// Financeiro — alerta de gasto de IA da frente callcenter_nps (Fase 21, §21.5).
+export interface CostAlertConfigView {
+  scope: string;
+  thresholdUsd: number;
+  enabled: boolean;
+  lastNotifiedMonth: string | null;
+  currentMonthSpendUsd: number;
 }
 
 export interface CcQueueMember {

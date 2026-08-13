@@ -42,6 +42,7 @@ const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agent
   { key: 'financeiro.insights',  label: 'Insights',                system: 'Financeiro' },
   { key: 'financeiro.envios',    label: 'Análise Sob Demanda',    system: 'Financeiro' },
   { key: 'financeiro.callcenter', label: 'Call Center',           system: 'Financeiro' },
+  { key: 'financeiro.callcenter_nps', label: 'Pesquisa de Satisfação (NPS)', system: 'Financeiro' },
   { key: 'callcenter.agentes',   label: 'Agentes',                system: 'Call Center' },
   { key: 'callcenter.ramais',    label: 'Senha do ramal (sensível)', system: 'Call Center' },
   { key: 'callcenter.filas',     label: 'Filas',                  system: 'Call Center' },

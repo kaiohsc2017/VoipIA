@@ -85,6 +85,11 @@ public class CcAggAgentDaily {
     @Column(name = "occupancy_pct")
     private BigDecimal occupancyPct;
 
+    /** Média de {@code cc_interactions.nps_score} das interações deste agente no dia, com nota
+     * (Fase 21) — nula se nenhuma foi pesquisada com nota ainda. */
+    @Column(name = "avg_nps_score")
+    private BigDecimal avgNpsScore;
+
     // Setado explicitamente pelo service a cada (re)cálculo — mesmo motivo de CcAggQueueDaily:
     // este registro é recalculado inteiro em cada upsert, não só criado uma vez.
     @Column(name = "computed_at", nullable = false)

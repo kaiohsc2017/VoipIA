@@ -70,7 +70,8 @@ public final class ResourceCatalog {
             "financeiro.ura",
             "financeiro.insights",
             "financeiro.envios",
-            "financeiro.callcenter"
+            "financeiro.callcenter",
+            "financeiro.callcenter_nps"
     );
 
     // Módulo Call Center (voz) — Fase 2 do plano modulo-callcenter-omnicanal.plan.md.

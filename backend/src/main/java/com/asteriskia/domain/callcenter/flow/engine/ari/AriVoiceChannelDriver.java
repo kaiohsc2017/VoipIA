@@ -1,8 +1,10 @@
 package com.asteriskia.domain.callcenter.flow.engine.ari;
 
 import com.asteriskia.domain.callcenter.flow.engine.ChannelDriver;
+import java.io.File;
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -17,16 +19,28 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class AriVoiceChannelDriver implements ChannelDriver {
 
+    // Fixo, mesmo default do asterisk.conf desta VPS (astspooldir=/var/spool/asterisk) — a
+    // API de gravação do ARI não devolve o caminho absoluto, só confirma o nome no evento
+    // RecordingFinished, então o caminho é resolvido aqui a partir da convenção conhecida.
+    private static final String ARI_RECORDING_DIR = "/var/spool/asterisk/recording";
+
     private final AriClient ariClient;
     private final AriPlaybackTracker playbackTracker;
+    private final AriRecordingTracker recordingTracker;
     private final String channelId;
     private final String context;
     private final BlockingQueue<String> dtmfQueue = new LinkedBlockingQueue<>();
     private volatile boolean ended = false;
 
-    public AriVoiceChannelDriver(AriClient ariClient, AriPlaybackTracker playbackTracker, String channelId, String context) {
+    public AriVoiceChannelDriver(
+            AriClient ariClient,
+            AriPlaybackTracker playbackTracker,
+            AriRecordingTracker recordingTracker,
+            String channelId,
+            String context) {
         this.ariClient = ariClient;
         this.playbackTracker = playbackTracker;
+        this.recordingTracker = recordingTracker;
         this.channelId = channelId;
         this.context = context;
     }
@@ -76,6 +90,24 @@ public class AriVoiceChannelDriver implements ChannelDriver {
             }
         }
         return PromptResult.timeout();
+    }
+
+    @Override
+    public RecordResult recordResponse(Duration maxDuration) {
+        if (ended) {
+            return RecordResult.hungUp();
+        }
+        var recordingName = "nps-" + UUID.randomUUID();
+        var future = recordingTracker.register(recordingName);
+        // beep=true avisa o cliente que a gravação começou; terminateOn="#" deixa ele encerrar
+        // antes do maxDuration sem precisar esperar o timeout inteiro.
+        ariClient.record(channelId, recordingName, (int) maxDuration.toSeconds(), true, "#");
+        recordingTracker.awaitFinished(recordingName, future, maxDuration.plusSeconds(5));
+        var file = new File(ARI_RECORDING_DIR, recordingName + ".wav");
+        if (ended || !file.exists()) {
+            return RecordResult.hungUp();
+        }
+        return RecordResult.recorded(file.getAbsolutePath());
     }
 
     @Override

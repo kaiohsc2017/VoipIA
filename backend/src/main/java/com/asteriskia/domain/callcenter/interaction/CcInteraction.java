@@ -14,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -78,6 +79,11 @@ public class CcInteraction {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "disposition_id")
     private CcDisposition disposition;
+
+    /** Nota desnormalizada da pesquisa de satisfação desta interação (Fase 21) — nula se não
+     * pesquisada ou pesquisa sem nenhuma resposta com nota ainda (ex.: só FALADA_IA pendente). */
+    @Column(name = "nps_score")
+    private BigDecimal npsScore;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

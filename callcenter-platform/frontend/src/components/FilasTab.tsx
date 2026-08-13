@@ -2,19 +2,21 @@ import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Users, X } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
 import { ConfirmModal } from './ConfirmModal';
-import type { BusinessUnit, CcAgent, CcQueue, CcQueueMember, QueueRequest } from '../api/types';
+import type { BusinessUnit, CcAgent, CcQueue, CcQueueMember, QueueRequest, SurveySummary } from '../api/types';
 
 const STRATEGIES = ['ringall', 'leastrecent', 'fewestcalls', 'random', 'rrmemory', 'linear'];
 
 const EMPTY_FORM: QueueRequest = {
   name: '', displayName: '', businessUnitId: null, strategy: 'ringall', timeoutSeconds: 15,
   recordingEnabled: true, consentMessagePath: null, copyMembersFromQueueId: null,
+  surveyId: null, npsAlertEnabled: false, npsAlertThreshold: null,
 };
 
 export function FilasTab({ canWrite }: { canWrite: boolean }) {
   const [queues, setQueues] = useState<CcQueue[]>([]);
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
   const [agents, setAgents] = useState<CcAgent[]>([]);
+  const [surveys, setSurveys] = useState<SurveySummary[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<CcQueue | null>(null);
   const [confirmQueue, setConfirmQueue] = useState<CcQueue | null>(null);
@@ -35,6 +37,7 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
     load();
     api.get<BusinessUnit[]>('/business-units?active=true').then(({ data }) => setBusinessUnits(data)).catch(() => setBusinessUnits([]));
     api.get<CcAgent[]>('/callcenter/agentes').then(({ data }) => setAgents(data)).catch(() => setAgents([]));
+    api.get<SurveySummary[]>('/callcenter/surveys').then(({ data }) => setSurveys(data)).catch(() => setSurveys([]));
   }, []);
 
   const openForm = (q: CcQueue | null) => {
@@ -43,6 +46,7 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
       name: q.name, displayName: q.displayName,
       businessUnitId: q.businessUnit?.id ?? null, strategy: q.strategy, timeoutSeconds: q.timeoutSeconds,
       recordingEnabled: q.recordingEnabled, consentMessagePath: q.consentMessagePath ?? null,
+      surveyId: q.survey?.id ?? null, npsAlertEnabled: q.npsAlertEnabled, npsAlertThreshold: q.npsAlertThreshold ?? null,
     } : EMPTY_FORM);
     setShowForm(true);
   };
@@ -159,6 +163,31 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
                       value={fd.consentMessagePath ?? ''}
                       onChange={e => setFd(f => ({ ...f, consentMessagePath: e.target.value || null }))} />
                   </div>
+                  <div className="form-group">
+                    <label className="form-label">Pesquisa de satisfação (NPS) — Fase 21</label>
+                    <select className="form-input" value={fd.surveyId ?? ''}
+                      onChange={e => setFd(f => ({ ...f, surveyId: e.target.value ? Number(e.target.value) : null }))}>
+                      <option value="">— Sem pesquisa —</option>
+                      {surveys.filter(s => s.active).map(s => (
+                        <option key={s.id} value={s.id}>{s.name} ({s.mode})</option>
+                      ))}
+                    </select>
+                  </div>
+                  {fd.surveyId != null && (
+                    <div className="form-group">
+                      <label className="form-label">
+                        <input type="checkbox" checked={fd.npsAlertEnabled ?? false}
+                          onChange={e => setFd(f => ({ ...f, npsAlertEnabled: e.target.checked }))} />
+                        {' '}Alertar no Telegram quando a nota for baixa
+                      </label>
+                      {fd.npsAlertEnabled && (
+                        <input type="number" className="form-input" style={{ marginTop: 6 }}
+                          placeholder="Nota igual ou abaixo da qual dispara o alerta"
+                          value={fd.npsAlertThreshold ?? ''}
+                          onChange={e => setFd(f => ({ ...f, npsAlertThreshold: e.target.value ? Number(e.target.value) : null }))} />
+                      )}
+                    </div>
+                  )}
                   {!editing && (
                     <div className="form-group">
                       <label className="form-label">

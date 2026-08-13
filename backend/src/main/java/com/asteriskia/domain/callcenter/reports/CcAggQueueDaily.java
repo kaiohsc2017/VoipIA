@@ -71,6 +71,11 @@ public class CcAggQueueDaily {
     @Column(name = "service_level_pct")
     private BigDecimal serviceLevelPct;
 
+    /** Média de {@code cc_interactions.nps_score} das interações deste dia com nota (Fase 21) —
+     * nula se nenhuma foi pesquisada com nota ainda. */
+    @Column(name = "avg_nps_score")
+    private BigDecimal avgNpsScore;
+
     // Setado explicitamente pelo service a cada (re)cálculo — não é @CreationTimestamp porque
     // este registro é recalculado inteiro em cada upsert (reprocessamento), não só criado uma vez.
     @Column(name = "computed_at", nullable = false)

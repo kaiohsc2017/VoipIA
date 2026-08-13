@@ -12,18 +12,20 @@ import org.springframework.stereotype.Component;
  *
  * <p>Sub-fase 5b: o motor de execução ARI/Stasis passou a interpretar 7 tipos de nó —
  * {@code inicio}, {@code tocar_audio}, {@code menu_opcoes}, {@code condicao},
- * {@code definir_variavel}, {@code enviar_fila}, {@code encerrar} — marcados
- * {@code implementado=true}. Os outros 7 ({@code coletar_entrada}, {@code consultar_api},
- * {@code transferir_ramal}, {@code horario_funcionamento}, {@code agente_ia},
- * {@code pausar_gravacao}, {@code pesquisa_satisfacao}) continuam {@code false} — ficam para as
- * sub-fases 5d/5e. {@link FlowGraphValidator} bloqueia a publicação de qualquer fluxo que use um
- * nó ainda não implementado.
+ * {@code definir_variavel}, {@code enviar_fila}, {@code encerrar}. Fase 21 (Parte III) somou
+ * {@code pesquisa_satisfacao} (delega a {@code CallCenterSurveyRunner}). Os 6 restantes
+ * ({@code coletar_entrada}, {@code consultar_api}, {@code transferir_ramal},
+ * {@code horario_funcionamento}, {@code agente_ia}, {@code pausar_gravacao}) continuam
+ * {@code false} — ficam para as sub-fases 5d/5e. {@link FlowGraphValidator} bloqueia a
+ * publicação de qualquer fluxo que use um nó ainda não implementado.
  */
 @Component
 public class FlowGraphNodeCatalog {
 
     private static final Set<String> IMPLEMENTED_TYPES =
-            Set.of("inicio", "tocar_audio", "menu_opcoes", "condicao", "definir_variavel", "enviar_fila", "encerrar");
+            Set.of(
+                    "inicio", "tocar_audio", "menu_opcoes", "condicao", "definir_variavel", "enviar_fila",
+                    "pesquisa_satisfacao", "encerrar");
 
     private static final List<FlowGraphNodeType> NODE_TYPES =
             List.of(

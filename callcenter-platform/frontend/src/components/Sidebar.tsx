@@ -2,13 +2,13 @@ import type { ComponentType } from 'react';
 import { useState } from 'react';
 import {
   Users, ListOrdered, Tags, Disc, LogOut, LayoutDashboard, MonitorPlay, Workflow,
-  PhoneCall, BarChart3, ListChecks, ClipboardList, FileText, MessageSquare, TrendingUp, Settings,
+  PhoneCall, BarChart3, ListChecks, ClipboardList, FileText, MessageSquare, TrendingUp, Settings, Smile,
 } from 'lucide-react';
 import type { AuthSession } from '../hooks/useAuthSession';
 
 type Tab = 'agentes' | 'filas' | 'skills' | 'gravacoes' | 'desktop' | 'supervisao' | 'fluxos'
   | 'insightsChamadas' | 'insightsDashboard' | 'insightsProcessamento' | 'insightsScorecards' | 'insightsReports'
-  | 'chat' | 'reports' | 'configuracoes';
+  | 'chat' | 'reports' | 'pesquisas' | 'configuracoes';
 
 interface SidebarProps {
   currentTab: Tab;
@@ -38,6 +38,7 @@ const NAV_ITEMS: { tab: Tab; icon: ComponentType<{ size?: number; strokeWidth?: 
   { tab: 'insightsReports', icon: FileText, label: 'Insights — Relatórios', resource: 'callcenter.insights.reports' },
   { tab: 'chat', icon: MessageSquare, label: 'Chat', resource: 'callcenter.chat' },
   { tab: 'reports', icon: TrendingUp, label: 'Relatórios', resource: 'callcenter.reports' },
+  { tab: 'pesquisas', icon: Smile, label: 'Pesquisas (NPS)', resource: 'callcenter.config' },
   { tab: 'configuracoes', icon: Settings, label: 'Configurações', resource: 'callcenter.config' },
 ];
 

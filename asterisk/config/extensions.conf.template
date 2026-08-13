@@ -122,7 +122,7 @@ exten => _5XXX,n,Playback(${CONSENT_PATH})
 exten => _5XXX,n,Set(CONSENT_PLAYED=true)
 exten => _5XXX,n(domixmonitor),MixMonitor(${REC_DIR}/${MY_UUID}.wav,b)
 exten => _5XXX,n,Set(RECORDED=true)
-exten => _5XXX,n(skiprec),Queue(${EXTEN})
+exten => _5XXX,n(skiprec),Queue(${EXTEN},F(nps,${EXTEN},1))
 ; Registro fire-and-forget (resultado ignorado), mesmo padrão do lookup de URA em _2XXX —
 ; falha de CURL aqui vira arquivo órfão sem catalogação (risco residual documentado).
 exten => _5XXX,n,GotoIf($["${RECORDED}" = "true"]?ingest:done)
@@ -163,6 +163,25 @@ exten => _X.,n,Set(IGNORED_REC=${CURL(http://backend:8080/api/v1/internal/callce
 exten => _X.,n,Hangup()
 
 exten => h,1,NoOp(=== Encerrado ===)
+
+; ---------------------------------------------------------------
+; Contexto: nps
+; Pesquisa de satisfação pós-atendimento (Fase 21). Alcançado só pela opção
+; F(nps,${EXTEN},1) do Queue() dos dois contextos _5XXX acima (ramais-internos e
+; ramais-webrtc) — dispara quando o AGENTE desliga primeiro (Queue() sai por
+; completed/agent hangup), nunca quando o cliente desiste antes de ser atendido
+; ou desliga antes do agente (nesses casos o canal do cliente já não existe, ou
+; Queue() nem chega a sair por F()). ${EXTEN} aqui é o número da fila (ex.: 5001),
+; não um dígito discado pelo cliente. Stasis(callcenter,nps-${EXTEN}) reusa o
+; mesmo app ARI do Flow Builder (AriEventListener distingue pelo prefixo
+; "nps-") — CallCenterNpsExecutionService decide, olhando a fila e o
+; interruptor global (cc_settings), se há pesquisa a rodar; sem pesquisa
+; configurada ou desligada, só encerra (nunca prende o cliente, §4.2).
+; ---------------------------------------------------------------
+[nps]
+exten => _X.,1,NoOp(=== NPS pós-atendimento: fila ${EXTEN} ===)
+exten => _X.,n,Stasis(callcenter,nps-${EXTEN})
+exten => _X.,n,Hangup()
 
 ; ---------------------------------------------------------------
 ; Contexto: ramais-webrtc
@@ -234,7 +253,7 @@ exten => _5XXX,n,Playback(${CONSENT_PATH})
 exten => _5XXX,n,Set(CONSENT_PLAYED=true)
 exten => _5XXX,n(domixmonitor),MixMonitor(${REC_DIR}/${MY_UUID}.wav,b)
 exten => _5XXX,n,Set(RECORDED=true)
-exten => _5XXX,n(skiprec),Queue(${EXTEN})
+exten => _5XXX,n(skiprec),Queue(${EXTEN},F(nps,${EXTEN},1))
 exten => _5XXX,n,GotoIf($["${RECORDED}" = "true"]?ingest:done)
 exten => _5XXX,n(ingest),Set(IGNORED_REC=${CURL(http://backend:8080/api/v1/internal/callcenter/recordings,uniqueid=${MY_UUID}&extension=${EXTEN}&filePath=${REC_DIR}/${MY_UUID}.wav&consentPlayed=${CONSENT_PLAYED})})
 exten => _5XXX,n(done),Hangup()

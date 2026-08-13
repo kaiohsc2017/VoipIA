@@ -4,6 +4,7 @@ import com.asteriskia.domain.callcenter.ara.AraQueue;
 import com.asteriskia.domain.callcenter.ara.AraQueueMember;
 import com.asteriskia.domain.callcenter.ara.AraQueueMemberRepository;
 import com.asteriskia.domain.callcenter.ara.AraQueueRepository;
+import com.asteriskia.domain.callcenter.nps.CcSurveyRepository;
 import com.asteriskia.domain.masterdata.BusinessUnit;
 import com.asteriskia.domain.masterdata.BusinessUnitContext;
 import com.asteriskia.domain.masterdata.BusinessUnitRepository;
@@ -47,6 +48,7 @@ public class CallCenterQueueService {
     private final AraQueueRepository araQueueRepository;
     private final AraQueueMemberRepository araQueueMemberRepository;
     private final CcSettingsService settingsService;
+    private final CcSurveyRepository surveyRepository;
 
     @Transactional(readOnly = true)
     public List<CcQueue> findAll() {
@@ -128,6 +130,9 @@ public class CallCenterQueueService {
                         .active(true)
                         .recordingEnabled(request.recordingEnabled() == null || request.recordingEnabled())
                         .consentMessagePath(normalizeConsentPath(request.consentMessagePath()))
+                        .survey(resolveSurvey(request.surveyId()))
+                        .npsAlertEnabled(Boolean.TRUE.equals(request.npsAlertEnabled()))
+                        .npsAlertThreshold(request.npsAlertThreshold())
                         .build();
         queue = queueRepository.save(queue);
 
@@ -178,6 +183,9 @@ public class CallCenterQueueService {
             queue.setRecordingEnabled(request.recordingEnabled());
         }
         queue.setConsentMessagePath(normalizeConsentPath(request.consentMessagePath()));
+        queue.setSurvey(resolveSurvey(request.surveyId()));
+        queue.setNpsAlertEnabled(Boolean.TRUE.equals(request.npsAlertEnabled()));
+        queue.setNpsAlertThreshold(request.npsAlertThreshold());
         var saved = queueRepository.save(queue);
 
         araQueueRepository
@@ -402,6 +410,16 @@ public class CallCenterQueueService {
         return businessUnitRepository
                 .findById(businessUnitId)
                 .orElseThrow(() -> new IllegalArgumentException("BU não encontrada: " + businessUnitId));
+    }
+
+    /** Fase 21 — pesquisa de satisfação desta fila; nulo = sem pesquisa. */
+    private com.asteriskia.domain.callcenter.nps.CcSurvey resolveSurvey(Long surveyId) {
+        if (surveyId == null) {
+            return null;
+        }
+        return surveyRepository
+                .findById(surveyId)
+                .orElseThrow(() -> new IllegalArgumentException("Pesquisa não encontrada: " + surveyId));
     }
 
     private Specification<CcQueue> businessUnitScope() {

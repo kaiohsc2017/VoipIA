@@ -23,6 +23,9 @@ networks:
 volumes:
   postgres_data:          # Dados persistentes do PostgreSQL
   asterisk_recordings:    # Gravações de chamadas (WAV)
+  asterisk_ari_recordings: # Spool de gravação ARI (Fase 21 — resposta falada/comentário de NPS);
+                            # transiente — o backend move o arquivo pra /opt/AsteriskIA/media/gravacao/nps
+                            # e apaga o original daqui logo após RecordingFinished.
   asterisk_log:           # Logs do Asterisk (consumidos pelo fail2ban)
   fail2ban_socket:        # Socket do fail2ban (compartilhado com o backend)
   security_cmds:          # Fila de comandos nftables (backend → security)
@@ -120,6 +123,7 @@ services:
     volumes:
       - ./asterisk/config:/etc/asterisk
       - asterisk_recordings:/var/spool/asterisk/monitor
+      - asterisk_ari_recordings:/var/spool/asterisk/recording
       - asterisk_log:/var/log/asterisk
       # Gravações do módulo Call Center (Fase 0/3) — apartado de asterisk_recordings,
       # que é exclusivo do fluxo de IA (Módulo 1/3). Bind mount direto (não volume
@@ -388,6 +392,10 @@ services:
       # a cada rebuild/restart — achado de revisão de segurança antes do deploy.
       # Fase 20: /opt/gravacoes/chat → /opt/AsteriskIA/media/chat.
       - /opt/AsteriskIA/media/chat:/opt/AsteriskIA/media/chat:rw
+      # Spool transiente da gravação ARI de pesquisa de satisfação (Fase 21) — mesmo volume do
+      # serviço asterisk (que grava via Stasis record); o backend move o arquivo pronto pra
+      # /opt/AsteriskIA/media/gravacao/nps e apaga o original daqui.
+      - asterisk_ari_recordings:/var/spool/asterisk/recording:rw
       # Achado de segurança: montava o diretório security/ INTEIRO em RW,
       # incluindo entrypoint.sh/lockdown-watcher.sh — um RCE no backend
       # escreveria o script que o container security executa como root

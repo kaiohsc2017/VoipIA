@@ -1,5 +1,6 @@
 package com.asteriskia.domain.callcenter;
 
+import com.asteriskia.domain.callcenter.nps.CcSurvey;
 import com.asteriskia.domain.masterdata.BusinessUnit;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -63,6 +64,19 @@ public class CcQueue {
 
     @Column(name = "consent_message_path")
     private String consentMessagePath;
+
+    /** Pesquisa de satisfação desta fila (Fase 21) — nulo = sem pesquisa. O interruptor global
+     * ({@code cc_settings.nps.enabled_globally}, Fase 19) sobrepõe mesmo com survey preenchida. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "survey_id")
+    private CcSurvey survey;
+
+    @Column(name = "nps_alert_enabled", nullable = false)
+    @Builder.Default
+    private Boolean npsAlertEnabled = false;
+
+    @Column(name = "nps_alert_threshold")
+    private Integer npsAlertThreshold;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

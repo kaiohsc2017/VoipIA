@@ -87,8 +87,20 @@ public class CallCenterQueueAggregationService {
         agg.setAvgWaitSeconds(avgWaitSeconds);
         agg.setAvgTalkSeconds(avgTalkSeconds);
         agg.setServiceLevelPct(serviceLevelPct);
+        agg.setAvgNpsScore(averageNpsScore(interactions));
         agg.setComputedAt(LocalDateTime.now());
         aggRepository.save(agg);
+    }
+
+    /** Fase 21 — média de {@code nps_score} das interações do dia que têm nota; ignora as sem
+     * pesquisa/sem nota ainda (não é 0, é ausência de dado). */
+    private BigDecimal averageNpsScore(List<CcInteraction> interactions) {
+        var scores = interactions.stream().map(CcInteraction::getNpsScore).filter(java.util.Objects::nonNull).toList();
+        if (scores.isEmpty()) {
+            return null;
+        }
+        var sum = scores.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        return sum.divide(BigDecimal.valueOf(scores.size()), 1, RoundingMode.HALF_UP);
     }
 
     /** Reprocessa um intervalo de dias (inclusive) — usado pelo endpoint manual de
