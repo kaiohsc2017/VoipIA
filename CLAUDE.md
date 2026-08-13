@@ -439,6 +439,56 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > `external_media_address`/`external_signaling_address` não vazios, portas RTP `15000-15500/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
 
+### ✅ Fase 23 do plano Call Center Parte III — chamadas de saída (2026-08-13) — deployada e validada em produção
+Agente que disca um número externo pelo próprio softphone (ramal 4xxx) passa a gerar uma
+`cc_interactions` como qualquer chamada receptiva — `direction` (`INBOUND`|`OUTBOUND`, migration
+**V64**, default `INBOUND` preenche todo o histórico sem backfill manual) é a única diferença de
+schema; `queue_id` já era nullable desde a Fase 4, nenhuma mudança necessária ali.
+- **Correlação por CURL do dialplan, não por evento AMI de canal**: diferente do receptivo
+  (`CallCenterAmiEventListener`, eventos `QueueCallerJoin`/`AgentConnect`/…), o início/fim da
+  chamada de saída chega via CURL do próprio `extensions.conf.template` (novo contexto `_X.` em
+  `ramais-internos`, mesmo padrão já usado por `queue-recording-config`/`recordings`) — decisão
+  deliberada para não depender de nomes de campo AMI de canal (`Newchannel`/`DialBegin`) nunca
+  validados contra este Asterisk. `CallCenterOutboundCallService.start`/`end` (novos) criam e
+  encerram a interação; `answeredAt` é calculado de volta a partir de `${ANSWEREDTIME}` (duração
+  da conversa, único dado que o Asterisk garante em chamada atendida).
+- **Agregado 9b ganha corte por direção**: `cc_agg_agent_daily` (migration V64) ganha
+  `outbound_placed`/`avg_outbound_talk_seconds` — sem isso, `findByAgentIdAndQueuedAtBetween`
+  (que traz os dois sentidos) misturaria chamada de saída no `answered`/`avg_talk_seconds` do
+  receptivo assim que existisse a primeira linha `OUTBOUND`. O agregado 9a (fila) não precisou de
+  mudança: por ser sempre iterado por `queueRepository.findByActiveTrue()`, uma interação sem fila
+  nunca chega lá.
+- **3 achados reais corrigidos antes do deploy** (`ecc:security-reviewer` + `ecc:java-reviewer`,
+  em paralelo): (1) **CRITICAL** — `${ANSWEREDTIME}` chega vazio (não ausente) em chamada não
+  atendida (BUSY/NOANSWER/CANCEL/CONGESTION); o binding automático do Spring para `Integer` com
+  string vazia lançava 400 antes de chegar ao service, deixando o agente travado em
+  `EM_ATENDIMENTO` para sempre em toda chamada de saída não atendida — corrigido recebendo
+  `String` no controller e parseando defensivamente no service; (2) **HIGH** —
+  `/api/v1/internal/**` não tinha matcher próprio em `SecurityConfig`, caindo no
+  `anyRequest().authenticated()` genérico: **qualquer JWT comum de usuário do Telecom** (sem
+  nenhuma permissão de Call Center) já bastava para chamar os endpoints internos como se fosse o
+  próprio Asterisk — gap pré-existente (afetava também `/internal/callcenter/recordings` e
+  `/internal/ura-routing`), fechado de uma vez com `hasAuthority("ROLE_INTERNAL")` explícito; (3)
+  **HIGH** — o padrão `_X.` deixava qualquer ramal do contexto `ramais-internos` (não só agente
+  4xxx — inclusive 1001/1002 de teste) discar de saída pelo tronco sem limite algum, mesmo quando
+  o backend não registrava a interação — corrigido com `GotoIf($[${REGEX("^4[0-9][0-9][0-9]$",
+  ${CALLERID(num)})}]?...)` rejeitando (`Hangup(21)`) ramal fora da faixa de agente antes do
+  `Dial()`. Um **MEDIUM** também corrigido: `provisionAra` não fixava `callerid` no `PsEndpoint`
+  do ramal de agente (diferente dos ramais estáticos 1001/1002/9001/9002, que já têm) — sem isso,
+  um cliente SIP com as credenciais de um ramal podia enviar outro `CallerID` no INVITE e atribuir
+  a chamada de saída a outro agente; corrigido fixando `callerid` no provisionamento.
+- Suíte completa do backend **466/466 verde** (12 novos, 0 regressão), `tsc --noEmit` e
+  `npm run build` do `callcenter-platform/frontend` limpos. Deployado (`docker compose up -d
+  --build backend frontend` + `docker compose up -d --build asterisk`, migration V64 confirmada
+  em `flyway_schema_history`, dialplan reload sem erro) e validado em produção via curl: JWT
+  comum de USER agora recebe 403 nos endpoints internos (antes recebia 200 — regressão de
+  segurança fechada), `X-Internal-Key` continua funcionando para o Asterisk, e `outbound-end` com
+  `answeredSeconds` vazio responde 200 (não mais 400).
+- **Nota operacional desta sessão**: o valor de `INTERNAL_API_KEY` apareceu sem querer no output
+  de um comando de validação (grep sem redação no `extensions.conf` gerado) — recomendado
+  rotacionar a chave (`.env` → `INTERNAL_API_KEY`, mais `dialplan reload` e restart do backend)
+  na próxima janela de manutenção, por precaução.
+
 ### ✅ Fase 13 do plano Call Center Parte III — softphone do agente (2026-08-13) — deployada e validada em produção
 Softphone WebRTC do shell do Telecom passa a registrar com a **credencial do próprio ramal do
 agente de Call Center** (4xxx), não mais uma senha única compartilhada — e ganha um painel de

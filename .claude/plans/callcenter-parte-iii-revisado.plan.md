@@ -557,7 +557,18 @@ impede o encerramento.
 
 ---
 
-### FASE 23 — Chamadas de saída (ativo manual) _(D19)_
+### FASE 23 — Chamadas de saída (ativo manual) _(D19)_ — ✅ **implementada, testada, revisada e deployada (2026-08-13)**
+
+**Entregue** (detalhe completo em `CLAUDE.md`): `cc_interactions.direction` (migration V64);
+correlação por CURL do próprio dialplan (`CallCenterOutboundCallService`), não por evento AMI de
+canal — decisão que evita depender de nomes de campo AMI nunca validados contra este Asterisk;
+agregado 9b (`cc_agg_agent_daily`) com corte por direção. 3 achados reais (1 CRITICAL, 2 HIGH)
+corrigidos antes do deploy pela revisão paralela de segurança + Java: binding de
+`answeredSeconds` vazio quebrando toda chamada de saída não atendida; endpoints internos
+aceitando qualquer JWT comum (não só `X-Internal-Key`); catch-all de discagem sem allowlist de
+ramal. Suíte 466/466 verde, deployado e validado em produção.
+
+
 **Complexidade: G.** Depende da **13** (softphone é quem origina). Habilita 22, 9c e 27.
 
 - `cc_interactions.direction` (`INBOUND`|`OUTBOUND`), default `INBOUND` para todo o histórico —

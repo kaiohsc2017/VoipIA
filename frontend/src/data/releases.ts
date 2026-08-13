@@ -559,4 +559,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Correção interna: a credencial SIP do agente é limitada em frequência de leitura e nunca fica exposta a outro agente.',
     ],
   },
+  {
+    version: 'v1.62',
+    date: '2026-08-13',
+    changes: [
+      'Chamadas de saída do Call Center: quando o agente disca um número externo pelo próprio softphone, a ligação passa a aparecer no histórico e nos relatórios de agente junto com o receptivo, já separada por sentido (entrada/saída).',
+      'Correção interna: reforça a proteção dos endpoints internos usados pela própria central telefônica e corrige o estado do agente após uma chamada de saída não atendida.',
+    ],
+  },
 ];
