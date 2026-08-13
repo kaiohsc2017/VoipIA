@@ -567,8 +567,25 @@ impede o encerramento.
 
 ---
 
-### FASE 22 — Painel do agente: métricas e históricos _(add.txt)_
-**Complexidade: M.** Depende da **21** (nota NPS no histórico) e da **23** (histórico de saída).
+### FASE 22 — Painel do agente: métricas e históricos _(add.txt)_ — ✅ **implementada, testada, revisada e deployada (2026-08-13)**
+
+**Entregue**: `CallCenterDesktopService`/`Controller` (pacote novo
+`domain/callcenter/desktop`), 3 endpoints (`resumo`/`historico`/`pausas`) sob `currentAgent()`
+— nenhum aceita `agentId` do chamador. Reusa `cc_interactions`/`cc_agent_states`/
+`call_audio_files`/segmentos de transcrição já existentes (Fases 4/8/21/23), sem migration
+nova. RBAC reusa `callcenter.desktop` (já existente da Fase 13). Regra D21 (histórico nunca
+dispara processamento de IA) garantida estruturalmente — o serviço nem depende do serviço de
+ingestão de Insights — e coberta por teste explícito (`verify(..., never()).save(any())`).
+`mvn test` 532/532 verde (7 novos). Frontend: 3 sub-abas novas dentro do `DesktopAgenteTab.tsx`
+já existente, reusando `AuthedAudio.tsx`. 5 achados reais corrigidos (1 HIGH — race condition
+sem cleanup no `useEffect` das sub-abas; 2 MEDIUM — erro engolido silenciosamente, falta de
+acessibilidade; 2 LOW cosméticos).
+
+**Achado não-bloqueante, aceito por ora**: o link de gravação no histórico aponta para um
+endpoint protegido por `callcenter.gravacoes` (resource diferente de `callcenter.desktop`) —
+um agente sem essa segunda permissão recebe 403 ao tentar ouvir a própria gravação (fail-closed,
+não é vulnerabilidade, mas é uma lacuna funcional). Decisão de RBAC do produto, não resolvida
+nesta fase por não ter sido pedida.
 
 - `GET /callcenter/desktop/me/resumo`: chamadas atendidas hoje, TMA, tempo logado, tempo em pausa.
 - `GET /callcenter/desktop/me/historico`: chamadas do dia — data/hora, número, fila, TMA, nota NPS,

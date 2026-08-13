@@ -15,6 +15,10 @@ public interface CallAudioFileRepository
 
     Optional<CallAudioFile> findByCallRef(String callRef);
 
+    /** Registro de Insights de uma gravação do Call Center — base do histórico do painel do
+     * agente (Fase 22, leitura estritamente somente-leitura, nunca dispara reprocessamento). */
+    Optional<CallAudioFile> findByCcRecordingId(Long ccRecordingId);
+
     @Query("SELECT new com.asteriskia.domain.insights.CallStatusRef(c.callRef, c.status) FROM CallAudioFile c")
     List<CallStatusRef> findAllRefsAndStatus();
 

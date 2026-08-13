@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
 import { PhoneCall, Coffee, Circle, Mic, MicOff, PhoneOff } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
-import type { AgentStateView, CcPauseReason, CcDisposition, InteractionView } from '../api/types';
+import type {
+  AgentStateView, CcPauseReason, CcDisposition, InteractionView,
+  DesktopSummaryView, DesktopCallHistoryItem, DesktopPauseItem,
+} from '../api/types';
 import { useSipPhone } from '../hooks/useSipPhone';
 import type { ShellCallAction, ShellCallState } from '../hooks/useShellBridge';
+import { AuthedAudio } from './AuthedAudio';
 
 interface DesktopAgenteTabProps {
   isEmbedded: boolean;
@@ -20,6 +24,19 @@ const STATE_LABEL: Record<string, string> = {
 };
 
 const POLL_INTERVAL_MS = 5000;
+
+const TRANSCRIPTION_LABEL: Record<string, string> = {
+  SEM_GRAVACAO: 'Sem gravação',
+  EM_PROCESSAMENTO: 'Em processamento',
+  DISPONIVEL: 'Transcrição disponível',
+};
+
+function formatDuration(totalSeconds: number | null | undefined): string {
+  if (totalSeconds == null) return '—';
+  const m = Math.floor(totalSeconds / 60);
+  const s = Math.floor(totalSeconds % 60);
+  return `${m}min ${String(s).padStart(2, '0')}s`;
+}
 
 /**
  * DesktopAgenteTab — estados do agente, interação em curso e tabulação (Fase 4). O screen pop
@@ -62,6 +79,33 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
   const [selectedPauseReason, setSelectedPauseReason] = useState<number | ''>('');
   const [selectedDisposition, setSelectedDisposition] = useState<number | ''>('');
   const [error, setError] = useState('');
+
+  const [metricsTab, setMetricsTab] = useState<'resumo' | 'historico' | 'pausas'>('resumo');
+  const [summary, setSummary] = useState<DesktopSummaryView | null>(null);
+  const [history, setHistory] = useState<DesktopCallHistoryItem[]>([]);
+  const [pauses, setPauses] = useState<DesktopPauseItem[]>([]);
+  const [expandedCallId, setExpandedCallId] = useState<number | null>(null);
+  const [metricsError, setMetricsError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setMetricsError('');
+    const onError = (err: unknown) => {
+      if (cancelled) return;
+      setMetricsError(getErrorMessage(err, 'Erro ao carregar dados do painel.'));
+    };
+    if (metricsTab === 'resumo') {
+      api.get<DesktopSummaryView>('/callcenter/desktop/me/resumo')
+        .then(({ data }) => { if (!cancelled) setSummary(data); }).catch(onError);
+    } else if (metricsTab === 'historico') {
+      api.get<DesktopCallHistoryItem[]>('/callcenter/desktop/me/historico')
+        .then(({ data }) => { if (!cancelled) setHistory(data); }).catch(onError);
+    } else {
+      api.get<DesktopPauseItem[]>('/callcenter/desktop/me/pausas')
+        .then(({ data }) => { if (!cancelled) setPauses(data); }).catch(onError);
+    }
+    return () => { cancelled = true; };
+  }, [metricsTab]);
 
   const loadState = () => {
     api.get<AgentStateView>('/callcenter/agent-state/me')
@@ -231,6 +275,100 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
             </div>
           </div>
         )}
+
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="flex items-center" role="tablist" style={{ gap: 8, marginBottom: 12 }}>
+            {(['resumo', 'historico', 'pausas'] as const).map(tab => (
+              <button key={tab} role="tab" aria-selected={metricsTab === tab}
+                className={`btn btn-sm ${metricsTab === tab ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setMetricsTab(tab)}>
+                {tab === 'resumo' ? 'Meu resumo' : tab === 'historico' ? 'Meu histórico' : 'Minhas pausas'}
+              </button>
+            ))}
+          </div>
+
+          {metricsError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{metricsError}</div>}
+
+          {metricsTab === 'resumo' && (
+            summary ? (
+              <div className="form-grid">
+                <div><span style={{ color: 'var(--text-muted)' }}>Chamadas atendidas hoje:</span> {summary.callsAnsweredToday}</div>
+                <div><span style={{ color: 'var(--text-muted)' }}>TMA:</span> {formatDuration(summary.avgTalkSeconds)}</div>
+                <div><span style={{ color: 'var(--text-muted)' }}>Tempo logado hoje:</span> {formatDuration(summary.loggedSeconds)}</div>
+                <div><span style={{ color: 'var(--text-muted)' }}>Tempo em pausa hoje:</span> {formatDuration(summary.pauseSeconds)}</div>
+              </div>
+            ) : <p style={{ color: 'var(--text-muted)' }}>Carregando…</p>
+          )}
+
+          {metricsTab === 'historico' && (
+            history.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)' }}>Nenhuma chamada hoje ainda.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {history.map(item => (
+                  <div key={item.interactionId} className="card" style={{ padding: 12 }}>
+                    <div className="flex items-center justify-between" style={{ cursor: 'pointer' }}
+                      role="button" tabIndex={0}
+                      aria-expanded={expandedCallId === item.interactionId}
+                      onClick={() => setExpandedCallId(expandedCallId === item.interactionId ? null : item.interactionId)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setExpandedCallId(expandedCallId === item.interactionId ? null : item.interactionId);
+                        }
+                      }}>
+                      <div className="flex items-center" style={{ gap: 12 }}>
+                        <span>{new Date(item.dateTime).toLocaleTimeString('pt-BR')}</span>
+                        <span>{item.direction === 'OUTBOUND' ? 'Saída' : (item.queueName ?? '—')}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>{item.ani ?? '—'}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>{formatDuration(item.talkSeconds)}</span>
+                        {item.npsScore != null && <span>NPS: {item.npsScore}</span>}
+                      </div>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '.8rem' }}>
+                        {TRANSCRIPTION_LABEL[item.transcriptionStatus] ?? item.transcriptionStatus}
+                      </span>
+                    </div>
+                    {expandedCallId === item.interactionId && (
+                      <div style={{ marginTop: 12 }}>
+                        {item.recordingUrl && <AuthedAudio path={item.recordingUrl} style={{ width: '100%', marginBottom: 8 }} />}
+                        {item.transcriptionStatus === 'DISPONIVEL' && item.transcript && (
+                          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', color: 'var(--text-muted)', margin: 0 }}>
+                            {item.transcript}
+                          </pre>
+                        )}
+                        {item.transcriptionStatus === 'EM_PROCESSAMENTO' && (
+                          <p style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>
+                            A transcrição desta chamada ainda está em processamento.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+
+          {metricsTab === 'pausas' && (
+            pauses.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)' }}>Nenhuma pausa hoje ainda.</p>
+            ) : (
+              <table className="table">
+                <thead><tr><th>Motivo</th><th>Início</th><th>Fim</th><th>Duração</th></tr></thead>
+                <tbody>
+                  {pauses.map((p, idx) => (
+                    <tr key={idx}>
+                      <td>{p.reasonLabel}</td>
+                      <td>{new Date(p.startedAt).toLocaleTimeString('pt-BR')}</td>
+                      <td>{p.endedAt ? new Date(p.endedAt).toLocaleTimeString('pt-BR') : 'Em curso'}</td>
+                      <td>{formatDuration(p.durationSeconds)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          )}
+        </div>
       </div>
     </>
   );

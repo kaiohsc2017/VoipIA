@@ -292,6 +292,39 @@ export interface InteractionView {
   dispositionLabel?: string;
 }
 
+// Painel pessoal do agente (Fase 22) — GET /callcenter/desktop/me/*. Somente leitura do próprio
+// dia; o backend nunca aceita agentId do chamador, sempre resolve pelo usuário autenticado.
+export interface DesktopSummaryView {
+  callsAnsweredToday: number;
+  avgTalkSeconds: number | null;
+  loggedSeconds: number;
+  pauseSeconds: number;
+}
+
+// D21: EM_PROCESSAMENTO nunca tem ação associada nesta tela — é só um estado informativo. O
+// disparo de processamento é exclusivo das telas de Processamento do Insights.
+export type DesktopTranscriptionStatus = 'SEM_GRAVACAO' | 'EM_PROCESSAMENTO' | 'DISPONIVEL';
+
+export interface DesktopCallHistoryItem {
+  interactionId: number;
+  dateTime: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+  ani?: string;
+  queueName?: string;
+  talkSeconds?: number;
+  npsScore?: number;
+  recordingUrl?: string;
+  transcriptionStatus: DesktopTranscriptionStatus;
+  transcript?: string;
+}
+
+export interface DesktopPauseItem {
+  reasonLabel: string;
+  startedAt: string;
+  endedAt?: string;
+  durationSeconds: number;
+}
+
 // Painel de supervisão (Fase 6) — GET /api/v1/callcenter/supervision/snapshot
 // Fase 15.1 — chamador em espera ao vivo (AMI QueueStatus).
 export interface WaitingCallerView {

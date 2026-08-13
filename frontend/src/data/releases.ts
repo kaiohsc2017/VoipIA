@@ -596,4 +596,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Correção interna: quando o próprio supervisor também é agente do Call Center, a função de falar com o agente passa a usar o ramal correto em vez de falhar silenciosamente.',
     ],
   },
+  {
+    version: 'v1.66',
+    date: '2026-08-13',
+    changes: [
+      'Desktop do Agente do Call Center ganha um painel pessoal: resumo do dia (chamadas atendidas, tempo médio de atendimento, tempo logado e tempo em pausa), histórico de chamadas do dia com a nota de satisfação e a transcrição (quando já processada) e o detalhamento das pausas do dia por motivo.',
+      'Cada agente só enxerga o próprio histórico e métricas — nunca dados de outro colega.',
+    ],
+  },
 ];

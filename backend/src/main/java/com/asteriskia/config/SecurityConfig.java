@@ -232,6 +232,11 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.desktop")
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/interactions/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.desktop")
+                        // Painel pessoal do agente: resumo/histórico/pausas do próprio dia — Fase 22
+                        // (Parte III). Mesmo resource_key de agent-state/interactions — é "meu
+                        // próprio painel", não gestão de outro agente.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/desktop/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.desktop")
                         // Supervisão em tempo real — Fase 6.
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/supervision/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.supervisao")

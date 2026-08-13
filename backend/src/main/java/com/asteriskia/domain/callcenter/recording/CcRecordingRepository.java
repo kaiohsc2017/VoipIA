@@ -15,4 +15,8 @@ public interface CcRecordingRepository
 
     /** Usado pela retenção — teto exclusivo (fronteira exatamente no limite NÃO purga). */
     List<CcRecording> findByStartedAtBefore(LocalDateTime cutoff);
+
+    /** Gravação correspondente a uma interação — base do link de áudio no painel do agente
+     * (Fase 22). Nulo quando a chamada não foi gravada (fila sem gravação configurada). */
+    Optional<CcRecording> findByInteractionId(Long interactionId);
 }
