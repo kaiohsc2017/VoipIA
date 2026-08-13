@@ -13,8 +13,10 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * CallCenterAgentService — CRUD de agentes do Call Center (Fase 2). Ao criar/atualizar o ramal,
@@ -26,11 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CallCenterAgentService {
 
-    // Público — reusado por CallCenterAgentProvisioningService (Fase 12.1) para alocar o
-    // próximo ramal livre sem duplicar a faixa em dois lugares.
-    public static final int RANGE_START = 4000;
-    public static final int RANGE_END = 4999;
-
     private final CcAgentRepository agentRepository;
     private final CcExtensionRepository extensionRepository;
     private final BusinessUnitRepository businessUnitRepository;
@@ -38,6 +35,7 @@ public class CallCenterAgentService {
     private final PsAuthRepository psAuthRepository;
     private final PsAorRepository psAorRepository;
     private final AraQueueMemberRepository araQueueMemberRepository;
+    private final CcSettingsService settingsService;
 
     @Transactional(readOnly = true)
     public List<CcAgent> findAll() {
@@ -47,14 +45,29 @@ public class CallCenterAgentService {
 
     @Transactional(readOnly = true)
     public CcAgent findById(Long id) {
+        // Fase 19 (Parte III) — ResponseStatusException(404), não IllegalArgumentException:
+        // antes caía no catch-all de RuntimeException e virava 500 genérico para id inexistente.
         var agent =
                 agentRepository
                         .findById(id)
-                        .orElseThrow(() -> new IllegalArgumentException("Agente não encontrado: " + id));
+                        .orElseThrow(() -> agentNotFound(id));
         if (!inBusinessUnitScope(agent)) {
-            throw new IllegalArgumentException("Agente não encontrado: " + id);
+            throw agentNotFound(id);
         }
         return agent;
+    }
+
+    private ResponseStatusException agentNotFound(Long id) {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Agente não encontrado: " + id);
+    }
+
+    /**
+     * Range vigente de ramal de agente (Fase 19 — configurável em {@link CcSettingsService},
+     * default 4000-4999 se nunca configurado). Reusado por {@link
+     * CallCenterAgentProvisioningService} para alocar o próximo ramal livre sem duplicar a faixa.
+     */
+    public CcSettingsService.ExtensionRange extensionRange() {
+        return settingsService.getRange(CcSettingsService.RangeType.AGENT);
     }
 
     /**
@@ -155,6 +168,48 @@ public class CallCenterAgentService {
                         () -> new IllegalArgumentException("Agente sem ramal provisionado: " + agentId));
     }
 
+    /** Ramal + secret SIP do próprio agente (Fase 13 — softphone). Já resolvido pelo chamador via
+     * {@code CallCenterAgentStateService.currentAgent()} — nunca aceita um id arbitrário, então
+     * não há necessidade de reaplicar o escopo por BU aqui (o agente sempre pode ver o próprio). */
+    public record SipCredentials(String extension, String secret) {}
+
+    @Transactional(readOnly = true)
+    public SipCredentials sipCredentialsOf(CcAgent agent) {
+        var extension =
+                extensionRepository
+                        .findByAgentId(agent.getId())
+                        .orElseThrow(
+                                () ->
+                                        new IllegalArgumentException(
+                                                "Agente sem ramal provisionado: " + agent.getId()));
+        return new SipCredentials(extension.getExtension(), extension.getSecret());
+    }
+
+    /** Rotaciona o secret SIP do ramal do agente — o secret circula (endpoint "me" acima), então
+     * precisa ser rotacionável (Fase 13, D9-A). Atualiza {@code cc_extensions} e o auth ARA
+     * (PsAuth) na mesma transação — o Asterisk lê o secret novo no próximo registro, sem reload. */
+    @Transactional
+    public String rotateExtensionSecret(Long agentId) {
+        findById(agentId); // aplica o escopo por BU antes de rotacionar
+        var extension =
+                extensionRepository
+                        .findByAgentId(agentId)
+                        .orElseThrow(
+                                () -> new IllegalArgumentException("Agente sem ramal provisionado: " + agentId));
+        var newSecret = ExtensionSecretGenerator.generate();
+        extension.setSecret(newSecret);
+        extensionRepository.save(extension);
+        psAuthRepository
+                .findById(extension.getExtension() + "-auth")
+                .ifPresent(
+                        auth -> {
+                            auth.setPassword(newSecret);
+                            psAuthRepository.save(auth);
+                        });
+        log.info("Secret do ramal {} rotacionado (agente id={})", extension.getExtension(), agentId);
+        return newSecret;
+    }
+
     private void provisionAra(String extension, String secret) {
         psAuthRepository.save(
                 PsAuth.builder()
@@ -194,9 +249,10 @@ public class CallCenterAgentService {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Ramal inválido: " + extension);
         }
-        if (num < RANGE_START || num > RANGE_END) {
+        var range = extensionRange();
+        if (num < range.start() || num > range.end()) {
             throw new IllegalArgumentException(
-                    "Ramais de agente devem usar um número entre " + RANGE_START + " e " + RANGE_END + ".");
+                    "Ramais de agente devem usar um número entre " + range.start() + " e " + range.end() + ".");
         }
     }
 

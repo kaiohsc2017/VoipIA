@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
-import { PhoneCall, Coffee, Circle } from 'lucide-react';
+import { PhoneCall, Coffee, Circle, Mic, MicOff, PhoneOff } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
 import type { AgentStateView, CcPauseReason, CcDisposition, InteractionView } from '../api/types';
+import { useSipPhone } from '../hooks/useSipPhone';
+import type { ShellCallAction, ShellCallState } from '../hooks/useShellBridge';
+
+interface DesktopAgenteTabProps {
+  isEmbedded: boolean;
+  callState: ShellCallState | null;
+  sendCallAction: (action: ShellCallAction) => void;
+}
 
 const STATE_LABEL: Record<string, string> = {
   DISPONIVEL: 'Disponível',
@@ -19,7 +27,34 @@ const POLL_INTERVAL_MS = 5000;
  * de dados reais de conexão com o Domain Controller; esta tela mostra só o que já existe
  * (fila/ANI/horários) até o AD ser conectado.
  */
-export function DesktopAgenteTab() {
+export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: DesktopAgenteTabProps) {
+  // D10-A: embutido no shell, o único UA SIP é o Softphone.tsx do Telecom — este painel só
+  // reflete o estado recebido via bridge e envia comandos. Fora do shell (SPA aberta direto em
+  // /callcenter/), instancia o próprio useSipPhone — nunca os dois ao mesmo tempo.
+  const standalonePhone = useSipPhone(!isEmbedded);
+  const [dialValue, setDialValue] = useState('');
+
+  const status = isEmbedded
+    ? (callState?.status ?? 'idle')
+    : (standalonePhone.callState === 'active' ? 'active'
+      : standalonePhone.callState === 'calling' || standalonePhone.callState === 'incoming' ? 'ringing'
+      : 'idle');
+  const remote = isEmbedded ? (callState?.remote ?? '') : standalonePhone.dialInput;
+  const durationSeconds = isEmbedded ? (callState?.durationSeconds ?? 0) : standalonePhone.duration;
+  const muted = isEmbedded ? (callState?.muted ?? false) : standalonePhone.muted;
+  const isIncoming = !isEmbedded && standalonePhone.callState === 'incoming';
+
+  const doAnswer = () => { isEmbedded ? sendCallAction({ action: 'answer' }) : standalonePhone.answer(); };
+  const doHangup = () => { isEmbedded ? sendCallAction({ action: 'hangup' }) : standalonePhone.hangup(); };
+  const doMute = () => { isEmbedded ? sendCallAction({ action: muted ? 'unmute' : 'mute' }) : standalonePhone.toggleMute(); };
+  const doDtmf = (k: string) => { isEmbedded ? sendCallAction({ action: 'dtmf', payload: k }) : standalonePhone.pressKey(k); };
+  const doDial = () => {
+    if (!dialValue.trim()) return;
+    if (isEmbedded) sendCallAction({ action: 'dial', payload: dialValue.trim() });
+    else void standalonePhone.dial(dialValue.trim());
+    setDialValue('');
+  };
+
   const [state, setState] = useState<AgentStateView | null>(null);
   const [interaction, setInteraction] = useState<InteractionView | null>(null);
   const [pauseReasons, setPauseReasons] = useState<CcPauseReason[]>([]);
@@ -103,6 +138,54 @@ export function DesktopAgenteTab() {
               Offline
             </button>
           </div>
+        </div>
+
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+            <div className="flex items-center" style={{ gap: 8 }}>
+              <PhoneCall size={16} />
+              <strong>Softphone</strong>
+            </div>
+            {status === 'active' && (
+              <span style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>
+                {`${String(Math.floor(durationSeconds / 60)).padStart(2, '0')}:${String(durationSeconds % 60).padStart(2, '0')}`}
+              </span>
+            )}
+          </div>
+
+          {status === 'idle' ? (
+            <div className="flex items-center" style={{ gap: 8 }}>
+              <input className="form-input" style={{ flex: 1 }} placeholder="Ramal ou número"
+                value={dialValue} onChange={e => setDialValue(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') doDial(); }} />
+              <button className="btn btn-primary btn-sm" onClick={doDial} disabled={!dialValue.trim()}>Discar</button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center" style={{ gap: 8, marginBottom: 12 }}>
+                <span>{status === 'ringing' ? (isIncoming ? '📲 Chamada entrante' : '📞 Chamando…') : '🟢 Em chamada'}</span>
+                {remote && <span style={{ color: 'var(--text-muted)' }}>— {remote}</span>}
+              </div>
+              <div className="flex items-center" style={{ gap: 8, flexWrap: 'wrap' }}>
+                {status === 'ringing' && isIncoming && (
+                  <button className="btn btn-primary btn-sm" onClick={doAnswer}>Atender</button>
+                )}
+                <button className="btn btn-ghost btn-sm" onClick={doHangup}><PhoneOff size={14} /> Encerrar</button>
+                {status === 'active' && (
+                  <button className="btn btn-ghost btn-sm" onClick={doMute}>
+                    {muted ? <MicOff size={14} /> : <Mic size={14} />} {muted ? 'Sem mudo' : 'Mudo'}
+                  </button>
+                )}
+              </div>
+              {status === 'active' && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, maxWidth: 180, marginTop: 12 }}>
+                  {['1','2','3','4','5','6','7','8','9','*','0','#'].map(k => (
+                    <button key={k} className="btn btn-ghost btn-sm" onClick={() => doDtmf(k)}>{k}</button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <div className="card" style={{ marginBottom: 16 }}>

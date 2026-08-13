@@ -1,4 +1,21 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+/** Estado da chamada refletido pelo shell (Softphone.tsx é o único UA SIP — Fase 13, D10-A). */
+export interface ShellCallState {
+  status: 'idle' | 'registering' | 'ringing' | 'active' | 'held';
+  remote: string;
+  durationSeconds: number;
+  muted: boolean;
+}
+
+export type ShellCallAction =
+  | { action: 'answer' }
+  | { action: 'hangup' }
+  | { action: 'reject' }
+  | { action: 'mute' }
+  | { action: 'unmute' }
+  | { action: 'dtmf'; payload: string }
+  | { action: 'dial'; payload: string };
 
 /**
  * useShellBridge — ponte postMessage com o shell do Telecom quando esta SPA
@@ -10,10 +27,21 @@ import { useEffect, useRef } from 'react';
  *
  * Protocolo (mesma origem, validado nos dois lados):
  *   shell → iframe: { source: 'asteriskia-shell',       type: 'navigate',   tab }
+ *                   { source: 'asteriskia-shell',       type: 'callState',  payload }
  *   iframe → shell: { source: 'asteriskia-callcenter',  type: 'ready' }
  *                   { source: 'asteriskia-callcenter',  type: 'tabChanged', tab }
+ *                   { source: 'asteriskia-callcenter',  type: 'callAction', payload }
+ *
+ * callState/callAction (Fase 13, D10-A): o softphone WebRTC é um único UA, vive só no shell
+ * (Softphone.tsx) — o Desktop do Agente aqui dentro NUNCA instancia o próprio quando embutido,
+ * só reflete o estado recebido e envia comandos. Quando a SPA roda fora do shell
+ * (isEmbedded=false), quem consome este hook decide instanciar o próprio useSipPhone().
  */
-export function useShellBridge(currentTab: string, onNavigate: (tab: string) => void): { isEmbedded: boolean } {
+export function useShellBridge(currentTab: string, onNavigate: (tab: string) => void): {
+  isEmbedded: boolean;
+  callState: ShellCallState | null;
+  sendCallAction: (action: ShellCallAction) => void;
+} {
   const isEmbedded = window.self !== window.top;
   // Semeado com a aba do mount (não `null`): sem isso o efeito de baixo posta um
   // 'tabChanged' espúrio no boot com a aba *default* da SPA, sobrescrevendo no
@@ -22,6 +50,7 @@ export function useShellBridge(currentTab: string, onNavigate: (tab: string) => 
   const lastReceivedTab = useRef<string | null>(null);
   const onNavigateRef = useRef(onNavigate);
   onNavigateRef.current = onNavigate;
+  const [callState, setCallState] = useState<ShellCallState | null>(null);
 
   useEffect(() => {
     if (!isEmbedded) return;
@@ -34,6 +63,8 @@ export function useShellBridge(currentTab: string, onNavigate: (tab: string) => 
       if (data.type === 'navigate' && typeof data.tab === 'string') {
         lastReceivedTab.current = data.tab;
         onNavigateRef.current(data.tab);
+      } else if (data.type === 'callState' && data.payload && typeof data.payload.status === 'string') {
+        setCallState(data.payload as ShellCallState);
       }
     };
 
@@ -54,5 +85,10 @@ export function useShellBridge(currentTab: string, onNavigate: (tab: string) => 
     window.parent.postMessage({ source: 'asteriskia-callcenter', type: 'tabChanged', tab: currentTab }, window.location.origin);
   }, [isEmbedded, currentTab]);
 
-  return { isEmbedded };
+  const sendCallAction = (action: ShellCallAction) => {
+    if (!isEmbedded) return;
+    window.parent.postMessage({ source: 'asteriskia-callcenter', type: 'callAction', payload: action }, window.location.origin);
+  };
+
+  return { isEmbedded, callState, sendCallAction };
 }

@@ -3,6 +3,7 @@ package com.asteriskia.domain.callcenter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,8 +40,14 @@ class CallCenterAgentServiceTest {
     @Mock private PsAuthRepository psAuthRepository;
     @Mock private PsAorRepository psAorRepository;
     @Mock private AraQueueMemberRepository araQueueMemberRepository;
+    @Mock private CcSettingsService settingsService;
 
     private CallCenterAgentService newService() {
+        // Fase 19 (Parte III): range deixou de ser constante estática — lenient() porque nem
+        // todo teste chega a validar o range (ex.: falha antecipada por ramal duplicado).
+        lenient()
+                .when(settingsService.getRange(CcSettingsService.RangeType.AGENT))
+                .thenReturn(new CcSettingsService.ExtensionRange(4000, 4999));
         return new CallCenterAgentService(
                 agentRepository,
                 extensionRepository,
@@ -48,7 +55,8 @@ class CallCenterAgentServiceTest {
                 psEndpointRepository,
                 psAuthRepository,
                 psAorRepository,
-                araQueueMemberRepository);
+                araQueueMemberRepository,
+                settingsService);
     }
 
     @Test
@@ -177,5 +185,62 @@ class CallCenterAgentServiceTest {
         var updated = service.update(1L, request);
 
         assertThat(updated.getName()).isEqualTo("Agente Renomeado");
+    }
+
+    @Test
+    @DisplayName("sipCredentialsOf devolve ramal e secret do agente já resolvido (Fase 13)")
+    void sipCredentialsOf_returnsExtensionAndSecret() {
+        var service = newService();
+        var agent = CcAgent.builder().id(5L).build();
+        var extension = CcExtension.builder().extension("4005").secret("segredo123").build();
+        when(extensionRepository.findByAgentId(5L)).thenReturn(Optional.of(extension));
+
+        var credentials = service.sipCredentialsOf(agent);
+
+        assertThat(credentials.extension()).isEqualTo("4005");
+        assertThat(credentials.secret()).isEqualTo("segredo123");
+    }
+
+    @Test
+    @DisplayName("sipCredentialsOf falha com erro claro se o agente não tem ramal provisionado")
+    void sipCredentialsOf_noExtension_throws() {
+        var service = newService();
+        var agent = CcAgent.builder().id(6L).build();
+        when(extensionRepository.findByAgentId(6L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.sipCredentialsOf(agent))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sem ramal provisionado");
+    }
+
+    @Test
+    @DisplayName("rotateExtensionSecret gera um novo secret e espelha no auth ARA (PsAuth)")
+    void rotateExtensionSecret_generatesNewSecretAndMirrorsAra() {
+        var agent = CcAgent.builder().id(7L).build();
+        when(agentRepository.findById(7L)).thenReturn(Optional.of(agent));
+        var extension = CcExtension.builder().extension("4007").secret("antigo").build();
+        when(extensionRepository.findByAgentId(7L)).thenReturn(Optional.of(extension));
+        var auth = com.asteriskia.domain.callcenter.ara.PsAuth.builder().id("4007-auth").password("antigo").build();
+        when(psAuthRepository.findById("4007-auth")).thenReturn(Optional.of(auth));
+
+        var newSecret = newService().rotateExtensionSecret(7L);
+
+        assertThat(newSecret).isNotEqualTo("antigo");
+        assertThat(extension.getSecret()).isEqualTo(newSecret);
+        assertThat(auth.getPassword()).isEqualTo(newSecret);
+        verify(extensionRepository).save(extension);
+        verify(psAuthRepository).save(auth);
+    }
+
+    @Test
+    @DisplayName("rotateExtensionSecret falha com erro claro se o agente não tem ramal provisionado")
+    void rotateExtensionSecret_noExtension_throws() {
+        var agent = CcAgent.builder().id(8L).build();
+        when(agentRepository.findById(8L)).thenReturn(Optional.of(agent));
+        when(extensionRepository.findByAgentId(8L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> newService().rotateExtensionSecret(8L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sem ramal provisionado");
     }
 }

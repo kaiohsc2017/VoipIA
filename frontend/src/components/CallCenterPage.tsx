@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { dispatchCallAction, subscribeCallState, type CallAction } from '../lib/callBridge';
 
 interface CallCenterPageProps {
   tab: string;
@@ -31,12 +32,28 @@ export default function CallCenterPage({ tab, onTabChange }: CallCenterPageProps
         );
       } else if (data.type === 'tabChanged' && typeof data.tab === 'string') {
         onTabChangeRef.current(data.tab);
+      } else if (data.type === 'callAction' && data.payload && typeof data.payload.action === 'string') {
+        // Fase 13 (D10-A) — comandos do painel do Desktop do Agente (dentro do iframe) chegam
+        // aqui e são repassados ao Softphone.tsx (mesma janela do shell) via callBridge. O
+        // Softphone é o único UA SIP; o iframe nunca instancia o próprio quando embutido.
+        dispatchCallAction(data.payload as CallAction);
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Repassa o estado da chamada (Softphone.tsx → callBridge, mesma janela) para o iframe, que o
+  // usa para renderizar o painel fixo do Desktop do Agente sem nunca instanciar o próprio UA.
+  useEffect(() => {
+    return subscribeCallState(state => {
+      iframeRef.current?.contentWindow?.postMessage(
+        { source: 'asteriskia-shell', type: 'callState', payload: state },
+        window.location.origin,
+      );
+    });
   }, []);
 
   useEffect(() => {

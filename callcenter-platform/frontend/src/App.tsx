@@ -137,7 +137,7 @@ export default function App() {
   const visibleTabs = TABS.filter(t => session.hasRead(TAB_RESOURCE[t.id]));
   const currentTab = visibleTabs.some(t => t.id === tab) ? tab : visibleTabs[0]?.id;
 
-  const { isEmbedded } = useShellBridge(currentTab ?? 'agentes', (t) => setTab(t as Tab));
+  const { isEmbedded, callState, sendCallAction } = useShellBridge(currentTab ?? 'agentes', (t) => setTab(t as Tab));
 
   if (!token) {
     return (
@@ -167,7 +167,9 @@ export default function App() {
             {currentTab === 'filas' && <FilasTab canWrite={session.hasWrite('callcenter.filas')} />}
             {currentTab === 'skills' && <SkillsTab canWrite={session.hasWrite('callcenter.skills')} />}
             {currentTab === 'gravacoes' && <GravacoesTab canWrite={session.hasWrite('callcenter.gravacoes')} />}
-            {currentTab === 'desktop' && <DesktopAgenteTab />}
+            {currentTab === 'desktop' && (
+              <DesktopAgenteTab isEmbedded={isEmbedded} callState={callState} sendCallAction={sendCallAction} />
+            )}
             {currentTab === 'supervisao' && <SupervisaoTab canWrite={session.hasWrite('callcenter.supervisao')} />}
             {currentTab === 'fluxos' && <FluxosTab canWrite={session.hasWrite('callcenter.fluxos')} />}
             {currentTab === 'insightsChamadas' && (
