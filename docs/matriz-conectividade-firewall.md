@@ -33,8 +33,14 @@ consomem a mesma porta 80/443 e o mesmo certificado.
 
 | Serviço | Domínio | Porta/Protocolo | Container de origem | Obrigatório? | Onde no código |
 |---|---|---|---|---|---|
-| Google Gemini API (STT/LLM/TTS) | `generativelanguage.googleapis.com` | 443/tcp (HTTPS) | `ai-agent` (SDK `google-genai`), `agents-platform-backend` (`llm.py:230`), `backend` Java (`CallCenterNpsTranscriptionScheduler.java:107`, `AiProviderModelFetcher.java:62`), `insights` (transcrição/análise) | **Sim** — é o motor de IA de toda a URA de voz, chat, insights e NPS | `ai-agent/src/services/gemini_service.py`, `agents-platform/backend/llm.py:230`, `backend/.../CallCenterNpsTranscriptionScheduler.java:107` |
+| Google Gemini API (STT/LLM/TTS) | `generativelanguage.googleapis.com` | 443/tcp (HTTPS) | `ai-agent` (SDK `google-genai`), `agents-platform-backend` (`llm.py:230`), `backend` Java (`CallCenterNpsTranscriptionScheduler.java:107`, `AiProviderModelFetcher.java:62`), `insights` (transcrição/análise) | **Sim** — é o motor de IA de toda a URA de voz, chat, insights e NPS (provedor default) | `ai-agent/src/services/gemini_service.py`, `agents-platform/backend/llm.py:230`, `backend/.../CallCenterNpsTranscriptionScheduler.java:107` |
 | Google (documentação de preços, scraping) | `ai.google.dev` | 443/tcp (HTTPS) | `backend` Java (`AiPricingSourceFetcher`) | Não-crítico — scheduler diário 02:00 de atualização de preço; falha não trava nada | `backend/src/main/java/com/asteriskia/domain/ai/AiPricingSourceFetcher.java:42` |
+| Anthropic API (provedor alternativo de IA) | `api.anthropic.com` | 443/tcp (HTTPS) | `backend` Java (`AiProviderModelFetcher.java:112`), `ai-agent` (`providers/anthropic_provider.py`), `agents-platform-backend` (`llm.py:244`) | Condicional — só ativo se o provedor "anthropic" for selecionado em IA→Provedores para alguma capability (STT/LLM/TTS) ou LLM do Agentes | `backend/.../AiProviderModelFetcher.java:112`, `ai-agent/src/providers/anthropic_provider.py`, `agents-platform/backend/llm.py:244` |
+| OpenAI API (provedor alternativo de IA) | `api.openai.com` | 443/tcp (HTTPS) | `backend` Java (`AiProviderModelFetcher.java:140`), `ai-agent` (`providers/openai_provider.py`), `agents-platform-backend` (`llm.py:252`) | Condicional — mesma lógica acima, provedor "openai" | `backend/.../AiProviderModelFetcher.java:140`, `ai-agent/src/providers/openai_provider.py`, `agents-platform/backend/llm.py:252` |
+| xAI / Grok API (provedor alternativo de IA) | `api.x.ai` | 443/tcp (HTTPS) | `backend` Java (`AiProviderModelFetcher.java:176`), `ai-agent` (`providers/grok_provider.py:32`) | Condicional — provedor "grok" | `backend/.../AiProviderModelFetcher.java:176`, `ai-agent/src/providers/grok_provider.py:32` |
+| Perplexity API (provedor alternativo de IA) | `api.perplexity.ai` | 443/tcp (HTTPS) | `backend` Java (`AiProviderModelFetcher.java:200`), `ai-agent` (`providers/perplexity_provider.py:31`) | Condicional — provedor "perplexity" | `backend/.../AiProviderModelFetcher.java:200`, `ai-agent/src/providers/perplexity_provider.py:31` |
+| ElevenLabs API (TTS alternativo) | `api.elevenlabs.io` | 443/tcp (HTTPS) | `backend` Java (`AiProviderModelFetcher.java:224`), `ai-agent` (`providers/elevenlabs_provider.py`) | Condicional — provedor "elevenlabs" (só capability TTS) | `backend/.../AiProviderModelFetcher.java:224`, `ai-agent/src/providers/elevenlabs_provider.py` |
+| Webhook de notificação de agente (Plataforma de Agentes) | **domínio arbitrário**, definido pelo usuário no cadastro do agente (`notify_webhook_url`) | 443/tcp ou 80/tcp, a critério do domínio configurado | `agents-platform-backend` (`orchestrator.py:69-70` → `notifier.py:78`) | Condicional — só quando um agente tem `notify_webhook=true` e uma URL configurada; SSRF já mitigado (host privado/loopback bloqueado, sem seguir redirect) | `agents-platform/backend/orchestrator.py:69-70`, `agents-platform/backend/notifier.py:59,78-98` |
 | Jira Cloud REST API v3 | `<empresa>.atlassian.net` (domínio real definido em `JIRA_BASE_URL`, hoje **sem credenciais configuradas** nesta VPS) | 443/tcp (HTTPS) | `backend` Java (`JiraIntegrationService`) | Condicional — só ativo se `JIRA_BASE_URL`/`JIRA_API_TOKEN` forem preenchidos (abertura de chamados via URA) | `backend/.../integration/jira/JiraIntegrationService.java:48,177`, `.env.example:91` |
 | Zabbix (monitoramento — normalmente infra interna do cliente, mas tratado como externo à VPS) | domínio/IP definido em `ZABBIX_API_URL` (`.env.example:99`) | 443/tcp ou 80/tcp (JSON-RPC sobre HTTP/HTTPS, depende do ambiente do cliente) | `backend` Java (`ZabbixPollingService`) | Condicional — só ativo com `ZABBIX_API_URL`/`ZABBIX_USER`/`ZABBIX_PASSWORD` configurados (Módulo 3 — alertas) | `backend/src/main/java/com/asteriskia/integration/zabbix/ZabbixPollingService.java:48,52`, `.env.example:99-101` |
 | Telegram Bot API | `api.telegram.org` | 443/tcp (HTTPS) | `backend` Java (`TelegramBotService.java:24,83`), `agents-platform-backend` (`notifier.py:19`) | Condicional — usado para alertas de gasto de IA, notificações do Agentes e do NPS; requer `TELEGRAM_BOT_TOKEN` | `backend/.../telegram/TelegramBotService.java:24`, `agents-platform/backend/notifier.py:9-19`, `.env.example:107-108` |
@@ -65,16 +71,30 @@ porta 9092), `backend↔agents-api`, `backend↔docker-helper`, `Caddy admin API
 
 ## 5. Observações e pendências para confirmar com Cyber
 
-1. **IPs de origem já liberados no fail2ban (`ignoreip`)** — sugerem que alguns IPs corporativos já
+1. **Provedores de IA alternativos (Anthropic/OpenAI/xAI/Perplexity/ElevenLabs)** — o sistema é
+   multi-provedor (`AiProviderModelFetcher.java`, `provider_registry.py`) e o Gemini é só o
+   default; se algum usuário ADMIN trocar o provedor ativo de STT/LLM/TTS em "IA→Provedores" ou no
+   LLM da Plataforma de Agentes, o tráfego passa a sair para o domínio daquele provedor (ver seção
+   2). Recomenda-se liberar os 5 domínios já hoje, para não depender de um novo pedido de firewall
+   sempre que alguém trocar o provedor pela UI.
+2. **QR Code do TOTP (2FA) é gerado pelo navegador do usuário**, não pela VPS — o campo `otpauth://`
+   é montado no backend, mas a imagem do QR Code é buscada pelo `<img src>` direto no navegador em
+   `api.qrserver.com` (`backend/.../TotpService.java:57`). Não precisa de liberação no firewall da
+   VPS (é o cliente que conecta), citado aqui só para constar no fluxo de ativação de 2FA.
+3. **IPs de origem já liberados no fail2ban (`ignoreip`)** — sugerem que alguns IPs corporativos já
    têm acesso confiável a esta VPS hoje: `131.255.20.32`, `186.233.141.79`, `191.95.161.70` (além das
    faixas privadas RFC1918 e da faixa `186.233.141.0/24` do tronco SIP). Vale confirmar com a Cyber
    se esses IPs devem ser mantidos/documentados como "confiáveis" (`security/config/jail.d/*.conf`).
-2. **LDAP/AD** (`AD_LDAP_HOST`) é uma integração já presente no código mas não documentada no
+4. **LDAP/AD** (`AD_LDAP_HOST`) é uma integração já presente no código mas não documentada no
    `.env.example` — não está claro se já está em uso em produção nesta VPS. Recomendo confirmar com
    quem implementou antes de solicitar a liberação da porta 636/389.
-3. **Zabbix** — o domínio real depende do ambiente do cliente final; hoje sem valor configurado
+5. **Zabbix** — o domínio real depende do ambiente do cliente final; hoje sem valor configurado
    nesta VPS (fila de sync vazia por falta de dado, não é bug).
-4. **Jira** — mesma situação: sem credenciais configuradas nesta VPS atualmente.
-5. Caso alguma dessas conexões falhe após a liberação, volte a este arquivo (`docs/matriz-conectividade-firewall.md`)
+6. **Jira** — mesma situação: sem credenciais configuradas nesta VPS atualmente.
+7. **Webhook de notificação de agente** (`notify_webhook_url`, Plataforma de Agentes) aceita
+   qualquer domínio público cadastrado pelo usuário — não dá para pré-liberar um domínio fixo no
+   firewall; se a equipe quiser travar isso a uma lista fechada, é decisão de produto, não hoje
+   implementada (mitigação atual é só bloqueio de IP privado/loopback).
+8. Caso alguma dessas conexões falhe após a liberação, volte a este arquivo (`docs/matriz-conectividade-firewall.md`)
    e à memória de sessão (`asteriskia_matriz_conectividade_firewall`) antes de refazer o levantamento —
    ambos citam arquivo:linha exatos para revalidar rapidamente contra o código atual.
