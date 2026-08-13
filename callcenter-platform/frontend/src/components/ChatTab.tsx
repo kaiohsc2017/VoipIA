@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
-import { MessageSquare, Send, FlaskConical } from 'lucide-react';
+import { MessageSquare, Send, FlaskConical, Bot } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
-import type { CcChatSession, CcChatMessage, CcCannedResponse, CcDisposition, CcQueue } from '../api/types';
+import type {
+  CcChatSession, CcChatMessage, CcCannedResponse, CcDisposition, CcQueue,
+  ChatChannelView, ChatChannelRequest, FlowView,
+} from '../api/types';
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -41,11 +44,50 @@ export function ChatTab({ isAdmin }: ChatTabProps) {
   const [simText, setSimText] = useState('');
   const [simSessionId, setSimSessionId] = useState<number | null>(null);
 
+  // Canais (Fase 24, ADMIN only — configuração, não atendimento)
+  const [channels, setChannels] = useState<ChatChannelView[]>([]);
+  const [chatFlows, setChatFlows] = useState<FlowView[]>([]);
+  const [editingChannel, setEditingChannel] = useState<ChatChannelView | null>(null);
+  const [channelForm, setChannelForm] = useState<ChatChannelRequest>({ code: '', displayName: '', type: 'webchat', active: true });
+
+  const loadChannels = () => {
+    api.get<ChatChannelView[]>('/callcenter/chat/channels').then(({ data }) => setChannels(data)).catch(() => setChannels([]));
+  };
+
   useEffect(() => {
     api.get<CcQueue[]>('/callcenter/filas').then(({ data }) => setQueues(data)).catch(() => setQueues([]));
     api.get<CcCannedResponse[]>('/callcenter/chat/canned-responses').then(({ data }) => setCanned(data)).catch(() => setCanned([]));
     api.get<CcDisposition[]>('/callcenter/interactions/dispositions').then(({ data }) => setDispositions(data)).catch(() => setDispositions([]));
-  }, []);
+    if (isAdmin) {
+      loadChannels();
+      api.get<FlowView[]>('/callcenter/fluxos')
+        .then(({ data }) => setChatFlows(data.filter(f => f.channel === 'chat' || f.channel === 'both')))
+        .catch(() => setChatFlows([]));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
+  const startEditChannel = (channel: ChatChannelView | null) => {
+    setEditingChannel(channel);
+    setChannelForm(channel
+      ? {
+          code: channel.code, displayName: channel.displayName, type: channel.type,
+          defaultQueueId: channel.defaultQueueId ?? null, botFlowId: channel.botFlowId ?? null,
+          greetingMessage: channel.greetingMessage ?? '', awayMessage: channel.awayMessage ?? '', active: channel.active,
+        }
+      : { code: '', displayName: '', type: 'webchat', active: true });
+  };
+
+  const saveChannel = () => {
+    if (!channelForm.code.trim() || !channelForm.displayName.trim()) return;
+    setError('');
+    const request = editingChannel
+      ? api.put(`/callcenter/chat/channels/${editingChannel.id}`, channelForm)
+      : api.post('/callcenter/chat/channels', channelForm);
+    request
+      .then(() => { setEditingChannel(null); setChannelForm({ code: '', displayName: '', type: 'webchat', active: true }); loadChannels(); })
+      .catch(err => setError(getErrorMessage(err, 'Erro ao salvar o canal.')));
+  };
 
   const loadWaiting = (queueId: number) => {
     api.get<CcChatSession[]>(`/callcenter/chat/queue/${queueId}`)
@@ -225,6 +267,65 @@ export function ChatTab({ isAdmin }: ChatTabProps) {
             )}
           </div>
         </div>
+
+        {isAdmin && (
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="flex items-center" style={{ gap: 8 }}>
+              <Bot size={16} />
+              <strong>Canais (Fase 24)</strong>
+            </div>
+            <p style={{ fontSize: '.8rem', margin: '4px 0 12px' }}>
+              Cada canal define a fila padrão (substitui a variável de ambiente única que o widget interno usava)
+              e, opcionalmente, um fluxo de bot do Flow Builder (canal "chat") que atende antes de chegar a um agente humano.
+            </p>
+            <ul style={{ listStyle: 'none', padding: 0, marginBottom: 12 }}>
+              {channels.map(c => (
+                <li key={c.id} className="flex items-center justify-between" style={{ padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span>
+                    <strong>{c.displayName}</strong> ({c.code}) — fila: {c.defaultQueueName ?? '— nenhuma —'}
+                    {c.botFlowName && <> — bot: {c.botFlowName}</>}
+                    {!c.active && <span className="badge badge-gray" style={{ marginLeft: 8 }}>inativo</span>}
+                  </span>
+                  <button className="btn btn-ghost btn-sm" onClick={() => startEditChannel(c)}>Editar</button>
+                </li>
+              ))}
+              {channels.length === 0 && <p style={{ color: 'var(--text-muted)' }}>Nenhum canal cadastrado.</p>}
+            </ul>
+            <div className="flex items-center" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <input className="form-input" style={{ width: 140 }} placeholder="Código (ex: webchat)"
+                aria-label="Código do canal"
+                value={channelForm.code} onChange={e => setChannelForm({ ...channelForm, code: e.target.value })} />
+              <input className="form-input" style={{ width: 200 }} placeholder="Nome de exibição"
+                aria-label="Nome de exibição do canal"
+                value={channelForm.displayName} onChange={e => setChannelForm({ ...channelForm, displayName: e.target.value })} />
+              <select className="form-input" style={{ width: 200 }} aria-label="Fila padrão do canal" value={channelForm.defaultQueueId ?? ''}
+                onChange={e => setChannelForm({ ...channelForm, defaultQueueId: e.target.value ? Number(e.target.value) : null })}>
+                <option value="">— Fila padrão —</option>
+                {queues.map(q => <option key={q.id} value={q.id}>{q.displayName}</option>)}
+              </select>
+              <select className="form-input" style={{ width: 200 }} aria-label="Fluxo de bot do canal" value={channelForm.botFlowId ?? ''}
+                onChange={e => setChannelForm({ ...channelForm, botFlowId: e.target.value ? Number(e.target.value) : null })}>
+                <option value="">— Sem fluxo de bot —</option>
+                {chatFlows.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+              <textarea className="form-input" style={{ width: '100%', marginTop: 8 }} rows={2}
+                placeholder="Mensagem de saudação (opcional) — exibida ao cliente ao abrir o chat"
+                aria-label="Mensagem de saudação do canal"
+                value={channelForm.greetingMessage ?? ''}
+                onChange={e => setChannelForm({ ...channelForm, greetingMessage: e.target.value })} />
+              <textarea className="form-input" style={{ width: '100%' }} rows={2}
+                placeholder="Mensagem de ausência (opcional) — fora do horário/sem bot associado"
+                aria-label="Mensagem de ausência do canal"
+                value={channelForm.awayMessage ?? ''}
+                onChange={e => setChannelForm({ ...channelForm, awayMessage: e.target.value })} />
+              <button className="btn btn-primary btn-sm" onClick={saveChannel}
+                disabled={!channelForm.code.trim() || !channelForm.displayName.trim()}>
+                {editingChannel ? 'Salvar' : 'Criar canal'}
+              </button>
+              {editingChannel && <button className="btn btn-ghost btn-sm" onClick={() => startEditChannel(null)}>Cancelar</button>}
+            </div>
+          </div>
+        )}
 
         {isAdmin && (
           <div className="card" style={{ marginTop: 16, background: '#fff8db', border: '1px solid #e6c200' }}>

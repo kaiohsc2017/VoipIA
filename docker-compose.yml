@@ -359,9 +359,11 @@ services:
       # Fase 20: /opt/gravacoes/{audio,chat} → /opt/AsteriskIA/media/{gravacao,chat}.
       CALLCENTER_RECORDING_PATH:  ${CALLCENTER_RECORDING_PATH:-/opt/AsteriskIA/media/gravacao}
       CALLCENTER_CHAT_TRANSCRIPT_PATH: ${CALLCENTER_CHAT_TRANSCRIPT_PATH:-/opt/AsteriskIA/media/chat}
-      # Canal de chat público (Fase 7b) — fila-alvo do widget; vazio nesta VPS (sem fila
-      # real cadastrada ainda), endpoint público responde 503 enquanto estiver vazio.
-      CALLCENTER_CHAT_PUBLIC_QUEUE_ID: ${CALLCENTER_CHAT_PUBLIC_QUEUE_ID:-}
+      # Fase 24: a fila do canal de chat interno virou configuração de banco (CcChatChannel.
+      # defaultQueue) — CALLCENTER_CHAT_PUBLIC_QUEUE_ID foi removida. Origens de CORS liberadas
+      # pro widget de chat interno (D8 — rede corporativa, nunca internet aberta); vazio nesta
+      # VPS de dev, sem intranet real pra configurar ainda.
+      CALLCENTER_CHAT_ALLOWED_ORIGINS: ${CALLCENTER_CHAT_ALLOWED_ORIGINS:-}
       # Biblioteca de áudios do Flow Builder (Fase 5c) — o backend transcodifica com ffmpeg
       # e grava aqui; o Asterisk só lê (mount ro, ver serviço asterisk).
       CALLCENTER_AUDIO_LIBRARY_PATH: ${CALLCENTER_AUDIO_LIBRARY_PATH:-/opt/AsteriskIA/media/anuncios}

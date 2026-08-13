@@ -335,6 +335,11 @@ class FlowExecutionEngineTest {
         }
 
         @Override
+        public TextResult collectText(Duration timeout) {
+            return TextResult.hungUp();
+        }
+
+        @Override
         public void setVariable(String name, String value) {
             variables.put(name, value);
         }

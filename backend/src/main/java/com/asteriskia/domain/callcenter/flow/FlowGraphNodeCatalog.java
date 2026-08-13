@@ -21,6 +21,13 @@ import org.springframework.stereotype.Component;
  * {@code horario_funcionamento}, {@code agente_ia}) continuam {@code false} — ficam para as
  * sub-fases 5d/5e. {@link FlowGraphValidator} bloqueia a publicação de qualquer fluxo que use um
  * nó ainda não implementado.
+ *
+ * <p>Fase 24 (chat) prova a premissa de motor agnóstico de canal: {@code menu_opcoes},
+ * {@code tocar_audio}, {@code enviar_fila}, {@code encerrar}, {@code condicao},
+ * {@code definir_variavel} já eram {@code channel="both"} e passam a rodar em chat sem nenhuma
+ * mudança de handler — só {@link com.asteriskia.domain.callcenter.flow.chat.ChatChannelDriver}
+ * é novo. {@code coletar_texto} é o único nó exclusivo do canal {@code chat} (equivalente chat de
+ * {@code coletar_entrada}, que continua exclusivo de voz e não implementado).
  */
 @Component
 public class FlowGraphNodeCatalog {
@@ -28,7 +35,7 @@ public class FlowGraphNodeCatalog {
     private static final Set<String> IMPLEMENTED_TYPES =
             Set.of(
                     "inicio", "tocar_audio", "menu_opcoes", "condicao", "definir_variavel", "enviar_fila",
-                    "pesquisa_satisfacao", "pausar_gravacao", "encerrar");
+                    "pesquisa_satisfacao", "pausar_gravacao", "coletar_texto", "encerrar");
 
     private static final List<FlowGraphNodeType> NODE_TYPES =
             List.of(
@@ -105,6 +112,13 @@ public class FlowGraphNodeCatalog {
                                                     new FlowGraphNodeType.NodeProperty.Option("pausar", "Pausar gravação"),
                                                     new FlowGraphNodeType.NodeProperty.Option("retomar", "Retomar gravação")),
                                             true))),
+                    node(
+                            "coletar_texto",
+                            "Coletar texto (chat)",
+                            "chat",
+                            List.of(
+                                    prop("variavel", "Variável de destino", "string"),
+                                    prop("timeoutSegundos", "Timeout (s)", "number"))),
                     node(
                             "pesquisa_satisfacao",
                             "Pesquisa de satisfação",

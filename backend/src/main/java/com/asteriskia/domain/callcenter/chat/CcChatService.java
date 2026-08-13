@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -45,6 +46,7 @@ public class CcChatService {
     private final CallCenterAgentStateService agentStateService;
     private final SimpMessagingTemplate messagingTemplate;
     private final ChatTranscriptExportService transcriptExportService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public CcChatSession startSession(String channelCode, Long queueId, String customerRef, String customerName) {
@@ -52,9 +54,26 @@ public class CcChatService {
                 .orElseThrow(() -> new ResourceNotFoundException("Canal de chat inválido ou inativo: " + channelCode));
         CcQueue queue = queueRepository.findById(queueId)
                 .orElseThrow(() -> new ResourceNotFoundException("Fila não encontrada: " + queueId));
+        return startSession(channel, queue, customerRef, customerName);
+    }
+
+    /** Fase 24: resolve a fila padrão do próprio canal (substitui a variável de ambiente única
+     * que o widget interno usava) — 503 claro, nunca 500, quando o canal não tem fila configurada. */
+    @Transactional
+    public CcChatSession startSession(String channelCode, String customerRef, String customerName) {
+        CcChatChannel channel = channelRepository.findByCodeAndActiveTrue(channelCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Canal de chat inválido ou inativo: " + channelCode));
+        if (channel.getDefaultQueue() == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Canal de chat sem fila padrão configurada.");
+        }
+        return startSession(channel, channel.getDefaultQueue(), customerRef, customerName);
+    }
+
+    private CcChatSession startSession(CcChatChannel channel, CcQueue queue, String customerRef, String customerName) {
         if (customerRef == null || customerRef.isBlank()) {
             throw new IllegalArgumentException("customerRef é obrigatório.");
         }
+        boolean hasBotFlow = channel.getBotFlow() != null && Boolean.TRUE.equals(channel.getBotFlow().getActive());
 
         CcChatSession session = sessionRepository.save(CcChatSession.builder()
                 .channel(channel)
@@ -62,13 +81,19 @@ public class CcChatService {
                 .businessUnit(queue.getBusinessUnit())
                 .customerRef(customerRef)
                 .customerName(customerName)
-                .status("waiting")
+                .status(hasBotFlow ? "bot" : "waiting")
                 .startedAt(LocalDateTime.now())
                 .build());
 
-        messagingTemplate.convertAndSend("/topic/callcenter/chat/queue/" + queueId,
-                new ChatQueueEvent(session.getId(), session.getCustomerName(), session.getStartedAt()));
-        log.info("Sessão de chat iniciada: id={} canal={} fila={}", session.getId(), channelCode, queueId);
+        if (hasBotFlow) {
+            eventPublisher.publishEvent(new ChatBotSessionStartedEvent(session.getId(), channel.getBotFlow().getId()));
+        } else {
+            messagingTemplate.convertAndSend("/topic/callcenter/chat/queue/" + queue.getId(),
+                    new ChatQueueEvent(session.getId(), session.getCustomerName(), session.getStartedAt()));
+        }
+        log.info(
+                "Sessão de chat iniciada: id={} canal={} fila={} bot={}",
+                session.getId(), channel.getCode(), queue.getId(), hasBotFlow);
         return session;
     }
 
@@ -120,7 +145,7 @@ public class CcChatService {
                 resolvedSenderName = agent.getName();
             }
             case "customer" -> {
-                if (!"waiting".equals(session.getStatus()) && !"active".equals(session.getStatus())) {
+                if (List.of("bot", "waiting", "active").stream().noneMatch(s -> s.equals(session.getStatus()))) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "Esta conversa já foi encerrada.");
                 }
                 resolvedSenderName = senderName != null ? senderName : session.getCustomerName();
@@ -137,7 +162,90 @@ public class CcChatService {
                 .build());
 
         messagingTemplate.convertAndSend("/topic/callcenter/chat/session/" + sessionId, toView(session));
+        if ("customer".equals(senderType)) {
+            // Sem custo se ninguém estiver ouvindo — o listener (Fase 24) só age quando há um
+            // ChatChannelDriver registrado para esta sessão (bot em execução).
+            eventPublisher.publishEvent(new ChatCustomerMessageReceivedEvent(sessionId, body));
+        }
         return message;
+    }
+
+    /** Mensagem automática do motor de fluxo (nó tocar_audio/menu_opcoes em canal chat, Fase 24)
+     * — nunca chamado a partir de um controller, só do driver de chat, por isso não passa pelas
+     * checagens de {@code currentAgent()}/status de {@link #postMessage} (roda numa thread sem
+     * autenticação de staff). Guarda contra sessão que não está mais em execução de bot (ex.: um
+     * ADMIN encerrou manualmente enquanto a thread do fluxo ainda esperava resposta do cliente) —
+     * sem essa guarda, a mensagem do bot era gravada e publicada por STOMP numa conversa já
+     * fechada/tabulada/exportada, corrompendo a garantia de que "encerrada" é definitivo. */
+    @Transactional
+    public CcChatMessage postBotMessage(Long sessionId, String body) {
+        if (body == null || body.isBlank()) {
+            throw new IllegalArgumentException("Mensagem do bot vazia.");
+        }
+        CcChatSession session = findSessionOrThrow(sessionId);
+        if (!"bot".equals(session.getStatus())) {
+            log.warn("Bot tentou postar mensagem na sessão {} que não está mais em execução de bot (status={}) — ignorando.",
+                    sessionId, session.getStatus());
+            return null;
+        }
+        CcChatMessage message = messageRepository.save(CcChatMessage.builder()
+                .sessionId(sessionId)
+                .senderType("bot")
+                .senderName("Assistente")
+                .body(body)
+                .build());
+        messagingTemplate.convertAndSend("/topic/callcenter/chat/session/" + sessionId, toView(session));
+        return message;
+    }
+
+    /** Fim da execução do bot com transferência para fila humana (nó "enviar_fila", Fase 24) —
+     * equivalente chat de {@code ChannelDriver.transferToQueue}. {@code queueName} é o mesmo
+     * {@code CcQueue.name} usado pelo nó de voz (resolvido pelo handler antes de chamar o
+     * driver — aqui só resolvemos de novo pelo nome, sem duplicar a lógica de escolha da fila). */
+    @Transactional
+    public void transferToHumanQueue(Long sessionId, String queueName) {
+        CcChatSession session = findSessionOrThrow(sessionId);
+        if (!"bot".equals(session.getStatus())) {
+            log.warn("Bot tentou transferir a sessão {} que não está mais em execução de bot (status={}) — ignorando.",
+                    sessionId, session.getStatus());
+            return;
+        }
+        CcQueue queue = queueRepository.findByName(queueName)
+                .orElseThrow(() -> new ResourceNotFoundException("Fila não encontrada: " + queueName));
+        session.setQueue(queue);
+        session.setStatus("waiting");
+        sessionRepository.save(session);
+        messagingTemplate.convertAndSend("/topic/callcenter/chat/queue/" + queue.getId(),
+                new ChatQueueEvent(session.getId(), session.getCustomerName(), session.getStartedAt()));
+        messagingTemplate.convertAndSend("/topic/callcenter/chat/session/" + sessionId, toView(session));
+        log.info("Bot transferiu sessão de chat {} para a fila {}.", sessionId, queue.getId());
+    }
+
+    /** Encerramento pelo próprio bot (nó "encerrar", Fase 24) — sem agente/tabulação, diferente
+     * de {@link #close}. */
+    @Transactional
+    public void closeByBot(Long sessionId) {
+        CcChatSession session = findSessionOrThrow(sessionId);
+        if (!"bot".equals(session.getStatus())) {
+            // Já fechada, ou saiu do controle do bot por outra via (ex.: ChatSessionEndedEvent) —
+            // idempotente, nada a fazer.
+            return;
+        }
+        session.setStatus("closed");
+        session.setClosedAt(LocalDateTime.now());
+        sessionRepository.save(session);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    transcriptExportService.export(sessionId);
+                }
+            });
+        } else {
+            transcriptExportService.export(sessionId);
+        }
+        messagingTemplate.convertAndSend("/topic/callcenter/chat/session/" + sessionId, toView(session));
+        log.info("Sessão de chat {} encerrada pelo bot.", sessionId);
     }
 
     @Transactional
@@ -171,6 +279,11 @@ public class CcChatService {
         }
 
         messagingTemplate.convertAndSend("/topic/callcenter/chat/session/" + sessionId, toView(session));
+        // Sem custo se não houver bot em execução para esta sessão (ChatFlowLauncherService só
+        // age se tiver um driver registrado) — destrava a thread do fluxo caso o encerramento
+        // tenha vindo de fora do bot (ex.: ADMIN liberando uma conversa travada), em vez de
+        // deixá-la bloqueada até o timeout do nó atual.
+        eventPublisher.publishEvent(new ChatSessionEndedEvent(sessionId));
         log.info("Sessão de chat encerrada: id={} dispositionId={}", sessionId, dispositionId);
         return session;
     }

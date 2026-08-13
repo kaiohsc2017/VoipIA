@@ -113,6 +113,15 @@ public class AriVoiceChannelDriver implements ChannelDriver {
     }
 
     @Override
+    public TextResult collectText(Duration timeout) {
+        // Coleta de texto livre falado (STT) é escopo da Fase 14 (nó coletar_entrada, ainda
+        // implementado=false no catálogo) — nenhum fluxo de voz publicado usa "coletar_texto"
+        // (canal exclusivo "chat" no catálogo), então nunca deveria chegar aqui em produção.
+        throw new UnsupportedOperationException(
+                "coletar_texto ainda não implementado para canal de voz — ver Fase 14.");
+    }
+
+    @Override
     public void setVariable(String name, String value) {
         ariClient.setChannelVar(channelId, name, value);
     }

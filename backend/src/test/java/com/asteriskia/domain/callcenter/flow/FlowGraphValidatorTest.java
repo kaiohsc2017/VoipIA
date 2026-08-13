@@ -111,6 +111,17 @@ class FlowGraphValidatorTest {
     }
 
     @Test
+    @DisplayName("Fase 24: nó exclusivo de chat (coletar_texto) num fluxo de voz é rejeitado")
+    void chatOnlyNodeInVoiceFlow_rejected() {
+        var nodes = "[" + n("n1", "inicio") + "," + n("n2", "coletar_texto") + "]";
+        var edges = "[{\"id\":\"e1\",\"source\":\"n1\",\"target\":\"n2\"}]";
+        var result = validator.validate(graph(nodes, edges), "voice", false);
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.errors()).anyMatch(e -> e.message().contains("incompatível"));
+    }
+
+    @Test
     @DisplayName("grafo válido para salvar rascunho não gera erro mesmo com nó ainda não implementado")
     void validGraph_savingDraft_noErrorForUnimplementedNode() {
         var nodes = "[" + n("n1", "inicio") + "," + n("n2", "consultar_api") + "]";

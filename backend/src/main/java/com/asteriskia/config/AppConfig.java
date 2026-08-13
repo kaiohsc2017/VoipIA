@@ -29,6 +29,9 @@ public class AppConfig {
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
 
+    @Value("${app.callcenter.chat.allowed-origins:}")
+    private String chatAllowedOrigins;
+
     /**
      * CORS consumido por {@code SecurityConfig} via {@code http.cors(...)} (não
      * {@code WebMvcConfigurer.addCorsMappings}, e não um {@code CorsFilter} avulso).
@@ -59,12 +62,21 @@ public class AppConfig {
         restricted.setAllowCredentials(true);
         restricted.setMaxAge(3600L);
 
-        // Widget de chat público (Fase 7b) — embeddável em qualquer site externo, sem saber de
-        // antemão o domínio. Origem "*" só é segura aqui porque não há cookie envolvido
-        // (allowCredentials=false): o token de sessão viaja em header/body, nunca em cookie,
-        // então não há CSRF a mitigar nesta rota específica.
+        // Widget de chat "público" (Fase 7b) — nome legado; D8 (2026-08-08) já esclareceu que a
+        // aplicação nunca vai à internet aberta, roda dentro da rede corporativa. Fase 24:
+        // origem "*" (pensada originalmente pra widget embutido em site externo) trocada por
+        // uma lista configurável de origens corporativas reais — vazia nesta VPS de dev
+        // (nenhuma origem cross-origin liberada até ser configurada de verdade). Continua sem
+        // allowCredentials=true: o token de sessão viaja em header/body, nunca em cookie, então
+        // não há CSRF a mitigar nesta rota mesmo com a lista vazia/restrita.
         CorsConfiguration publicChat = new CorsConfiguration();
-        publicChat.setAllowedOriginPatterns(List.of("*"));
+        var chatOrigins = chatAllowedOrigins == null || chatAllowedOrigins.isBlank()
+                ? List.<String>of()
+                : java.util.Arrays.stream(chatAllowedOrigins.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isBlank())
+                        .toList();
+        publicChat.setAllowedOriginPatterns(chatOrigins);
         publicChat.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
         publicChat.setAllowedHeaders(List.of("*"));
         publicChat.setAllowCredentials(false);

@@ -7,7 +7,6 @@ import java.net.UnknownHostException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,11 +18,17 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * PublicCallCenterChatController — endpoints públicos, sem autenticação de staff, usados
- * pelo widget de chat embeddável (Fase 7b). Cada ação exige um token de sessão validado
- * manualmente (não passa pelo {@code JwtAuthFilter} de RBAC — a rota está em {@code permitAll()}
- * em {@code SecurityConfig}) contra o {@code sessionId} da URL — nunca aceita o JWT de staff
- * nem de streaming, nem abre/opera sessão de outro cliente.
+ * PublicCallCenterChatController — endpoints "públicos" (nome legado da Fase 7b — decisão D8 do
+ * plano já esclarece que a aplicação nunca vai à internet aberta, roda dentro da rede
+ * corporativa; "widget público" aqui sempre significou "widget interno", embutido em página da
+ * intranet). Cada ação exige um token de sessão validado manualmente (não passa pelo
+ * {@code JwtAuthFilter} de RBAC — a rota está em {@code permitAll()} em {@code SecurityConfig})
+ * contra o {@code sessionId} da URL — nunca aceita o JWT de staff nem de streaming, nem
+ * abre/opera sessão de outro cliente.
+ *
+ * <p>Fase 24: a fila é resolvida do canal ({@code CcChatChannel.defaultQueue}), não mais de uma
+ * variável de ambiente única ({@code app.callcenter.chat.public-queue-id}, removida) — o 503
+ * "sem fila configurada" continua existindo, só a fonte da configuração mudou.
  */
 @Slf4j
 @RestController
@@ -37,9 +42,6 @@ public class PublicCallCenterChatController {
     private final PublicChatRateLimiter rateLimiter;
     private final com.asteriskia.config.JwtService jwtService;
 
-    @Value("${app.callcenter.chat.public-queue-id:}")
-    private String publicQueueId;
-
     public record StartSessionRequest(@NotBlank String customerRef, String customerName) {}
 
     public record StartSessionResponse(Long sessionId, String token) {}
@@ -49,18 +51,14 @@ public class PublicCallCenterChatController {
     @PostMapping("/sessions")
     public StartSessionResponse startSession(@jakarta.validation.Valid @RequestBody StartSessionRequest request,
                                               HttpServletRequest httpRequest) {
-        if (publicQueueId == null || publicQueueId.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Chat público não configurado");
-        }
         String ip = resolveIp(httpRequest);
         if (!rateLimiter.allowSessionStart(ip)) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Muitas conversas iniciadas — tente novamente mais tarde.");
         }
 
-        CcChatSession session = chatService.startSession(
-                WEBCHAT_CHANNEL_CODE, Long.valueOf(publicQueueId), request.customerRef(), request.customerName());
+        CcChatSession session = chatService.startSession(WEBCHAT_CHANNEL_CODE, request.customerRef(), request.customerName());
         String token = jwtService.generateChatCustomerToken(session.getId());
-        log.info("Sessão de chat pública iniciada: id={} ip={}", session.getId(), ip);
+        log.info("Sessão de chat interna iniciada: id={} ip={}", session.getId(), ip);
         return new StartSessionResponse(session.getId(), token);
     }
 

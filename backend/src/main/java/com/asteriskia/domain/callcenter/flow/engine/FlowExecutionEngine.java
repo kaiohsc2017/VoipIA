@@ -1,5 +1,6 @@
 package com.asteriskia.domain.callcenter.flow.engine;
 
+import com.asteriskia.domain.callcenter.flow.CcFlow;
 import com.asteriskia.domain.callcenter.flow.CcFlowRepository;
 import com.asteriskia.domain.callcenter.flow.CcFlowVersionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -50,12 +51,33 @@ public class FlowExecutionEngine {
     /** Início de uma execução — chamado pelo {@code AriEventListener} ao receber {@code StasisStart}. */
     public void start(String channelId, String extension, String channelUniqueId, ChannelDriver driver) {
         var flowOpt = flowRepository.findByEntryExtension(extension);
-        if (flowOpt.isEmpty() || flowOpt.get().getPublishedVersionId() == null) {
+        if (flowOpt.isEmpty()) {
             log.warn("Fluxo sem publicação para a extensão {} — encerrando chamada {}.", extension, channelId);
             driver.end();
             return;
         }
-        var flow = flowOpt.get();
+        startResolved(flowOpt.get(), channelId, channelUniqueId, driver);
+    }
+
+    /** Início de uma execução resolvendo o fluxo direto pelo id — usado pelo canal de chat (Fase
+     * 24, {@code ChatFlowLauncherService}), que não tem "extensão" nenhuma para resolver contra
+     * {@code entryExtension} (exclusivo do canal voz). */
+    public void startForFlow(Long flowId, String channelId, String channelUniqueId, ChannelDriver driver) {
+        var flowOpt = flowRepository.findById(flowId);
+        if (flowOpt.isEmpty()) {
+            log.warn("Fluxo {} inexistente — encerrando sessão de chat {}.", flowId, channelId);
+            driver.end();
+            return;
+        }
+        startResolved(flowOpt.get(), channelId, channelUniqueId, driver);
+    }
+
+    private void startResolved(CcFlow flow, String channelId, String channelUniqueId, ChannelDriver driver) {
+        if (flow.getPublishedVersionId() == null) {
+            log.warn("Fluxo {} sem versão publicada — encerrando canal {}.", flow.getId(), channelId);
+            driver.end();
+            return;
+        }
         var versionOpt = flowVersionRepository.findById(flow.getPublishedVersionId());
         if (versionOpt.isEmpty()) {
             log.error(

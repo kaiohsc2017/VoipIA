@@ -699,12 +699,39 @@ export interface CcAgentEvolutionSnapshot {
   createdAt: string;
 }
 
-// ---- Canal de Chat — Fase 7a (base interna, sem widget público ainda) ----
+// ---- Canal de Chat — Fase 7a (base interna) + Fase 24 (fila padrão + fluxo de bot) ----
 export interface CcChatChannel {
   id: number;
   code: string;
   displayName: string;
   active: boolean;
+}
+
+/** DTO de leitura de GET /callcenter/chat/channels (Fase 24) — distinto de {@link CcChatChannel}
+ * (referência embutida em {@link CcChatSession}), que continua o shape mínimo herdado da 7a. */
+export interface ChatChannelView {
+  id: number;
+  code: string;
+  displayName: string;
+  type: string;
+  defaultQueueId?: number;
+  defaultQueueName?: string;
+  botFlowId?: number;
+  botFlowName?: string;
+  greetingMessage?: string;
+  awayMessage?: string;
+  active: boolean;
+}
+
+export interface ChatChannelRequest {
+  code: string;
+  displayName: string;
+  type?: string;
+  defaultQueueId?: number | null;
+  botFlowId?: number | null;
+  greetingMessage?: string | null;
+  awayMessage?: string | null;
+  active?: boolean;
 }
 
 export interface CcChatSession {
@@ -713,7 +740,7 @@ export interface CcChatSession {
   queue: CcQueue;
   customerRef: string;
   customerName?: string;
-  status: 'waiting' | 'active' | 'closed';
+  status: 'bot' | 'waiting' | 'active' | 'closed';
   assignedAgent?: CcAgent;
   disposition?: CcDisposition;
   startedAt: string;
@@ -724,7 +751,7 @@ export interface CcChatSession {
 export interface CcChatMessage {
   id: number;
   sessionId: number;
-  senderType: 'customer' | 'agent' | 'system';
+  senderType: 'customer' | 'agent' | 'system' | 'bot';
   senderName?: string;
   body: string;
   createdAt: string;

@@ -24,8 +24,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -57,6 +59,8 @@ class CcChatServiceTest {
     private SimpMessagingTemplate messagingTemplate;
     @Mock
     private ChatTranscriptExportService transcriptExportService;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private CcChatService service;
 
@@ -64,7 +68,7 @@ class CcChatServiceTest {
     void setUp() {
         service = new CcChatService(channelRepository, sessionRepository, messageRepository,
                 queueRepository, dispositionRepository, agentStateService, messagingTemplate,
-                transcriptExportService);
+                transcriptExportService, eventPublisher);
     }
 
     @AfterEach
@@ -235,5 +239,165 @@ class CcChatServiceTest {
         // Fora de uma transação gerenciada (caso do teste), não há afterCommit a esperar — o
         // serviço precisa disparar a exportação direto, não silenciosamente pular.
         verify(transcriptExportService).export(5L);
+    }
+
+    // --- Fase 24: canal com fluxo de bot ---
+
+    @Test
+    @DisplayName("startSession com canal sem fluxo de bot cria sessão 'waiting' e publica na fila (comportamento pré-Fase 24 preservado)")
+    void startSession_channelWithoutBotFlow_createsWaitingSession() {
+        CcChatChannel channel = CcChatChannel.builder().id(1L).code("webchat").active(true).build();
+        when(channelRepository.findByCodeAndActiveTrue("webchat")).thenReturn(Optional.of(channel));
+        when(queueRepository.findById(10L)).thenReturn(Optional.of(queueOf(10L)));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CcChatSession result = service.startSession("webchat", 10L, "cliente-1", "Cliente");
+
+        assertThat(result.getStatus()).isEqualTo("waiting");
+        verify(eventPublisher, never()).publishEvent(any(ChatBotSessionStartedEvent.class));
+        verify(messagingTemplate).convertAndSend(anyString(), (Object) any(CcChatService.ChatQueueEvent.class));
+    }
+
+    @Test
+    @DisplayName("startSession com canal de fluxo de bot ativo cria sessão 'bot' e publica ChatBotSessionStartedEvent, sem tocar a fila ainda")
+    void startSession_channelWithActiveBotFlow_createsBotSessionAndPublishesEvent() {
+        var flow = com.asteriskia.domain.callcenter.flow.CcFlow.builder().id(77L).active(true).build();
+        CcChatChannel channel = CcChatChannel.builder()
+                .id(1L).code("webchat").active(true).defaultQueue(queueOf(10L)).botFlow(flow).build();
+        when(channelRepository.findByCodeAndActiveTrue("webchat")).thenReturn(Optional.of(channel));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CcChatSession result = service.startSession("webchat", "cliente-1", "Cliente");
+
+        assertThat(result.getStatus()).isEqualTo("bot");
+        ArgumentCaptor<ChatBotSessionStartedEvent> captor = ArgumentCaptor.forClass(ChatBotSessionStartedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().flowId()).isEqualTo(77L);
+        verify(messagingTemplate, never()).convertAndSend(anyString(), (Object) any(CcChatService.ChatQueueEvent.class));
+    }
+
+    @Test
+    @DisplayName("startSession(channelCode, customerRef, customerName) sem fila padrão responde 503, nunca 500")
+    void startSession_channelWithoutDefaultQueue_throws503() {
+        CcChatChannel channel = CcChatChannel.builder().id(1L).code("webchat").active(true).build();
+        when(channelRepository.findByCodeAndActiveTrue("webchat")).thenReturn(Optional.of(channel));
+
+        assertThatThrownBy(() -> service.startSession("webchat", "cliente-1", "Cliente"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("fila padrão");
+
+        verify(sessionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("postMessage de cliente publica ChatCustomerMessageReceivedEvent (mesmo sem bot em execução)")
+    void postMessage_customer_publishesEvent() {
+        CcChatSession session = sessionOf(5L, "bot", null);
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        when(messageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.postMessage(5L, "customer", "Cliente", "quero saber o horário");
+
+        ArgumentCaptor<ChatCustomerMessageReceivedEvent> captor = ArgumentCaptor.forClass(ChatCustomerMessageReceivedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().text()).isEqualTo("quero saber o horário");
+    }
+
+    @Test
+    @DisplayName("postBotMessage grava senderType=bot sem exigir currentAgent() (roda numa thread sem autenticação de staff)")
+    void postBotMessage_savesWithBotSenderType() {
+        CcChatSession session = sessionOf(5L, "bot", null);
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        when(messageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CcChatMessage message = service.postBotMessage(5L, "Olá, como posso ajudar?");
+
+        assertThat(message.getSenderType()).isEqualTo("bot");
+        verify(agentStateService, never()).currentAgent();
+    }
+
+    @Test
+    @DisplayName("transferToHumanQueue resolve a fila por nome, muda status pra waiting e publica na fila")
+    void transferToHumanQueue_success() {
+        CcChatSession session = sessionOf(5L, "bot", null);
+        CcQueue targetQueue = queueOf(20L);
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        when(queueRepository.findByName("5001")).thenReturn(Optional.of(targetQueue));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.transferToHumanQueue(5L, "5001");
+
+        assertThat(session.getStatus()).isEqualTo("waiting");
+        assertThat(session.getQueue()).isEqualTo(targetQueue);
+    }
+
+    @Test
+    @DisplayName("closeByBot encerra a sessão e é idempotente (nunca falha reencerrando uma já closed)")
+    void closeByBot_success_andIdempotent() {
+        CcChatSession session = sessionOf(5L, "bot", null);
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.closeByBot(5L);
+
+        assertThat(session.getStatus()).isEqualTo("closed");
+        verify(transcriptExportService).export(5L);
+
+        service.closeByBot(5L); // já closed — não deve tentar exportar de novo nem quebrar
+        verify(transcriptExportService, org.mockito.Mockito.times(1)).export(5L);
+    }
+
+    @Test
+    @DisplayName("postBotMessage é ignorado quando a sessão não está mais em execução de bot (ex.: ADMIN encerrou enquanto o fluxo esperava resposta)")
+    void postBotMessage_sessionNoLongerBot_isNoOp() {
+        CcChatSession session = sessionOf(5L, "closed", null);
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+
+        CcChatMessage message = service.postBotMessage(5L, "Olá, como posso ajudar?");
+
+        assertThat(message).isNull();
+        verify(messageRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("transferToHumanQueue é ignorado quando a sessão não está mais em execução de bot")
+    void transferToHumanQueue_sessionNoLongerBot_isNoOp() {
+        CcChatSession session = sessionOf(5L, "closed", null);
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+
+        service.transferToHumanQueue(5L, "5001");
+
+        assertThat(session.getStatus()).isEqualTo("closed");
+        verify(queueRepository, never()).findByName(anyString());
+        verify(sessionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("closeByBot é ignorado quando a sessão já saiu do controle do bot por outra via (ex.: já waiting)")
+    void closeByBot_sessionNoLongerBot_isNoOp() {
+        CcChatSession session = sessionOf(5L, "waiting", null);
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+
+        service.closeByBot(5L);
+
+        assertThat(session.getStatus()).isEqualTo("waiting");
+        verify(sessionRepository, never()).save(any());
+        verify(transcriptExportService, never()).export(5L);
+    }
+
+    @Test
+    @DisplayName("close publica ChatSessionEndedEvent para destravar uma eventual thread de bot ainda esperando resposta")
+    void close_publishesSessionEndedEvent() {
+        CcChatSession session = sessionOf(5L, "bot", null);
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        SecurityContextHolder.getContext().setAuthentication(
+                new TestingAuthenticationToken("admin", null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+
+        service.close(5L, null);
+
+        ArgumentCaptor<ChatSessionEndedEvent> captor = ArgumentCaptor.forClass(ChatSessionEndedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().sessionId()).isEqualTo(5L);
     }
 }

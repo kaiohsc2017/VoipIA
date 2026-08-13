@@ -24,6 +24,11 @@ public interface ChannelDriver {
      * capturado (desistência/hangup antes de começar a falar). */
     RecordResult recordResponse(Duration maxDuration);
 
+    /** Aguarda um texto livre do usuário (nó "coletar_texto", Fase 24 — canal chat). Sem
+     * equivalente em voz nesta fase (coleta de texto falado é escopo da Fase 14/coletar_entrada,
+     * ainda não implementada) — implementações de voz podem lançar {@link UnsupportedOperationException}. */
+    TextResult collectText(Duration timeout);
+
     void setVariable(String name, String value);
 
     String getVariable(String name);
@@ -59,6 +64,27 @@ public interface ChannelDriver {
 
         public static PromptResult invalid(String choice) {
             return new PromptResult(Outcome.INVALID, choice);
+        }
+    }
+
+    /** Resultado de {@link #collectText}. */
+    record TextResult(Outcome outcome, String text) {
+        public enum Outcome {
+            COLLECTED,
+            TIMEOUT,
+            HUNG_UP
+        }
+
+        public static TextResult collected(String text) {
+            return new TextResult(Outcome.COLLECTED, text);
+        }
+
+        public static TextResult timeout() {
+            return new TextResult(Outcome.TIMEOUT, null);
+        }
+
+        public static TextResult hungUp() {
+            return new TextResult(Outcome.HUNG_UP, null);
         }
     }
 
