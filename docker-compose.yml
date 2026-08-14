@@ -470,7 +470,10 @@ services:
     # D5 do plano), mas sem acoplar depends_on de outro serviço a service_healthy deste aqui
     # (nada depende do frontend ficar saudável para subir).
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      # 127.0.0.1 explícito — "localhost" resolve pra ::1 (IPv6) primeiro dentro do container e o
+      # nginx só escuta em 0.0.0.0:80 (IPv4), causando "connection refused" mesmo com o processo
+      # de pé (confirmado ao aplicar esta mudança em produção).
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -654,7 +657,7 @@ services:
     # projeto: nunca deixar o Caddy cair sem religar imediatamente; um healthcheck que fique
     # unhealthy não deve, por si só, impedir nada de subir/continuar rodando).
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:80/"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:80/"]
       interval: 30s
       timeout: 5s
       retries: 3
