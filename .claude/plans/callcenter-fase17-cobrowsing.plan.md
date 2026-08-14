@@ -97,8 +97,16 @@ INSERT INTO cc_cobrowse_retention_config (id) VALUES ('default') ON CONFLICT DO 
 Aviso claro **distinto** do de gravação de voz, dois botões explícitos. Sem aceite, o chat funciona normalmente, sem insistência. Revogável a qualquer momento → para no cliente, `POST /chat/public/sessions/{id}/cobrowse-consent {granted:false, textHash}`, marca `revoked` e **apaga** o já capturado (`purged_at`). Indicador permanentemente visível durante a captura.
 
 ### 5.3 Captura e transporte (17b)
-- **Mascaramento client-side:** `maskAllInputs:true`, `maskInputOptions` (password/email/tel/number), `blockClass:'cc-cb-block'`, `recordCanvas:false`, `inlineImages:false`, `collectFonts:false`.
-- **Reforço server-side:** `CobrowseEventSanitizer` portando a heurística de `insights/src/masking.py` (CPF/cartão/telefone), sem IA.
+> **Revertido em 2026-08-14 a pedido explícito do usuário:** o mascaramento client-side (rrweb) e
+> o sanitizador server-side (`CobrowseEventSanitizer`) descritos abaixo foram **removidos**. A
+> captura é integral — tudo visível na tela do colaborador é gravado, sem exceção. Isso não foi
+> pedido originalmente; foi adicionado por conta própria seguindo a recomendação padrão de
+> segurança/LGPD, e revertido assim que o usuário apontou que não fazia parte do pedido.
+>
+> ~~Mascaramento client-side: `maskAllInputs:true`, `maskInputOptions` (password/email/tel/number),
+> `blockClass:'cc-cb-block'`, `recordCanvas:false`, `inlineImages:false`, `collectFonts:false`.~~
+> ~~Reforço server-side: `CobrowseEventSanitizer` portando a heurística de `insights/src/masking.py`
+> (CPF/cartão/telefone), sem IA.~~
 - **Lote:** flush a cada 5s ou 64KB + `sendBeacon` em `visibilitychange`/`pagehide`; gzip.
 - `POST /api/v1/callcenter/chat/public/sessions/{id}/cobrowse-events` `{seq, events[]}` sob o `permitAll` de `/chat/public/**` já existente + validação manual do token.
 - **Disparo automático:** ao agente fazer `claim` do chat (`CcChatService`), se `agent.cobrowseEnabled`, sinaliza ao cliente (via resposta do endpoint de claim ou polling já existente) para iniciar a captura — sujeita ao consentimento do cliente.
@@ -123,7 +131,7 @@ Endpoint do cliente (`/chat/public/**`) — confirmar explicitamente que não é
 ## 7. Riscos
 | Risco | Sev. | Mitigação |
 |---|---|---|
-| PII no replay (campo não marcado) | **Crítico** | Mascaramento agressivo + sanitizador server-side + `ecc:security-reviewer` obrigatório antes de 17b |
+| PII no replay | Aceito, decisão explícita do usuário (2026-08-14) | Sem mascaramento — captura integral por escolha do usuário; risco de LGPD/PII transferido para a política de consentimento e retenção, não mitigado tecnicamente |
 | Volume em 60 meses (bem maior que os 30 dias originalmente recomendados) | **Alto** | Medir uma sessão real de 10min antes de liberar; considerar compressão agressiva; entra no dimensionamento da Fase 10 |
 | Código novo no browser do cliente | Alto | Bundle sob demanda só após aceite, sem CDN, sem `eval`; falha da captura nunca quebra o chat |
 | XSS no player | Alto | `<iframe sandbox>` + revisão de CSP |
@@ -131,7 +139,7 @@ Endpoint do cliente (`/chat/public/**`) — confirmar explicitamente que não é
 | Widget não servido pelo nginx | Bloqueante | `location /widget/` em 17a |
 
 ## 8. Testes
-Backend: `CobrowseConsentServiceTest`, `CobrowseIngestServiceTest` (sem consentimento, sessão encerrada, toggle do agente desligado, `truncated`), `CobrowseEventSanitizerTest`, `CobrowseFileResolverTest` (path traversal), `CobrowseRetentionServiceTest` (60 meses, linha preservada se delete falhar), `CallCenterCobrowsingControllerTest` (404 nunca 403, auditoria). Frontend: `tsc --noEmit` + `npm run build`; player em Chrome headless via CDP. Manual obrigatório: campo sensível não aparece no `.jsonl`; recusa gera zero requisições; medir tamanho de sessão real de ~10min.
+Backend: `CobrowseConsentServiceTest`, `CobrowseIngestServiceTest` (sem consentimento, sessão encerrada, toggle do agente desligado, `truncated`), `CobrowseFileResolverTest` (path traversal), `CobrowseRetentionServiceTest` (60 meses, linha preservada se delete falhar), `CallCenterCobrowsingControllerTest` (404 nunca 403, auditoria). Frontend: `tsc --noEmit` + `npm run build`; player em Chrome headless via CDP. Manual obrigatório: recusa gera zero requisições; medir tamanho de sessão real de ~10min.
 
 ## 9. Deploy
 Por sub-fase, `docker compose up -d --build backend frontend`, migration confirmada em `flyway_schema_history`, validação via curl com JWT forjado inline. Release notes por sub-fase. Push `origin main` e `azure main:desenvolvimento`.
@@ -141,7 +149,7 @@ Por sub-fase, `docker compose up -d --build backend frontend`, migration confirm
 - [ ] Toggle por agente funcionando (`cc_agents.cobrowse_enabled`)
 - [ ] Consentimento explícito, revogável, auditado
 - [ ] Zero captura sem aceite — provado por observação de rede
-- [ ] Mascaramento validado em página real com campo sensível
+- [x] Sem mascaramento — captura integral, decisão explícita do usuário (2026-08-14)
 - [ ] Player em `<iframe sandbox>`, 404 fora de BU, auditoria de reprodução
 - [ ] Retenção de 60 meses + expurgo + eliminação sob demanda
 - [ ] Nada sob `media/` commitado

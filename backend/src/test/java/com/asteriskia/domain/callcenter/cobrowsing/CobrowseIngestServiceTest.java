@@ -51,7 +51,6 @@ class CobrowseIngestServiceTest {
     @Mock
     private CcChatSessionRepository chatSessionRepository;
 
-    private CobrowseEventSanitizer sanitizer;
     private ObjectMapper objectMapper;
     private CobrowseIngestService service;
 
@@ -60,9 +59,8 @@ class CobrowseIngestServiceTest {
 
     @BeforeEach
     void setUp() {
-        sanitizer = new CobrowseEventSanitizer();
         objectMapper = new ObjectMapper();
-        service = new CobrowseIngestService(cobrowseSessionRepository, chatSessionRepository, sanitizer, objectMapper);
+        service = new CobrowseIngestService(cobrowseSessionRepository, chatSessionRepository, objectMapper);
         ReflectionTestUtils.setField(service, "basePath", tempDir.toString());
     }
 

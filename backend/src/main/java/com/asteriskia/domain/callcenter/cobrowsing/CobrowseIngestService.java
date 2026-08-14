@@ -67,7 +67,6 @@ public class CobrowseIngestService {
 
     private final CcCobrowseSessionRepository cobrowseSessionRepository;
     private final CcChatSessionRepository chatSessionRepository;
-    private final CobrowseEventSanitizer sanitizer;
     private final ObjectMapper objectMapper;
 
     @Value("${app.callcenter.chat-transcript-path:/opt/AsteriskIA/media/chat}")
@@ -99,8 +98,7 @@ public class CobrowseIngestService {
             return;
         }
 
-        List<Map<String, Object>> sanitized = sanitizer.sanitizeEvents(events);
-        byte[] compressed = compress(chatSessionId, sanitized);
+        byte[] compressed = compress(chatSessionId, events);
         if (compressed == null) {
             // Falha ao serializar/comprimir — já logada em compress(); nada a persistir.
             return;
@@ -131,7 +129,7 @@ public class CobrowseIngestService {
             }
 
             cobrowseSession.setSizeBytes(projectedSize);
-            cobrowseSession.setEventCount(cobrowseSession.getEventCount() + sanitized.size());
+            cobrowseSession.setEventCount(cobrowseSession.getEventCount() + events.size());
             cobrowseSession.setLastEventAt(LocalDateTime.now());
             cobrowseSession.setFilePath(filePath.toString());
             cobrowseSessionRepository.save(cobrowseSession);
@@ -163,7 +161,7 @@ public class CobrowseIngestService {
         return new ResponseStatusException(HttpStatus.FORBIDDEN, "Captura de co-browsing não disponível para esta conversa.");
     }
 
-    /** Comprime o lote sanitizado num buffer em memória — nunca lança; falha vira log + null. */
+    /** Comprime o lote num buffer em memória — nunca lança; falha vira log + null. */
     private byte[] compress(Long chatSessionId, List<Map<String, Object>> events) {
         try {
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();

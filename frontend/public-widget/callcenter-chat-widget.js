@@ -25,10 +25,8 @@
  * Fase 17b (captura real via rrweb): SÓ inicia depois do aceite explícito (nunca antes — o
  * script do rrweb nem é carregado até esse momento). Vendorizado localmente em
  * vendor/rrweb-record.min.js (pacote oficial @rrweb/record v2.1.1, MIT — carregado sob demanda
- * via <script>, nunca de CDN externo). Mascaramento agressivo obrigatório na configuração de
- * gravação (ver startCobrowseCapture) — LGPD: nenhum dado de formulário sensível (senha, e-mail,
- * telefone, número) sai do navegador do cliente em texto puro; reforçado no backend por um
- * sanitizador de CPF/cartão/telefone (defesa em profundidade, nunca confia só no client-side).
+ * via <script>, nunca de CDN externo). Captura sem mascaramento — tudo que aparece na tela do
+ * colaborador durante a captura é gravado (decisão explícita do usuário: visibilidade total).
  * Falha da captura (rrweb indisponível, erro de rede) nunca quebra o chat — é sempre best-effort.
  */
 (function () {
@@ -349,17 +347,8 @@
                 if (!window.rrwebRecord || typeof window.rrwebRecord.record !== 'function') {
                     throw new Error('Biblioteca de captura indisponível.');
                 }
-                // Mascaramento agressivo obrigatório (LGPD) — nunca capturar dado sensível de
-                // formulário em texto puro. blockClass 'cc-cb-block' permite ao site anfitrião
-                // excluir explicitamente um elemento inteiro da gravação.
                 state.cobrowseStopFn = window.rrwebRecord.record({
                     emit: onRrwebEvent,
-                    maskAllInputs: true,
-                    maskInputOptions: { password: true, email: true, tel: true, number: true },
-                    blockClass: 'cc-cb-block',
-                    recordCanvas: false,
-                    inlineImages: false,
-                    collectFonts: false,
                 });
                 state.cobrowseCapturing = true;
                 state.cobrowseFlushTimer = setInterval(function () { flushCobrowseBuffer(false); }, COBROWSE_FLUSH_INTERVAL_MS);

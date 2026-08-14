@@ -68,9 +68,9 @@ export default function CallCenterOperacao() {
             agente que assume a conversa tem o toggle <code>cobrowse_enabled</code> ligado no próprio
             cadastro. Sempre sujeita ao <strong>consentimento explícito e revogável</strong> do
             cliente — sem aceite o chat funciona normalmente, sem insistência; ao revogar, o já
-            capturado é eliminado na hora. Campos sensíveis são mascarados no navegador (senha,
-            e-mail, telefone, número) e reforçados por um sanitizador no servidor antes de gravar em
-            disco. A reprodução (aba Gravações → Co-browsing) roda sempre dentro de um{' '}
+            capturado é eliminado na hora. A captura não aplica nenhum mascaramento — tudo que
+            aparece na tela do colaborador durante a sessão é gravado (decisão explícita).
+            A reprodução (aba Gravações → Co-browsing) roda sempre dentro de um{' '}
             <code>&lt;iframe sandbox&gt;</code>, já que o conteúdo capturado é HTML de origem não
             confiável. <strong>Retenção de 60 meses</strong> (igual à gravação de voz — decisão
             explícita, maior que os 30 dias originalmente cogitados) com expurgo diário automático

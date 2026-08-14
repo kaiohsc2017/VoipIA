@@ -73,7 +73,7 @@ public class PublicCallCenterChatController {
     public record CobrowseConsentRequest(boolean granted, @NotBlank @Size(max = 64) String textHash) {}
 
     // Fase 17b — lote de eventos rrweb; "events" é uma lista de objetos JSON arbitrários (o
-    // formato interno do rrweb não é modelado aqui — é sanitizado e persistido como está).
+    // formato interno do rrweb não é modelado aqui — é persistido como está, sem mascaramento).
     // "seq" não é validado hoje (não há reordenação/deduplicação nesta fatia) — só documenta a
     // intenção do widget de numerar seus próprios lotes.
     public record CobrowseEventsRequest(long seq, List<Map<String, Object>> events) {}
