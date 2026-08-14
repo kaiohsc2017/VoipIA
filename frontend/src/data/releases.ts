@@ -653,4 +653,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Nova seção "Call Center" na página de Documentação, cobrindo operação, fluxos, relatórios e o resumo desta revisão de segurança.',
     ],
   },
+  {
+    version: 'v1.73',
+    date: '2026-08-14',
+    changes: [
+      'Novo recurso de co-browsing no chat do Call Center: com consentimento explícito e revogável do colaborador, a navegação de tela durante o atendimento pode ser gravada (ativado por agente, na configuração dele) e reproduzida depois na aba "Gravações", com retenção de 60 meses — campos sensíveis (senha, e-mail, telefone, número) nunca são capturados.',
+    ],
+  },
 ];

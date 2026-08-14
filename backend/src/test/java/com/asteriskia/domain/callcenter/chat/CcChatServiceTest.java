@@ -17,6 +17,7 @@ import com.asteriskia.domain.callcenter.interaction.AgentStateView;
 import com.asteriskia.domain.callcenter.interaction.CallCenterAgentStateService;
 import com.asteriskia.domain.callcenter.interaction.CcDisposition;
 import com.asteriskia.domain.callcenter.interaction.CcDispositionRepository;
+import com.asteriskia.domain.callcenter.cobrowsing.CobrowseConsentService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -61,6 +62,8 @@ class CcChatServiceTest {
     private ChatTranscriptExportService transcriptExportService;
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private CobrowseConsentService cobrowseConsentService;
 
     private CcChatService service;
 
@@ -68,7 +71,7 @@ class CcChatServiceTest {
     void setUp() {
         service = new CcChatService(channelRepository, sessionRepository, messageRepository,
                 queueRepository, dispositionRepository, agentStateService, messagingTemplate,
-                transcriptExportService, eventPublisher);
+                transcriptExportService, eventPublisher, cobrowseConsentService);
     }
 
     @AfterEach
@@ -144,6 +147,9 @@ class CcChatServiceTest {
         assertThat(result.getClaimedAt()).isNotNull();
         verify(messagingTemplate).convertAndSend(anyString(), (Object) any(CcChatService.ChatQueueEvent.class));
         verify(messagingTemplate).convertAndSend(anyString(), (Object) any(CcChatService.ChatSessionView.class));
+        // Fase 17a — todo claim delega ao serviço de consentimento de co-browsing, que decide
+        // internamente se cria algo (só se o agente tiver o toggle ligado).
+        verify(cobrowseConsentService).ensureSessionForClaim(result, agent);
     }
 
     @Test

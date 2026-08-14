@@ -27,8 +27,22 @@ public class PublicChatRateLimiter {
     private static final int MESSAGE_LIMIT = 30;
     private static final long MESSAGE_WINDOW_MS = 60_000L;
 
+    // Fase 17a — bucket dedicado pro endpoint de consentimento de co-browsing: bem mais raro
+    // que mensagem de chat (aceite/recusa acontece no máximo poucas vezes por conversa), teto
+    // baixo só pra impedir abuso de escrita repetida no mesmo sessionId.
+    private static final int COBROWSE_CONSENT_LIMIT = 10;
+    private static final long COBROWSE_CONSENT_WINDOW_MS = 60_000L;
+
+    // Fase 17b — lote de eventos rrweb chega bem mais seguido que o consentimento (flush a cada
+    // 5s do widget), mas ainda precisa de um teto: sem isso, um cliente malicioso poderia inundar
+    // o disco reenviando lotes fora do ritmo normal de captura.
+    private static final int COBROWSE_EVENTS_LIMIT = 20;
+    private static final long COBROWSE_EVENTS_WINDOW_MS = 60_000L;
+
     private final ConcurrentHashMap<String, Deque<Long>> sessionStartsByIp = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Deque<Long>> messagesBySession = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Deque<Long>> cobrowseConsentBySession = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Deque<Long>> cobrowseEventsBySession = new ConcurrentHashMap<>();
 
     public boolean allowSessionStart(String clientIp) {
         return allow(sessionStartsByIp, clientIp, SESSION_START_LIMIT, SESSION_START_WINDOW_MS);
@@ -36,6 +50,14 @@ public class PublicChatRateLimiter {
 
     public boolean allowMessage(Long sessionId) {
         return allow(messagesBySession, sessionId, MESSAGE_LIMIT, MESSAGE_WINDOW_MS);
+    }
+
+    public boolean allowCobrowseConsent(Long sessionId) {
+        return allow(cobrowseConsentBySession, sessionId, COBROWSE_CONSENT_LIMIT, COBROWSE_CONSENT_WINDOW_MS);
+    }
+
+    public boolean allowCobrowseEvents(Long sessionId) {
+        return allow(cobrowseEventsBySession, sessionId, COBROWSE_EVENTS_LIMIT, COBROWSE_EVENTS_WINDOW_MS);
     }
 
     /** Sincronizado por chave individual (não trava o mapa inteiro). Cada deque fica limitada
@@ -66,6 +88,8 @@ public class PublicChatRateLimiter {
     void expireStaleBuckets() {
         expireStale(sessionStartsByIp, SESSION_START_WINDOW_MS);
         expireStale(messagesBySession, MESSAGE_WINDOW_MS);
+        expireStale(cobrowseConsentBySession, COBROWSE_CONSENT_WINDOW_MS);
+        expireStale(cobrowseEventsBySession, COBROWSE_EVENTS_WINDOW_MS);
     }
 
     private <K> void expireStale(ConcurrentHashMap<K, Deque<Long>> buckets, long windowMs) {

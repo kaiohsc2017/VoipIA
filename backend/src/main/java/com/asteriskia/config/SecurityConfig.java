@@ -229,6 +229,10 @@ public class SecurityConfig {
                         // mesmo padrão de /api/v1/internal/ura-routing.
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/recordings/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.gravacoes")
+                        // Co-browsing gravado do chat (Fase 17c) — resource próprio, não reusa
+                        // callcenter.gravacoes (decisão do plano §6).
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/cobrowsing/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.cobrowsing")
                         // Estado do agente/interação em curso — Fase 4.
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/agent-state/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.desktop")
@@ -357,6 +361,9 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.config")
                         .requestMatchers("/api/v1/callcenter/recordings/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.gravacoes")
+                        // DELETE de eliminação sob demanda (Fase 17c) — GET já coberto acima.
+                        .requestMatchers("/api/v1/callcenter/cobrowsing/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.cobrowsing")
                         .requestMatchers("/api/v1/callcenter/agent-state/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.desktop")
                         .requestMatchers("/api/v1/callcenter/interactions/**")

@@ -212,6 +212,23 @@ export interface CcRecording {
   createdAt?: string;
 }
 
+/** Sessão de co-browsing gravado do chat (Fase 17). */
+export interface CcCobrowseSession {
+  id: number;
+  chatSessionId: number;
+  businessUnitId?: number;
+  consentStatus: 'pending' | 'granted' | 'denied' | 'revoked';
+  consentAt?: string;
+  revokedAt?: string;
+  filePath?: string;
+  sizeBytes: number;
+  eventCount: number;
+  truncated: boolean;
+  startedAt: string;
+  lastEventAt?: string;
+  purgedAt?: string;
+}
+
 /** Página no formato padrão do Spring Data (Page<T>). */
 export interface Page<T> {
   content: T[];
@@ -234,6 +251,21 @@ export interface RetentionConfigRequest {
 
 export interface RetentionRunResult {
   deletedCount: number;
+}
+
+// GET/PUT /api/v1/callcenter/cobrowsing/retention-config (Fase 17d)
+export interface CobrowseRetentionConfig {
+  retentionDays: number;
+  lastPurgeAt?: string;
+  lastPurgeDeletedCount?: number;
+}
+
+export interface CobrowseRetentionConfigRequest {
+  retentionDays: number;
+}
+
+export interface CobrowseRetentionRunResult {
+  purgedCount: number;
 }
 
 // GET/PUT /api/v1/callcenter/recordings/disk-alert-config

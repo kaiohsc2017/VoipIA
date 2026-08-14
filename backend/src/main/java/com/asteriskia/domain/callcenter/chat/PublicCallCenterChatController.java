@@ -1,14 +1,21 @@
 package com.asteriskia.domain.callcenter.chat;
 
+import com.asteriskia.domain.callcenter.cobrowsing.CcCobrowseSession;
+import com.asteriskia.domain.callcenter.cobrowsing.CobrowseConsentService;
+import com.asteriskia.domain.callcenter.cobrowsing.CobrowseIngestService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,9 +46,16 @@ public class PublicCallCenterChatController {
 
     private static final String WEBCHAT_CHANNEL_CODE = "webchat";
 
+    // Fase 17b, item 4(e) do plano: teto de corpo por lote de eventos rrweb — rejeitado ANTES de
+    // desserializar o JSON (o parâmetro chega como byte[] cru, não como DTO tipado).
+    private static final int MAX_COBROWSE_EVENTS_BODY_BYTES = 512 * 1024;
+
     private final CcChatService chatService;
     private final PublicChatRateLimiter rateLimiter;
     private final com.asteriskia.config.JwtService jwtService;
+    private final CobrowseConsentService cobrowseConsentService;
+    private final CobrowseIngestService cobrowseIngestService;
+    private final ObjectMapper objectMapper;
 
     // Fase 10, achado HIGH H1: sem teto de tamanho, um IP dentro do limite de rate ainda podia
     // enviar sessões/mensagens com payload gigante — abuso de banco e, quando a sessão está em
@@ -53,6 +67,16 @@ public class PublicCallCenterChatController {
 
     public record CustomerMessageRequest(
             @NotBlank @Size(max = 4000) String text, @Size(max = 120) String customerName) {}
+
+    // Fase 17a — hash SHA-256 (hex) do texto de consentimento exibido no widget; nunca o texto
+    // em si trafega aqui.
+    public record CobrowseConsentRequest(boolean granted, @NotBlank @Size(max = 64) String textHash) {}
+
+    // Fase 17b — lote de eventos rrweb; "events" é uma lista de objetos JSON arbitrários (o
+    // formato interno do rrweb não é modelado aqui — é sanitizado e persistido como está).
+    // "seq" não é validado hoje (não há reordenação/deduplicação nesta fatia) — só documenta a
+    // intenção do widget de numerar seus próprios lotes.
+    public record CobrowseEventsRequest(long seq, List<Map<String, Object>> events) {}
 
     @PostMapping("/sessions")
     public StartSessionResponse startSession(@jakarta.validation.Valid @RequestBody StartSessionRequest request,
@@ -83,6 +107,55 @@ public class PublicCallCenterChatController {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Muitas mensagens — aguarde um instante.");
         }
         return chatService.postMessage(id, "customer", request.customerName(), request.text());
+    }
+
+    /**
+     * Fase 17a — aceite/recusa/revogação de co-browsing gravado do chat. Mesma validação manual
+     * de token do resto deste controller: nunca aceita JWT de staff, só o token {@code
+     * chat_customer} desta sessão específica. 404 (não 403) se não houver
+     * {@code CcCobrowseSession} pra este chat (agente sem o toggle ligado, por ex.) — nunca
+     * revela mais do que isso a quem tenta um id arbitrário.
+     */
+    @PostMapping("/sessions/{id}/cobrowse-consent")
+    public CcCobrowseSession cobrowseConsent(@PathVariable Long id,
+                                              @jakarta.validation.Valid @RequestBody CobrowseConsentRequest request,
+                                              @RequestHeader("Authorization") String authorization) {
+        requireValidToken(authorization, id);
+        if (!rateLimiter.allowCobrowseConsent(id)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Muitas requisições — aguarde um instante.");
+        }
+        return cobrowseConsentService.registerConsent(id, request.granted(), request.textHash());
+    }
+
+    /**
+     * Fase 17b — ingestão do lote de eventos rrweb. Corpo recebido cru ({@code byte[]}) para
+     * poder rejeitar (413) ANTES de desserializar — desserializar primeiro gastaria a mesma
+     * memória que queremos limitar. Guardas de negócio (consentimento/sessão encerrada/toggle do
+     * agente/teto acumulado) ficam em {@link CobrowseIngestService}; aqui só corpo grande demais
+     * (e) e rate limit (d).
+     */
+    @PostMapping("/sessions/{id}/cobrowse-events")
+    public ResponseEntity<Void> cobrowseEvents(@PathVariable Long id,
+                                                @RequestBody byte[] rawBody,
+                                                @RequestHeader("Authorization") String authorization) {
+        requireValidToken(authorization, id);
+        if (rawBody.length > MAX_COBROWSE_EVENTS_BODY_BYTES) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
+                    "Lote de eventos de co-browsing excede o tamanho máximo permitido.");
+        }
+        if (!rateLimiter.allowCobrowseEvents(id)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Muitas requisições — aguarde um instante.");
+        }
+        CobrowseEventsRequest request;
+        try {
+            request = objectMapper.readValue(rawBody, CobrowseEventsRequest.class);
+        } catch (JsonProcessingException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Corpo de requisição inválido.");
+        } catch (java.io.IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Corpo de requisição inválido.");
+        }
+        cobrowseIngestService.ingest(id, request.events());
+        return ResponseEntity.noContent().build();
     }
 
     private void requireValidToken(String authorizationHeader, Long sessionId) {

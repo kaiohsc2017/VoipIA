@@ -55,6 +55,13 @@ public class CcAgent {
     @OneToOne(mappedBy = "agent", fetch = FetchType.EAGER)
     private CcExtension extension;
 
+    /** Toggle de co-browsing gravado do chat (Fase 17, D17-14) — por agente, default false.
+     * Se true, ao assumir um chat uma {@code CcCobrowseSession} é criada automaticamente
+     * (sujeita ao consentimento do cliente — ver {@code CobrowseConsentService}). */
+    @Builder.Default
+    @Column(name = "cobrowse_enabled", nullable = false)
+    private Boolean cobrowseEnabled = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

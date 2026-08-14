@@ -122,7 +122,13 @@ public final class ResourceCatalog {
             "callcenter.config",
             // callcenter.kb (Fase 25): base de conhecimento própria (artigos + fontes externas)
             // consultada pelo nó consultar_base do chat.
-            "callcenter.kb"
+            "callcenter.kb",
+            // callcenter.cobrowsing (Fase 17): co-browsing gravado do chat. Registrado aqui já
+            // na sub-fase 17a (só consentimento, sem player/retenção ainda) para os endpoints
+            // administrativos das sub-fases 17c/17d nascerem sem precisar de outra migration de
+            // RBAC — nasce só com ADMIN (sem tela própria nem matcher em SecurityConfig ainda,
+            // não reusa callcenter.gravacoes de propósito, ver o plano §6).
+            "callcenter.cobrowsing"
     );
 
     public static List<String> all() {

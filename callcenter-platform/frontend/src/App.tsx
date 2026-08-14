@@ -172,7 +172,11 @@ export default function App() {
             {currentTab === 'agentes' && <AgentesTab canWrite={session.hasWrite('callcenter.agentes')} canReadRamalSecret={session.hasRead('callcenter.ramais')} />}
             {currentTab === 'filas' && <FilasTab canWrite={session.hasWrite('callcenter.filas')} />}
             {currentTab === 'skills' && <SkillsTab canWrite={session.hasWrite('callcenter.skills')} />}
-            {currentTab === 'gravacoes' && <GravacoesTab canWrite={session.hasWrite('callcenter.gravacoes')} />}
+            {currentTab === 'gravacoes' && <GravacoesTab
+              canWrite={session.hasWrite('callcenter.gravacoes')}
+              canReadCobrowsing={session.hasRead('callcenter.cobrowsing')}
+              canWriteCobrowsing={session.hasWrite('callcenter.cobrowsing')}
+            />}
             {currentTab === 'desktop' && (
               <DesktopAgenteTab isEmbedded={isEmbedded} callState={callState} sendCallAction={sendCallAction} />
             )}

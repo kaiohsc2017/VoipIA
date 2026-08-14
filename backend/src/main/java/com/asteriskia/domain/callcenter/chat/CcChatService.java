@@ -8,6 +8,7 @@ import com.asteriskia.domain.callcenter.interaction.AgentState;
 import com.asteriskia.domain.callcenter.interaction.CallCenterAgentStateService;
 import com.asteriskia.domain.callcenter.interaction.CcDisposition;
 import com.asteriskia.domain.callcenter.interaction.CcDispositionRepository;
+import com.asteriskia.domain.callcenter.cobrowsing.CobrowseConsentService;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +48,7 @@ public class CcChatService {
     private final SimpMessagingTemplate messagingTemplate;
     private final ChatTranscriptExportService transcriptExportService;
     private final ApplicationEventPublisher eventPublisher;
+    private final CobrowseConsentService cobrowseConsentService;
 
     @Transactional
     public CcChatSession startSession(String channelCode, Long queueId, String customerRef, String customerName) {
@@ -115,6 +117,10 @@ public class CcChatService {
         session.setAssignedAgent(agent);
         session.setClaimedAt(LocalDateTime.now());
         sessionRepository.save(session);
+
+        // Fase 17a — disparo automático (D17-14): só cria o registro de co-browsing (ainda sem
+        // captura real, 17b) se o agente tiver o toggle ligado; sem isso, nada acontece aqui.
+        cobrowseConsentService.ensureSessionForClaim(session, agent);
 
         messagingTemplate.convertAndSend("/topic/callcenter/chat/queue/" + session.getQueue().getId(),
                 new ChatQueueEvent(session.getId(), null, null));

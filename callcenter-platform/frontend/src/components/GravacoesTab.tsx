@@ -3,14 +3,26 @@ import { Settings, Play } from 'lucide-react';
 import api from '../api/client';
 import { AuthedAudio } from './AuthedAudio';
 import { RetencaoAlertaTab } from './RetencaoAlertaTab';
+import { CobrowsingTab } from './CobrowsingTab';
 import type { CcQueue, CcRecording, Page } from '../api/types';
 
 /**
  * GravacoesTab — lista/streaming das gravações de fila do Call Center (Fase 3). RBAC:
  * `canWrite` só controla o acesso à configuração de retenção/alerta de disco (a listagem em si
  * é só leitura — não há CRUD de gravações, elas são geradas pelo dialplan).
+ *
+ * Sub-view "Co-browsing" (Fase 17c) tem RBAC próprio (`callcenter.cobrowsing`, não reusa
+ * `callcenter.gravacoes` — decisão do plano §6) — `canReadCobrowsing`/`canWriteCobrowsing`
+ * controlam a aba/ações por conta própria, distintos de `canWrite` desta prop.
  */
-export function GravacoesTab({ canWrite }: { canWrite: boolean }) {
+export function GravacoesTab({
+  canWrite, canReadCobrowsing, canWriteCobrowsing,
+}: {
+  canWrite: boolean;
+  canReadCobrowsing?: boolean;
+  canWriteCobrowsing?: boolean;
+}) {
+  const [subView, setSubView] = useState<'gravacoes' | 'cobrowsing'>('gravacoes');
   const [recordings, setRecordings] = useState<CcRecording[]>([]);
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(0);
@@ -63,6 +75,16 @@ export function GravacoesTab({ canWrite }: { canWrite: boolean }) {
         </div>
       </div>
       <div className="page-body">
+        {canReadCobrowsing && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+            <button type="button" onClick={() => setSubView('gravacoes')} disabled={subView === 'gravacoes'}>Gravações de voz</button>
+            <button type="button" onClick={() => setSubView('cobrowsing')} disabled={subView === 'cobrowsing'}>Co-browsing (chat)</button>
+          </div>
+        )}
+        {subView === 'cobrowsing' && canReadCobrowsing ? (
+          <CobrowsingTab canWrite={!!canWriteCobrowsing} />
+        ) : (
+        <>
         <div className="form-grid" style={{ marginBottom: 16 }}>
           <div className="form-group">
             <label className="form-label">Fila</label>
@@ -119,6 +141,8 @@ export function GravacoesTab({ canWrite }: { canWrite: boolean }) {
             <span style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>Página {page + 1} de {totalPages}</span>
             <button className="btn btn-ghost btn-sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Próxima</button>
           </div>
+        )}
+        </>
         )}
       </div>
     </>

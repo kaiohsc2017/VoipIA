@@ -60,6 +60,26 @@ export default function CallCenterOperacao() {
             />
           </Card>
         </SubSection>
+
+        <SubSection title="Co-browsing gravado do chat (Fase 17)">
+          <p>
+            Captura de eventos de DOM (rrweb — não é vídeo/tela real via <code>getDisplayMedia</code>)
+            da página do cliente durante o atendimento por chat, disparada automaticamente quando o
+            agente que assume a conversa tem o toggle <code>cobrowse_enabled</code> ligado no próprio
+            cadastro. Sempre sujeita ao <strong>consentimento explícito e revogável</strong> do
+            cliente — sem aceite o chat funciona normalmente, sem insistência; ao revogar, o já
+            capturado é eliminado na hora. Campos sensíveis são mascarados no navegador (senha,
+            e-mail, telefone, número) e reforçados por um sanitizador no servidor antes de gravar em
+            disco. A reprodução (aba Gravações → Co-browsing) roda sempre dentro de um{' '}
+            <code>&lt;iframe sandbox&gt;</code>, já que o conteúdo capturado é HTML de origem não
+            confiável. <strong>Retenção de 60 meses</strong> (igual à gravação de voz — decisão
+            explícita, maior que os 30 dias originalmente cogitados) com expurgo diário automático
+            (<code>CallCenterCobrowseRetentionScheduler</code>) configurável na própria tela, além da
+            eliminação sob demanda a qualquer momento — em nenhum dos dois casos o registro do banco
+            é apagado, só o arquivo físico e a marcação de expurgo, preservando o histórico de
+            auditoria.
+          </p>
+        </SubSection>
       </Section>
     </>
   );
