@@ -276,7 +276,7 @@ SQL — migration em produção é irreversível.
 - [x] Memória do `backend`/`insights` medida (~48%/1GiB e ~3,5%/1,5GiB, sem OOMKill/restart) e documentada; nenhum limite alterado
 - [x] Grupo "Call Center" no TOC com as 5 seções novas; `Sistema.tsx` com as variáveis novas (ARI/AD/`INTERNAL_API_KEY`)
 - [x] Especificação de segurança do `consultar_api` escrita (catálogo comentado nesta doc + seção `CallCenterFluxos.tsx`, 8 requisitos obrigatórios)
-- [ ] `INTERNAL_API_KEY` **não rotacionada nesta sessão** — item operacional (D8) que exige janela de manutenção combinada com o usuário (restart do backend + `dialplan reload`); registrado como pendência explícita, não esquecida
+- [x] `INTERNAL_API_KEY` **rotacionada e validada** (usuário confirmou que o sistema ainda não está em produção real, sem necessidade de janela separada) — backup de `.env` antes da troca, chave nova gerada via `openssl rand -hex 32`, containers `backend`/`ai-agent`/`insights`/`docker-helper`/`asterisk` recriados, `dialplan reload` executado; validado via curl: chave nova autentica (sem log de `InternalKeyFilter`), chave antiga/ausente rejeitada com 403
 - [x] Suíte do backend verde (662/662, exceto o flake pré-existente de `ffmpeg` ausente no container Maven — não reproduz em produção, onde o binário existe), `tsc --noEmit`/`npm run build` do Telecom limpos, release notes `v1.72` registrada
 - [x] Fora de escopo permanece fora: carga (parte 1), particionamento (parte 2), hardware numérico, CSP em enforcement, BU, paginação do AD
 
