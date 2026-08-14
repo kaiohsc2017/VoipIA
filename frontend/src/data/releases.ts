@@ -667,4 +667,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Editor de Fluxo do Call Center ganha um simulador: teste o roteiro de um fluxo passo a passo (respostas simuladas por você) sem realizar nenhuma chamada real e sem custo de IA — os nós que consultam a base de conhecimento ou a pesquisa de satisfação respondem em modo simulado, nunca chamando o provedor de IA de verdade.',
     ],
   },
+  {
+    version: 'v1.75',
+    date: '2026-08-14',
+    changes: [
+      'Novo nó "Horário de funcionamento" no Editor de Fluxo do Call Center: define calendários de atendimento (com turno partido, ex. manhã e tarde) e roteia a chamada para aberto, fechado ou feriado. Feriado pode ser global (fecha todos os calendários) ou específico de um calendário.',
+    ],
+  },
 ];
