@@ -660,4 +660,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Novo recurso de co-browsing no chat do Call Center: com consentimento explícito e revogável do colaborador, a navegação de tela durante o atendimento pode ser gravada (ativado por agente, na configuração dele) e reproduzida depois na aba "Gravações", com retenção de 60 meses — campos sensíveis (senha, e-mail, telefone, número) nunca são capturados.',
     ],
   },
+  {
+    version: 'v1.74',
+    date: '2026-08-14',
+    changes: [
+      'Editor de Fluxo do Call Center ganha um simulador: teste o roteiro de um fluxo passo a passo (respostas simuladas por você) sem realizar nenhuma chamada real e sem custo de IA — os nós que consultam a base de conhecimento ou a pesquisa de satisfação respondem em modo simulado, nunca chamando o provedor de IA de verdade.',
+    ],
+  },
 ];
