@@ -613,4 +613,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Correção interna: uma conversa atendida por um fluxo automático não ficava mais travada para sempre quando o fluxo terminava sem transferir para uma fila humana.',
     ],
   },
+  {
+    version: 'v1.68',
+    date: '2026-08-14',
+    changes: [
+      'Novo módulo "Base de Conhecimento" no Call Center: cadastre artigos próprios ou fontes externas por link, e o chatbot do editor de fluxos passa a poder consultar esse conteúdo para responder o cliente sozinho — só com base no que está cadastrado, nunca inventando resposta; sem trecho relevante encontrado, a conversa segue para atendimento humano.',
+      'Custo de IA da base de conhecimento aparece na aba própria do Financeiro, com alerta de gasto mensal configurável desde o primeiro dia.',
+    ],
+  },
 ];

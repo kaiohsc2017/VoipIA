@@ -686,8 +686,14 @@ forjado: `GET /callcenter/chat/channels` 200 para ADMIN, 403 sem token.
 
 ---
 
-### FASE 25 — IA de autosserviço no chat _(add.txt, D22)_
+### FASE 25 — IA de autosserviço no chat _(add.txt, D22)_ — ✅ **implementada, testada, revisada e deployada (2026-08-14)**
 **Complexidade: G.** Depende da **24**. Frente de IA nova → §5.1 obrigatória.
+
+Deployada e validada em produção nesta sessão (o código já vinha de uma sessão anterior — ver
+memória `asteriskia_callcenter_fase25_kb_rag`): migration V69 aplicada, containers
+backend/insights/frontend saudáveis, endpoints `GET /api/v1/callcenter/kb/{stats,articles}`
+respondendo 200 (vazio, nenhum artigo cadastrado nesta VPS de dev). Release notes `v1.68`
+registrada.
 
 #### 25.1 Base de conhecimento própria
 - CRUD de artigos (título, corpo, tags, BU, ativo) + versionamento simples.
