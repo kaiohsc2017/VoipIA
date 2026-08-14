@@ -444,8 +444,8 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > **Lista de pendências reais em aberto para o projeto (atualizada em 2026-08-14)** — ver
 > `.claude/plans/callcenter-parte-iii-revisado.plan.md` e `.claude/plans/modulo-callcenter-omnicanal.plan.md`
 > para o detalhe de cada item:
-> 1. **Plano Call Center Parte III** — próximas fases: **26** (relatório de qualidade) e **27**
->    (gamificação/perfil de cliente/produtividade, depende da 26).
+> 1. **Plano Call Center Parte III** — próxima fase: **27** (gamificação/perfil de cliente/
+>    produtividade, depende da 26 ✅, já deployada em 2026-08-14).
 > 2. **Plano-mãe do Call Center, fases nunca concluídas**: Fase 1/AD (dados reais do DC, paginação
 >    do `fetchAll()`, `employee_id` não espelhado); Fase 5 (sub-fases 5d simulador, 5e horário/
 >    transbordo, 5f skill+traço na UI; 7 nós do catálogo ainda bloqueados); Fase 7/Chat
@@ -489,6 +489,32 @@ host: `/opt/AsteriskIA/env`, `/opt/AsteriskIA/asterisk/config`, `fail2ban_socket
 - `asterisk`/`coturn`/`security`/`docker-helper` continuam root — ver seção de débito de
   segurança mais abaixo pro porquê de cada um (portas privilegiadas, `NET_ADMIN`,
   `network_mode: host`, `docker.sock`).
+
+### ✅ Fase 26 do plano Call Center Parte III — relatório de qualidade (2026-08-14) — deployada e validada em produção
+Agrega `CallEvaluation`/`CallEvaluationItem` (Fase 8, já computados pela IA quando a chamada foi
+avaliada contra uma ficha) por escopo (agente/fila/toda a operação) e período — **sem chamada de
+IA nova**, por isso sem frente própria no Financeiro. Migration V70: `cc_holidays` (calendário de
+feriados compartilhado com a futura Fase 5e — "construir uma só tabela" era instrução explícita
+do plano), `cc_quality_reports`, `cc_quality_report_snapshots` (mesmo padrão de
+`agent_evolution_snapshots`/V39, com coluna `source` desde o início).
+- **Cooldown de 5 dias úteis por escopo** (não por par supervisor+escopo, diferente do relatório
+  equivalente do Insights, V39) — ADMIN isento, feriados considerados via novo overload de
+  `BusinessDayCalculator` (overload original preservado, nenhum consumidor existente afetado).
+  Evolução item a item contra a execução anterior no mesmo escopo. RBAC reusa
+  `callcenter.reports` (mesma aba "Relatórios"), path próprio `/quality-reports`.
+- **1 achado real HIGH corrigido** (`ecc:security-reviewer`, revisão combinada
+  segurança+qualidade Java numa única passada por orçamento de custo): a geração já restringia
+  por BU corretamente, mas a releitura (`list`/`getById`) não — um relatório agregado por um
+  ADMIN (sem restrição de BU) podia depois vazar pra um leitor restrito a uma única BU. Corrigido
+  persistindo as BUs efetivamente agregadas (`scoped_bu_ids`) e filtrando a releitura por
+  interseção com as BUs do leitor atual — relatório gerado sem nenhuma restrição fica **oculto**
+  por padrão pra leitor restrito (fail-closed). 3 achados LOW também corrigidos: log de aviso no
+  fail-open de `ccRecordingId` nulo, 3 métodos de repositório mortos removidos, erro 409/404 no
+  CRUD de feriados em vez de 500 genérico.
+- Suíte completa do backend **615/615 verde** (14 novos testes, 0 regressão). `tsc --noEmit` e
+  `npm run build` do `callcenter-platform/frontend` limpos. Deployado (migration V70 confirmada
+  em `flyway_schema_history`) e validado em produção via curl: ciclo completo (gerar relatório
+  GERAL, criar/remover feriado, RBAC 403 sem token). Release notes `v1.70` registrada.
 
 ### ✅ Fase 9c do plano Call Center Parte III — relatório analítico de chamada e de chat (2026-08-14) — deployada e validada em produção
 Relatório linha a linha (`GET /api/v1/callcenter/reports/calls` e `/chats`, RBAC

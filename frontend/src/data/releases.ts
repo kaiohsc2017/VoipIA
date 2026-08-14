@@ -628,4 +628,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Aba "Relatórios" do Call Center ganha um relatório de chamada e de chat, linha a linha: fila, agente, tempo de espera, nota de satisfação, fluxo/opção escolhida na URA e categoria/sentimento da transcrição — com filtro por período, fila, agente, nota, tempo de espera, opção escolhida e trecho da transcrição.',
     ],
   },
+  {
+    version: 'v1.70',
+    date: '2026-08-14',
+    changes: [
+      'Novo relatório de qualidade no Call Center: gere uma execução para um agente, uma fila ou toda a operação, com a nota média e a nota por pergunta da ficha de avaliação, comparando automaticamente com a execução anterior do mesmo recorte.',
+      'Calendário de feriados configurável, usado no intervalo mínimo de 5 dias úteis entre duas execuções do mesmo recorte.',
+    ],
+  },
 ];

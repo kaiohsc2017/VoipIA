@@ -726,8 +726,31 @@ registrada.
 
 ---
 
-### FASE 26 — Relatório de qualidade _(add.txt, D23)_
+### FASE 26 — Relatório de qualidade _(add.txt, D23)_ — ✅ **implementada, testada, revisada e deployada (2026-08-14)**
 **Complexidade: G.** Depende das fichas de qualidade ✅ e da Fase 8 ✅.
+
+**Entregue**: agrega `CallEvaluation`/`CallEvaluationItem` (Fase 8, já computados quando a
+chamada foi avaliada) por escopo (agente/fila/toda a operação) e período — **sem chamada de IA
+nova**, por isso sem frente própria no Financeiro (§5.1 só se aplica a frente de IA nova).
+Migration V70: `cc_holidays` (calendário de feriados compartilhado com a futura Fase 5e),
+`cc_quality_reports`, `cc_quality_report_snapshots` (mesmo padrão de
+`agent_evolution_snapshots`, V39, mas com `source` desde o início). Cooldown de 5 dias úteis
+**por escopo** (não por par supervisor+escopo, diferente do relatório equivalente do Insights) —
+ADMIN isento, feriados considerados via novo overload de `BusinessDayCalculator` (overload
+original preservado). Evolução item a item contra a execução anterior no mesmo escopo. RBAC
+reusa `callcenter.reports` (mesma aba "Relatórios"), path próprio `/quality-reports`.
+- **1 achado real HIGH corrigido** (`ecc:security-reviewer`): a geração já restringia por BU
+  corretamente (`resolveAudioFileIds`), mas a releitura (`list`/`getById`) não — um relatório
+  agregado com dado de todas as BUs (gerado por ADMIN) podia vazar pra um leitor restrito a uma
+  única BU. Corrigido persistindo as BUs efetivamente agregadas (`scoped_bu_ids`) e filtrando a
+  releitura por interseção com as BUs do leitor atual — relatório gerado sem nenhuma restrição
+  nunca é visível a leitor restrito. 3 achados LOW também corrigidos (fail-open logado, métodos
+  de repositório mortos removidos, erro 409/404 no CRUD de feriados em vez de 500 genérico).
+- Suíte completa do backend **615/615 verde** (14 novos testes, 0 regressão). `tsc --noEmit` e
+  `npm run build` do `callcenter-platform/frontend` limpos.
+- Deployado (`docker compose up -d --build backend frontend`, migration V70 confirmada em
+  `flyway_schema_history`) e validado em produção via curl com JWT forjado: ciclo completo
+  testado (gerar relatório GERAL sem dado real, criar/remover feriado, RBAC 403 sem token).
 
 - Relatório **novo e separado** do de performance por atendente do Insights.
 - Execução gera uma **amostra datada** (`inicio`, `fim`, ficha usada, escopo) — o registro da
