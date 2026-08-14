@@ -280,4 +280,12 @@ SQL — migration em produção é irreversível.
 - [x] Suíte do backend verde (662/662, exceto o flake pré-existente de `ffmpeg` ausente no container Maven — não reproduz em produção, onde o binário existe), `tsc --noEmit`/`npm run build` do Telecom limpos, release notes `v1.72` registrada
 - [x] Fora de escopo permanece fora: carga (parte 1), particionamento (parte 2), hardware numérico, CSP em enforcement, BU, paginação do AD
 
-**Pendente antes do deploy real**: `docker compose up -d --build backend frontend` (código ainda não implantado nos containers em produção) e validação em produção via `curl`. Rotação do `INTERNAL_API_KEY` fica para uma janela de manutenção separada, combinada com o usuário.
+**Deployado e validado em produção (2026-08-14)**: `docker compose up -d --build backend frontend`
++ recriação de `caddy`/`coturn` para os healthchecks novos entrarem em vigor. 1 achado real na
+própria validação: healthcheck de `frontend` usava `localhost`, que resolve para `::1` (IPv6)
+antes de `0.0.0.0` dentro do container Alpine — nginx só escuta em IPv4, causando "connection
+refused" mesmo com o processo de pé; corrigido para `127.0.0.1` explícito em `frontend` e `caddy`
+(commit separado). Todos os 11 containers `healthy` após o deploy; validado via `curl`: site
+externo 200, RBAC 403 sem token em `/callcenter/audios` (GET e POST), chat público 503 (sem fila
+configurada, não 403/500). Rotação do `INTERNAL_API_KEY` fica para uma janela de manutenção
+separada, combinada com o usuário — não fechada nesta sessão.
