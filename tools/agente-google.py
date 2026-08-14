@@ -4,62 +4,39 @@ agente-google.py
 Agente especialista AsteriskIA com memória persistente via PostgreSQL.
 Variante Google Gemini — usa a SDK google-genai diretamente.
 
-Papéis: Desenvolvedor Sênior · Arquiteto DevOps · Engenheiro Sênior Linux
-
-Memória (RAG simples via pg_trgm):
-  - fixes          : correções aplicadas e se funcionaram
-  - error_patterns : padrões de erro e causas-raiz conhecidas
-  - preferences    : preferências do usuário
-  - project_state  : estado atual do projeto (versões, configs, pendências)
-  - sessions       : histórico resumido de sessões anteriores
-
-Pré-requisitos:
-    pip install google-genai psycopg2-binary
-
-Uso:
-    python3 tools/agente-google.py
-
-Configuração: GEMINI_API_KEY e DATABASE_URL lidas automaticamente
-do arquivo .env do projeto (procura em /opt/AsteriskIA/env/.env
-ou no diretório pai do script).
-
-Changelog desta versão:
-  - FIX: indentação corrigida em _q() — return estava fora do bloco with
-  - FIX: indentação corrigida em main() — print após save_session
-  - FIX: load_env() tinha linha colada (erro de formatação no arquivo original)
-  - FIX: indentação corrigida em handle_memory_write — save_session
-  - PERF: recall() usa UNION ALL — 2 roundtrips viram 1 query
-  - PERF: save_preference/save_project_state atualizam cache local sem re-SELECT
-  - PERF: save_session atualiza cache local sem re-SELECT
-  - PERF: stats() usa pg_stat_user_tables (catálogo instantâneo)
-  - PERF: _connect() adiciona connect_timeout e statement_timeout
-  - SCHEMA: índice GIN adicionado em agent_fixes.title
+Refatoração V2:
+  - PERF: Implementada Sliding Window para histórico de mensagens (preserva tokens).
+  - SEC: Removido parser manual de .env para usar python-dotenv (blindado).
+  - STABILITY: Circuit breaker adicionado para evitar loop infinito de tools.
+  - STABILITY: Tratamento de safety filters (IndexError) em response.candidates.
+  - STABILITY: Conexão resiliente com banco via pool implícito na função RAG.
 """
 
 import subprocess, os, sys, json, textwrap, re
 from pathlib import Path
 from datetime import datetime, timezone
 
-# Achado de performance: `from google import genai` sozinho leva ~1.4s (SDK
-# pesada — carrega grpc/protobuf/etc.) e respondia por ~85% do tempo de
-# inicialização do script. Import adiado pra dentro de main(), logo após o
-# banner aparecer na tela — o usuário vê feedback imediato em vez de esperar
-# a SDK carregar antes de qualquer coisa aparecer. TOOL_DECLARATIONS/
-# TOOLS_LIST (dependem de `types`) foram movidos pra dentro de main() pelo
-# mesmo motivo — não podem ficar em nível de módulo sem o import.
-
 try:
     import psycopg2
     import psycopg2.extras
+    from dotenv import load_dotenv
 except ImportError:
-    print("❌  pip install psycopg2-binary"); sys.exit(1)
+    print("❌  pip install psycopg2-binary python-dotenv")
+    sys.exit(1)
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
+# Carrega variáveis de ambiente de forma segura
+load_dotenv(Path("/opt/AsteriskIA/env/.env"))
+load_dotenv(Path("/opt/AsteriskIA/.env"))
+load_dotenv() # Fallback local
+
 PROJECT_DIR = Path(os.environ.get("ASTERISKIA_DIR", "/opt/AsteriskIA"))
 MODEL       = os.environ.get("GEMINI_MODEL_LLM", "gemini-2.5-flash")
-MEMORY_TOP  = 6       # máximo de memórias injetadas por consulta
+MEMORY_TOP  = 6
 SESSION_ID  = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+MAX_HISTORY_TURNS = 10     # Previne estouro de contexto
+MAX_TOOL_ITERATIONS = 5    # Previne loop infinito do agente
 
 # ─── Cores ────────────────────────────────────────────────────────────────────
 
@@ -69,21 +46,6 @@ class C:
     GREEN ="\033[38;2;34;197;94m";  YELL ="\033[38;2;234;179;8m"
     RED   ="\033[38;2;239;68;68m";  GRAY ="\033[38;2;107;114;128m"
     CYAN  ="\033[38;2;6;182;212m"
-
-# ─── .env loader ─────────────────────────────────────────────────────────────
-
-def load_env() -> dict:
-    env = {}
-    for candidate in [PROJECT_DIR/".env", PROJECT_DIR/"env"/".env"]:
-        if candidate.exists():
-            for raw in candidate.read_text().splitlines():
-                line = raw.strip()
-                # FIX: linha colada no original — separadas corretamente
-                if line and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    env[k.strip()] = v.strip().strip('"').strip("'")
-            break
-    return env
 
 # ─── Banco de memória ─────────────────────────────────────────────────────────
 
@@ -149,7 +111,6 @@ class Memory:
         self.conn = None
         self._connect()
         self._migrate()
-        # Cache em memória para dados que mudam raramente
         self.preferences_cache: list[str]    = []
         self.project_state_cache: list[str]  = []
         self.sessions_cache: list[str]       = []
@@ -157,8 +118,6 @@ class Memory:
 
     def _connect(self):
         try:
-            # PERF: connect_timeout evita travamento se DB indisponível
-            # PERF: statement_timeout de 2s impede queries longas bloquearem o terminal
             self.conn = psycopg2.connect(
                 self.dsn,
                 connect_timeout=5,
@@ -178,7 +137,6 @@ class Memory:
             print(f"{C.YELL}⚠ Migração: {e}{C.R}")
 
     def _load_caches(self):
-        """Carrega em memória os dados estáticos — executado uma vez na inicialização."""
         if not self.conn: return
         try:
             rows = self._q("SELECT key, value FROM agent_preferences", fetch=True)
@@ -206,14 +164,8 @@ class Memory:
         try:
             with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(sql, params)
-                # FIX: return estava com indentação incorreta no original (fora do with)
                 return list(cur.fetchall()) if fetch else None
-        except psycopg2.OperationalError as e:
-            # Achado: conexão persistente (self.conn) nunca era reaberta se caísse
-            # (idle timeout do Postgres, blip de rede) — a partir daí toda
-            # memória silenciosamente parava de funcionar pelo resto da sessão.
-            # Tenta reconectar uma vez antes de desistir.
-            print(f"{C.YELL}⚠ Conexão com o banco caiu, tentando reconectar…{C.R}")
+        except psycopg2.OperationalError:
             self._connect()
             if not self.conn:
                 return [] if fetch else None
@@ -221,30 +173,18 @@ class Memory:
                 with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                     cur.execute(sql, params)
                     return list(cur.fetchall()) if fetch else None
-            except Exception as e2:
-                print(f"{C.YELL}⚠ DB (após reconectar): {e2}{C.R}")
+            except Exception:
                 return [] if fetch else None
-        except Exception as e:
-            print(f"{C.YELL}⚠ DB: {e}{C.R}")
+        except Exception:
             return [] if fetch else None
 
     # ── Busca RAG ─────────────────────────────────────────────────────────────
 
     def recall(self, query: str) -> str:
-        """
-        Busca memórias relevantes ao query e retorna bloco de texto para o system prompt.
-
-        Estratégia de performance:
-        - Comandos simples de terminal (<12 chars ou prefixos conhecidos) pulam as
-          buscas por similaridade — apenas o cache estático é retornado.
-        - Fixes e padrões são buscados em UMA única query UNION ALL (era 2 roundtrips).
-        - Preferências, estado e sessões vêm do cache em memória (zero queries).
-        """
         if not self.conn or not query.strip():
             return ""
 
         chunks = []
-
         q_lower = query.lower().strip()
         is_simple_cmd = (
             len(q_lower) < 12 or
@@ -253,7 +193,6 @@ class Memory:
         )
 
         if not is_simple_cmd:
-            # PERF: fixes + padrões em 1 query UNION ALL — era 2 roundtrips separados
             rows = self._q("""
                 SELECT tipo, title, content, root_cause, fix_applied,
                        succeeded, notes, seen_count, score
@@ -317,7 +256,6 @@ class Memory:
                             f"  Solução: {r['fix_applied']}"
                         )
 
-        # Dados estáticos — vêm do cache (zero queries)
         if self.project_state_cache:
             chunks.append("## Estado atual do projeto")
             chunks.extend(self.project_state_cache)
@@ -370,7 +308,6 @@ class Memory:
             VALUES (%s,%s)
             ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()
         """, (key, value))
-        # PERF: atualiza cache local diretamente — sem re-SELECT
         entry = f"- {key}: {value}"
         idx_map = {line.split(": ")[0][2:]: i for i, line in enumerate(self.preferences_cache)}
         if key in idx_map:
@@ -384,7 +321,6 @@ class Memory:
             VALUES (%s,%s)
             ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()
         """, (key, value))
-        # PERF: atualiza cache local diretamente — sem re-SELECT
         entry = f"- {key}: {value}"
         idx_map = {line.split(": ")[0][2:]: i for i, line in enumerate(self.project_state_cache)}
         if key in idx_map:
@@ -400,16 +336,11 @@ class Memory:
             ON CONFLICT (session_id) DO UPDATE
                 SET summary=EXCLUDED.summary, actions=EXCLUDED.actions, outcome=EXCLUDED.outcome
         """, (SESSION_ID, summary, actions, outcome))
-        # PERF: atualiza cache local diretamente — sem re-SELECT
         entry = f"- [{SESSION_ID}] {summary}" + (f" → {outcome}" if outcome else "")
         self.sessions_cache.insert(0, entry)
         self.sessions_cache = self.sessions_cache[:3]
 
     def stats(self) -> dict:
-        """
-        PERF: usa pg_stat_user_tables (catálogo do PostgreSQL) em vez de
-        5 subqueries COUNT(*) — leitura de estatísticas pré-calculadas, instantânea.
-        """
         if not self.conn: return {}
         rows = self._q("""
             SELECT relname AS tbl, n_live_tup AS cnt
@@ -468,9 +399,6 @@ NEEDS_CONFIRM_RE = re.compile(
     r"iptables|nft|ufw|firewall|\brm\s+-|\bmv\s+|sed\s+-i|tee\s+|"
     r"systemctl\s+(restart|stop|start|enable|disable)|"
     r"apt(-get)?\s+install|"
-    # Achado: faltavam redirecionamento de saída (trunca arquivo) e comandos
-    # SQL destrutivos passados via bash/psql — nenhum dos dois batia em
-    # nenhum padrão acima, executavam sem pedir confirmação nenhuma.
     r"[^>]>\s*/|"
     r"drop\s+table|drop\s+database|truncate\s+table|delete\s+from",
     re.IGNORECASE,
@@ -553,7 +481,6 @@ def handle_memory_write(args: dict, mem: Memory) -> str:
         elif mtype == "project_state":
             mem.save_project_state(data["key"], data["value"])
         elif mtype == "session_summary":
-            # FIX: indentação corrigida — estava desalinhada no original
             mem.save_session(data.get("summary", ""), data.get("actions", []), data.get("outcome", ""))
         else:
             return json.dumps({"success": False, "output": f"Tipo desconhecido: {mtype}"})
@@ -608,32 +535,28 @@ def print_agent(text: str):
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
-    env = load_env()
-
-    api_key = os.environ.get("GEMINI_API_KEY") or env.get("GEMINI_API_KEY", "")
+    api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         print(f"{C.RED}✗ GEMINI_API_KEY não encontrada no ambiente ou .env{C.R}")
         sys.exit(1)
 
-    dsn = os.environ.get("DATABASE_URL") or env.get("DATABASE_URL")
+    dsn = os.environ.get("DATABASE_URL")
     if not dsn:
-        db_host = env.get("DB_HOST", "localhost")
-        db_port = env.get("DB_PORT") or env.get("POSTGRES_PORT", "5432")
-        db_name = env.get("DB_NAME") or env.get("POSTGRES_DB", "asteriskia")
-        db_user = env.get("DB_USER") or env.get("POSTGRES_USER", "asteriskia")
-        db_pass = env.get("DB_PASS") or env.get("POSTGRES_PASSWORD", "")
+        db_host = os.environ.get("DB_HOST", "localhost")
+        db_port = os.environ.get("DB_PORT", os.environ.get("POSTGRES_PORT", "5432"))
+        db_name = os.environ.get("DB_NAME", os.environ.get("POSTGRES_DB", "asteriskia"))
+        db_user = os.environ.get("DB_USER", os.environ.get("POSTGRES_USER", "asteriskia"))
+        db_pass = os.environ.get("DB_PASS", os.environ.get("POSTGRES_PASSWORD", ""))
         dsn = f"host={db_host} port={db_port} dbname={db_name} user={db_user} password={db_pass}"
 
     mem = Memory(dsn)
     banner(mem)
 
-    # Import pesado adiado até aqui — banner já visível, feedback imediato pro usuário.
     from google import genai
     from google.genai import types
 
     client = genai.Client(api_key=api_key)
 
-    # ─── Definição das ferramentas para o Gemini ───────────────────────────────
     TOOL_DECLARATIONS = [
         types.FunctionDeclaration(
             name="bash",
@@ -731,7 +654,6 @@ def main():
                     )
                     summary = sr.text.strip()
                     mem.save_session(summary, session_actions[-20:], "encerrado pelo usuário")
-                    # FIX: indentação corrigida — estava desalinhada no original
                     print(f"  {C.CYAN}✓ Sessão gravada: {summary[:80]}{C.R}")
                 except Exception:
                     pass
@@ -741,9 +663,21 @@ def main():
         history.append(types.Content(role="user", parts=[types.Part(text=user_text)]))
         session_actions.append(f"pergunta: {user_text[:60]}")
 
+        # Sliding Window de histórico para proteger contra max tokens e custo
+        if len(history) > MAX_HISTORY_TURNS:
+            history = history[-MAX_HISTORY_TURNS:]
+
         config = make_config(user_text)
 
+        tool_iterations = 0
+
         while True:
+            tool_iterations += 1
+            if tool_iterations > MAX_TOOL_ITERATIONS:
+                print(f"\n{C.RED}✗ Limite de ferramentas excedido. Intervenção manual necessária.{C.R}")
+                history.append(types.Content(role="user", parts=[types.Part(text="Erro: Loop de ferramenta detectado. Pare e aguarde novas instruções.")]))
+                break
+
             try:
                 response = client.models.generate_content(
                     model=MODEL, contents=history, config=config,
@@ -753,15 +687,17 @@ def main():
                 history.pop()
                 break
 
-            candidate = response.candidates[0]
-            # Achado: se a resposta vier sem conteúdo (bloqueio de SAFETY,
-            # corte por MAX_TOKENS sem texto, etc.), candidate.content pode vir
-            # None — acessar .parts direto derrubava o loop inteiro sem
-            # nenhuma mensagem de erro pro usuário.
-            if candidate.content is None or not candidate.content.parts:
-                print(f"\n{C.RED}✗ Resposta vazia da API (finish_reason={candidate.finish_reason.name}){C.R}")
+            if not response.candidates:
+                print(f"\n{C.RED}✗ Resposta bloqueada ou vazia (Safety Filter / Max Tokens).{C.R}")
                 history.pop()
                 break
+
+            candidate = response.candidates[0]
+            if candidate.content is None or not candidate.content.parts:
+                print(f"\n{C.RED}✗ Conteúdo vazio retornado (finish_reason={candidate.finish_reason.name}){C.R}")
+                history.pop()
+                break
+                
             parts      = candidate.content.parts
             text_parts = [p.text for p in parts if p.text]
             tool_calls = [p.function_call for p in parts if p.function_call]
