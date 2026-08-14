@@ -766,7 +766,7 @@ reusa `callcenter.reports` (mesma aba "Relatórios"), path próprio `/quality-re
 
 ---
 
-### FASE 27 — Relatórios de gamificação, perfil do cliente e produtividade _(add.txt)_
+### FASE 27 — Relatórios de gamificação, perfil do cliente e produtividade _(add.txt)_ — ✅ **implementada, testada, revisada e deployada (2026-08-14)**
 **Complexidade: G.** Depende de **21** (NPS), **23** (saída) e **26**.
 
 | Relatório | Fonte | Observação |
