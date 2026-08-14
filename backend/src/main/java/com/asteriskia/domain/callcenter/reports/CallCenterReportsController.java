@@ -1,10 +1,17 @@
 package com.asteriskia.domain.callcenter.reports;
 
+import com.asteriskia.domain.callcenter.interaction.Direction;
 import jakarta.validation.constraints.NotNull;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +37,7 @@ public class CallCenterReportsController {
     private final CallCenterReportsQueryService queryService;
     private final CallCenterQueueAggregationService aggregationService;
     private final CallCenterAgentAggregationService agentAggregationService;
+    private final CallCenterDetailReportService detailReportService;
 
     public record ReprocessRequest(@NotNull LocalDate from, @NotNull LocalDate to) {}
 
@@ -81,6 +89,55 @@ public class CallCenterReportsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodBFrom,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodBTo) {
         return ResponseEntity.ok(queryService.compareAgent(agentId, periodAFrom, periodATo, periodBFrom, periodBTo));
+    }
+
+    /** Relatório analítico de chamada, linha a linha (Fase 9c) — fila/agente/NPS/tempo de espera/
+     * opção escolhida/trecho de transcrição, todos opcionais. */
+    @GetMapping("/calls")
+    public ResponseEntity<Page<CallReportRow>> calls(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long queueId,
+            @RequestParam(required = false) Long agentId,
+            @RequestParam(required = false) Direction direction,
+            @RequestParam(required = false) BigDecimal npsMin,
+            @RequestParam(required = false) BigDecimal npsMax,
+            @RequestParam(required = false) Long waitMinSeconds,
+            @RequestParam(required = false) Long waitMaxSeconds,
+            @RequestParam(required = false) String chosenOptionDigit,
+            @RequestParam(required = false) String transcriptText,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        CallReportFilter filter = new CallReportFilter(
+                LocalDateTime.of(from, LocalTime.MIN),
+                LocalDateTime.of(to, LocalTime.MAX),
+                queueId, agentId, direction, npsMin, npsMax, waitMinSeconds, waitMaxSeconds,
+                chosenOptionDigit, transcriptText);
+        PageRequest pageable = PageRequest.of(page, clampPageSize(size), Sort.by(Sort.Direction.DESC, "queuedAt"));
+        return ResponseEntity.ok(detailReportService.searchCalls(filter, pageable));
+    }
+
+    /** Relatório analítico de chat, linha a linha (Fase 9c) — sem NPS/trecho de transcrição (ver
+     * {@link ChatReportFilter}). */
+    @GetMapping("/chats")
+    public ResponseEntity<Page<ChatReportRow>> chats(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long queueId,
+            @RequestParam(required = false) Long agentId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        ChatReportFilter filter = new ChatReportFilter(
+                LocalDateTime.of(from, LocalTime.MIN), LocalDateTime.of(to, LocalTime.MAX), queueId, agentId);
+        PageRequest pageable = PageRequest.of(page, clampPageSize(size), Sort.by(Sort.Direction.DESC, "startedAt"));
+        return ResponseEntity.ok(detailReportService.searchChats(filter, pageable));
+    }
+
+    /** Cada linha do relatório de chamada dispara várias consultas de enriquecimento (áudio,
+     * insight, achados, execução de fluxo) — sem teto, um {@code size} grande vira abuso barato
+     * de um usuário já autorizado. */
+    private int clampPageSize(int size) {
+        return Math.min(Math.max(size, 1), 100);
     }
 
     /** Reprocessa fila E agente juntos num único endpoint (decisão desta fatia 9b) — o
