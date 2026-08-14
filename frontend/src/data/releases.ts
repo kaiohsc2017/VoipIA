@@ -689,4 +689,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Roteamento por skill no Call Center: cada agente pode ter um nível (1 a 5) numa habilidade, e cada fila pode exigir um nível mínimo dessa habilidade para aceitar o agente. A prioridade manual do supervisor continua sendo a única responsável por quem é chamado primeiro — skill só decide quem pode participar da fila, e o recálculo de participação só acontece quando o supervisor pedir explicitamente.',
     ],
   },
+  {
+    version: 'v1.78',
+    date: '2026-08-14',
+    changes: [
+      'Nova aba "Traço" no Editor de Fluxo do Call Center: busque execuções reais de um fluxo por período e veja o grafo da versão usada naquela chamada com os nós visitados e o caminho seguido destacados. Passo marcado como sensível nunca mostra o valor capturado.',
+    ],
+  },
 ];
