@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -63,6 +64,18 @@ public class GlobalExceptionHandler {
         log.debug("Header obrigatório ausente: {}", ex.getHeaderName());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("error", "Header obrigatório ausente: " + ex.getHeaderName()));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<Map<String, String>> handleMissingServletRequestParameter(
+            MissingServletRequestParameterException ex) {
+        // Mesma classe de achado já corrigida para MissingRequestHeaderException: faltar um
+        // @RequestParam obrigatório (ex: from/to na tela de traço de execução, Fase 5f.2) é
+        // entrada inválida do cliente, não um erro do servidor — sem este handler caía no
+        // catch-all de Exception abaixo e virava sempre 500 "erro fatal".
+        log.debug("Parâmetro obrigatório ausente: {}", ex.getParameterName());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", "Parâmetro obrigatório ausente: " + ex.getParameterName()));
     }
 
     @ExceptionHandler(ResponseStatusException.class)

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -36,5 +37,18 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isEqualTo(java.util.Map.of("error", "Erro na requisição"));
+    }
+
+    /** Achado real na validação em produção da Fase 5f.2 (tela de traço de execução): faltar um
+     * @RequestParam obrigatório (ex: from/to) caía no catch-all de Exception e virava 500 "erro
+     * fatal" em vez de 400 — mesma classe de bug já corrigida para MissingRequestHeaderException. */
+    @Test
+    void handleMissingServletRequestParameter_retorna400ComNomeDoParametro() {
+        MissingServletRequestParameterException ex = new MissingServletRequestParameterException("from", "String");
+
+        ResponseEntity<?> response = handler.handleMissingServletRequestParameter(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isEqualTo(java.util.Map.of("error", "Parâmetro obrigatório ausente: from"));
     }
 }
