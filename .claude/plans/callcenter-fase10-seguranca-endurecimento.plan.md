@@ -289,3 +289,156 @@ refused" mesmo com o processo de pé; corrigido para `127.0.0.1` explícito em `
 externo 200, RBAC 403 sem token em `/callcenter/audios` (GET e POST), chat público 503 (sem fila
 configurada, não 403/500). Rotação do `INTERNAL_API_KEY` fica para uma janela de manutenção
 separada, combinada com o usuário — não fechada nesta sessão.
+
+---
+
+## 10. Tentativa da parte 1 (teste de carga) e decisão sobre a parte 2 (particionamento) — 2026-08-14
+
+Sessão seguinte, pedido do usuário: avançar para as partes 1 e 2 da Fase 10, deixadas de fora da
+fatia 1 (§1). Antes de tocar em qualquer coisa, as duas foram confrontadas com o estado real do
+ambiente — que mudou o resultado esperado das duas.
+
+### 10.1 Parte 2 (particionamento) — decisão do usuário: só desenho, sem migration
+
+Explicado ao usuário o que é particionamento de tabela (`PARTITION BY RANGE`, uma partição por
+período, `DROP` de partição inteira em vez de `DELETE` linha a linha) e por que aplicar agora seria
+decidir uma estratégia às cegas: **nenhuma chamada real de voz nem chat real passou pelo Call
+Center até hoje** — o volume de `cc_interaction_events`/`cc_chat_messages` é essencialmente zero
+nesta VPS. Migration de particionamento é irreversível em produção (regra inegociável nº 6).
+**Decisão registrada**: permanece **não implementada** — mesma posição já documentada em §1, D9 do
+plano-mãe (§9) — até haver volume real que justifique escolher a granularidade certa da partição.
+Não houve tempo/pedido nesta sessão para escrever a especificação qualitativa (like D9 fez para
+hardware); se o usuário quiser, é um item futuro de baixa complexidade.
+
+### 10.2 Parte 1 (teste de carga SIPp) — tentada, interrompida por risco real ao ambiente
+
+**Achado prévio que quase derrubou o plano de teste**: ao investigar o contexto do dialplan para
+montar o cenário SIPp, um `grep` em `extensions.conf` (arquivo **gerado**, não o template
+versionado) trouxe o valor real do `INTERNAL_API_KEY` em texto puro para a saída de um comando —
+mesma classe de incidente já registrada na nota operacional da Fase 23, e que motivou a rotação já
+feita na fatia 1 desta própria Fase 10 (§9, critério de conclusão). Ou seja: a chave rotacionada em
+2026-08-14 já foi exposta de novo, pela mesma via, na mesma data. **Usuário optou por não rotacionar
+de novo nesta sessão** — risco aceito explicitamente, registrado aqui para não se perder. Rotação
+pendente fica para quando o usuário decidir (mesmo procedimento documentado em §9: backup do `.env`
+→ `openssl rand -hex 32` → restart backend/ai-agent/docker-helper/insights/asterisk → `dialplan
+reload` → validar via curl).
+
+**Estado real do ambiente no momento do teste** (motivo da decisão de não insistir):
+- `free -h`: ~130-190Mi de RAM livre, **1.8-1.9Gi de swap já em uso**, de um total de 3.8Gi.
+- Esta VPS é o **próprio ambiente de produção**, compartilhado com projetos de outros sistemas
+  rodando na mesma máquina (`echweb-*`, `ascsac-*`, confirmados via `docker stats`), não um
+  ambiente de teste isolado.
+- `docker stats` antes/depois do teste: nenhuma mudança relevante nos containers do Call Center
+  (`asteriskia-asterisk` 34-38MiB/1GiB, estável).
+
+**Tentativa real, com escopo reduzido para não incorrer em custo/risco desnecessário**: em vez de
+simular uma chamada de voz completa (que atravessaria `AudioSocket → ai-agent → Gemini`, gerando
+custo real de IA e potencialmente abrindo registro/alerta fictício), o teste ficou restrito à
+camada de sinalização SIP — `sip-tester` (pacote `sip-tester` 3.6.1, instalado via `apt-get` nesta
+sessão) enviando `OPTIONS` sintético contra `127.0.0.1:5060`.
+
+**Resultado**: o Asterisk **não respondeu** a nenhum `OPTIONS` não correlacionado (sem 200/401/
+403/404) — comportamento de segurança esperado, não falha: os endpoints SIP deste sistema são
+IP-based (tronco) ou exigem registro autenticado (ramais), e há 3 jails de fail2ban ativos
+(`asterisk-auth`, `asterisk-flood`, `asterisk-scan`) vigiando exatamente esse tipo de sonda não
+correlacionada. Um teste honesto exigiria autenticar como um ramal real (ex.: `1002`) e sustentar
+tráfego por tempo suficiente para medir uma curva — o que, com a memória do host já no limite,
+troca a variável que se queria medir (capacidade) pela consequência que a regra inegociável nº 1
+proíbe (derrubar o sistema).
+
+**Decisão**: a parte 1 permanece **não concluída nesta sessão** — tentativa documentada, sem número
+de capacidade real produzido. `sip-tester` ficou instalado no host (`apt-get install sip-tester`)
+para reuso futuro, sem nenhuma alteração em containers/config de produção. 0 canais ativos e
+memória do host inalterada após a tentativa — nenhum efeito residual em produção.
+
+### 10.3 Critérios de conclusão desta continuação
+
+- [x] Particionamento (parte 2): decisão do usuário confirmada — **não implementar** sem volume
+      real; nenhuma migration escrita ou aplicada
+- [ ] Teste de carga SIPp (parte 1): **não concluído** — ambiente atual (VPS compartilhada, memória
+      no limite) não permite um teste honesto sem risco a produção; fica pendente de servidor
+      dedicado ou janela de manutenção com folga de memória
+- [x] Nenhuma mudança de código/config/schema nesta continuação — sessão foi só investigação +
+      1 tentativa de teste de sinalização, revertida sem deixar processo/estado residual
+- [x] Risco de segurança identificado e reportado ao usuário: `INTERNAL_API_KEY` exposta de novo em
+      output de comando — rotação pendente por decisão explícita do usuário, não esquecimento
+
+---
+
+## 11. Continuação (mesmo dia, sessão seguinte) — usuário reverteu as duas decisões acima
+
+Pedido explícito: "Faca o particionamento agora e depois rotaciona internal_api_key" — o usuário
+decidiu **fazer** a parte 2 (particionamento) e rotacionar a chave, revertendo as duas posições
+conservadoras de §10.
+
+### 11.1 Particionamento — migration V71, aplicada e validada em produção
+
+`backend/src/main/resources/db/migration/V71__callcenter_partition_events_chat_messages.sql`.
+Confirmado antes de escrever qualquer SQL: as duas tabelas seguiam com **0 linhas** em produção
+(`SELECT count(*)`), o que elimina o risco normal dessa conversão (nada a migrar/perder) — a
+migration é um `DROP TABLE` + `CREATE TABLE ... PARTITION BY RANGE` direto, sem `INSERT INTO ...
+SELECT` de dado antigo.
+
+- **Estratégia**: `PARTITION BY RANGE` mensal em `occurred_at` (`cc_interaction_events`) e
+  `created_at` (`cc_chat_messages`), gerada por um `DO $$ ... $$` em loop de 2025-01 a 2027-12 (36
+  partições por tabela) + uma partição `DEFAULT` em cada uma, para nunca falhar um `INSERT` por
+  falta de partição (linha fora do range cai na `DEFAULT`, visível/auditável, nunca perdida).
+- **PK virou composto** (`id, occurred_at`/`id, created_at`) — exigência do Postgres: toda PK/
+  unique de tabela particionada precisa incluir a coluna de particionamento. Confirmado que isso
+  não quebra nada: nenhuma FK de outra tabela referencia `cc_interaction_events.id`/
+  `cc_chat_messages.id`; as entidades JPA (`CcInteractionEvent`/`CcChatMessage`) usam só
+  `@GeneratedValue(IDENTITY)` na coluna `id` (globalmente única pela sequência `BIGSERIAL`, mesmo
+  com PK composto na tabela) — nenhum código Java mudou. Testes usam H2 com Flyway desabilitado
+  (`spring.flyway.enabled=false`, schema gerado por Hibernate a partir das entidades) — totalmente
+  imunes a essa migration, que só afeta o Postgres de produção via Flyway.
+- **Validado antes de aplicar**: a migration inteira rodou dentro de uma transação `BEGIN;
+  \i v71.sql; \d ...; ROLLBACK;` direto no Postgres de produção — sintaxe confirmada (37
+  partições por tabela, PK/FK/índices corretos) sem deixar nenhum efeito, antes de deixar o
+  Flyway aplicar de verdade.
+- **Aplicada**: `docker compose up -d --build backend` — Flyway confirmou
+  "Successfully applied 1 migration to schema public, now at version v71"; backend subiu
+  `healthy`, listeners ARI/AMI reconectaram normalmente.
+- **Validado depois de aplicar**: `\d cc_interaction_events`/`\d cc_chat_messages` confirmam
+  `Partition key: RANGE`, PK composto e 37 partições cada; um `INSERT` de teste (dentro de
+  `BEGIN`/`ROLLBACK`, revertido) provou que uma linha com `occurred_at` em agosto/2026 foi
+  roteada corretamente para `cc_interaction_events_2026_08`. `SELECT count(*)` de ambas as tabelas
+  confirmado em 0 depois do teste — nenhum resíduo.
+- **Gap aceito, documentado no SQL**: não há job agendado para criar partições além de 2027-12 —
+  se ninguém estender o range a tempo, inserts futuros caem na `DEFAULT` (sem falha, só sem
+  pruning). Fora do pedido desta sessão; um scheduler dedicado (mesmo padrão de
+  `AiModelPricingSyncScheduler`) fica para quando fizer sentido.
+- Backup de precaução (mesmo com 0 linhas): `pg_dump --schema-only` das duas tabelas antes da
+  migration, salvo em `/tmp/claude-0/.../scratchpad/backup_v71_pre_partition_schema.sql` (fora do
+  repositório, sessão-local).
+
+### 11.2 Rotação do `INTERNAL_API_KEY` — concluída e validada
+
+Chave nova gerada via `secrets.token_hex(32)` (Python), escrita no `.env` por um script que nunca
+imprime o valor em stdout nem o passa como argumento de linha de comando — só o comprimento e o
+número de substituições (mesmo cuidado de
+[[asteriskia_no_persist_forged_tokens]]). Backup prévio de `.env` → `.env.bak` (regra
+inegociável nº 2).
+- Containers recriados: `backend`, `ai-agent`, `docker-helper`, `insights`, `asterisk` (todos os
+  que carregam `INTERNAL_API_KEY`) + `dialplan reload` (regenera `extensions.conf` com a chave
+  nova via `envsubst` no entrypoint).
+- **Validado sem nunca expor a chave em texto puro**: comparação de hash SHA-256 truncado entre o
+  valor no `.env` e o valor embutido no `extensions.conf` gerado dentro do container Asterisk —
+  hashes idênticos (`0ff8b773b30eccb4`), confirmando que a chave nova propagou corretamente sem
+  precisar imprimir o segredo em nenhum momento.
+- **Validado via curl** (de dentro do próprio container backend, porta 8080 não exposta ao host):
+  requisição a `/api/v1/internal/ura-routing` **sem** header `X-Internal-Key` → `403` (rejeitada,
+  correto); **com** a chave nova (lida da env var `$INTERNAL_API_KEY` dentro do container, nunca
+  impressa) → `500` (passou pelo `InternalKeyFilter` — a chave autenticou — e falhou adiante na
+  lógica de negócio porque a extensão de teste `2000`/UUID fictício não existem; comportamento
+  esperado, não é falha de autenticação).
+- Todos os 11 containers `healthy` após a recriação.
+
+### 11.3 Critérios de conclusão desta segunda continuação
+
+- [x] Particionamento de `cc_interaction_events`/`cc_chat_messages` implementado (migration V71),
+      validado com transação de teste antes e depois da aplicação real, deployado em produção
+- [x] `INTERNAL_API_KEY` rotacionada, propagada a todos os containers que a usam, validada por
+      hash (nunca por texto puro) e por comportamento HTTP (403 sem chave / autentica com a nova)
+- [x] Nenhum valor de segredo apareceu em texto puro em nenhuma saída de comando desta continuação
+- [ ] Teste de carga SIPp (parte 1) continua **não concluído** — fora do pedido desta continuação,
+      mesma posição de §10.3
