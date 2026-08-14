@@ -91,6 +91,12 @@ public class CcQueue {
     @Column(name = "overflow_max_waiting")
     private Integer overflowMaxWaiting;
 
+    /** Blending de chat (Fase 7c) — limite de chats simultâneos por agente quando o próprio
+     * agente não tem um valor definido (nulo/zero em {@code CcAgent.maxConcurrentChats}). Nulo =
+     * sem limite (regra desligada nesta fila). Ver {@code ChatBlendingService.resolveLimit}. */
+    @Column(name = "max_concurrent_chats")
+    private Integer maxConcurrentChats;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

@@ -62,6 +62,13 @@ public class CcAgent {
     @Column(name = "cobrowse_enabled", nullable = false)
     private Boolean cobrowseEnabled = false;
 
+    /** Blending de chat (Fase 7c) — limite de chats simultâneos deste agente. Nulo OU zero =
+     * "sem valor próprio", a regra que vale é a da fila ({@code CcQueue.maxConcurrentChats});
+     * qualquer valor {@code > 0} aqui sempre prevalece sobre o da fila. Ver
+     * {@code ChatBlendingService.resolveLimit}. */
+    @Column(name = "max_concurrent_chats")
+    private Integer maxConcurrentChats;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

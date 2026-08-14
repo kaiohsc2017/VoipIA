@@ -63,7 +63,7 @@ class CallCenterAgentServiceTest {
     @DisplayName("create rejeita ramal fora da faixa 4000-4999")
     void create_extensionOutOfRange_throws() {
         var service = newService();
-        var request = new AgentRequest("Agente Teste", null, null, "1999");
+        var request = new AgentRequest("Agente Teste", null, null, "1999", null);
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -75,7 +75,7 @@ class CallCenterAgentServiceTest {
     @DisplayName("create rejeita ramal já em uso por outro agente")
     void create_duplicateExtension_throws() {
         var service = newService();
-        var request = new AgentRequest("Agente Teste", null, null, "4001");
+        var request = new AgentRequest("Agente Teste", null, null, "4001", null);
         when(extensionRepository.findByExtension("4001"))
                 .thenReturn(Optional.of(CcExtension.builder().extension("4001").build()));
 
@@ -88,7 +88,7 @@ class CallCenterAgentServiceTest {
     @DisplayName("create provisiona endpoint/auth/aor em ARA além do metadado próprio")
     void create_validRequest_provisionsAraAndMetadata() {
         var service = newService();
-        var request = new AgentRequest("Agente Teste", null, null, "4001");
+        var request = new AgentRequest("Agente Teste", null, null, "4001", null);
         when(extensionRepository.findByExtension("4001")).thenReturn(Optional.empty());
         when(agentRepository.save(any(CcAgent.class)))
                 .thenAnswer(inv -> {
@@ -156,7 +156,7 @@ class CallCenterAgentServiceTest {
     void create_businessUnitOutOfScope_throws() {
         restrictToBusinessUnits(1);
         var service = newService();
-        var request = new AgentRequest("Agente Teste", null, 2, "4002");
+        var request = new AgentRequest("Agente Teste", null, 2, "4002", null);
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -171,7 +171,7 @@ class CallCenterAgentServiceTest {
         var agent = CcAgent.builder().id(1L).name("Agente Teste").extension(extension).build();
         when(agentRepository.findById(1L)).thenReturn(Optional.of(agent));
 
-        var request = new AgentRequest("Agente Teste", null, null, "4002");
+        var request = new AgentRequest("Agente Teste", null, null, "4002", null);
 
         assertThatThrownBy(() -> service.update(1L, request)).isInstanceOf(IllegalArgumentException.class);
     }
@@ -185,7 +185,7 @@ class CallCenterAgentServiceTest {
         when(agentRepository.findById(1L)).thenReturn(Optional.of(agent));
         when(agentRepository.save(any(CcAgent.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        var request = new AgentRequest("Agente Renomeado", null, null, "4001");
+        var request = new AgentRequest("Agente Renomeado", null, null, "4001", null);
         var updated = service.update(1L, request);
 
         assertThat(updated.getName()).isEqualTo("Agente Renomeado");

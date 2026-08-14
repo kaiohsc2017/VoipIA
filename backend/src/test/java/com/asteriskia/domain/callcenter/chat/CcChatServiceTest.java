@@ -65,13 +65,17 @@ class CcChatServiceTest {
     @Mock
     private CobrowseConsentService cobrowseConsentService;
 
+    // Real, não mock — é lógica pura sobre os getters de CcAgent/CcQueue (ambos POJOs simples
+    // nos testes desta classe), mais simples que stubar resolveLimit em cada teste de claim.
+    private final ChatBlendingService blendingService = new ChatBlendingService();
+
     private CcChatService service;
 
     @BeforeEach
     void setUp() {
         service = new CcChatService(channelRepository, sessionRepository, messageRepository,
                 queueRepository, dispositionRepository, agentStateService, messagingTemplate,
-                transcriptExportService, eventPublisher, cobrowseConsentService);
+                transcriptExportService, eventPublisher, cobrowseConsentService, blendingService);
     }
 
     @AfterEach
@@ -150,6 +154,74 @@ class CcChatServiceTest {
         // Fase 17a — todo claim delega ao serviço de consentimento de co-browsing, que decide
         // internamente se cria algo (só se o agente tiver o toggle ligado).
         verify(cobrowseConsentService).ensureSessionForClaim(result, agent);
+    }
+
+    /** Fase 7c — os 4 quadrantes da regra de precedência skill×fila (D5, confirmado com o
+     * usuário): agente nulo/zerado usa o limite da fila; agente com valor > 0 sempre prevalece. */
+    @Test
+    @DisplayName("claim rejeita quando o agente atingiu o limite da FILA (agente sem valor próprio)")
+    void claim_queueLimitReached_agentWithoutOwnLimit_throwsConflict() {
+        CcAgent agent = agentOf(1L);
+        CcChatSession session = sessionOf(5L, "waiting", null);
+        session.getQueue().setMaxConcurrentChats(2);
+        when(agentStateService.currentAgent()).thenReturn(agent);
+        when(agentStateService.currentState(agent)).thenReturn(new AgentStateView(1L, AgentState.DISPONIVEL, null, null));
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        when(sessionRepository.countByAssignedAgentIdAndStatus(1L, "active")).thenReturn(2L);
+
+        assertThatThrownBy(() -> service.claim(5L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Limite de chats simultâneos");
+
+        verify(sessionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("claim permite quando abaixo do limite da fila (agente sem valor próprio)")
+    void claim_belowQueueLimit_agentWithoutOwnLimit_succeeds() {
+        CcAgent agent = agentOf(1L);
+        CcChatSession session = sessionOf(5L, "waiting", null);
+        session.getQueue().setMaxConcurrentChats(2);
+        when(agentStateService.currentAgent()).thenReturn(agent);
+        when(agentStateService.currentState(agent)).thenReturn(new AgentStateView(1L, AgentState.DISPONIVEL, null, null));
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        when(sessionRepository.countByAssignedAgentIdAndStatus(1L, "active")).thenReturn(1L);
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(service.claim(5L).getStatus()).isEqualTo("active");
+    }
+
+    @Test
+    @DisplayName("claim rejeita pelo limite PRÓPRIO do agente mesmo com a fila sem limite (ou com limite maior)")
+    void claim_agentOwnLimitReached_prevailsOverQueue_throwsConflict() {
+        CcAgent agent = agentOf(1L);
+        agent.setMaxConcurrentChats(1);
+        CcChatSession session = sessionOf(5L, "waiting", null);
+        session.getQueue().setMaxConcurrentChats(10); // limite da fila seria maior — não importa
+        when(agentStateService.currentAgent()).thenReturn(agent);
+        when(agentStateService.currentState(agent)).thenReturn(new AgentStateView(1L, AgentState.DISPONIVEL, null, null));
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        when(sessionRepository.countByAssignedAgentIdAndStatus(1L, "active")).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.claim(5L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Limite de chats simultâneos");
+    }
+
+    @Test
+    @DisplayName("claim sem limite algum (agente zerado e fila sem configuração) nunca consulta a contagem")
+    void claim_noLimitConfigured_neverCountsSessions() {
+        CcAgent agent = agentOf(1L);
+        agent.setMaxConcurrentChats(0); // "zerado" — conta como sem valor próprio, cai na fila
+        CcChatSession session = sessionOf(5L, "waiting", null); // fila sem maxConcurrentChats (nulo)
+        when(agentStateService.currentAgent()).thenReturn(agent);
+        when(agentStateService.currentState(agent)).thenReturn(new AgentStateView(1L, AgentState.DISPONIVEL, null, null));
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(service.claim(5L).getStatus()).isEqualTo("active");
+
+        verify(sessionRepository, never()).countByAssignedAgentIdAndStatus(any(), any());
     }
 
     @Test

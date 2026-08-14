@@ -40,6 +40,9 @@ export interface CcAgent {
   businessUnit?: BusinessUnit;
   active: boolean;
   extension?: CcExtension;
+  /** Fase 7c — limite de chats simultâneos deste agente; nulo/zero = "sem valor próprio", vale
+   * o limite da fila. Qualquer valor > 0 sempre prevalece sobre o da fila. */
+  maxConcurrentChats?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -50,6 +53,7 @@ export interface AgentRequest {
   userId?: number | null;
   businessUnitId?: number | null;
   extension: string;
+  maxConcurrentChats?: number | null;
 }
 
 // ---- Call Center — Filas (GET/POST/PUT/DELETE /api/v1/callcenter/filas) ----
@@ -70,6 +74,9 @@ export interface CcQueue {
   survey?: SurveySummary | null;
   npsAlertEnabled: boolean;
   npsAlertThreshold?: number | null;
+  /** Fase 7c — limite de chats simultâneos por agente, usado só quando o agente não tem valor
+   * próprio (nulo/zero). Nulo = sem limite. */
+  maxConcurrentChats?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -88,6 +95,13 @@ export interface QueueRequest {
   surveyId?: number | null;
   npsAlertEnabled?: boolean | null;
   npsAlertThreshold?: number | null;
+  /** Fase 5e.2 — transbordo automático; nulo = sem transbordo. Sem tela própria ainda (gap
+   * pré-existente, fora do escopo desta fatia). */
+  overflowQueueId?: number | null;
+  overflowAfterSeconds?: number | null;
+  overflowMaxWaiting?: number | null;
+  /** Fase 7c — limite de chats simultâneos por agente nesta fila. Nulo = sem limite. */
+  maxConcurrentChats?: number | null;
 }
 
 // Pesquisa de satisfação (NPS) — Fase 21. Espelha SurveyDto.java.

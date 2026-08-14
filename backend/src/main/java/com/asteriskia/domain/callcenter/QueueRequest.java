@@ -30,4 +30,8 @@ public record QueueRequest(
          * contra ciclo (A->B->A) e escopo de BU em {@code CallCenterQueueService}. */
         Long overflowQueueId,
         Integer overflowAfterSeconds,
-        Integer overflowMaxWaiting) {}
+        Integer overflowMaxWaiting,
+        /** Fase 7c — limite de chats simultâneos por agente desta fila; nulo = sem limite (regra
+         * desligada). Só vale quando o agente não tem valor próprio (nulo/zero) — ver
+         * {@code ChatBlendingService.resolveLimit}. */
+        Integer maxConcurrentChats) {}

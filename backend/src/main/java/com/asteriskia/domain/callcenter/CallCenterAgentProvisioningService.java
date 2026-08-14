@@ -62,7 +62,7 @@ public class CallCenterAgentProvisioningService {
         try {
             agent =
                     agentService.create(
-                            new AgentRequest(displayName, userId, businessUnitId, String.valueOf(nextExtension)));
+                            new AgentRequest(displayName, userId, businessUnitId, String.valueOf(nextExtension), null));
 
             if (memberships != null) {
                 for (var membership : memberships) {

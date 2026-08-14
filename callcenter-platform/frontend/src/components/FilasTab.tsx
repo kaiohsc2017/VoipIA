@@ -9,7 +9,7 @@ const STRATEGIES = ['ringall', 'leastrecent', 'fewestcalls', 'random', 'rrmemory
 const EMPTY_FORM: QueueRequest = {
   name: '', displayName: '', businessUnitId: null, strategy: 'ringall', timeoutSeconds: 15,
   recordingEnabled: true, consentMessagePath: null, copyMembersFromQueueId: null,
-  surveyId: null, npsAlertEnabled: false, npsAlertThreshold: null,
+  surveyId: null, npsAlertEnabled: false, npsAlertThreshold: null, maxConcurrentChats: null,
 };
 
 export function FilasTab({ canWrite }: { canWrite: boolean }) {
@@ -48,6 +48,7 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
       businessUnitId: q.businessUnit?.id ?? null, strategy: q.strategy, timeoutSeconds: q.timeoutSeconds,
       recordingEnabled: q.recordingEnabled, consentMessagePath: q.consentMessagePath ?? null,
       surveyId: q.survey?.id ?? null, npsAlertEnabled: q.npsAlertEnabled, npsAlertThreshold: q.npsAlertThreshold ?? null,
+      maxConcurrentChats: q.maxConcurrentChats ?? null,
     } : EMPTY_FORM);
     setShowForm(true);
   };
@@ -150,6 +151,18 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
                     <label className="form-label">Timeout (segundos)</label>
                     <input type="number" className="form-input" value={fd.timeoutSeconds}
                       onChange={e => setFd(f => ({ ...f, timeoutSeconds: Number(e.target.value) }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="fila-max-concurrent-chats">
+                      Limite de chats simultâneos por agente (Fase 7c)
+                    </label>
+                    <input id="fila-max-concurrent-chats" type="number" min={1} className="form-input"
+                      placeholder="Sem limite"
+                      value={fd.maxConcurrentChats ?? ''}
+                      onChange={e => setFd(f => ({ ...f, maxConcurrentChats: e.target.value ? Number(e.target.value) : null }))} />
+                    <span style={{ fontSize: '0.78rem', opacity: 0.7 }}>
+                      Só vale para agentes desta fila sem limite próprio configurado — o valor do agente sempre prevalece.
+                    </span>
                   </div>
                   <div className="form-group">
                     <label className="form-label">

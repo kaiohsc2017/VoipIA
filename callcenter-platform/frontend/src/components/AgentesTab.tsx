@@ -4,7 +4,7 @@ import api, { getErrorMessage } from '../api/client';
 import { ConfirmModal } from './ConfirmModal';
 import type { AgentRequest, AppUserOption, BusinessUnit, CcAgent, CcAgentSkill, CcQueue, CcQueueMember, CcSkill } from '../api/types';
 
-const EMPTY_FORM: AgentRequest = { name: '', userId: null, businessUnitId: null, extension: '' };
+const EMPTY_FORM: AgentRequest = { name: '', userId: null, businessUnitId: null, extension: '', maxConcurrentChats: null };
 
 export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean; canReadRamalSecret: boolean }) {
   const [agents, setAgents] = useState<CcAgent[]>([]);
@@ -39,7 +39,7 @@ export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean
     setEditing(a);
     setFd(a ? {
       name: a.name, userId: a.userId ?? null, businessUnitId: a.businessUnit?.id ?? null,
-      extension: a.extension?.extension ?? '',
+      extension: a.extension?.extension ?? '', maxConcurrentChats: a.maxConcurrentChats ?? null,
     } : EMPTY_FORM);
     setShowForm(true);
   };
@@ -155,6 +155,18 @@ export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean
                         value={fd.userId ?? ''}
                         onChange={e => setFd(f => ({ ...f, userId: e.target.value ? Number(e.target.value) : null }))} />
                     )}
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="agente-max-concurrent-chats">
+                      Limite de chats simultâneos (Fase 7c)
+                    </label>
+                    <input id="agente-max-concurrent-chats" type="number" min={0} className="form-input"
+                      placeholder="Usar limite da fila"
+                      value={fd.maxConcurrentChats ?? ''}
+                      onChange={e => setFd(f => ({ ...f, maxConcurrentChats: e.target.value ? Number(e.target.value) : null }))} />
+                    <span style={{ fontSize: '0.78rem', opacity: 0.7 }}>
+                      Vazio ou zero = usa o limite configurado na fila. Qualquer valor maior que zero prevalece sobre o da fila.
+                    </span>
                   </div>
                 </div>
               </div>

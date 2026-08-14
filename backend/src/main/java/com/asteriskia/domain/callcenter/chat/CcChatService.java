@@ -49,6 +49,7 @@ public class CcChatService {
     private final ChatTranscriptExportService transcriptExportService;
     private final ApplicationEventPublisher eventPublisher;
     private final CobrowseConsentService cobrowseConsentService;
+    private final ChatBlendingService blendingService;
 
     @Transactional
     public CcChatSession startSession(String channelCode, Long queueId, String customerRef, String customerName) {
@@ -111,6 +112,16 @@ public class CcChatService {
         if (!"waiting".equals(session.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Esta conversa já foi assumida por outro agente.");
+        }
+
+        // Blending (Fase 7c) — "voz sempre ganha" já está garantido pelo guard de
+        // AgentState.DISPONIVEL acima (agente em chamada nunca chega aqui). O limite de chats
+        // simultâneos é avaliado só agora, na mesma transação da assunção, para não permitir uma
+        // corrida entre dois claims simultâneos do mesmo agente ultrapassar o limite.
+        Integer limit = blendingService.resolveLimit(agent, session.getQueue());
+        if (limit != null && sessionRepository.countByAssignedAgentIdAndStatus(agent.getId(), "active") >= limit) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Limite de chats simultâneos atingido (" + limit + ").");
         }
 
         session.setStatus("active");

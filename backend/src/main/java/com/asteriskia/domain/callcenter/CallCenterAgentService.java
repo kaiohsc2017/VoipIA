@@ -96,12 +96,14 @@ public class CallCenterAgentService {
                                     "Já existe um ramal usando " + extensionNumber + ".");
                         });
 
+        validateMaxConcurrentChats(request.maxConcurrentChats());
         var agent =
                 CcAgent.builder()
                         .name(request.name())
                         .userId(request.userId())
                         .businessUnit(resolveBusinessUnit(request.businessUnitId()))
                         .active(true)
+                        .maxConcurrentChats(request.maxConcurrentChats())
                         .build();
         agent = agentRepository.save(agent);
 
@@ -136,6 +138,8 @@ public class CallCenterAgentService {
         agent.setName(request.name());
         agent.setUserId(request.userId());
         agent.setBusinessUnit(resolveBusinessUnit(request.businessUnitId()));
+        validateMaxConcurrentChats(request.maxConcurrentChats());
+        agent.setMaxConcurrentChats(request.maxConcurrentChats());
         return agentRepository.save(agent);
     }
 
@@ -260,6 +264,14 @@ public class CallCenterAgentService {
         if (num < range.start() || num > range.end()) {
             throw new IllegalArgumentException(
                     "Ramais de agente devem usar um número entre " + range.start() + " e " + range.end() + ".");
+        }
+    }
+
+    /** Fase 7c — o CHECK constraint do banco (V77) já cobre isso, mas validar aqui devolve 400
+     * com mensagem clara em vez de deixar o erro genérico de constraint do Postgres vazar. */
+    private void validateMaxConcurrentChats(Integer maxConcurrentChats) {
+        if (maxConcurrentChats != null && maxConcurrentChats < 0) {
+            throw new IllegalArgumentException("Limite de chats simultâneos do agente não pode ser negativo.");
         }
     }
 

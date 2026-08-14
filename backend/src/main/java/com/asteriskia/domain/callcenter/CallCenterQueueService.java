@@ -120,6 +120,7 @@ public class CallCenterQueueService {
         var strategy = resolveStrategy(request.strategy());
         var timeout = resolveTimeout(request.timeoutSeconds());
         validateOverflowThresholds(request.overflowAfterSeconds(), request.overflowMaxWaiting());
+        validateMaxConcurrentChats(request.maxConcurrentChats());
 
         var queue =
                 CcQueue.builder()
@@ -137,6 +138,7 @@ public class CallCenterQueueService {
                         .overflowQueue(resolveOverflowQueue(null, request.overflowQueueId()))
                         .overflowAfterSeconds(request.overflowAfterSeconds())
                         .overflowMaxWaiting(request.overflowMaxWaiting())
+                        .maxConcurrentChats(request.maxConcurrentChats())
                         .build();
         queue = queueRepository.save(queue);
 
@@ -194,6 +196,8 @@ public class CallCenterQueueService {
         queue.setOverflowQueue(resolveOverflowQueue(id, request.overflowQueueId()));
         queue.setOverflowAfterSeconds(request.overflowAfterSeconds());
         queue.setOverflowMaxWaiting(request.overflowMaxWaiting());
+        validateMaxConcurrentChats(request.maxConcurrentChats());
+        queue.setMaxConcurrentChats(request.maxConcurrentChats());
         var saved = queueRepository.save(queue);
 
         araQueueRepository
@@ -479,6 +483,14 @@ public class CallCenterQueueService {
         }
         if (overflowMaxWaiting != null && overflowMaxWaiting <= 0) {
             throw new IllegalArgumentException("Tamanho máximo de espera do transbordo deve ser maior que zero.");
+        }
+    }
+
+    /** Fase 7c — o CHECK constraint do banco (V77) já cobre isso, mas validar aqui devolve 400
+     * com mensagem clara em vez de deixar o erro genérico de constraint do Postgres vazar. */
+    private void validateMaxConcurrentChats(Integer maxConcurrentChats) {
+        if (maxConcurrentChats != null && maxConcurrentChats < 1) {
+            throw new IllegalArgumentException("Limite de chats simultâneos da fila deve ser maior ou igual a 1.");
         }
     }
 
