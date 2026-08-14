@@ -26,6 +26,11 @@ import org.springframework.web.bind.annotation.RestController;
  * POST   /api/v1/callcenter/filas/{id}/membros/{agentId}    — inclui agente na fila (body opcional {penalty})
  * PUT    /api/v1/callcenter/filas/{id}/membros/{agentId}/prioridade — atualiza a prioridade
  * DELETE /api/v1/callcenter/filas/{id}/membros/{agentId}    — remove agente da fila
+ * GET    /api/v1/callcenter/filas/{id}/skills                — skills exigidas pela fila (Fase 5f.1)
+ * PUT    /api/v1/callcenter/filas/{id}/skills/{skillId}       — exige/atualiza nível mínimo (1-5) da skill
+ * DELETE /api/v1/callcenter/filas/{id}/skills/{skillId}       — remove a exigência de skill
+ * POST   /api/v1/callcenter/filas/{id}/recalcular-skills      — recalcula participação por skill (ação
+ *        explícita — nunca roda sozinha, ver CallCenterSkillRoutingService)
  */
 @RestController
 @RequestMapping("/api/v1/callcenter/filas")
@@ -33,6 +38,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class CallCenterQueueController {
 
     private final CallCenterQueueService service;
+    // Fase 5f.1 — mesmo padrão de fachada de CallCenterAgentController: a lógica de skill vive
+    // só em CallCenterSkillRoutingService.
+    private final CallCenterSkillRoutingService skillRoutingService;
 
     @GetMapping
     public ResponseEntity<List<CcQueue>> getAll() {
@@ -88,5 +96,36 @@ public class CallCenterQueueController {
     public ResponseEntity<Void> removeMember(@PathVariable Long id, @PathVariable Long agentId) {
         service.removeMember(id, agentId);
         return ResponseEntity.noContent().build();
+    }
+
+    /** Body do PUT de nível mínimo de skill exigida pela fila (Fase 5f.1) — escala 1-5. */
+    public record QueueSkillBody(@jakarta.validation.constraints.NotNull Integer minLevel) {}
+
+    @GetMapping("/{id}/skills")
+    public ResponseEntity<List<CcQueueSkill>> queueSkills(@PathVariable Long id) {
+        return ResponseEntity.ok(skillRoutingService.queueSkills(id));
+    }
+
+    @PutMapping("/{id}/skills/{skillId}")
+    public ResponseEntity<CcQueueSkill> setRequiredSkill(
+            @PathVariable Long id, @PathVariable Long skillId, @Valid @RequestBody QueueSkillBody body) {
+        return ResponseEntity.ok(skillRoutingService.setQueueRequiredSkill(id, skillId, body.minLevel()));
+    }
+
+    @DeleteMapping("/{id}/skills/{skillId}")
+    public ResponseEntity<Void> removeRequiredSkill(@PathVariable Long id, @PathVariable Long skillId) {
+        skillRoutingService.removeQueueRequiredSkill(id, skillId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Recalcula participação por skill (Fase 5f.1) — ação explícita disparada pelo botão
+     * "Recalcular participação" da tela de fila. Nunca roda em background/scheduler: cadastrar
+     * uma skill nova ou reduzir o nível de um agente nunca remove ninguém de fila sozinho.
+     */
+    @PostMapping("/{id}/recalcular-skills")
+    public ResponseEntity<CallCenterSkillRoutingService.RecalculationResult> recalculateSkillMembership(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(skillRoutingService.recalculateQueueMembership(id));
     }
 }

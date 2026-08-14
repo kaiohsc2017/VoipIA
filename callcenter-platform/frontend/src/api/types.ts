@@ -152,6 +152,27 @@ export interface SkillRequest {
   description?: string;
 }
 
+// ---- Call Center — Roteamento por skill (Fase 5f.1) ----
+// Escala de nível 1-5 (1=iniciante ... 5=especialista), ver V76. Skill decide só elegibilidade
+// de participação em fila — nunca a prioridade manual (penalty), que continua 100% manual.
+export interface CcAgentSkill {
+  agent: CcAgent;
+  skill: CcSkill;
+  level: number;
+}
+
+export interface CcQueueSkill {
+  queue: CcQueue;
+  skill: CcSkill;
+  minLevel: number;
+}
+
+/** Resultado do recálculo explícito de participação por skill (POST .../recalcular-skills). */
+export interface SkillRecalculationResult {
+  added: number;
+  removed: number;
+}
+
 // ---- Call Center — Motivos de pausa (Fase 12.6, GET/POST/PUT/DELETE /callcenter/pause-reasons) ----
 export interface CcPauseReason {
   id: number;

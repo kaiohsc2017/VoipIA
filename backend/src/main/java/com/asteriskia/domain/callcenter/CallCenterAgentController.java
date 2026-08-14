@@ -37,6 +37,9 @@ import org.springframework.web.server.ResponseStatusException;
  * POST   /api/v1/callcenter/agentes/{id}/filas/{queueId}           — adiciona a uma fila (body opcional {penalty})
  * PUT    /api/v1/callcenter/agentes/{id}/filas/{queueId}/prioridade — atualiza a prioridade
  * DELETE /api/v1/callcenter/agentes/{id}/filas/{queueId}           — remove de uma fila
+ * GET    /api/v1/callcenter/agentes/{id}/skills                     — skills do agente (Fase 5f.1)
+ * PUT    /api/v1/callcenter/agentes/{id}/skills/{skillId}           — atribui/atualiza nível (1-5) da skill
+ * DELETE /api/v1/callcenter/agentes/{id}/skills/{skillId}           — remove a skill do agente
  */
 @RestController
 @RequestMapping("/api/v1/callcenter/agentes")
@@ -50,6 +53,9 @@ public class CallCenterAgentController {
     private final CallCenterAgentStateService agentStateService;
     private final AuditService auditService;
     private final SipCredentialsRateLimiter rateLimiter;
+    // Fase 5f.1 — roteamento por skill, fachada só de leitura/CRUD; a lógica vive só em
+    // CallCenterSkillRoutingService (mesmo padrão de CallCenterQueueService acima).
+    private final CallCenterSkillRoutingService skillRoutingService;
 
     @GetMapping
     public ResponseEntity<List<CcAgent>> getAll() {
@@ -139,6 +145,27 @@ public class CallCenterAgentController {
     @DeleteMapping("/{id}/filas/{queueId}")
     public ResponseEntity<Void> removeFromQueue(@PathVariable Long id, @PathVariable Long queueId) {
         queueService.removeMember(queueId, id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Body do PUT de nível de skill do agente (Fase 5f.1) — escala 1-5, ver
+     * CallCenterSkillRoutingService. */
+    public record AgentSkillBody(@jakarta.validation.constraints.NotNull Integer level) {}
+
+    @GetMapping("/{id}/skills")
+    public ResponseEntity<List<CcAgentSkill>> agentSkills(@PathVariable Long id) {
+        return ResponseEntity.ok(skillRoutingService.agentSkills(id));
+    }
+
+    @PutMapping("/{id}/skills/{skillId}")
+    public ResponseEntity<CcAgentSkill> assignAgentSkill(
+            @PathVariable Long id, @PathVariable Long skillId, @Valid @RequestBody AgentSkillBody body) {
+        return ResponseEntity.ok(skillRoutingService.assignAgentSkill(id, skillId, body.level()));
+    }
+
+    @DeleteMapping("/{id}/skills/{skillId}")
+    public ResponseEntity<Void> removeAgentSkill(@PathVariable Long id, @PathVariable Long skillId) {
+        skillRoutingService.removeAgentSkill(id, skillId);
         return ResponseEntity.noContent().build();
     }
 }

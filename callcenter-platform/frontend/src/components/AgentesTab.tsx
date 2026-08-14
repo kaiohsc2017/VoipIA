@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Eye, ListOrdered } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, ListOrdered, Star } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
 import { ConfirmModal } from './ConfirmModal';
-import type { AgentRequest, AppUserOption, BusinessUnit, CcAgent, CcQueue, CcQueueMember } from '../api/types';
+import type { AgentRequest, AppUserOption, BusinessUnit, CcAgent, CcAgentSkill, CcQueue, CcQueueMember, CcSkill } from '../api/types';
 
 const EMPTY_FORM: AgentRequest = { name: '', userId: null, businessUnitId: null, extension: '' };
 
@@ -16,6 +16,7 @@ export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean
   const [secretFor, setSecretFor] = useState<CcAgent | null>(null);
   const [secret, setSecret] = useState('');
   const [queuesOf, setQueuesOf] = useState<CcAgent | null>(null);
+  const [skillsOf, setSkillsOf] = useState<CcAgent | null>(null);
   const [msg, setMsg] = useState('');
   const [fd, setFd] = useState<AgentRequest>(EMPTY_FORM);
 
@@ -110,6 +111,11 @@ export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean
             onError={m => flash(m)} />
         )}
 
+        {skillsOf && (
+          <AgentSkillsModal agent={skillsOf} canWrite={canWrite} onClose={() => setSkillsOf(null)}
+            onError={m => flash(m)} />
+        )}
+
         {canWrite && showForm && (
           <div className="modal-overlay" onClick={() => setShowForm(false)}>
             <div className="modal" onClick={e => e.stopPropagation()}>
@@ -174,6 +180,7 @@ export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean
                   <td><span className={`badge ${a.active ? 'badge-success' : 'badge-gray'}`}>{a.active ? 'Ativo' : 'Inativo'}</span></td>
                   <td>
                     <button className="btn btn-ghost btn-sm" title="Filas do agente" onClick={() => setQueuesOf(a)}><ListOrdered size={14} /></button>
+                    <button className="btn btn-ghost btn-sm" title="Skills do agente" onClick={() => setSkillsOf(a)}><Star size={14} /></button>
                     {canReadRamalSecret && a.extension && (
                       <button className="btn btn-ghost btn-sm" title="Ver senha do ramal" onClick={() => revealSecret(a)}><Eye size={14} /></button>
                     )}
@@ -286,6 +293,109 @@ function AgentQueuesModal({ agent, canWrite, onClose, onError }: {
           )}
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 8 }}>
             Prioridade: menor valor é atendido antes (mesma semântica do Asterisk).
+          </p>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * AgentSkillsModal — skills do agente com nível 1-5 (Fase 5f.1). Nunca mexe em prioridade
+ * (penalty) de fila — skill e prioridade manual são coisas independentes, ver
+ * CallCenterSkillRoutingService no backend.
+ */
+function AgentSkillsModal({ agent, canWrite, onClose, onError }: {
+  agent: CcAgent; canWrite: boolean; onClose: () => void; onError: (m: string) => void;
+}) {
+  const [agentSkills, setAgentSkills] = useState<CcAgentSkill[]>([]);
+  const [allSkills, setAllSkills] = useState<CcSkill[]>([]);
+  const [addSkillId, setAddSkillId] = useState('');
+  const [addLevel, setAddLevel] = useState('1');
+
+  const load = () => {
+    api.get<CcAgentSkill[]>(`/callcenter/agentes/${agent.id}/skills`)
+      .then(({ data }) => setAgentSkills(data))
+      .catch(err => onError(getErrorMessage(err, 'Erro ao listar skills do agente.')));
+  };
+  useEffect(() => {
+    load();
+    api.get<CcSkill[]>('/callcenter/skills').then(({ data }) => setAllSkills(data)).catch(() => setAllSkills([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agent.id]);
+
+  const availableSkills = allSkills.filter(s => !agentSkills.some(as => as.skill.id === s.id));
+
+  const add = () => {
+    if (!addSkillId) return;
+    api.put(`/callcenter/agentes/${agent.id}/skills/${addSkillId}`, { level: Number(addLevel) || 1 })
+      .then(() => { load(); setAddSkillId(''); setAddLevel('1'); })
+      .catch(err => onError(getErrorMessage(err, 'Erro ao atribuir skill.')));
+  };
+
+  const updateLevel = (skillId: number, level: number) => {
+    api.put(`/callcenter/agentes/${agent.id}/skills/${skillId}`, { level })
+      .then(load)
+      .catch(err => onError(getErrorMessage(err, 'Erro ao atualizar nível da skill.')));
+  };
+
+  const remove = (skillId: number) => {
+    api.delete(`/callcenter/agentes/${agent.id}/skills/${skillId}`)
+      .then(load)
+      .catch(err => onError(getErrorMessage(err, 'Erro ao remover skill do agente.')));
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Skills de "{agent.name}"</h2>
+          <button className="btn-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <div className="table-wrapper">
+            <table>
+              <thead><tr><th>Skill</th><th>Nível (1-5)</th>{canWrite && <th></th>}</tr></thead>
+              <tbody>
+                {agentSkills.map(as => (
+                  <tr key={as.skill.id}>
+                    <td>{as.skill.name}</td>
+                    <td>
+                      {canWrite ? (
+                        <input type="number" min={1} max={5} className="form-input" style={{ width: 60 }}
+                          defaultValue={as.level}
+                          onBlur={e => {
+                            const v = Number(e.target.value);
+                            if (v >= 1 && v <= 5 && v !== as.level) updateLevel(as.skill.id, v);
+                          }} />
+                      ) : as.level}
+                    </td>
+                    {canWrite && (
+                      <td><button className="btn btn-ghost btn-sm" onClick={() => remove(as.skill.id)}><Trash2 size={14} /></button></td>
+                    )}
+                  </tr>
+                ))}
+                {agentSkills.length === 0 && <tr><td colSpan={canWrite ? 3 : 2} className="table-empty">Agente sem skill cadastrada.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {canWrite && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <select className="form-input" value={addSkillId} onChange={e => setAddSkillId(e.target.value)}>
+                <option value="">— Selecione uma skill —</option>
+                {availableSkills.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <input type="number" min={1} max={5} className="form-input" style={{ width: 70 }}
+                placeholder="Nível" value={addLevel} onChange={e => setAddLevel(e.target.value)} />
+              <button className="btn btn-primary" disabled={!addSkillId} onClick={add}><Plus size={14} /> Adicionar</button>
+            </div>
+          )}
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 8 }}>
+            Nível: 1 (iniciante) a 5 (especialista). A skill decide só elegibilidade de participação
+            em fila — a prioridade (penalty) da fila continua 100% manual, independente da skill.
           </p>
         </div>
         <div className="modal-footer">

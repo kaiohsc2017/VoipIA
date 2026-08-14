@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Users, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, X, Star, RefreshCw } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
 import { ConfirmModal } from './ConfirmModal';
-import type { BusinessUnit, CcAgent, CcQueue, CcQueueMember, QueueRequest, SurveySummary } from '../api/types';
+import type { BusinessUnit, CcAgent, CcQueue, CcQueueMember, CcQueueSkill, CcSkill, QueueRequest, SkillRecalculationResult, SurveySummary } from '../api/types';
 
 const STRATEGIES = ['ringall', 'leastrecent', 'fewestcalls', 'random', 'rrmemory', 'linear'];
 
@@ -22,6 +22,7 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
   const [confirmQueue, setConfirmQueue] = useState<CcQueue | null>(null);
   const [membersOf, setMembersOf] = useState<CcQueue | null>(null);
   const [members, setMembers] = useState<CcQueueMember[]>([]);
+  const [skillsOf, setSkillsOf] = useState<CcQueue | null>(null);
   const [msg, setMsg] = useState('');
   const [fd, setFd] = useState<QueueRequest>(EMPTY_FORM);
   const [addPriority, setAddPriority] = useState('0');
@@ -213,6 +214,11 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
           </div>
         )}
 
+        {skillsOf && (
+          <QueueSkillsModal queue={skillsOf} canWrite={canWrite} onClose={() => setSkillsOf(null)}
+            onError={m => flash(m)} onInfo={m => flash(m)} />
+        )}
+
         {membersOf && (
           <div className="modal-overlay" onClick={() => setMembersOf(null)}>
             <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
@@ -279,6 +285,7 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
                   <td><span className={`badge ${q.active ? 'badge-success' : 'badge-gray'}`}>{q.active ? 'Ativa' : 'Inativa'}</span></td>
                   <td>
                     <button className="btn btn-ghost btn-sm" onClick={() => openMembers(q)}><Users size={14} /></button>
+                    <button className="btn btn-ghost btn-sm" title="Skills exigidas" onClick={() => setSkillsOf(q)}><Star size={14} /></button>
                     {canWrite && (
                       <>
                         <button className="btn btn-ghost btn-sm" onClick={() => openForm(q)}><Pencil size={14} /></button>
@@ -294,5 +301,126 @@ export function FilasTab({ canWrite }: { canWrite: boolean }) {
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * QueueSkillsModal — skills exigidas por uma fila com nível mínimo (Fase 5f.1) + botão de
+ * recálculo explícito de participação. O recálculo NUNCA roda sozinho (sem job/scheduler) — só
+ * quando o operador clica no botão aqui, e nunca toca na prioridade (penalty) de quem já é
+ * membro, só adiciona/remove elegibilidade (ver CallCenterSkillRoutingService no backend).
+ */
+function QueueSkillsModal({ queue, canWrite, onClose, onError, onInfo }: {
+  queue: CcQueue; canWrite: boolean; onClose: () => void; onError: (m: string) => void; onInfo: (m: string) => void;
+}) {
+  const [queueSkills, setQueueSkills] = useState<CcQueueSkill[]>([]);
+  const [allSkills, setAllSkills] = useState<CcSkill[]>([]);
+  const [addSkillId, setAddSkillId] = useState('');
+  const [addMinLevel, setAddMinLevel] = useState('1');
+  const [recalculating, setRecalculating] = useState(false);
+
+  const load = () => {
+    api.get<CcQueueSkill[]>(`/callcenter/filas/${queue.id}/skills`)
+      .then(({ data }) => setQueueSkills(data))
+      .catch(err => onError(getErrorMessage(err, 'Erro ao listar skills exigidas pela fila.')));
+  };
+  useEffect(() => {
+    load();
+    api.get<CcSkill[]>('/callcenter/skills').then(({ data }) => setAllSkills(data)).catch(() => setAllSkills([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue.id]);
+
+  const availableSkills = allSkills.filter(s => !queueSkills.some(qs => qs.skill.id === s.id));
+
+  const add = () => {
+    if (!addSkillId) return;
+    api.put(`/callcenter/filas/${queue.id}/skills/${addSkillId}`, { minLevel: Number(addMinLevel) || 1 })
+      .then(() => { load(); setAddSkillId(''); setAddMinLevel('1'); })
+      .catch(err => onError(getErrorMessage(err, 'Erro ao exigir skill.')));
+  };
+
+  const updateMinLevel = (skillId: number, minLevel: number) => {
+    api.put(`/callcenter/filas/${queue.id}/skills/${skillId}`, { minLevel })
+      .then(load)
+      .catch(err => onError(getErrorMessage(err, 'Erro ao atualizar nível mínimo.')));
+  };
+
+  const remove = (skillId: number) => {
+    api.delete(`/callcenter/filas/${queue.id}/skills/${skillId}`)
+      .then(load)
+      .catch(err => onError(getErrorMessage(err, 'Erro ao remover exigência de skill.')));
+  };
+
+  const recalculate = () => {
+    setRecalculating(true);
+    api.post<SkillRecalculationResult>(`/callcenter/filas/${queue.id}/recalcular-skills`)
+      .then(({ data }) => onInfo(`Recálculo concluído: ${data.added} agente(s) adicionado(s), ${data.removed} removido(s).`))
+      .catch(err => onError(getErrorMessage(err, 'Erro ao recalcular participação por skill.')))
+      .finally(() => setRecalculating(false));
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Skills exigidas por "{queue.displayName}"</h2>
+          <button className="btn-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <div className="table-wrapper">
+            <table>
+              <thead><tr><th>Skill</th><th>Nível mínimo (1-5)</th>{canWrite && <th></th>}</tr></thead>
+              <tbody>
+                {queueSkills.map(qs => (
+                  <tr key={qs.skill.id}>
+                    <td>{qs.skill.name}</td>
+                    <td>
+                      {canWrite ? (
+                        <input type="number" min={1} max={5} className="form-input" style={{ width: 60 }}
+                          defaultValue={qs.minLevel}
+                          onBlur={e => {
+                            const v = Number(e.target.value);
+                            if (v >= 1 && v <= 5 && v !== qs.minLevel) updateMinLevel(qs.skill.id, v);
+                          }} />
+                      ) : qs.minLevel}
+                    </td>
+                    {canWrite && (
+                      <td><button className="btn btn-ghost btn-sm" onClick={() => remove(qs.skill.id)}><X size={14} /></button></td>
+                    )}
+                  </tr>
+                ))}
+                {queueSkills.length === 0 && <tr><td colSpan={canWrite ? 3 : 2} className="table-empty">Sem skill exigida — todo agente é elegível.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {canWrite && (
+            <>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <select className="form-input" value={addSkillId} onChange={e => setAddSkillId(e.target.value)}>
+                  <option value="">— Selecione uma skill —</option>
+                  {availableSkills.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <input type="number" min={1} max={5} className="form-input" style={{ width: 90 }}
+                  placeholder="Nível mínimo" value={addMinLevel} onChange={e => setAddMinLevel(e.target.value)} />
+                <button className="btn btn-primary" disabled={!addSkillId} onClick={add}><Plus size={14} /> Exigir</button>
+              </div>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-color)' }}>
+                <button className="btn btn-primary" disabled={recalculating} onClick={recalculate}>
+                  <RefreshCw size={14} /> {recalculating ? 'Recalculando…' : 'Recalcular participação'}
+                </button>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 8 }}>
+                  Ação manual: adiciona quem passou a ser elegível e remove quem deixou de ser —
+                  nunca roda sozinha, e nunca altera a prioridade (penalty) de quem continuar
+                  membro.
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
   );
 }
