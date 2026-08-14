@@ -852,6 +852,56 @@ export interface ChatReportRow {
   transcriptPath: string | null;
 }
 
+// ─── Fase 26 — relatório de qualidade ───────────────────────────────────────────────────────────
+
+export type QualityReportScopeType = 'AGENT' | 'QUEUE' | 'GERAL';
+
+export interface CcQualityReportItemAverage {
+  itemId: number;
+  pergunta: string | null;
+  media: number | null;
+}
+
+export interface CcQualityReportContent {
+  notaMedia: number | null;
+  totalAvaliacoes: number;
+  totalReprovadas: number;
+  notaPorItem: CcQualityReportItemAverage[];
+}
+
+export interface CcQualityReportItemDelta {
+  itemId: number;
+  pergunta: string | null;
+  mediaAnterior: number | null;
+  mediaAtual: number | null;
+  delta: number | null;
+}
+
+export interface CcQualityReportEvolution {
+  notaMediaAnterior: number | null;
+  notaMediaDelta: number | null;
+  itens: CcQualityReportItemDelta[];
+}
+
+export interface CcQualityReportDto {
+  id: number;
+  scopeType: QualityReportScopeType;
+  scopeValue: string | null;
+  dateFrom: string;
+  dateTo: string;
+  requestedBy: string;
+  requestedAt: string;
+  content: CcQualityReportContent;
+  previousReportId: number | null;
+  evolution: CcQualityReportEvolution | null;
+}
+
+export interface CcHoliday {
+  id: number;
+  holidayDate: string;
+  description: string | null;
+}
+
 // Fase 19 (Parte III) — ranges de ramal configuráveis + interruptor global de NPS.
 export type CcRangeType = 'AGENT' | 'QUEUE' | 'FLOW';
 

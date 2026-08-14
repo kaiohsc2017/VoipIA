@@ -277,6 +277,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/callcenter/reports/reprocess").hasAuthority("ROLE_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/reports/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.reports")
+                        // Relatório de qualidade (Fase 26) — reusa a mesma permissão da aba
+                        // "Relatórios", path próprio (quality-reports) pra não colidir com o de cima.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/quality-reports/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.reports")
                         // Base de conhecimento (RAG do chat) — Fase 25.
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/kb/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.kb")
@@ -374,6 +378,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.chat")
                         .requestMatchers("/api/v1/callcenter/kb/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.kb")
+                        .requestMatchers("/api/v1/callcenter/quality-reports/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.reports")
 
                         // Endpoints internos (dialplan/serviços via X-Internal-Key: ura-routing,
                         // ingestão de gravação, chamada de saída — Fase 23) exigem ROLE_INTERNAL

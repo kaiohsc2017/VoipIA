@@ -6,6 +6,7 @@ import type {
   AgentPeriodMetrics, AgentPeriodComparison, ReportGranularity,
 } from '../api/types';
 import { CallDetailReport, ChatDetailReport } from './DetailReportTab';
+import { QualityReportTab } from './QualityReportTab';
 
 export function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -27,14 +28,14 @@ interface ReportsQueueTabProps {
 
 /**
  * ReportsQueueTab — aba "Relatórios" da Fase 9 (Relatórios analíticos): sub-fase 9a (fila de
- * voz), 9b (agente de voz) e 9c (relatório analítico de chamada/chat, componentes em
- * DetailReportTab.tsx) num único seletor interno, sem entrada de Sidebar própria por
- * sub-relatório — timeline omnicanal, exportação e agendamento ficam para fatias futuras. Sem
- * gráfico — este app não tem `recharts` nas dependências (mesma decisão já registrada em
- * InsightsDashboardTab.tsx); tabela cobre a necessidade desta entrega.
+ * voz), 9b (agente de voz), 9c (relatório analítico de chamada/chat, DetailReportTab.tsx) e
+ * Fase 26 (relatório de qualidade, QualityReportTab.tsx) num único seletor interno, sem entrada
+ * de Sidebar própria por sub-relatório — timeline omnicanal, exportação e agendamento ficam para
+ * fatias futuras. Sem gráfico — este app não tem `recharts` nas dependências (mesma decisão já
+ * registrada em InsightsDashboardTab.tsx); tabela cobre a necessidade desta entrega.
  */
 export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
-  const [view, setView] = useState<'queue' | 'agent' | 'call-detail' | 'chat-detail'>('queue');
+  const [view, setView] = useState<'queue' | 'agent' | 'call-detail' | 'chat-detail' | 'quality'>('queue');
 
   const [reprocessFrom, setReprocessFrom] = useState(daysAgoIso(7));
   const [reprocessTo, setReprocessTo] = useState(todayIso());
@@ -63,12 +64,14 @@ export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
         <button type="button" onClick={() => setView('agent')} disabled={view === 'agent'}>Agente (voz)</button>
         <button type="button" onClick={() => setView('call-detail')} disabled={view === 'call-detail'}>Chamada (detalhe)</button>
         <button type="button" onClick={() => setView('chat-detail')} disabled={view === 'chat-detail'}>Chat (detalhe)</button>
+        <button type="button" onClick={() => setView('quality')} disabled={view === 'quality'}>Qualidade</button>
       </div>
 
       {view === 'queue' && <QueueReport reprocessTick={reprocessTick} />}
       {view === 'agent' && <AgentReport reprocessTick={reprocessTick} />}
       {view === 'call-detail' && <CallDetailReport />}
       {view === 'chat-detail' && <ChatDetailReport />}
+      {view === 'quality' && <QualityReportTab isAdmin={isAdmin} />}
 
       {isAdmin && (
         <section style={{ background: '#fff8e1', padding: 12, borderRadius: 8 }}>

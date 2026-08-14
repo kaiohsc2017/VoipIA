@@ -12,6 +12,10 @@ public interface CallEvaluationItemRepository extends JpaRepository<CallEvaluati
 
     List<CallEvaluationItem> findByEvaluationIdOrderByIdAsc(Long evaluationId);
 
+    /** Itens de várias avaliações de uma vez — base do relatório de qualidade do Call Center
+     * (Fase 26), que agrega por escopo/período em vez de por uma única chamada. */
+    List<CallEvaluationItem> findByEvaluationIdIn(List<Long> evaluationIds);
+
     void deleteByEvaluationId(Long evaluationId);
 
     /** Nota média por item de ficha de um agente num período — piores itens do relatório
