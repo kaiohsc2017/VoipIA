@@ -1285,3 +1285,65 @@ tbody td {
 .flow-issue-warning {
   color: var(--clr-warning);
 }
+
+/* Fase 5d — painel do simulador de fluxo (dry-run). */
+.flow-simulation-panel {
+  width: 300px;
+}
+
+.flow-simulation-input {
+  width: 100%;
+  min-height: 80px;
+  padding: 8px;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.8rem;
+  resize: vertical;
+}
+
+.flow-simulation-result {
+  margin-top: 14px;
+  border-top: 1px solid var(--border-glass);
+  padding-top: 10px;
+}
+
+.flow-simulation-outcome {
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+
+.flow-simulation-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.flow-simulation-step {
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 6px 8px;
+  background: var(--bg-input);
+}
+
+.flow-simulation-step-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.78rem;
+}
+
+.flow-simulation-step-detail {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.flow-simulation-variables {
+  margin-top: 10px;
+}

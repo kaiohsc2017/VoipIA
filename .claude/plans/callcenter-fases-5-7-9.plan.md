@@ -1,0 +1,75 @@
+# Plano: fechamento das Fases 5 (resto), 7 (resto) e 9 (resto) do Call Center
+
+**Origem**: pedido do usuário (2026-08-14). **Complexidade agregada**: XG, fatiada em **12 fatias deployáveis independentemente**.
+**Migration atual**: `V73__callcenter_cobrowsing.sql` (confirmado com `ls ... | sort -V | tail -1`). **Próxima livre: V74** — reconfirmar antes de cada fatia.
+
+## 0. Escopo
+
+**Entra**: 5d (simulador), 5e.1 (horário/feriados), 5e.2 (transbordo + `transferir_ramal`), 5f.1 (skill), 5f.2 (tela de traço), 7c (blending), 7d (anexos), 7e (Telegram), 9c.1 (agregado fluxo/URA), 9c.2 (agregado chat), 9c.3 (timeline omnicanal + drill-down), 9c.4 (rechamada 24h/7d + top tabulações), 9c.5 (Excel/PDF), 9c.6 (agendamento), 9c.7 (aderência à escala).
+
+**Fica de fora (decisão, não esquecimento)**: WhatsApp; retomada de sessão após reload; WebSocket em tempo real para o cliente (segue polling); `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` com fila real (é operação); nós `agente_ia` (Fase 16), `coletar_entrada` (depende de STT no ARI/Fase 14) e `consultar_api` (SSRF é escopo da Fase 10); **qualquer mascaramento/PII scrubbing** (regra do projeto — Telegram e anexos gravam texto puro, igual ao webchat).
+
+**Efeito nos 7 nós bloqueados**: `horario_funcionamento` e `transferir_ramal` são desbloqueados (5e.1/5e.2); `pausar_gravacao` e `pesquisa_satisfacao` **já estão implementados** (Fases 5c/21 — o plano-mãe está desatualizado nesse ponto, confirmado em `FlowGraphNodeCatalog.IMPLEMENTED_TYPES`); os outros 3 seguem fora.
+
+## 1. Decisões — CONFIRMADAS pelo usuário (2026-08-14)
+
+**D1 — Telegram: bot DEDICADO** (`CALLCENTER_TELEGRAM_BOT_TOKEN`, `CALLCENTER_TELEGRAM_WEBHOOK_SECRET` no `.env`). Nunca reusar o bot de alertas — segredo e ciclo de vida isolados.
+
+**D2 — LONG POLLING, não webhook.** A operação é 100% rede interna, sem entrada da internet. `TelegramLongPollingClient` (loop assíncrono dentro do `backend`, ou processo dedicado — decidir na implementação da 7e conforme o padrão já usado por outros schedulers `@Scheduled`) chama `getUpdates` com `offset` incremental (`cc_telegram_poll_state.last_update_id`, para sobreviver a restart sem reprocessar). Nenhuma rota pública nova é exposta — reduz a superfície de ataque da fatia (o risco "endpoint público novo" do §4 cai do escopo).
+
+**D3 — PDF é requisito real.** Usar **OpenPDF** (fork LGPL/MPL do iText 4 — iText 7 é AGPL e contaminaria a licença do projeto). Tabela simples (cabeçalho + linhas), mesmo teto de 50k linhas do Excel — acima disso, sugerir ao usuário exportar Excel.
+
+**D4 — Configuração de e-mail (SISTEMA → CONFIGURAÇÃO), preparada mas SMTP real fica para depois.**
+Nova aba "E-mail" na tela de Configuração do Sistema — mesmo padrão de `SettingsService`/`SettingsController` (chave/valor com `_CREDENTIAL` suffix para senha, nunca exposta em `GET /settings`). Campos: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD_CREDENTIAL`, `SMTP_FROM_ADDRESS`, `SMTP_STARTTLS` (bool), `EMAIL_ENABLED` (bool, default `false`). Adiciona `spring-boot-starter-mail` ao `pom.xml` e um `EmailSenderService` com `JavaMailSender` configurado **dinamicamente a partir do banco** (não `application.properties` estático — mesmo padrão de `ConfigService`, TTL de leitura). Botão "Testar envio" reusando o padrão de `SettingsTestController` (mesmas proteções de SSRF/timeout já usadas nos outros testes de integração). **Nesta leva**: só a tela + serviço + teste de envio. Nenhum fluxo do projeto (agendamento de relatório, alertas) passa a mandar e-mail de verdade ainda — isso fica para quando o usuário configurar o SMTP real e pedir explicitamente a integração ponto a ponto. `cc_report_schedules` (9c.6) grava o canal desejado (`telegram`/`email`) mas o envio por e-mail só dispara se `EMAIL_ENABLED=true` E a config estiver completa; caso contrário, loga aviso e não falha o agendamento.
+
+**D5 — Blending com sobreposição fila→agente.**
+- `cc_queues.max_concurrent_chats` (config por fila, tela de fila já existente).
+- `cc_agents.max_concurrent_chats` **nullable** (config na tela de agente).
+- Regra de resolução em `ChatBlendingService.resolveLimit(agent, queue)`: se `agent.maxConcurrentChats` for `null` OU `0` (**"zerado ou desativado"**, conforme instrução literal), vale o limite da **fila**; se tiver qualquer valor `> 0`, o valor do **agente prevalece** sobre o da fila. "Voz sempre ganha": agente com um canal SIP em estado `EM_ATENDIMENTO`/tocando (`cc_agent_states`) nunca recebe um `claim` de chat novo, independente do limite. Testar os 4 quadrantes (agente nulo/zero × fila com/sem limite; agente com valor > fila; agente em chamada de voz).
+
+**D6 — Anexos bidirecionais, com allowlist de extensão configurável e cota por usuário.**
+- Nova tabela `cc_chat_attachment_extensions` (extensão, mimetype esperado, ativo) — tela de configuração "extensão por extensão" (adicionar/remover), reusando o padrão CRUD simples já usado em outras telas de catálogo do Call Center. Upload rejeita qualquer extensão fora da allowlist (checagem por extensão **e** magic-bytes do arquivo — nunca confiar só no nome, mesmo padrão de validação de upload já usado em `InsightsUploadService`).
+- Diretório: `/opt/AsteriskIA/media/chat/anexos/{username}/...` — **por usuário** (quem envia o arquivo, agente ou cliente identificado pela sessão), nome do usuário sanitizado (nunca interpolar direto no path — mesma disciplina de todo path join já usado no projeto).
+- Cota configurável por perfil (**"pode ser ajustável"**): default 2 GB por usuário OU 10 dias de retenção a partir da gravação — o que vier primeiro. Configuração fica **na tela de criação de canal de chat** (`cc_chat_channels`, novas colunas `attachment_quota_bytes`/`attachment_retention_days`, default 2147483648/10).
+- Scheduler noturno de expurgo (`ChatAttachmentRetentionScheduler`, padrão de `CostAlertScheduler`) remove arquivo com mais de N dias **e** rebaixa quando a cota é excedida (política: nunca aceitar upload que estoura a cota — 413 claro, mensagem indica quanto falta liberar; nunca apagar silenciosamente arquivo dentro da janela de retenção só por estar cheio).
+- Cliente do widget público (`callcenter-chat-widget.js`) ganha input de arquivo — sem autenticação de staff, então **AINDA MAIS importante** validar allowlist + magic-bytes + cota no upload do lado do cliente (rate limit já existente da Fase 7b se aplica também a upload).
+
+**D7 — Chave do contato na timeline: telefone normalizado** (`AniNormalizer`, Fase 27) — mesmo gap já aceito, documentado no código como "identidade real fica para a Fase 14".
+
+**D8 — BU nos agregados novos: SEM filtro de BU**, mesmo padrão das 9a/9b já em produção (uniformidade — todos os agregados de call center compartilham o mesmo gap aceito, documentado uma única vez).
+
+**D9 — Ordem confirmada**: 5 → 7 → 9, com 9c.7 (aderência à escala) só depois da 5e.
+
+## 2. Fatiamento
+
+- **5d — Simulador (M, sem migration)**: `SimulatedChannelDriver` + `FlowSimulationService`, reusando `FlowExecutionEngine` **sem modificá-lo**. Nunca persiste `cc_flow_executions`/`_steps`. Nós de IA (`consultar_base`, `pesquisa_satisfacao`) em **modo seco** — teste `never()` provando que nenhum LLM é chamado (senão "Simular" em loop vira custo real). RBAC: reusa `callcenter.fluxos`. UI: painel de roteiro no `FlowEditor.tsx`.
+- **5e.1 — Horário/feriados (M, V74)**: **`cc_holidays` já existe (V70) — reusar, não duplicar**. V74 adiciona `cc_business_hours` + `cc_business_hours_slots` + `cc_holidays.calendar_id` nullable (aditivo). `BusinessHoursService.isOpen` com timezone por calendário. Nó `horario_funcionamento` com 3 handles nomeados (`hr-aberto`/`hr-fechado`/`hr-feriado`), padrão da 5c. RBAC: `callcenter.config`. Validação pelo simulador da 5d.
+- **5e.2 — Transbordo + `transferir_ramal` (M, V75)**: `cc_queues.overflow_queue_id`/`overflow_after_seconds`/`overflow_max_waiting`. `ChannelDriver.transferToExtension` novo. Validação estrita do ramal antes de qualquer concatenação (classe do achado de `AriClient.play`). Detecção de laço A→B→A.
+- **5f.1 — Skill (G, V76)**: criar `CcAgentSkill`/`CcQueueSkill` (tabelas existem desde a V48, sem classe Java). V76 acrescenta `level`/`min_level`. **Tradução honesta: o `app_queue` não conhece skill** — skill vira `penalty`/pertencimento em `AraQueueMember`, documentado no código. Prioridade manual da Fase 12 continua a fonte de verdade.
+- **5f.2 — Tela de traço (P)**: endpoint já existe; falta a tela, reusando `FlowEditor` somente leitura. **Filtro por `entered_at` obrigatório** (`cc_flow_execution_steps` é particionada, V72). Passo `sensivel=true` não exibe valor.
+- **7c — Blending (M, V77)**: `cc_agents.max_concurrent_chats` (nullable → default global em `cc_settings`). `claim` recusa com 409 claro. Contagem e assunção **na mesma transação** (corrida real de dois claims).
+- **7d — Anexos (G, V78)**: `cc_chat_attachments` + `cc_chat_attachment_extensions` (allowlist configurável) + `cc_chat_channels.attachment_quota_bytes`/`attachment_retention_days`. Upload bidirecional (agente e cliente/widget), validado por extensão **e** magic-bytes, gravado em `/opt/AsteriskIA/media/chat/anexos/{username}/`, `ChatAttachmentRetentionScheduler` (expurgo noturno por dias + bloqueio de upload acima da cota, 413 claro). Texto/arquivo puro, sem mascaramento.
+- **7e — Telegram por long polling (G, V79)**: `cc_chat_channels.telegram_bot_token_ref` (token nunca em texto puro na tabela — referência ao settings `_CREDENTIAL`), `cc_chat_sessions.external_ref` + índice único parcial `(channel_id, external_ref) WHERE closed_at IS NULL`. `TelegramLongPollingClient` — loop `@Scheduled`/thread dedicada chamando `getUpdates(offset)`, `cc_telegram_poll_state.last_update_id` persistido para sobreviver a restart. Sem rota pública nova (D2 — só rede interna). Update → o **mesmo** `CcChatService` usado pelo webchat. Idempotência por `update_id`. Bot de fluxo funciona sem mudança: 2ª prova da premissa "um flow engine, agnóstico de canal".
+- **CFG-email — Configuração de e-mail em SISTEMA → CONFIGURAÇÃO (M, sem migration de callcenter)**: nova aba de settings (`SMTP_HOST`/`PORT`/`USERNAME`/`PASSWORD_CREDENTIAL`/`FROM_ADDRESS`/`STARTTLS`/`EMAIL_ENABLED`), `spring-boot-starter-mail`, `EmailSenderService` configurado dinamicamente do banco (padrão `ConfigService`), botão "Testar envio" (padrão `SettingsTestController`, mesmas proteções de SSRF/timeout). Só a infraestrutura — nenhum fluxo do projeto dispara e-mail real ainda.
+- **9c.1 — Agregado fluxo/URA (M, V80)**: `cc_agg_flow_daily` + `cc_agg_flow_node_daily` (abandono por nó). `/reprocess` passa a cobrir fila+agente+fluxo.
+- **9c.2 — Agregado chat (M, V81)**: `cc_agg_chat_daily` com FRT/ART/concorrência/contenção do bot. `cc_chat_messages` é particionada (V71) — filtro por `created_at` obrigatório. BU aplicada.
+- **9c.3 — Timeline omnicanal + drill-down (G)**: serviço unificado voz+chat, `ContactKey` abstraído (D7), **paginação em banco** (não repetir o gap de varredura da Fase 27). É o mesmo serviço que a Fase 16 consumirá.
+- **9c.4 — Rechamada 24h/7d + top tabulações (P)**: colunas/painéis nos relatórios existentes, sem tela nem resource novo.
+- **9c.5 — Excel/PDF (M)**: espelhar `ExcelExportService`; PDF via **OpenPDF** (D3); **reusar o `esc()` de `ReportController`** (injeção de fórmula já corrigida uma vez) no Excel; teto de linhas (50 k) nos dois formatos.
+- **9c.6 — Agendamento (M, V82, depende de CFG-email para o canal e-mail)**: `cc_report_schedules` (canal `telegram`|`email`) + scheduler no padrão `CostAlertScheduler`. **Risco central: roda fora da sessão do criador** — escopo congelado na criação e reavaliado na execução, fail-closed (é o achado HIGH real da Fase 26). Telegram via `sendDocument`; e-mail só dispara se `EMAIL_ENABLED=true` e config completa, senão loga aviso sem falhar o agendamento (D4).
+- **9c.7 — Aderência à escala (M, V83, depende de 5e)**: `cc_agent_schedules`; reusar o algoritmo de recorte de meia-noite/período aberto da 9b. Agente sem escala → `null`, nunca `0`.
+
+## 3. Ordem recomendada
+
+`5d → 5e.1 → 5e.2 → 5f.1 → 5f.2` → `7c → 7d → 7e` → `9c.1 → 9c.2 → 9c.3 → 9c.4 → 9c.5 → 9c.6 → 9c.7`.
+5d primeiro sempre (é a única fatia que reduz risco de todas as outras, dado que não há tráfego real de voz). 9c.2 depois de 7c/7e. 9c.7 por último. Releases: 12 = 5d+5e; 13 = 5f; 14 = 7c+7d+7e; 15 = 9c.
+
+## 4. Riscos específicos
+
+Simulador divergindo do motor real (mitigado por não ter lógica de nó própria); **simulação gerando custo de LLM**; **endpoint público novo do webhook** (item mais sensível da leva); token do bot vazando em log; webhook inviável se o servidor for fechado; skill "roteando" sem o Asterisk conhecer skill; skill sobrescrevendo prioridade manual; **consulta varrendo todas as partições** (V71/V72); relatório agendado sem escopo vazando BU; exportação sem teto; injeção de fórmula no Excel; corrida no limite de chats; anexo de cliente não autenticado (fora de escopo); timeline sem identidade real (gap herdado); **nenhuma chamada real de voz jamais atravessou uma fila** (incerteza herdada); escopo crescendo no meio.
+
+## 5. Aceite
+
+**Bloqueadores**: D1–D9 confirmadas.
+**Por fatia**: migration reconfirmada por `ls`/`sort -V`; 4 pontos de sincronia de RBAC se houver resource novo; BU aplicada ou gap documentado; toda query em tabela particionada filtra pela coluna de partição; **nenhum mascaramento adicionado**; TDD e suíte 100% verde; `tsc --noEmit` + `npm run build` limpos; revisão paralela sem CRITICAL/HIGH aberto; deploy real com migration confirmada em `flyway_schema_history`; validação por curl com JWT forjado inline; `releases.ts` + docs + `CLAUDE.md` + memória; push `origin main` e `azure main:desenvolvimento`.
+**Fecha a leva** quando 5, 7 e 9 estiverem ✅ no §0 do plano-mãe, com os itens descartados registrados como decisão.

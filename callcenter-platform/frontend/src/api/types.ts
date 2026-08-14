@@ -460,6 +460,30 @@ export interface FlowGraphValidationResult {
   warnings: FlowGraphValidationIssue[];
 }
 
+// Simulador de fluxo — POST /callcenter/fluxos/{id}/simulate (Fase 5d, dry-run: nunca persiste
+// execução real nem chama IA — ver FlowSimulationService no backend).
+export interface FlowSimulationRequest {
+  variaveis: Record<string, string>;
+  respostasSimuladas: string[];
+}
+
+export interface FlowSimulationStepView {
+  nodeId: string;
+  nodeType: string | null;
+  label: string | null;
+  detail: string | null;
+  takenEdgeId: string | null;
+}
+
+export interface FlowSimulationResult {
+  flowId: number;
+  flowVersionId: number;
+  versionStatus: FlowVersionStatus;
+  outcome: string;
+  steps: FlowSimulationStepView[];
+  finalVariables: Record<string, string>;
+}
+
 // Catálogo de tipos de nó — fonte única servida pelo backend (GET .../fluxos/catalogo),
 // nunca duplicado em código: nesta sub-fase todo nó vem com implementado=false (o motor
 // de execução ARI/Stasis só chega na Fase 5b).

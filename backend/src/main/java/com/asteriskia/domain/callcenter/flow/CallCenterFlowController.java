@@ -1,6 +1,9 @@
 package com.asteriskia.domain.callcenter.flow;
 
 import com.asteriskia.domain.audit.AuditService;
+import com.asteriskia.domain.callcenter.flow.simulation.FlowSimulationRequest;
+import com.asteriskia.domain.callcenter.flow.simulation.FlowSimulationResult;
+import com.asteriskia.domain.callcenter.flow.simulation.FlowSimulationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -24,7 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
  * .../catalogo — catálogo de tipos de nó (fonte única, também servido ao editor) POST — cria
  * fluxo + primeiro rascunho vazio PUT .../{id} — atualiza metadado PUT .../{id}/draft — salva o
  * grafo do rascunho POST .../{id}/publish — publica o rascunho (bloqueia nó não implementado)
- * POST .../{id}/rollback/{versionId} — volta a versão arquivada a publicada GET .../{id}/versions
+ * POST .../{id}/simulate — simula o fluxo em dry-run (Fase 5d, nunca persiste execução real) POST
+ * .../{id}/rollback/{versionId} — volta a versão arquivada a publicada GET .../{id}/versions
  * — histórico (sem o grafo) GET .../{id}/versions/{versionId} — detalhe de uma versão (com grafo)
  * DELETE .../{id} — remove fluxo sem versão publicada
  */
@@ -36,6 +40,7 @@ public class CallCenterFlowController {
     private final CallCenterFlowService service;
     private final FlowGraphNodeCatalog nodeCatalog;
     private final AuditService auditService;
+    private final FlowSimulationService simulationService;
 
     @GetMapping
     public ResponseEntity<List<FlowView>> getAll() {
@@ -80,6 +85,15 @@ public class CallCenterFlowController {
         var result = service.publish(id);
         auditService.log(
                 httpRequest, "CALLCENTER_FLOW_PUBLISH", "Fluxo " + id + " publicado=" + result.isValid(), result.isValid());
+        return ResponseEntity.ok(result);
+    }
+
+    /** Simulador (Fase 5d, dry-run) — nunca persiste {@code cc_flow_executions}/
+     * {@code cc_flow_execution_steps} nem chama IA real (ver {@code FlowSimulationService}). */
+    @PostMapping("/{id}/simulate")
+    public ResponseEntity<FlowSimulationResult> simulate(
+            @PathVariable Long id, @RequestBody(required = false) FlowSimulationRequest request) {
+        var result = simulationService.simulate(id, request == null ? FlowSimulationRequest.empty() : request);
         return ResponseEntity.ok(result);
     }
 
