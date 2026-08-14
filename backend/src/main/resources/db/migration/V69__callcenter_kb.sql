@@ -93,6 +93,9 @@ COMMENT ON TABLE cc_kb_answer_log IS
 
 -- Fase 25 (§5.1 obrigatório — toda frente de IA nova aparece no Financeiro): frente
 -- callcenter_autosservico soma-se a ura/insights/envios/callcenter/callcenter_nps.
+-- scope era VARCHAR(20) desde a V42 — "callcenter_autosservico" tem 23 caracteres, não coube
+-- (achado só na aplicação real da migration em produção — nenhum scope anterior passava de 14).
+ALTER TABLE financeiro_cost_alerts ALTER COLUMN scope TYPE VARCHAR(40);
 ALTER TABLE financeiro_cost_alerts DROP CONSTRAINT chk_financeiro_cost_alerts_scope;
 ALTER TABLE financeiro_cost_alerts
     ADD CONSTRAINT chk_financeiro_cost_alerts_scope

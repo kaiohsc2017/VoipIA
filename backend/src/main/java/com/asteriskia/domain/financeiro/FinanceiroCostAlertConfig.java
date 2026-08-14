@@ -28,7 +28,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 public class FinanceiroCostAlertConfig {
 
     @Id
-    @Column(name = "scope", length = 20)
+    @Column(name = "scope", length = 40)
     private String scope;
 
     @Column(name = "threshold_usd", nullable = false)
