@@ -451,8 +451,12 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    `cc_interaction_events`/`cc_chat_messages`, migration V71) ✅ deployadas em 2026-08-14; só a
 >    parte 1 da Fase 10 (teste de carga SIPp) segue pendente — VPS sem folga de memória para um
 >    teste honesto sem risco à produção (ver
->    `.claude/plans/callcenter-fase10-seguranca-endurecimento.plan.md` §10-§11). Depois: 17
->    (co-browsing) e 18 (IA local, só desenho conceitual).
+>    `.claude/plans/callcenter-fase10-seguranca-endurecimento.plan.md` §10-§11). Fase 17
+>    (co-browsing) ✅ deployada em 2026-08-14. Fase 18 (IA local) **não tem código pendente** — é
+>    um estudo/roadmap já integralmente escrito em `modulo-callcenter-omnicanal.plan.md` §18, com
+>    decisão explícita de manter-se com API por ora; a Onda 1 (memória/RAG local via `pgvector`,
+>    já disponível desde a V69 da Fase 25) só entra depois que a Fase 10 medir custo real de 30
+>    dias de operação e produzir a recomendação de hardware — nenhuma das duas ainda aconteceu.
 > 2. **Plano-mãe do Call Center, fases nunca concluídas**: Fase 1/AD (dados reais do DC, paginação
 >    do `fetchAll()`, `employee_id` não espelhado); Fase 5 (sub-fases 5d simulador, 5e horário/
 >    transbordo, 5f skill+traço na UI; 7 nós do catálogo ainda bloqueados); Fase 7/Chat
@@ -460,8 +464,9 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    WhatsApp/Telegram sem credenciais, blending, anexos); Fase 9 (o que ficou fora da 9c: agregado
 >    de fluxo/URA, timeline omnicanal, exportação Excel/PDF, agendamento, rechamada 24h/7d,
 >    aderência à escala); Fase 10 (teste de carga SIPp, ver item 1 acima); Fase 14 (screen pop,
->    bloqueada pela Fase 1); Fase 16 (copiloto de IA, depende da 14); Fase 17 (co-browsing,
->    subsistema à parte); Fase 18 (IA local, só desenho conceitual).
+>    bloqueada pela Fase 1); Fase 16 (copiloto de IA, depende da 14); Fase 17 ✅ (co-browsing,
+>    deployada em 2026-08-14); Fase 18 (IA local, roadmap concluído — sem código pendente, ver
+>    item 1 acima).
 > 3. **Maior incerteza aberta do projeto inteiro**: nenhuma chamada real de voz atravessou uma
 >    fila do Call Center ainda — todo o motor ARI/Stasis/AMI foi validado só com mocks/curl;
 >    eventos AMI de canal da Fase 23 nunca confirmados com tráfego real.
