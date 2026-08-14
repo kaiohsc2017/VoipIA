@@ -470,7 +470,7 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    filtram por BU); Jira sem credenciais reais; atribuir grupo de acesso customizado a um
 >    usuário pela UI ainda não existe (só ADMIN/USER binário).
 
-### ✅ Fase 10 do plano Call Center Parte III (parte 2) — particionamento de cc_interaction_events/cc_chat_messages (2026-08-14) — deployada e validada em produção; INTERNAL_API_KEY rotacionada de novo
+### ✅ Fase 10 do plano Call Center Parte III (parte 2) — particionamento (2026-08-14) — deployada e validada em produção; INTERNAL_API_KEY rotacionada de novo
 Usuário reverteu a posição conservadora original da Fase 10 (§10-§11 de
 `.claude/plans/callcenter-fase10-seguranca-endurecimento.plan.md`) e pediu para particionar agora,
 mesmo sem volume real — decisão dele, registrada no plano.
@@ -506,6 +506,17 @@ mesmo sem volume real — decisão dele, registrada no plano.
   (~130-190Mi livres, ~1,9Gi de swap em uso) para um teste honesto sem risco à produção
   compartilhada com outros projetos no mesmo host; fica pendente de servidor dedicado ou janela de
   manutenção com folga de memória.
+- **Extensão do particionamento ao fluxo/URA (migration V72)**: `cc_flow_execution_steps` (traço
+  nó a nó do Flow Builder, Fase 5b) também particionada por mês (`entered_at`), mesmo padrão da
+  V71. `cc_flow_executions` (uma linha por chamada) **permanece não particionada** — restrição
+  técnica real: `cc_flow_execution_steps.execution_id` tem FK para `cc_flow_executions(id)`, e o
+  Postgres não permite `UNIQUE(id)` isolado numa tabela particionada, o que quebraria essa FK se o
+  pai fosse particionado também. `cc_flow_execution_steps` também tem um padrão de `UPDATE ...
+  WHERE id=?` (fechamento de passo em `FlowExecutionTraceService`, sem a coluna de partição) —
+  funciona, mas perde pruning nesse UPDATE (documentado no SQL, aceitável no volume atual).
+  Validada em transação de teste reproduzindo esse UPDATE real antes e depois da aplicação via
+  Flyway (migration V72). Suíte do backend 662/662 verde, `tsc --noEmit`/`npm run build` do
+  `callcenter-platform/frontend` limpos.
 
 ### ✅ Hardening Docker (GID 1500 compartilhado) — backend/ai-agent/agents-backend não-root (2026-08-14) — deployado e validado em produção
 Fecha de vez o débito de segurança F-HIGH da auditoria de 2026-07-02 registrado mais abaixo neste

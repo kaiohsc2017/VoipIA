@@ -442,3 +442,72 @@ inegociável nº 2).
 - [x] Nenhum valor de segredo apareceu em texto puro em nenhuma saída de comando desta continuação
 - [ ] Teste de carga SIPp (parte 1) continua **não concluído** — fora do pedido desta continuação,
       mesma posição de §10.3
+
+---
+
+## 12. Continuação (mesmo dia) — particionamento de fluxo/URA (migration V72)
+
+Pedido do usuário: "roda o particionamento de fluxo/URA agora (Fase 9c/10)". Interpretado como
+estender o particionamento da V71 (§11) às tabelas de traço de execução do Flow Builder/URA —
+`cc_flow_executions` (uma linha por chamada, Fase 5b) e `cc_flow_execution_steps` (traço nó a nó,
+N linhas por execução).
+
+### 12.1 Restrição técnica que decidiu o escopo — só `cc_flow_execution_steps`
+
+`cc_flow_execution_steps.execution_id` tem FK para `cc_flow_executions(id)`. O Postgres exige que
+toda PK/unique de tabela particionada inclua a coluna de particionamento — se `cc_flow_executions`
+fosse particionada por `started_at`, o PK viraria `(id, started_at)` e a coluna `id` sozinha
+deixaria de ter constraint único (Postgres não permite `UNIQUE(id)` isolado numa tabela
+particionada), **quebrando essa FK**. Diferente de `cc_interaction_events`/`cc_chat_messages`
+(§11, sem nenhuma FK apontando pra elas), aqui existe uma dependência real.
+
+**Decisão**: particionar só `cc_flow_execution_steps` (tabela folha, nada referencia seu `id` por
+FK, confirmado antes da migration) — mesmo padrão já usado na V71: particiona o traço/evento
+filho que cresce rápido, não o agregado pai. `cc_flow_executions` permanece não particionada.
+
+### 12.2 Particularidade nova vs V71 — `cc_flow_execution_steps` tem UPDATE, não só INSERT
+
+`FlowExecutionTraceService` fecha um passo existente via `step.setExitedAt(...)` +
+`stepRepository.save(step)`, que o Hibernate traduz em `UPDATE ... WHERE id = ?` (sem
+`entered_at`). Isso **não quebra** — `entered_at` (a coluna de partição) nunca é alterada, não há
+tentativa de mover linha entre partições — mas **perde o pruning nesse UPDATE**: o Postgres varre
+o índice `(id, entered_at)` de cada uma das 37 partições em vez de uma só. Aceitável no volume
+atual (0 linhas); documentado no próprio SQL (migration V72) para não surpreender quem for
+investigar lentidão de escrita no futuro, com volume real.
+
+### 12.3 Execução — migration V72, validada e aplicada
+
+- Confirmado **0 linhas** em `cc_flow_executions`/`cc_flow_execution_steps` antes de escrever o
+  SQL — mesmo padrão de segurança da V71.
+- `backend/src/main/resources/db/migration/V72__callcenter_partition_flow_execution_steps.sql`:
+  `DROP TABLE` + `CREATE TABLE ... PARTITION BY RANGE (entered_at)`, PK composto
+  `(id, entered_at)`, 36 partições mensais (2025-01 a 2027-12) + 1 `DEFAULT`.
+- Backup de precaução: `pg_dump --schema-only` de `cc_flow_execution_steps` antes da migration.
+- Validada em transação `BEGIN/ROLLBACK` direto em produção antes de aplicar de verdade —
+  confirmado PK, FK e 37 partições.
+- Aplicada via `docker compose up -d --build backend` — Flyway confirmou "Successfully applied 1
+  migration ... now at version v72"; backend `healthy`.
+- **Teste de fluxo completo, dentro de `BEGIN/ROLLBACK`**: criado um `cc_flow`/`cc_flow_version`/
+  `cc_flow_execution`/`cc_flow_execution_step` de teste com `entered_at` em setembro/2026, e
+  reproduzido exatamente o padrão real do `FlowExecutionTraceService`
+  (`UPDATE cc_flow_execution_steps SET exited_at=..., taken_edge=... WHERE id=?`) — confirmado
+  roteamento correto para `cc_flow_execution_steps_2026_09` e UPDATE funcionando sem erro.
+  `ROLLBACK` no final — 0 linhas residuais confirmadas nas 3 tabelas envolvidas (`cc_flows`,
+  `cc_flow_executions`, `cc_flow_execution_steps`).
+- **Suíte completa do backend**: 662/662 verde (0 regressão), validada no mesmo container Maven +
+  `ffmpeg` já usado nas continuações anteriores. `tsc --noEmit` e `npm run build` do
+  `callcenter-platform/frontend` limpos (sem alteração nesta fatia — validação de zero
+  regressão).
+- **Gap aceito, documentado no SQL**: mesmo da V71 — sem job de manutenção para criar partições
+  além de 2027-12.
+
+### 12.4 Critérios de conclusão
+
+- [x] `cc_flow_execution_steps` particionada (migration V72), validada com transação de teste
+      antes e depois da aplicação real, deployado em produção
+- [x] `cc_flow_executions` permanece não particionada — decisão técnica documentada (FK), não
+      esquecimento
+- [x] Padrão de UPDATE por `id` (sem coluna de partição) verificado funcionando corretamente,
+      trade-off de pruning documentado no SQL
+- [x] Suíte do backend 662/662 verde, `tsc --noEmit`/`npm run build` do frontend limpos
+- [x] Nenhum resíduo de dado de teste em produção (tudo dentro de transações revertidas)
