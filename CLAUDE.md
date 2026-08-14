@@ -441,6 +441,156 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > `external_media_address`/`external_signaling_address` não vazios, portas RTP `15000-15500/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
 
+> **Lista de pendências reais em aberto para o projeto (atualizada em 2026-08-14)** — ver
+> `.claude/plans/callcenter-parte-iii-revisado.plan.md` e `.claude/plans/modulo-callcenter-omnicanal.plan.md`
+> para o detalhe de cada item:
+> 1. **Plano Call Center Parte III** — próximas fases: **26** (relatório de qualidade) e **27**
+>    (gamificação/perfil de cliente/produtividade, depende da 26).
+> 2. **Plano-mãe do Call Center, fases nunca concluídas**: Fase 1/AD (dados reais do DC, paginação
+>    do `fetchAll()`, `employee_id` não espelhado); Fase 5 (sub-fases 5d simulador, 5e horário/
+>    transbordo, 5f skill+traço na UI; 7 nós do catálogo ainda bloqueados); Fase 7/Chat
+>    (`CALLCENTER_CHAT_PUBLIC_QUEUE_ID` sem fila real, widget nunca validado numa página real,
+>    WhatsApp/Telegram sem credenciais, blending, anexos); Fase 9 (o que ficou fora da 9c: agregado
+>    de fluxo/URA, timeline omnicanal, exportação Excel/PDF, agendamento, rechamada 24h/7d,
+>    aderência à escala); Fase 10 (endurecimento/carga, não iniciada); Fase 14 (screen pop,
+>    bloqueada pela Fase 1); Fase 16 (copiloto de IA, depende da 14); Fase 17 (co-browsing,
+>    subsistema à parte); Fase 18 (IA local, só desenho conceitual).
+> 3. **Maior incerteza aberta do projeto inteiro**: nenhuma chamada real de voz atravessou uma
+>    fila do Call Center ainda — todo o motor ARI/Stasis/AMI foi validado só com mocks/curl;
+>    eventos AMI de canal da Fase 23 nunca confirmados com tráfego real.
+> 4. **Débitos transversais (fora do Call Center)**: CSP em `Report-Only` (nunca migrado pra
+>    enforcement real); BU incompleto (Alertas Zabbix e Insights do Call Center/relatório 9c não
+>    filtram por BU); Jira sem credenciais reais; atribuir grupo de acesso customizado a um
+>    usuário pela UI ainda não existe (só ADMIN/USER binário).
+
+### ✅ Hardening Docker (GID 1500 compartilhado) — backend/ai-agent/agents-backend não-root (2026-08-14) — deployado e validado em produção
+Fecha de vez o débito de segurança F-HIGH da auditoria de 2026-07-02 registrado mais abaixo neste
+arquivo ("Débito de segurança — 2 de 3 fechados") — os 3 containers que ainda rodavam como root
+agora têm UID próprio (1501 backend / 1502 ai-agent / 1503 agents-backend) no grupo compartilhado
+`asteriskia-app` (GID 1500), necessário porque os três precisam ler/escrever os mesmos caminhos do
+host: `/opt/AsteriskIA/env`, `/opt/AsteriskIA/asterisk/config`, `fail2ban_socket`/`security_cmds`
+(volumes nomeados), `media/*`, `asterisk_recordings`/`asterisk_ari_recordings`.
+- Essa era uma de **3 frentes de trabalho soltas e não commitadas** deixadas por uma sessão
+  anterior (código do Dockerfile já parecia pronto, mas a preparação do host estava incompleta).
+- **3 lacunas reais de permissão de host encontradas e corrigidas antes do rebuild** (o grupo/GID
+  já existia de uma tentativa anterior, só parte dos caminhos tinha sido ajustada): (1)
+  `asterisk_ari_recordings` (volume da Fase 21/NPS, montado `:rw` pelo backend) sem grupo/escrita
+  corretos — todo `RecordingFinished` da pesquisa de satisfação falharia; (2) `extensions.conf` e
+  `pjsip.conf.template` `root:root 644` — edição de dialplan pela UI quebraria pro usuário
+  não-root; (3) `security/config/jail.d`/`filter.d` (diretórios **e** arquivos) `root:root` —
+  o mais grave: o backend nem conseguia **ler** `jail.d/asterisk.conf` (modo 640, grupo `root`),
+  e a escrita (`JailConfigRepository`, via escrita atômica com `.tmp`+rename) também exige escrita
+  no diretório, não só no arquivo. Todos corrigidos com `chgrp asteriskia-app` + `chmod 2775`/`664`.
+- Validado em produção: containers `healthy`, `docker inspect --format '{{.Config.User}}'`
+  confirma `backend`/`aiagent`/`agentsapi` (não root), zero "permission denied"/EACCES nos logs,
+  leitura funcional confirmada via API (`GET /api/v1/security/jails` e
+  `GET /api/v1/asterisk-config/rotas` retornam 200 com conteúdo real). Escrita (mutação real de
+  config) não foi testada — só leitura, pra não alterar estado de produção sem pedido explícito.
+- `asterisk`/`coturn`/`security`/`docker-helper` continuam root — ver seção de débito de
+  segurança mais abaixo pro porquê de cada um (portas privilegiadas, `NET_ADMIN`,
+  `network_mode: host`, `docker.sock`).
+
+### ✅ Fase 9c do plano Call Center Parte III — relatório analítico de chamada e de chat (2026-08-14) — deployada e validada em produção
+Relatório linha a linha (`GET /api/v1/callcenter/reports/calls` e `/chats`, RBAC
+`callcenter.reports` — mesma aba "Relatórios" da 9a/9b), sub-view nova em
+`ReportsQueueTab.tsx`/`DetailReportTab.tsx` no `callcenter-platform/frontend`. Sem migration
+nova — só cruza dados já persistidos: `cc_interactions` (fila/agente/NPS/tempo de fila) →
+`cc_recordings.interaction_id` → `call_audio_files.cc_recording_id` (Fase 8) →
+`call_insights`/`call_insight_findings` (categoria/sentimento/achados) +
+`cc_flow_executions.interaction_id` → `cc_flow_execution_steps` (nó `menu_opcoes`) para "opção
+escolhida".
+- **"Opção escolhida" resolvida com precisão, não heurística**: `CcFlowExecutionStep.takenEdge`
+  guarda o id da aresta do React Flow (não o dígito) — o dígito real vem de reabrir o grafo JSON
+  da versão publicada (`CcFlowVersion.graph`, `FlowGraph.parse`), achar a aresta por id, e ler seu
+  `sourceHandle` (`"opt-<dígito>"`). Nunca regex sobre o id da aresta — testado explicitamente com
+  um id que não bate no padrão de dígito, pra provar que a correlação é pelo `sourceHandle`.
+- **3 achados reais corrigidos** (`ecc:security-reviewer` + `ecc:java-reviewer` +
+  `ecc:react-reviewer` em paralelo): (1) **HIGH** — o cache de grafo de fluxo era recriado a cada
+  linha da página em vez de compartilhado por toda a página, anulando o próprio propósito do
+  cache (reparsava o mesmo JSON repetidas vezes); corrigido subindo o cache pra fora do loop de
+  enriquecimento; (2) **MEDIUM** — endpoints sem teto de tamanho de página (`size`), um valor
+  grande virava abuso barato de consultas por um usuário já autorizado; corrigido com teto de
+  100; (3) **MEDIUM** — condição de corrida no frontend: sem guarda de sequência, uma resposta de
+  busca antiga (filtro trocado antes da primeira request voltar) podia sobrescrever o resultado de
+  uma busca mais nova; corrigido com contador de sequência por busca.
+- **Gaps aceitos, documentados no código** (mesmo padrão já aceito em outras partes do domínio
+  Call Center): sem filtro de BU (mesmo gap do Insights do Call Center, Fase 8); chat sem nota NPS
+  (pesquisa de satisfação não liga a `chat_session` hoje) nem busca por trecho de transcrição
+  (chat não tem índice full-text); filtro "opção escolhida" e o relatório de chat fazem varredura
+  completa de tabela sem paginação no banco — aceitável no volume atual, documentado pra
+  revisitar quando crescer.
+- Suíte completa do backend **605/605 verde** (11 novos testes, 0 regressão). `tsc --noEmit` e
+  `npm run build` do `callcenter-platform/frontend` limpos. Deployado
+  (`docker compose up -d --build backend frontend`) e validado em produção via curl com JWT
+  forjado: `/calls` e `/chats` retornam 200 (vazio, sem interações reais nesta VPS de dev) para
+  ADMIN, 403 sem token. Release notes `v1.69` registrada.
+
+### ✅ Fase 25 do plano Call Center Parte III — IA de autosserviço no chat (2026-08-14) — deployada e validada em produção
+Base de conhecimento própria do Call Center (artigos + fontes externas por URL) indexada por
+embeddings locais (`insights/src/embedding_server.py`), consultada pelo nó `consultar_base` do
+motor de fluxo de chat. Migration V69 (`pgvector` no PostgreSQL 16 já existente — sem serviço
+novo, embeddings locais em CPU no container `insights`, que já é Python: custo de embedding
+zero).
+- SSRF é o risco central do cadastro de fontes externas por URL — reusa exatamente o guard já
+  existente em `notifier.py`/`SettingsTestController` (bloqueio de host privado/loopback, redirect
+  3xx desabilitado); falha de busca nunca invalida o índice anterior (mesma disciplina do
+  `AiModelPricingSyncScheduler`).
+- Nó `consultar_base`: recupera os K trechos mais próximos e o LLM responde **apenas com base
+  neles**, citando o artigo — sem trecho relevante acima do limiar, escala para fila humana,
+  nunca inventa resposta. Pergunta idêntica normalizada dentro de uma janela curta reusa a
+  resposta em cache (recuperação vetorial local não custa token, só a geração final chama a API).
+- Frente `callcenter_autosservico` no Financeiro desde o dia 1 (§5.1 obrigatória pra toda frente
+  de IA nova), com indicador de taxa de contenção do bot.
+- **3 achados reais corrigidos** (`ecc:security-reviewer` + `ecc:java-reviewer` +
+  `ecc:react-reviewer` em paralelo): (1) HIGH — `@Transactional` no caminho interativo do chat
+  segurava conexão do pool por até ~45s de I/O bloqueante (embedding+Gemini) — removido; (2)
+  MEDIUM — reindexação não era atômica entre apagar e recriar chunks — corrigido extraindo
+  métodos `@Transactional` só da parte de banco; (3) MEDIUM — guard de SSRF não cobria IPv6
+  Unique Local Address (`fc00::/7`) — corrigido.
+- Suíte completa 594/596 (as 2 falhas pré-existentes e não relacionadas de sempre — timing/
+  ffmpeg). `tsc --noEmit`/`npm run build` limpos nas duas SPAs afetadas. Deployado (migration V69
+  confirmada em produção, containers backend/insights/frontend saudáveis) e validado via curl:
+  `GET /api/v1/callcenter/kb/{stats,articles}` respondendo 200 (vazio, nenhum artigo cadastrado
+  nesta VPS de dev). Release notes `v1.68` registrada.
+
+### ✅ Fase 24 do plano Call Center Parte III — canais de chat e flow builder de chat (2026-08-13) — deployada e validada em produção
+CRUD de canais (`cc_chat_channels` — fila padrão, horário, mensagem de saudação/ausência, fluxo
+de bot, migration V68) + `ChatChannelDriver`/nó `coletar_texto`, provando a premissa central do
+plano-mãe ("um flow engine, agnóstico de canal") pela primeira vez. Tempo real continua por
+polling (sem WebSocket, decisão já registrada na Fase 7a).
+- **3 achados HIGH corrigidos antes do deploy** (`ecc:security-reviewer`/`ecc:java-reviewer`/
+  `ecc:react-reviewer` em paralelo): (1) sessão de bot podia ser "ressuscitada" depois de um
+  agente/ADMIN encerrar a conversa manualmente — corrigido com guarda de status `"bot"` nos três
+  métodos de escrita + evento `ChatSessionEndedEvent`; (2) `ChatBotSessionStartedEvent` publicado
+  ainda dentro da transação de `startSession` podia disparar a thread do fluxo antes do commit
+  (falha intermitente na primeira mensagem do bot) — listener virou
+  `@TransactionalEventListener(AFTER_COMMIT)`; (3) nó `coletar_texto` sem aresta de saída nunca
+  chamava `driver.end()`, prendendo a sessão em `status="bot"` para sempre — corrigido espelhando
+  o padrão `followOrEnd` já usado por `menu_opcoes`. 2 MEDIUM também corrigidos (thread daemon
+  sem pool/limite trocada por `ExecutorService` limitado; validação/CORS/acessibilidade do
+  formulário de canal).
+- Backend 568/568 verde (18 testes novos), `tsc --noEmit`/`npm run build` do
+  `callcenter-platform/frontend` limpos. Deployado (migration V68 confirmada) e validado em
+  produção via curl: `GET /callcenter/chat/channels` 200 para ADMIN, 403 sem token.
+
+### ✅ Fase 22 do plano Call Center Parte III — painel do agente: métricas e históricos (2026-08-13) — deployada e validada em produção
+`CallCenterDesktopService`/`Controller` (3 endpoints — resumo/histórico/pausas — sob
+`currentAgent()`, nenhum aceita `agentId` do chamador). Reusa dados já existentes das Fases
+4/8/21/23, sem migration nova. RBAC reusa `callcenter.desktop` (já existente da Fase 13).
+- **Regra D21 fechada estruturalmente**: o histórico é somente leitura de artefato já
+  existente — nunca enfileira, dispara ou reprocessa nada. Chamada ainda não processada aparece
+  como `EM PROCESSAMENTO`, sem botão de ação. O serviço nem depende do serviço de ingestão de
+  Insights, e há teste explícito (`verify(..., never()).save(any())`) que impede a regressão de
+  alguém reintroduzir o disparo depois "pra melhorar a experiência".
+- 5 achados reais corrigidos (1 HIGH — race condition sem cleanup no `useEffect` das sub-abas; 2
+  MEDIUM — erro engolido silenciosamente, falta de acessibilidade; 2 LOW cosméticos).
+- **Achado não-bloqueante, aceito por ora**: o link de gravação no histórico exige a permissão
+  `callcenter.gravacoes` (diferente de `callcenter.desktop`) — um agente sem essa segunda
+  permissão recebe 403 ao tentar ouvir a própria gravação (fail-closed, não é vulnerabilidade, é
+  uma lacuna funcional/decisão de RBAC não pedida nesta fase).
+- `mvn test` 532/532 verde (7 novos). Frontend: 3 sub-abas novas dentro do `DesktopAgenteTab.tsx`
+  já existente, reusando `AuthedAudio.tsx`.
+
 ### ✅ Fase 21 do plano Call Center Parte III — pesquisa de satisfação/NPS (2026-08-13) — deployada e validada em produção
 Maior fase do plano (complexidade G) — entregue por completo, incluindo a capacidade de
 gravação real via ARI (inédita no projeto) e a chamada direta do backend Java à API do Gemini
@@ -1154,25 +1304,23 @@ fatia 9c futura.
   `scope=stream`) — `POST /api/v1/auth/streaming-token` (Java) emite, `StreamingTokenFilter` (Java) e
   `_ws_auth` (Python) validam. Streaming token não funciona como Bearer normal nem pode gerar outro
   streaming token (renovação em cadeia bloqueada). Validado em produção.
-- **Hardening de infra Docker — parcial**:
+- **Hardening de infra Docker — concluído para os containers que podiam ser corrigidos**:
   - ✅ Resource limits (memory/cpus) em todos os 10 serviços.
   - ✅ `frontend` (nginx) roda como usuário não-root (`CAP_NET_BIND_SERVICE` pra ainda bindar a
     porta 80) — validado com tráfego real em produção.
-  - ⏳ **Continua root, por bloqueio real confirmado em produção** (não é preguiça — tentei
-    `agents-backend` e quebrou): `agents-backend`, `ai-agent` e o `backend` Java montam
-    bind mounts/volumes compartilhados com outro container rodando como root
-    (`/opt/AsteriskIA/env` é `700 root:root` no host; `asterisk_recordings` é escrito pelo
-    `asterisk`; `security_cmds`/`fail2ban_socket` são escritos pelo `security`) — um UID não-root
-    não consegue ler/escrever nesses caminhos compartilhados. Corrigir direito exige um esquema de
-    GID compartilhado entre os containers ou mudar permissão de diretório no host — mudança maior,
-    ainda não feita.
+  - ✅ **`backend`/`ai-agent`/`agents-backend` não-root desde 2026-08-14** (ver Fase de hardening
+    Docker GID 1500 mais acima) — o bloqueio anterior (bind mounts compartilhados com containers
+    rodando como root) foi resolvido com um GID compartilhado (`asteriskia-app`, 1500) e
+    setgid+chgrp nos caminhos do host (`env/`, `asterisk/config`, `security/config/jail.d`+
+    `filter.d`, volumes nomeados de gravação) — validado em produção, sem erro de permissão.
+  - ⏳ `chmod 777` na fila `security_cmds` (`security/entrypoint.sh`) — **este já foi resolvido
+    junto do hardening acima**: o entrypoint hoje usa `chown root:1500` + `chmod 2770` (setgid),
+    não mais 777.
   - ⏳ `docker-helper` continua root **por design, não por descuido**: ele monta `/var/run/docker.sock`,
     e isso já equivale a root no host independente do UID do processo dentro do container —
     de-rootizar não traria ganho de segurança real.
   - ⏳ `asterisk`/`coturn`/`security` continuam root: portas privilegiadas (5060, 3478) e
     `NET_ADMIN`/`network_mode: host` são requisitos genuínos da função de cada um.
-  - ⏳ `chmod 777` na fila `security_cmds` (`security/entrypoint.sh`) segue como está — depende do
-    mesmo fix de GID compartilhado do `backend` acima.
 
 ---
 
