@@ -674,4 +674,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Novo nó "Horário de funcionamento" no Editor de Fluxo do Call Center: define calendários de atendimento (com turno partido, ex. manhã e tarde) e roteia a chamada para aberto, fechado ou feriado. Feriado pode ser global (fecha todos os calendários) ou específico de um calendário.',
     ],
   },
+  {
+    version: 'v1.76',
+    date: '2026-08-14',
+    changes: [
+      'Fila do Call Center pode ser configurada para transbordar automaticamente para outra fila quando o tempo de espera ou o tamanho da fila excede um limiar — configuração que forma um ciclo (ex. fila A transborda para B e B transborda de volta para A) é bloqueada na hora de salvar.',
+      'Novo nó "Transferir para ramal" no Editor de Fluxo, com validação estrita do número informado antes de qualquer transferência.',
+    ],
+  },
 ];
