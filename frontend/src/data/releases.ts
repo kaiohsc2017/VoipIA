@@ -696,4 +696,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Nova aba "Traço" no Editor de Fluxo do Call Center: busque execuções reais de um fluxo por período e veja o grafo da versão usada naquela chamada com os nós visitados e o caminho seguido destacados. Passo marcado como sensível nunca mostra o valor capturado.',
     ],
   },
+  {
+    version: 'v1.79',
+    date: '2026-08-14',
+    changes: [
+      'Chat do Call Center ganha limite de chats simultâneos por agente: configurável na fila (vale para quem não tem valor próprio) e no cadastro do agente (sempre prevalece quando definido). Um agente em ligação de voz continua nunca recebendo um chat novo.',
+    ],
+  },
 ];
