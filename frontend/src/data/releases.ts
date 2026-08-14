@@ -682,4 +682,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Novo nó "Transferir para ramal" no Editor de Fluxo, com validação estrita do número informado antes de qualquer transferência.',
     ],
   },
+  {
+    version: 'v1.77',
+    date: '2026-08-14',
+    changes: [
+      'Roteamento por skill no Call Center: cada agente pode ter um nível (1 a 5) numa habilidade, e cada fila pode exigir um nível mínimo dessa habilidade para aceitar o agente. A prioridade manual do supervisor continua sendo a única responsável por quem é chamado primeiro — skill só decide quem pode participar da fila, e o recálculo de participação só acontece quando o supervisor pedir explicitamente.',
+    ],
+  },
 ];
