@@ -182,6 +182,35 @@ export interface DispositionRequest {
   active?: boolean;
 }
 
+// ---- Call Center — Horário de funcionamento (Fase 5e.1, GET/POST/PUT/DELETE /callcenter/business-hours) ----
+export interface CcBusinessHoursSlot {
+  id: number;
+  dayOfWeek: number; // 1=segunda .. 7=domingo (java.time.DayOfWeek.getValue())
+  startTime: string; // "HH:mm:ss"
+  endTime: string;
+}
+
+export interface CcBusinessHoursCalendar {
+  id: number;
+  name: string;
+  timezone: string;
+  active: boolean;
+  createdAt: string;
+  slots: CcBusinessHoursSlot[];
+}
+
+export interface BusinessHoursCalendarRequest {
+  name: string;
+  timezone: string;
+  active: boolean;
+}
+
+export interface BusinessHoursSlotRequest {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+}
+
 // ---- Call Center — filas de um agente / prioridade (Fase 12.3/12.4) ----
 export interface QueueMemberBody {
   penalty?: number;

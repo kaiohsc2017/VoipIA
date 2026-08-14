@@ -224,6 +224,9 @@ public class SecurityConfig {
                         // Pesquisas de satisfação (NPS) — Fase 21 (Parte III).
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/surveys/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.config")
+                        // Calendário de horário de funcionamento — Fase 5e.1 (plano 5/7/9).
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/business-hours/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.config")
                         // Gravação/retenção/alerta de disco — Fase 3. /api/v1/internal/callcenter/**
                         // (ingestão via dialplan) NÃO entra aqui — fica só sob o InternalKeyFilter,
                         // mesmo padrão de /api/v1/internal/ura-routing.
@@ -358,6 +361,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/callcenter/settings/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.config")
                         .requestMatchers("/api/v1/callcenter/surveys/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.config")
+                        .requestMatchers("/api/v1/callcenter/business-hours/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.config")
                         .requestMatchers("/api/v1/callcenter/recordings/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.gravacoes")

@@ -5,10 +5,16 @@ import { ConfirmModal } from './ConfirmModal';
 import type {
   CcPauseReason, PauseReasonRequest, CcDisposition, DispositionRequest,
   CcRangeType, CcSettingsView, CcUpdateRangeResult,
+  CcBusinessHoursCalendar, BusinessHoursCalendarRequest, BusinessHoursSlotRequest,
 } from '../api/types';
 
 const EMPTY_PAUSE: PauseReasonRequest = { code: '', label: '', productive: false, active: true };
 const EMPTY_DISPOSITION: DispositionRequest = { code: '', label: '', active: true };
+const EMPTY_CALENDAR: BusinessHoursCalendarRequest = { name: '', timezone: 'America/Sao_Paulo', active: true };
+const EMPTY_SLOT: BusinessHoursSlotRequest = { dayOfWeek: 1, startTime: '08:00', endTime: '18:00' };
+const DIA_SEMANA_LABEL: Record<number, string> = {
+  1: 'Segunda', 2: 'Terça', 3: 'Quarta', 4: 'Quinta', 5: 'Sexta', 6: 'Sábado', 7: 'Domingo',
+};
 
 /**
  * ConfiguracoesTab — CRUD de motivos de pausa e tabulações (Fase 12.6). Até esta entrega só
@@ -28,8 +34,236 @@ export function ConfiguracoesTab({ canWrite }: { canWrite: boolean }) {
         <PauseReasonsSection canWrite={canWrite} />
         <div style={{ height: 32 }} />
         <DispositionsSection canWrite={canWrite} />
+        <div style={{ height: 32 }} />
+        <BusinessHoursSection canWrite={canWrite} />
       </div>
     </>
+  );
+}
+
+/**
+ * BusinessHoursSection — CRUD de calendário de horário de funcionamento (Fase 5e.1, V74),
+ * consumido pelo nó "horario_funcionamento" do Flow Builder. Slots (faixas de horário por dia da
+ * semana) são geridos num modal próprio, aberto a partir da linha do calendário — mesmo padrão de
+ * modal aninhado já usado por outras telas de configuração do Call Center.
+ */
+function BusinessHoursSection({ canWrite }: { canWrite: boolean }) {
+  const [items, setItems] = useState<CcBusinessHoursCalendar[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<CcBusinessHoursCalendar | null>(null);
+  const [confirmItem, setConfirmItem] = useState<CcBusinessHoursCalendar | null>(null);
+  const [slotsFor, setSlotsFor] = useState<CcBusinessHoursCalendar | null>(null);
+  const [confirmSlot, setConfirmSlot] = useState<{ calendarId: number; slotId: number } | null>(null);
+  const [msg, setMsg] = useState('');
+  const [fd, setFd] = useState<BusinessHoursCalendarRequest>(EMPTY_CALENDAR);
+  const [slotFd, setSlotFd] = useState<BusinessHoursSlotRequest>(EMPTY_SLOT);
+
+  const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
+  const load = () => {
+    api.get<CcBusinessHoursCalendar[]>('/callcenter/business-hours')
+      .then(({ data }) => {
+        setItems(data);
+        setSlotsFor(prev => (prev ? data.find(c => c.id === prev.id) ?? null : null));
+      })
+      .catch(() => setItems([]));
+  };
+  useEffect(load, []);
+
+  const openForm = (c: CcBusinessHoursCalendar | null) => {
+    setEditing(c);
+    setFd(c ? { name: c.name, timezone: c.timezone, active: c.active } : EMPTY_CALENDAR);
+    setShowForm(true);
+  };
+
+  const save = () => {
+    const req = editing
+      ? api.put(`/callcenter/business-hours/${editing.id}`, fd)
+      : api.post('/callcenter/business-hours', fd);
+    req.then(() => { load(); setShowForm(false); setEditing(null); })
+      .catch(err => flash(getErrorMessage(err, 'Erro ao salvar calendário.')));
+  };
+
+  const del = (id: number) => {
+    api.delete(`/callcenter/business-hours/${id}`)
+      .then(() => {
+        setItems(list => list.filter(c => c.id !== id));
+        // Sem isso, o modal de faixas de horário do calendário recém-removido continuava aberto,
+        // apontando para um id inexistente — qualquer ação nele (adicionar/remover faixa) passava
+        // a falhar com 404 (achado real de revisão).
+        setSlotsFor(prev => (prev && prev.id === id ? null : prev));
+      })
+      .catch(err => flash(getErrorMessage(err, 'Erro ao remover calendário.')));
+  };
+
+  const addSlot = () => {
+    if (!slotsFor) return;
+    api.post(`/callcenter/business-hours/${slotsFor.id}/slots`, slotFd)
+      .then(() => { load(); setSlotFd(EMPTY_SLOT); })
+      .catch(err => flash(getErrorMessage(err, 'Erro ao adicionar faixa de horário.')));
+  };
+
+  const delSlot = (calendarId: number, slotId: number) => {
+    api.delete(`/callcenter/business-hours/${calendarId}/slots/${slotId}`)
+      .then(load)
+      .catch(err => flash(getErrorMessage(err, 'Erro ao remover faixa de horário.')));
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <h2 style={{ margin: 0 }}>Horário de funcionamento</h2>
+        {canWrite && <button className="btn btn-primary" onClick={() => openForm(null)}><Plus size={14} /> Novo calendário</button>}
+      </div>
+      <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>
+        Consumido pelo nó "Horário de funcionamento" do Flow Builder — cada calendário tem seu
+        próprio fuso horário e faixas de horário por dia da semana (turno partido: adicione mais
+        de uma faixa no mesmo dia). Feriados são geridos na tela de Relatório de Qualidade
+        (calendário compartilhado) e fecham todos os calendários.
+      </p>
+      {msg && <div className="flash-message" style={{ background: 'var(--bg-danger-soft)', color: 'var(--clr-danger)' }}>{msg}</div>}
+      {confirmItem && (
+        <ConfirmModal
+          message={`Remover o calendário "${confirmItem.name}"? Todas as faixas de horário dele também serão removidas.`}
+          onConfirm={() => { del(confirmItem.id); setConfirmItem(null); }}
+          onCancel={() => setConfirmItem(null)}
+        />
+      )}
+      {confirmSlot && (
+        <ConfirmModal
+          message="Remover esta faixa de horário?"
+          onConfirm={() => { delSlot(confirmSlot.calendarId, confirmSlot.slotId); setConfirmSlot(null); }}
+          onCancel={() => setConfirmSlot(null)}
+        />
+      )}
+      {canWrite && showForm && (
+        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{editing ? 'Editar Calendário' : 'Novo Calendário'}</h2>
+              <button className="btn-close" onClick={() => setShowForm(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label className="form-label">Nome</label>
+                  <input className="form-input" value={fd.name} onChange={e => setFd(f => ({ ...f, name: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Timezone (IANA, ex.: America/Sao_Paulo)</label>
+                  <input className="form-input" value={fd.timezone} onChange={e => setFd(f => ({ ...f, timezone: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input type="checkbox" checked={fd.active} onChange={e => setFd(f => ({ ...f, active: e.target.checked }))} />
+                    Ativo
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={save} disabled={!fd.name.trim() || !fd.timezone.trim()}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {slotsFor && (
+        <div className="modal-overlay" onClick={() => setSlotsFor(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Faixas de horário — {slotsFor.name}</h2>
+              <button className="btn-close" onClick={() => setSlotsFor(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <table>
+                <thead><tr><th>Dia</th><th>Início</th><th>Fim</th>{canWrite && <th></th>}</tr></thead>
+                <tbody>
+                  {slotsFor.slots.map(s => (
+                    <tr key={s.id}>
+                      <td>{DIA_SEMANA_LABEL[s.dayOfWeek] ?? s.dayOfWeek}</td>
+                      <td>{s.startTime.slice(0, 5)}</td>
+                      <td>{s.endTime.slice(0, 5)}</td>
+                      {canWrite && (
+                        <td>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setConfirmSlot({ calendarId: slotsFor.id, slotId: s.id })}>
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                  {slotsFor.slots.length === 0 && (
+                    <tr><td colSpan={canWrite ? 4 : 3} className="table-empty">Sem faixa de horário — calendário sempre aberto.</td></tr>
+                  )}
+                </tbody>
+              </table>
+              {canWrite && (
+                <div className="form-grid" style={{ marginTop: 16 }}>
+                  <div className="form-group">
+                    <label className="form-label">Dia</label>
+                    <select
+                      className="form-input"
+                      value={slotFd.dayOfWeek}
+                      onChange={e => setSlotFd(f => ({ ...f, dayOfWeek: Number(e.target.value) }))}
+                    >
+                      {Object.entries(DIA_SEMANA_LABEL).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Início</label>
+                    <input
+                      className="form-input" type="time" value={slotFd.startTime}
+                      onChange={e => setSlotFd(f => ({ ...f, startTime: e.target.value }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Fim</label>
+                    <input
+                      className="form-input" type="time" value={slotFd.endTime}
+                      onChange={e => setSlotFd(f => ({ ...f, endTime: e.target.value }))}
+                    />
+                  </div>
+                  <div className="form-group" style={{ alignSelf: 'end' }}>
+                    <button className="btn btn-primary btn-sm" onClick={addSlot} disabled={slotFd.startTime >= slotFd.endTime}>
+                      <Plus size={14} /> Adicionar faixa
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setSlotsFor(null)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="table-wrapper">
+        <table>
+          <thead><tr><th>Nome</th><th>Timezone</th><th>Ativo</th><th>Faixas</th>{canWrite && <th></th>}</tr></thead>
+          <tbody>
+            {items.map(c => (
+              <tr key={c.id}>
+                <td>{c.name}</td>
+                <td>{c.timezone}</td>
+                <td>{c.active ? 'Sim' : 'Não'}</td>
+                <td>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setSlotsFor(c)}>{c.slots.length} faixa(s)</button>
+                </td>
+                {canWrite && (
+                  <td>
+                    <button className="btn btn-ghost btn-sm" onClick={() => openForm(c)}><Pencil size={14} /></button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setConfirmItem(c)}><Trash2 size={14} /></button>
+                  </td>
+                )}
+              </tr>
+            ))}
+            {items.length === 0 && <tr><td colSpan={canWrite ? 5 : 4} className="table-empty">Nenhum calendário cadastrado — o nó "Horário de funcionamento" sem calendário configurado considera sempre aberto.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 

@@ -17,8 +17,11 @@ import org.hibernate.annotations.CreationTimestamp;
 
 /**
  * CcHoliday — calendário de feriados (Fase 26 do plano omnicanal Parte III), compartilhado com
- * a Fase 5e (horário de funcionamento/transbordo do Flow Builder, ainda não implementada) — uma
- * única tabela, não duas.
+ * a Fase 5e.1 (horário de funcionamento do Flow Builder, V74) — uma única tabela, não duas.
+ * {@code calendarId} nulo é feriado GLOBAL (fecha todos os calendários de horário); preenchido,
+ * fecha só aquele calendário específico — coluna aditiva (V74), a tela de feriados existente
+ * (Fase 26) continua só criando feriados globais, atribuir a um calendário fica para quando a UI
+ * de horário de funcionamento precisar disso.
  */
 @Entity
 @Table(name = "cc_holidays")
@@ -38,6 +41,9 @@ public class CcHoliday {
 
     @Column(length = 200)
     private String description;
+
+    @Column(name = "calendar_id")
+    private Long calendarId;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

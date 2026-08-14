@@ -18,6 +18,7 @@ import { ArrowLeft, Save, Rocket, Undo2, Redo2, FlaskConical } from 'lucide-reac
 import api, { getErrorMessage } from '../../api/client';
 import { GenericNode, FlowCatalogContext, type GenericNodeData } from './nodes/GenericNode';
 import { MenuNode } from './nodes/MenuNode';
+import { HorarioFuncionamentoNode } from './nodes/HorarioFuncionamentoNode';
 import { NodePalette } from './NodePalette';
 import { NodePropertiesPanel } from './NodePropertiesPanel';
 import { SimulationPanel } from './SimulationPanel';
@@ -33,11 +34,17 @@ interface FlowEditorProps {
 // tipos continuam no nó genérico único da 5a. Grafos publicados antes desta fase têm
 // `type: "generic"` gravado em todo nó (inclusive menus antigos, formato v1) e continuam
 // renderizando como sempre; só nós menu_opcoes criados a partir de agora ganham `type:
-// "menu_opcoes"` (ver addNodeAtCenter/onDrop) e passam a usar o MenuNode.
-const NODE_TYPES: NodeTypes = { generic: GenericNode, menu_opcoes: MenuNode };
+// "menu_opcoes"` (ver addNodeAtCenter/onDrop) e passam a usar o MenuNode. Fase 5e.1 soma
+// 'horario_funcionamento' com o mesmo tratamento (3 handles fixos, ver HorarioFuncionamentoNode).
+const NODE_TYPES: NodeTypes = {
+  generic: GenericNode,
+  menu_opcoes: MenuNode,
+  horario_funcionamento: HorarioFuncionamentoNode,
+};
 let nodeSeq = 0;
 const nextNodeId = () => `node-${Date.now()}-${nodeSeq++}`;
-const renderTypeFor = (domainType: string) => (domainType === 'menu_opcoes' ? 'menu_opcoes' : 'generic');
+const RENDER_TYPES_WITH_FIXED_HANDLES = new Set(['menu_opcoes', 'horario_funcionamento']);
+const renderTypeFor = (domainType: string) => (RENDER_TYPES_WITH_FIXED_HANDLES.has(domainType) ? domainType : 'generic');
 
 type FlowNode = Node<GenericNodeData>;
 
