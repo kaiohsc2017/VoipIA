@@ -56,6 +56,7 @@ public class PublicCallCenterChatController {
     private final CobrowseConsentService cobrowseConsentService;
     private final CobrowseIngestService cobrowseIngestService;
     private final ObjectMapper objectMapper;
+    private final ChatAttachmentService attachmentService;
 
     // Fase 10, achado HIGH H1: sem teto de tamanho, um IP dentro do limite de rate ainda podia
     // enviar sessões/mensagens com payload gigante — abuso de banco e, quando a sessão está em
@@ -156,6 +157,55 @@ public class PublicCallCenterChatController {
         }
         cobrowseIngestService.ingest(id, request.events());
         return ResponseEntity.noContent().build();
+    }
+
+    /** Fase 7d — anexo enviado pelo cliente do widget (D6: bidirecional). Mesmo token de sessão
+     * já validado no resto deste controller; rate limit dedicado para não deixar o upload
+     * contornar o limite de mensagens. */
+    @PostMapping("/sessions/{id}/attachments")
+    public ResponseEntity<CcChatAttachment> uploadAttachment(
+            @PathVariable Long id,
+            @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @RequestHeader("Authorization") String authorization) {
+        requireValidToken(authorization, id);
+        if (!rateLimiter.allowAttachment(id)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Muitos anexos enviados — aguarde um instante.");
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(attachmentService.upload(id, "customer", file));
+    }
+
+    @GetMapping("/sessions/{id}/attachments")
+    public List<CcChatAttachment> attachments(@PathVariable Long id, @RequestHeader("Authorization") String authorization) {
+        requireValidToken(authorization, id);
+        return attachmentService.list(id);
+    }
+
+    @GetMapping("/attachments/{attachmentId}/download")
+    public ResponseEntity<org.springframework.core.io.Resource> downloadAttachment(
+            @PathVariable Long attachmentId, @RequestHeader("Authorization") String authorization) {
+        var attachment = attachmentService.findByIdOrThrow(attachmentId);
+        requireValidToken(authorization, attachment.getSessionId());
+        java.io.File file = attachmentService.resolveFile(attachment);
+        if (!file.isFile()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Arquivo do anexo não encontrado em disco.");
+        }
+        org.springframework.http.MediaType mediaType;
+        try {
+            mediaType = attachment.getContentType() != null
+                    ? org.springframework.http.MediaType.parseMediaType(attachment.getContentType())
+                    : org.springframework.http.MediaType.APPLICATION_OCTET_STREAM;
+        } catch (org.springframework.http.InvalidMediaTypeException e) {
+            mediaType = org.springframework.http.MediaType.APPLICATION_OCTET_STREAM;
+        }
+        // Nome original é controlado pelo cliente do widget — nunca interpolado cru no header;
+        // ContentDisposition já aplica a codificação RFC 6266/5987 correta.
+        String disposition = org.springframework.http.ContentDisposition.attachment()
+                .filename(attachment.getOriginalFileName(), java.nio.charset.StandardCharsets.UTF_8)
+                .build().toString();
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, disposition)
+                .body(new org.springframework.core.io.FileSystemResource(file));
     }
 
     private void requireValidToken(String authorizationHeader, Long sessionId) {

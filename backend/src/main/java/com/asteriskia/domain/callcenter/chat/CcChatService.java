@@ -140,16 +140,19 @@ public class CcChatService {
         return session;
     }
 
-    @Transactional
-    public CcChatMessage postMessage(Long sessionId, String senderType, String senderName, String body) {
-        if (body == null || body.isBlank()) {
-            throw new IllegalArgumentException("Mensagem vazia.");
-        }
-        CcChatSession session = findSessionOrThrow(sessionId);
+    /** Contexto do remetente já validado — sessão, nome resolvido (nunca confiado do chamador
+     * para agent/system) e chave estável de uploader (Fase 7d: username do agente autenticado, ou
+     * {@code "cliente-<customerRef>"} para o cliente — usada em cota/diretório de anexos). */
+    public record SenderContext(CcChatSession session, String resolvedSenderName, String uploaderKey) {}
 
-        // senderName é resolvido aqui, nunca confiado do chamador, para "agent"/"system" —
-        // só o simulador de cliente (senderType="customer") pode informar um nome livre.
+    /** Extraído de {@link #postMessage} (Fase 7d) para ser reusado por
+     * {@code ChatAttachmentService} — mesma regra de posse/status para texto e anexo, nunca
+     * duplicada em dois lugares diferentes. */
+    @Transactional(readOnly = true)
+    public SenderContext validateSender(Long sessionId, String senderType, String senderName) {
+        CcChatSession session = findSessionOrThrow(sessionId);
         String resolvedSenderName = senderName;
+        String uploaderKey;
         switch (senderType) {
             case "agent" -> {
                 CcAgent agent = agentStateService.currentAgent();
@@ -160,21 +163,36 @@ public class CcChatService {
                     throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Você não é o agente responsável por esta conversa.");
                 }
                 resolvedSenderName = agent.getName();
+                uploaderKey = SecurityContextHolder.getContext().getAuthentication().getName();
             }
             case "customer" -> {
                 if (List.of("bot", "waiting", "active").stream().noneMatch(s -> s.equals(session.getStatus()))) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "Esta conversa já foi encerrada.");
                 }
                 resolvedSenderName = senderName != null ? senderName : session.getCustomerName();
+                uploaderKey = "cliente-" + session.getCustomerRef();
             }
-            case "system" -> resolvedSenderName = "Sistema";
+            case "system" -> {
+                resolvedSenderName = "Sistema";
+                uploaderKey = "sistema";
+            }
             default -> throw new IllegalArgumentException("senderType inválido: " + senderType);
         }
+        return new SenderContext(session, resolvedSenderName, uploaderKey);
+    }
+
+    @Transactional
+    public CcChatMessage postMessage(Long sessionId, String senderType, String senderName, String body) {
+        if (body == null || body.isBlank()) {
+            throw new IllegalArgumentException("Mensagem vazia.");
+        }
+        SenderContext ctx = validateSender(sessionId, senderType, senderName);
+        CcChatSession session = ctx.session();
 
         CcChatMessage message = messageRepository.save(CcChatMessage.builder()
                 .sessionId(sessionId)
                 .senderType(senderType)
-                .senderName(resolvedSenderName)
+                .senderName(ctx.resolvedSenderName())
                 .body(body)
                 .build());
 
@@ -320,6 +338,16 @@ public class CcChatService {
     public List<CcChatMessage> listMessages(Long sessionId) {
         findSessionOrThrow(sessionId);
         return messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
+    }
+
+    /** Fase 7d — reusado por {@code ChatAttachmentService}/{@code CallCenterChatController} para
+     * decidir se o agente logado pode ler/baixar anexos de uma sessão: agente responsável ou
+     * ROLE_ADMIN, mesma regra já usada para encerrar uma conversa. */
+    @Transactional(readOnly = true)
+    public CcChatSession assertStaffCanAccess(Long sessionId) {
+        CcChatSession session = findSessionOrThrow(sessionId);
+        assertOwnerOrAdmin(session);
+        return session;
     }
 
     private CcChatSession findSessionOrThrow(Long sessionId) {

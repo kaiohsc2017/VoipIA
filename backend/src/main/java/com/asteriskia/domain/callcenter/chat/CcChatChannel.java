@@ -72,6 +72,16 @@ public class CcChatChannel {
     @Builder.Default
     private Boolean active = true;
 
+    /** Anexos (Fase 7d, D6) — cota total por uploader (2GB default) e janela de retenção (10
+     * dias default), configuráveis na criação/edição do canal. */
+    @Builder.Default
+    @Column(name = "attachment_quota_bytes", nullable = false)
+    private Long attachmentQuotaBytes = 2_147_483_648L;
+
+    @Builder.Default
+    @Column(name = "attachment_retention_days", nullable = false)
+    private Integer attachmentRetentionDays = 10;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

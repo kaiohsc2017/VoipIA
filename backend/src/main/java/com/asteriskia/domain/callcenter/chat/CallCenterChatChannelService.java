@@ -70,6 +70,9 @@ public class CallCenterChatChannelService {
         channel.setType(request.type() == null || request.type().isBlank() ? "webchat" : request.type().trim());
         channel.setGreetingMessage(request.greetingMessage());
         channel.setAwayMessage(request.awayMessage());
+        validateAttachmentConfig(request.attachmentQuotaBytes(), request.attachmentRetentionDays());
+        channel.setAttachmentQuotaBytes(request.attachmentQuotaBytes() != null ? request.attachmentQuotaBytes() : 2_147_483_648L);
+        channel.setAttachmentRetentionDays(request.attachmentRetentionDays() != null ? request.attachmentRetentionDays() : 10);
         channel.setDefaultQueue(
                 request.defaultQueueId() == null
                         ? null
@@ -80,5 +83,14 @@ public class CallCenterChatChannelService {
                         ? null
                         : flowRepository.findById(request.botFlowId())
                                 .orElseThrow(() -> new ResourceNotFoundException("Fluxo não encontrado: " + request.botFlowId())));
+    }
+
+    private void validateAttachmentConfig(Long quotaBytes, Integer retentionDays) {
+        if (quotaBytes != null && quotaBytes <= 0) {
+            throw new IllegalArgumentException("Cota de anexos deve ser maior que zero.");
+        }
+        if (retentionDays != null && retentionDays <= 0) {
+            throw new IllegalArgumentException("Retenção de anexos deve ser maior que zero dias.");
+        }
     }
 }

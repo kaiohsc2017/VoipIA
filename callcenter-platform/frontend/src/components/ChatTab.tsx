@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { MessageSquare, Send, FlaskConical, Bot } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { MessageSquare, Send, FlaskConical, Bot, Paperclip, Download, Trash2 } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
 import type {
   CcChatSession, CcChatMessage, CcCannedResponse, CcDisposition, CcQueue,
-  ChatChannelView, ChatChannelRequest, FlowView,
+  ChatChannelView, ChatChannelRequest, FlowView, CcChatAttachment, CcChatAttachmentExtension,
 } from '../api/types';
 
 const POLL_INTERVAL_MS = 4000;
@@ -50,6 +50,30 @@ export function ChatTab({ isAdmin }: ChatTabProps) {
   const [editingChannel, setEditingChannel] = useState<ChatChannelView | null>(null);
   const [channelForm, setChannelForm] = useState<ChatChannelRequest>({ code: '', displayName: '', type: 'webchat', active: true });
 
+  // Anexos (Fase 7d) — bidirecional, allowlist de extensão configurável, cota/retenção por canal.
+  const [attachments, setAttachments] = useState<CcChatAttachment[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [extensions, setExtensions] = useState<CcChatAttachmentExtension[]>([]);
+  const [newExtension, setNewExtension] = useState('');
+
+  const loadExtensions = () => {
+    api.get<CcChatAttachmentExtension[]>('/callcenter/chat/attachment-extensions')
+      .then(({ data }) => setExtensions(data)).catch(() => setExtensions([]));
+  };
+
+  const addExtension = () => {
+    if (!newExtension.trim()) return;
+    api.post('/callcenter/chat/attachment-extensions', { extension: newExtension.trim() })
+      .then(() => { setNewExtension(''); loadExtensions(); })
+      .catch(err => setError(getErrorMessage(err, 'Erro ao cadastrar extensão.')));
+  };
+
+  const removeExtension = (id: number) => {
+    api.delete(`/callcenter/chat/attachment-extensions/${id}`).then(loadExtensions)
+      .catch(err => setError(getErrorMessage(err, 'Erro ao remover extensão.')));
+  };
+
   const loadChannels = () => {
     api.get<ChatChannelView[]>('/callcenter/chat/channels').then(({ data }) => setChannels(data)).catch(() => setChannels([]));
   };
@@ -60,6 +84,7 @@ export function ChatTab({ isAdmin }: ChatTabProps) {
     api.get<CcDisposition[]>('/callcenter/interactions/dispositions').then(({ data }) => setDispositions(data)).catch(() => setDispositions([]));
     if (isAdmin) {
       loadChannels();
+      loadExtensions();
       api.get<FlowView[]>('/callcenter/fluxos')
         .then(({ data }) => setChatFlows(data.filter(f => f.channel === 'chat' || f.channel === 'both')))
         .catch(() => setChatFlows([]));
@@ -74,6 +99,7 @@ export function ChatTab({ isAdmin }: ChatTabProps) {
           code: channel.code, displayName: channel.displayName, type: channel.type,
           defaultQueueId: channel.defaultQueueId ?? null, botFlowId: channel.botFlowId ?? null,
           greetingMessage: channel.greetingMessage ?? '', awayMessage: channel.awayMessage ?? '', active: channel.active,
+          attachmentQuotaBytes: channel.attachmentQuotaBytes, attachmentRetentionDays: channel.attachmentRetentionDays,
         }
       : { code: '', displayName: '', type: 'webchat', active: true });
   };
@@ -121,13 +147,46 @@ export function ChatTab({ isAdmin }: ChatTabProps) {
       .catch(() => setMessages([]));
   };
 
+  const loadAttachments = (sessionId: number) => {
+    api.get<CcChatAttachment[]>(`/callcenter/chat/${sessionId}/attachments`)
+      .then(({ data }) => setAttachments(data))
+      .catch(() => setAttachments([]));
+  };
+
   useEffect(() => {
     if (activeSessionId == null) return;
     loadMessages(activeSessionId);
-    const id = setInterval(() => loadMessages(activeSessionId), POLL_INTERVAL_MS);
+    loadAttachments(activeSessionId);
+    const id = setInterval(() => { loadMessages(activeSessionId); loadAttachments(activeSessionId); }, POLL_INTERVAL_MS);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSessionId]);
+
+  const uploadAttachment = () => {
+    const file = fileInputRef.current?.files?.[0];
+    if (activeSessionId == null || !file) return;
+    setError('');
+    setUploadingAttachment(true);
+    const form = new FormData();
+    form.append('file', file);
+    api.post(`/callcenter/chat/${activeSessionId}/attachments`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+      .then(() => { if (fileInputRef.current) fileInputRef.current.value = ''; loadAttachments(activeSessionId); })
+      .catch(err => setError(getErrorMessage(err, 'Erro ao enviar anexo.')))
+      .finally(() => setUploadingAttachment(false));
+  };
+
+  const downloadAttachment = (attachment: CcChatAttachment) => {
+    api.get(`/callcenter/chat/attachments/${attachment.id}/download`, { responseType: 'blob' })
+      .then(({ data }) => {
+        const url = window.URL.createObjectURL(data as Blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = attachment.originalFileName;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      })
+      .catch(err => setError(getErrorMessage(err, 'Erro ao baixar anexo.')));
+  };
 
   const claim = (sessionId: number) => {
     setError('');
@@ -255,6 +314,27 @@ export function ChatTab({ isAdmin }: ChatTabProps) {
                     <Send size={14} /> Enviar
                   </button>
                 </div>
+                {attachments.length > 0 && (
+                  <div style={{ margin: '8px 0' }}>
+                    <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Anexos</div>
+                    <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {attachments.map(a => (
+                        <li key={a.id} className="flex items-center justify-between" style={{ fontSize: '.8rem' }}>
+                          <span>{a.originalFileName} <span style={{ color: 'var(--text-muted)' }}>({a.senderName ?? a.senderType})</span></span>
+                          <button className="btn btn-ghost btn-sm" onClick={() => downloadAttachment(a)} title="Baixar anexo">
+                            <Download size={14} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="flex items-center" style={{ gap: 8, marginBottom: 8 }}>
+                  <input ref={fileInputRef} type="file" aria-label="Selecionar arquivo para anexar" style={{ maxWidth: 220 }} />
+                  <button className="btn btn-ghost btn-sm" onClick={uploadAttachment} disabled={uploadingAttachment} title="Enviar anexo">
+                    <Paperclip size={14} /> {uploadingAttachment ? 'Enviando…' : 'Anexar'}
+                  </button>
+                </div>
                 <div className="flex items-center" style={{ gap: 8, marginTop: 12 }}>
                   <select className="form-input" style={{ width: 220 }} value={selectedDisposition}
                     onChange={e => setSelectedDisposition(e.target.value ? Number(e.target.value) : '')}>
@@ -318,11 +398,50 @@ export function ChatTab({ isAdmin }: ChatTabProps) {
                 aria-label="Mensagem de ausência do canal"
                 value={channelForm.awayMessage ?? ''}
                 onChange={e => setChannelForm({ ...channelForm, awayMessage: e.target.value })} />
+              <div className="flex items-center" style={{ gap: 8, width: '100%', marginTop: 4 }}>
+                <label htmlFor="chat-attachment-quota" style={{ fontSize: '.8rem' }}>Cota de anexos por usuário (MB)</label>
+                <input id="chat-attachment-quota" type="number" min={1} className="form-input" style={{ width: 100 }}
+                  value={channelForm.attachmentQuotaBytes != null ? Math.round(channelForm.attachmentQuotaBytes / (1024 * 1024)) : 2048}
+                  onChange={e => setChannelForm({ ...channelForm, attachmentQuotaBytes: Number(e.target.value) * 1024 * 1024 })} />
+                <label htmlFor="chat-attachment-retention" style={{ fontSize: '.8rem' }}>Retenção (dias)</label>
+                <input id="chat-attachment-retention" type="number" min={1} className="form-input" style={{ width: 80 }}
+                  value={channelForm.attachmentRetentionDays ?? 10}
+                  onChange={e => setChannelForm({ ...channelForm, attachmentRetentionDays: Number(e.target.value) })} />
+              </div>
               <button className="btn btn-primary btn-sm" onClick={saveChannel}
                 disabled={!channelForm.code.trim() || !channelForm.displayName.trim()}>
                 {editingChannel ? 'Salvar' : 'Criar canal'}
               </button>
               {editingChannel && <button className="btn btn-ghost btn-sm" onClick={() => startEditChannel(null)}>Cancelar</button>}
+            </div>
+          </div>
+        )}
+
+        {isAdmin && (
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="flex items-center" style={{ gap: 8 }}>
+              <Paperclip size={16} />
+              <strong>Extensões de anexo aceitas (Fase 7d)</strong>
+            </div>
+            <p style={{ fontSize: '.8rem', margin: '4px 0 12px' }}>
+              Nenhum anexo é aceito no chat até que ao menos uma extensão esteja cadastrada aqui.
+            </p>
+            <ul style={{ listStyle: 'none', padding: 0, marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {extensions.map(e => (
+                <li key={e.id} className="badge badge-gray flex items-center" style={{ gap: 6 }}>
+                  .{e.extension}
+                  <button className="btn btn-ghost btn-sm" style={{ padding: 0 }} onClick={() => removeExtension(e.id)} title="Remover extensão">
+                    <Trash2 size={12} />
+                  </button>
+                </li>
+              ))}
+              {extensions.length === 0 && <p style={{ color: 'var(--text-muted)' }}>Nenhuma extensão cadastrada.</p>}
+            </ul>
+            <div className="flex items-center" style={{ gap: 8 }}>
+              <input className="form-input" style={{ width: 140 }} placeholder="ex: pdf"
+                aria-label="Nova extensão de anexo"
+                value={newExtension} onChange={e => setNewExtension(e.target.value)} />
+              <button className="btn btn-primary btn-sm" onClick={addExtension} disabled={!newExtension.trim()}>Adicionar</button>
             </div>
           </div>
         )}

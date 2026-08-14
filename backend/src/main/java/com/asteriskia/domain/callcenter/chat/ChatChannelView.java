@@ -12,7 +12,9 @@ public record ChatChannelView(
         String botFlowName,
         String greetingMessage,
         String awayMessage,
-        Boolean active) {
+        Boolean active,
+        Long attachmentQuotaBytes,
+        Integer attachmentRetentionDays) {
 
     public static ChatChannelView from(CcChatChannel channel) {
         return new ChatChannelView(
@@ -26,6 +28,8 @@ public record ChatChannelView(
                 channel.getBotFlow() != null ? channel.getBotFlow().getName() : null,
                 channel.getGreetingMessage(),
                 channel.getAwayMessage(),
-                channel.getActive());
+                channel.getActive(),
+                channel.getAttachmentQuotaBytes(),
+                channel.getAttachmentRetentionDays());
     }
 }

@@ -39,10 +39,15 @@ public class PublicChatRateLimiter {
     private static final int COBROWSE_EVENTS_LIMIT = 20;
     private static final long COBROWSE_EVENTS_WINDOW_MS = 60_000L;
 
+    // Fase 7d — bem mais raro que mensagem de texto (upload é mais custoso de gravar em disco).
+    private static final int ATTACHMENT_LIMIT = 10;
+    private static final long ATTACHMENT_WINDOW_MS = 60_000L;
+
     private final ConcurrentHashMap<String, Deque<Long>> sessionStartsByIp = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Deque<Long>> messagesBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Deque<Long>> cobrowseConsentBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Deque<Long>> cobrowseEventsBySession = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Deque<Long>> attachmentsBySession = new ConcurrentHashMap<>();
 
     public boolean allowSessionStart(String clientIp) {
         return allow(sessionStartsByIp, clientIp, SESSION_START_LIMIT, SESSION_START_WINDOW_MS);
@@ -58,6 +63,10 @@ public class PublicChatRateLimiter {
 
     public boolean allowCobrowseEvents(Long sessionId) {
         return allow(cobrowseEventsBySession, sessionId, COBROWSE_EVENTS_LIMIT, COBROWSE_EVENTS_WINDOW_MS);
+    }
+
+    public boolean allowAttachment(Long sessionId) {
+        return allow(attachmentsBySession, sessionId, ATTACHMENT_LIMIT, ATTACHMENT_WINDOW_MS);
     }
 
     /** Sincronizado por chave individual (não trava o mapa inteiro). Cada deque fica limitada
@@ -90,6 +99,7 @@ public class PublicChatRateLimiter {
         expireStale(messagesBySession, MESSAGE_WINDOW_MS);
         expireStale(cobrowseConsentBySession, COBROWSE_CONSENT_WINDOW_MS);
         expireStale(cobrowseEventsBySession, COBROWSE_EVENTS_WINDOW_MS);
+        expireStale(attachmentsBySession, ATTACHMENT_WINDOW_MS);
     }
 
     private <K> void expireStale(ConcurrentHashMap<K, Deque<Long>> buckets, long windowMs) {

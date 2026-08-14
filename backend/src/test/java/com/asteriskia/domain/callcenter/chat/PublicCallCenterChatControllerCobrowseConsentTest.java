@@ -37,13 +37,15 @@ class PublicCallCenterChatControllerCobrowseConsentTest {
     private CobrowseConsentService cobrowseConsentService;
     @Mock
     private CobrowseIngestService cobrowseIngestService;
+    @Mock
+    private ChatAttachmentService attachmentService;
 
     private PublicCallCenterChatController controller;
 
     @BeforeEach
     void setUp() {
         controller = new PublicCallCenterChatController(
-                chatService, rateLimiter, jwtService, cobrowseConsentService, cobrowseIngestService, new ObjectMapper());
+                chatService, rateLimiter, jwtService, cobrowseConsentService, cobrowseIngestService, new ObjectMapper(), attachmentService);
     }
 
     private PublicCallCenterChatController.CobrowseConsentRequest requestOf(boolean granted) {

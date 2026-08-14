@@ -64,6 +64,7 @@
         pollTimer: null,
         pollBackoffMs: POLL_INTERVAL_MS,
         lastMessageCount: 0,
+        lastAttachmentCount: 0,
         cobrowseConsentShown: false,
         cobrowseCapturing: false,
         cobrowseStopFn: null,
@@ -139,6 +140,9 @@
             '<div id="cc-chat-widget-messages"></div>' +
             '<form id="cc-chat-widget-form">' +
             '<input id="cc-chat-widget-input" type="text" placeholder="Digite sua mensagem..." autocomplete="off" />' +
+            '<label id="cc-chat-widget-attach" title="Anexar arquivo">📎' +
+            '<input id="cc-chat-widget-file" type="file" style="display:none" />' +
+            '</label>' +
             '<button id="cc-chat-widget-send" type="submit">Enviar</button>' +
             '</form>';
 
@@ -161,6 +165,13 @@
             if (!text) return;
             input.value = '';
             sendMessage(text);
+        });
+
+        panel.querySelector('#cc-chat-widget-file').addEventListener('change', function (ev) {
+            var file = ev.target.files && ev.target.files[0];
+            if (!file) return;
+            uploadAttachment(file);
+            ev.target.value = '';
         });
 
         panel.querySelector('#cc-chat-widget-cobrowse-stop').addEventListener('click', function () {
@@ -425,6 +436,38 @@
             });
     }
 
+    // Fase 7d — anexo enviado pelo cliente (D6: bidirecional). Mesmo token de sessão do resto do
+    // widget; validação de extensão/magic-bytes/cota acontece no backend (ChatAttachmentService).
+    function uploadAttachment(file) {
+        ensureSession()
+            .then(function () {
+                var form = new FormData();
+                form.append('file', file);
+                return fetch(API_BASE + '/callcenter/chat/public/sessions/' + state.sessionId + '/attachments', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + state.token },
+                    body: form,
+                });
+            })
+            .then(function (res) {
+                if (!res.ok) {
+                    return res.json().catch(function () { return {}; }).then(function (body) {
+                        throw new Error(body.error || 'Falha ao enviar anexo (' + res.status + ')');
+                    });
+                }
+                return fetchMessages();
+            })
+            .catch(function (err) {
+                var container = messagesContainer();
+                if (container) {
+                    var div = document.createElement('div');
+                    div.className = 'cc-chat-msg system';
+                    div.textContent = 'Erro: ' + err.message;
+                    container.appendChild(div);
+                }
+            });
+    }
+
     function fetchMessages() {
         if (!state.sessionId || !state.token) return Promise.resolve();
         return fetch(API_BASE + '/callcenter/chat/public/sessions/' + state.sessionId + '/messages', {
@@ -437,6 +480,7 @@
             .then(function (data) {
                 state.pollBackoffMs = POLL_INTERVAL_MS;
                 renderMessages(data);
+                fetchAttachments();
             })
             .catch(function () {
                 // Fase 10 (achado MEDIUM): sem backoff, uma queda do backend (deploy, restart de
@@ -447,6 +491,32 @@
                 state.pollBackoffMs = Math.min(state.pollBackoffMs * 2, POLL_MAX_BACKOFF_MS);
             })
             .then(scheduleNextPoll);
+    }
+
+    // Fase 7d — anexos não são cc_chat_messages (tabela particionada — ver nota da migration
+    // V78), então precisam de um fetch/render próprio, encaixado no mesmo ciclo de polling.
+    function fetchAttachments() {
+        if (!state.sessionId || !state.token) return;
+        fetch(API_BASE + '/callcenter/chat/public/sessions/' + state.sessionId + '/attachments', {
+            headers: { 'Authorization': 'Bearer ' + state.token },
+        })
+            .then(function (res) { return res.ok ? res.json() : []; })
+            .then(function (attachments) {
+                if (attachments.length === state.lastAttachmentCount) return;
+                state.lastAttachmentCount = attachments.length;
+                var container = messagesContainer();
+                if (!container) return;
+                attachments.forEach(function (a) {
+                    if (container.querySelector('[data-attachment-id="' + a.id + '"]')) return;
+                    var div = document.createElement('div');
+                    div.className = 'cc-chat-msg ' + a.senderType;
+                    div.setAttribute('data-attachment-id', String(a.id));
+                    div.textContent = '📎 ' + a.originalFileName;
+                    container.appendChild(div);
+                });
+                container.scrollTop = container.scrollHeight;
+            })
+            .catch(function () { /* silencioso — mesma disciplina do fetchMessages */ });
     }
 
     function scheduleNextPoll() {

@@ -41,6 +41,8 @@ class PublicCallCenterChatControllerCobrowseEventsTest {
     private CobrowseConsentService cobrowseConsentService;
     @Mock
     private CobrowseIngestService cobrowseIngestService;
+    @Mock
+    private ChatAttachmentService attachmentService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private PublicCallCenterChatController controller;
@@ -48,7 +50,7 @@ class PublicCallCenterChatControllerCobrowseEventsTest {
     @BeforeEach
     void setUp() {
         controller = new PublicCallCenterChatController(
-                chatService, rateLimiter, jwtService, cobrowseConsentService, cobrowseIngestService, objectMapper);
+                chatService, rateLimiter, jwtService, cobrowseConsentService, cobrowseIngestService, objectMapper, attachmentService);
     }
 
     private byte[] validBody() {

@@ -869,6 +869,9 @@ export interface ChatChannelView {
   greetingMessage?: string;
   awayMessage?: string;
   active: boolean;
+  /** Fase 7d — cota total (bytes) e retenção (dias) de anexos por uploader neste canal. */
+  attachmentQuotaBytes: number;
+  attachmentRetentionDays: number;
 }
 
 export interface ChatChannelRequest {
@@ -880,6 +883,31 @@ export interface ChatChannelRequest {
   greetingMessage?: string | null;
   awayMessage?: string | null;
   active?: boolean;
+  attachmentQuotaBytes?: number | null;
+  attachmentRetentionDays?: number | null;
+}
+
+// Anexos no chat (Fase 7d) — GET/POST /callcenter/chat/{sessionId}/attachments,
+// GET /callcenter/chat/attachments/{id}/download.
+export interface CcChatAttachment {
+  id: number;
+  sessionId: number;
+  senderType: 'customer' | 'agent';
+  senderName?: string;
+  originalFileName: string;
+  contentType?: string;
+  sizeBytes: number;
+  createdAt: string;
+}
+
+// Catálogo de extensões aceitas para anexo (Fase 7d) — GET/POST/DELETE
+// /callcenter/chat/attachment-extensions.
+export interface CcChatAttachmentExtension {
+  id: number;
+  extension: string;
+  mimetype?: string;
+  active: boolean;
+  createdAt: string;
 }
 
 export interface CcChatSession {

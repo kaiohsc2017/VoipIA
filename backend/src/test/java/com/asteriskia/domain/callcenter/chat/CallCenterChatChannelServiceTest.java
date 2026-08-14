@@ -43,7 +43,7 @@ class CallCenterChatChannelServiceTest {
                 .thenReturn(Optional.of(CcChatChannel.builder().id(1L).code("webchat").build()));
 
         assertThatThrownBy(() -> service.create(
-                        new ChatChannelRequest("webchat", "Site", "webchat", null, null, null, null, true)))
+                        new ChatChannelRequest("webchat", "Site", "webchat", null, null, null, null, true, null, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Já existe");
 
@@ -61,7 +61,7 @@ class CallCenterChatChannelServiceTest {
         when(flowRepository.findById(20L)).thenReturn(Optional.of(flow));
         when(channelRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var result = service.create(new ChatChannelRequest("webchat", "Site", "webchat", 10L, 20L, "Olá!", null, true));
+        var result = service.create(new ChatChannelRequest("webchat", "Site", "webchat", 10L, 20L, "Olá!", null, true, null, null));
 
         assertThat(result.getDefaultQueue()).isEqualTo(queue);
         assertThat(result.getBotFlow()).isEqualTo(flow);
@@ -74,7 +74,7 @@ class CallCenterChatChannelServiceTest {
         when(channelRepository.findByCodeAndActiveTrue("webchat")).thenReturn(Optional.empty());
         when(channelRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var result = service.create(new ChatChannelRequest("webchat", "Site", null, null, null, null, null, null));
+        var result = service.create(new ChatChannelRequest("webchat", "Site", null, null, null, null, null, null, null, null));
 
         assertThat(result.getDefaultQueue()).isNull();
         assertThat(result.getBotFlow()).isNull();

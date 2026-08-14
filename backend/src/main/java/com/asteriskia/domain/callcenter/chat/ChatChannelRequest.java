@@ -17,4 +17,9 @@ public record ChatChannelRequest(
         Long botFlowId,
         String greetingMessage,
         String awayMessage,
-        Boolean active) {}
+        Boolean active,
+        /** Fase 7d — nulo usa o default (2GB/10 dias) na criação; na atualização, nulo mantém o
+         * default do banco só se a coluna já não tiver outro valor — por isso o service sempre
+         * aplica um valor explícito (nunca deixa nulo ir para o UPDATE). */
+        Long attachmentQuotaBytes,
+        Integer attachmentRetentionDays) {}
