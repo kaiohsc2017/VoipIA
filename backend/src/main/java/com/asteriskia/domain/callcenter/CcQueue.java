@@ -78,6 +78,19 @@ public class CcQueue {
     @Column(name = "nps_alert_threshold")
     private Integer npsAlertThreshold;
 
+    /** Transbordo (Fase 5e.2) — fila de destino quando o tempo de espera ou o tamanho da fila
+     * excede o limiar configurado abaixo. Nulo = sem transbordo automático. Auto-referenciada
+     * (ON DELETE SET NULL, V75) — nunca cascateia exclusão entre filas. */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "overflow_queue_id")
+    private CcQueue overflowQueue;
+
+    @Column(name = "overflow_after_seconds")
+    private Integer overflowAfterSeconds;
+
+    @Column(name = "overflow_max_waiting")
+    private Integer overflowMaxWaiting;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

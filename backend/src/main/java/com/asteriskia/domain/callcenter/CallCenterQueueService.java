@@ -119,6 +119,7 @@ public class CallCenterQueueService {
 
         var strategy = resolveStrategy(request.strategy());
         var timeout = resolveTimeout(request.timeoutSeconds());
+        validateOverflowThresholds(request.overflowAfterSeconds(), request.overflowMaxWaiting());
 
         var queue =
                 CcQueue.builder()
@@ -133,6 +134,9 @@ public class CallCenterQueueService {
                         .survey(resolveSurvey(request.surveyId()))
                         .npsAlertEnabled(Boolean.TRUE.equals(request.npsAlertEnabled()))
                         .npsAlertThreshold(request.npsAlertThreshold())
+                        .overflowQueue(resolveOverflowQueue(null, request.overflowQueueId()))
+                        .overflowAfterSeconds(request.overflowAfterSeconds())
+                        .overflowMaxWaiting(request.overflowMaxWaiting())
                         .build();
         queue = queueRepository.save(queue);
 
@@ -186,6 +190,10 @@ public class CallCenterQueueService {
         queue.setSurvey(resolveSurvey(request.surveyId()));
         queue.setNpsAlertEnabled(Boolean.TRUE.equals(request.npsAlertEnabled()));
         queue.setNpsAlertThreshold(request.npsAlertThreshold());
+        validateOverflowThresholds(request.overflowAfterSeconds(), request.overflowMaxWaiting());
+        queue.setOverflowQueue(resolveOverflowQueue(id, request.overflowQueueId()));
+        queue.setOverflowAfterSeconds(request.overflowAfterSeconds());
+        queue.setOverflowMaxWaiting(request.overflowMaxWaiting());
         var saved = queueRepository.save(queue);
 
         araQueueRepository
@@ -420,6 +428,58 @@ public class CallCenterQueueService {
         return surveyRepository
                 .findById(surveyId)
                 .orElseThrow(() -> new IllegalArgumentException("Pesquisa não encontrada: " + surveyId));
+    }
+
+    /**
+     * Fase 5e.2 — resolve a fila de destino do transbordo, validando existência, escopo de BU
+     * (reusa {@code findById}, que já aplica o guard) e ausência de laço (A->B->A ou mais longo).
+     * {@code currentQueueId} é {@code null} na criação (fila ainda não existe, laço é
+     * estruturalmente impossível nesse caso) e o id real na atualização.
+     */
+    private CcQueue resolveOverflowQueue(Long currentQueueId, Long overflowQueueId) {
+        if (overflowQueueId == null) {
+            return null;
+        }
+        if (currentQueueId != null && overflowQueueId.equals(currentQueueId)) {
+            throw new IllegalArgumentException("Uma fila não pode transbordar para si mesma.");
+        }
+        // findById aplica o escopo de BU — reaproveitado aqui de propósito, mesmo padrão de
+        // resolveSurvey/copyMembers: nunca deixar apontar para uma fila fora do escopo do usuário.
+        var overflowQueue = findById(overflowQueueId);
+        validateNoOverflowCycle(currentQueueId, overflowQueue);
+        return overflowQueue;
+    }
+
+    /**
+     * Percorre a cadeia {@code overflow_queue_id} a partir da fila candidata, na direção que a
+     * chamada real seguiria em runtime, até achar {@code null} (cadeia termina, sem ciclo) ou
+     * repetir um id já visitado (ciclo — rejeitado com HTTP 400). {@code currentQueueId} entra
+     * pré-visitado: se a cadeia voltar a ele, é um laço fechando de volta na própria fila que está
+     * sendo configurada.
+     */
+    private void validateNoOverflowCycle(Long currentQueueId, CcQueue overflowQueueCandidate) {
+        var visited = new java.util.HashSet<Long>();
+        if (currentQueueId != null) {
+            visited.add(currentQueueId);
+        }
+        CcQueue cursor = overflowQueueCandidate;
+        while (cursor != null) {
+            if (!visited.add(cursor.getId())) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Configuração de transbordo forma um laço entre filas (ex.: A -> B -> A).");
+            }
+            cursor = cursor.getOverflowQueue();
+        }
+    }
+
+    private void validateOverflowThresholds(Integer overflowAfterSeconds, Integer overflowMaxWaiting) {
+        if (overflowAfterSeconds != null && overflowAfterSeconds <= 0) {
+            throw new IllegalArgumentException("Tempo de espera do transbordo deve ser maior que zero.");
+        }
+        if (overflowMaxWaiting != null && overflowMaxWaiting <= 0) {
+            throw new IllegalArgumentException("Tamanho máximo de espera do transbordo deve ser maior que zero.");
+        }
     }
 
     private Specification<CcQueue> businessUnitScope() {

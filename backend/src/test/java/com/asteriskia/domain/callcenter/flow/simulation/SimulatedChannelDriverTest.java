@@ -102,6 +102,18 @@ class SimulatedChannelDriverTest {
     }
 
     @Test
+    @DisplayName("transferToExtension (Fase 5e.2) marca o fim da simulação e registra o ramal no roteiro")
+    void transferToExtension_marksEndedAndLogsExtension() {
+        var driver = new SimulatedChannelDriver(Map.of(), List.of());
+
+        driver.transferToExtension("4001");
+
+        assertThat(driver.isEnded()).isTrue();
+        assertThat(driver.transferredExtension()).isEqualTo("4001");
+        assertThat(driver.eventLog()).anySatisfy(e -> assertThat(e).contains("4001"));
+    }
+
+    @Test
     @DisplayName("playMessage registra no roteiro, mas ignora chamada vazia (sem áudio nem texto)")
     void playMessage_logsOrIgnoresBlank() {
         var driver = new SimulatedChannelDriver(Map.of(), List.of());

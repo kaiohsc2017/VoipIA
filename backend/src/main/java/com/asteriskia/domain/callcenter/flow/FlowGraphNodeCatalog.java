@@ -18,9 +18,11 @@ import org.springframework.stereotype.Component;
  * Fase 3) e trocou o roteamento do {@code menu_opcoes} de id-de-aresta digitado à mão para
  * {@code sourceHandle} (ver {@code FlowGraph.Edge}/{@code MenuNodeHandler}). Sub-fase 5e.1 somou
  * {@code horario_funcionamento} (delega a {@code BusinessHoursService}, 3 handles fixos —
- * {@code hr-aberto}/{@code hr-fechado}/{@code hr-feriado}). Os 4 restantes ({@code
- * coletar_entrada}, {@code consultar_api}, {@code transferir_ramal}, {@code agente_ia}) continuam
- * {@code false} — ficam para sub-fases futuras (5e.2/5f/16). {@link FlowGraphValidator} bloqueia a
+ * {@code hr-aberto}/{@code hr-fechado}/{@code hr-feriado}). Sub-fase 5e.2 somou
+ * {@code transferir_ramal} (delega a {@code ChannelDriver.transferToExtension} — exclusivo do
+ * canal voz, ramal validado por allowlist estrita antes de qualquer uso). Os 3 restantes ({@code
+ * coletar_entrada}, {@code consultar_api}, {@code agente_ia}) continuam {@code false} — ficam
+ * para sub-fases futuras (5f/16). {@link FlowGraphValidator} bloqueia a
  * publicação de qualquer fluxo que use um nó ainda não implementado.
  *
  * <p>Fase 24 (chat) prova a premissa de motor agnóstico de canal: {@code menu_opcoes},
@@ -37,7 +39,7 @@ public class FlowGraphNodeCatalog {
             Set.of(
                     "inicio", "tocar_audio", "menu_opcoes", "condicao", "definir_variavel", "enviar_fila",
                     "pesquisa_satisfacao", "pausar_gravacao", "coletar_texto", "consultar_base",
-                    "horario_funcionamento", "encerrar");
+                    "horario_funcionamento", "transferir_ramal", "encerrar");
 
     private static final List<FlowGraphNodeType> NODE_TYPES =
             List.of(

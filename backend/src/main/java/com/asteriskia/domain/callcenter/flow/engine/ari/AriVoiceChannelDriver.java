@@ -131,9 +131,26 @@ public class AriVoiceChannelDriver implements ChannelDriver {
         return ariClient.getChannelVar(channelId, name);
     }
 
+    // Fase 5e.2, mesma classe do achado de AriClient.play: o valor de "ramal" chega de um nó de
+    // fluxo editável pela UI (PERM_WRITE_callcenter.fluxos) — validado estritamente aqui ANTES de
+    // qualquer uso, mesmo que TransferToExtensionNodeHandler já valide a montante (defesa em
+    // profundidade, nunca confiar só na validação do chamador). Só dígitos, 3 a 4 caracteres —
+    // cobre ramal de agente (4xxx), fila (5xxx) e os ramais internos fixos (1000-1002/9xxx),
+    // nunca sintaxe de função de dialplan nem caminho.
+    private static final java.util.regex.Pattern SAFE_EXTENSION = java.util.regex.Pattern.compile("^[0-9]{3,4}$");
+
     @Override
     public void transferToQueue(String queueExtension) {
         ariClient.continueInDialplan(channelId, context, queueExtension, 1);
+    }
+
+    @Override
+    public void transferToExtension(String extension) {
+        if (extension == null || !SAFE_EXTENSION.matcher(extension).matches()) {
+            log.warn("transferToExtension recusado — ramal fora do allowlist: {}", extension);
+            return;
+        }
+        ariClient.continueInDialplan(channelId, context, extension, 1);
     }
 
     @Override

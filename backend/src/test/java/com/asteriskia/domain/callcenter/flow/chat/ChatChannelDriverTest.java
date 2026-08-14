@@ -104,6 +104,13 @@ class ChatChannelDriverTest {
     }
 
     @Test
+    @DisplayName("transferToExtension lança UnsupportedOperationException — chat não tem ramal SIP")
+    void transferToExtension_throwsUnsupported() {
+        org.junit.jupiter.api.Assertions.assertThrows(
+                UnsupportedOperationException.class, () -> driver.transferToExtension("4001"));
+    }
+
+    @Test
     @DisplayName("setVariable/getVariable guardam em memória local, sem depender de canal externo")
     void setVariableAndGetVariable_localState() {
         driver.setVariable("nome", "Maria");

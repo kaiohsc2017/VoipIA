@@ -25,4 +25,9 @@ public record QueueRequest(
          * de cc_settings sobrepõe mesmo com pesquisa configurada). */
         Long surveyId,
         Boolean npsAlertEnabled,
-        Integer npsAlertThreshold) {}
+        Integer npsAlertThreshold,
+        /** Fase 5e.2 — fila de destino do transbordo automático; nulo = sem transbordo. Validado
+         * contra ciclo (A->B->A) e escopo de BU em {@code CallCenterQueueService}. */
+        Long overflowQueueId,
+        Integer overflowAfterSeconds,
+        Integer overflowMaxWaiting) {}

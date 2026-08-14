@@ -36,6 +36,14 @@ public interface ChannelDriver {
     /** Encaminha o canal para a fila informada (ex.: via dialplan) — a execução do fluxo termina aqui. */
     void transferToQueue(String queueExtension);
 
+    /** Encaminha o canal para um ramal específico (nó "transferir_ramal", Fase 5e.2, exclusivo do
+     * canal voz) — a execução do fluxo termina aqui. {@code extension} já deve ter sido validada
+     * pelo chamador (allowlist estrita de dígitos, nunca interpolar entrada livre) — implementações
+     * validam de novo por defesa em profundidade, nunca confiando só na validação a montante (mesma
+     * disciplina de {@code AriClient.play}/{@code setChannelVar}). Canal de chat não tem
+     * equivalente de "ramal" e lança {@link UnsupportedOperationException}. */
+    void transferToExtension(String extension);
+
     /** Encerra o canal (Hangup) — a execução do fluxo termina aqui. */
     void end();
 

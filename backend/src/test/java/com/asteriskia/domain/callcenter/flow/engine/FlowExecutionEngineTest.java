@@ -316,6 +316,7 @@ class FlowExecutionEngineTest {
         private final HashMap<String, String> variables = new HashMap<>();
         boolean ended = false;
         String transferredQueue = null;
+        String transferredExtension = null;
 
         FakeChannelDriver(List<PromptResult> scriptedResults) {
             this.scriptedResults = new ArrayDeque<>(scriptedResults);
@@ -352,6 +353,11 @@ class FlowExecutionEngineTest {
         @Override
         public void transferToQueue(String queueExtension) {
             transferredQueue = queueExtension;
+        }
+
+        @Override
+        public void transferToExtension(String extension) {
+            transferredExtension = extension;
         }
 
         @Override

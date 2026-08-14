@@ -201,6 +201,7 @@ public class FlowExecutionEngine {
     private String terminalOutcome(String nodeType) {
         return switch (nodeType) {
             case "enviar_fila" -> "TRANSFERRED_QUEUE";
+            case "transferir_ramal" -> "TRANSFERRED_EXTENSION";
             case "encerrar" -> "COMPLETED";
             default -> "ABANDONED";
         };

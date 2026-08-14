@@ -123,6 +123,18 @@ public class ChatChannelDriver implements ChannelDriver {
     }
 
     @Override
+    public void transferToExtension(String extension) {
+        // "transferir_ramal" é exclusivo do canal voz no catálogo (FlowGraphNodeCatalog) — chat
+        // não tem conceito de ramal SIP para transferir. FlowGraphValidator já bloqueia a
+        // publicação de um fluxo de chat com esse nó (checagem de "channel"), então nenhum fluxo
+        // publicado deveria chegar aqui em produção — mesmo padrão de
+        // AriVoiceChannelDriver.collectText (nó exclusivo do outro canal). A exceção é capturada
+        // pelo FlowExecutionEngine, que tenta um caminho de fuga para "enviar_fila" antes de
+        // encerrar a sessão, nunca deixando o chat travado.
+        throw new UnsupportedOperationException("transferToExtension não se aplica ao canal chat.");
+    }
+
+    @Override
     public void end() {
         ended = true;
         chatService.closeByBot(sessionId);

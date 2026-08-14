@@ -23,6 +23,7 @@ public class SimulatedChannelDriver implements ChannelDriver {
     private final List<String> eventLog = new ArrayList<>();
     private boolean ended = false;
     private String transferredQueue;
+    private String transferredExtension;
 
     public SimulatedChannelDriver(Map<String, String> initialVariables, List<String> respostasSimuladas) {
         this.variables.putAll(initialVariables == null ? Map.of() : initialVariables);
@@ -44,6 +45,10 @@ public class SimulatedChannelDriver implements ChannelDriver {
 
     public String transferredQueue() {
         return transferredQueue;
+    }
+
+    public String transferredExtension() {
+        return transferredExtension;
     }
 
     @Override
@@ -107,6 +112,13 @@ public class SimulatedChannelDriver implements ChannelDriver {
         ended = true;
         transferredQueue = queueExtension;
         eventLog.add("Transferido para a fila (simulado): " + queueExtension);
+    }
+
+    @Override
+    public void transferToExtension(String extension) {
+        ended = true;
+        transferredExtension = extension;
+        eventLog.add("Transferido para o ramal (simulado): " + extension);
     }
 
     @Override

@@ -16,6 +16,10 @@ public interface CcQueueRepository extends JpaRepository<CcQueue, Long>, JpaSpec
      * relatório de filas desativadas/descontinuadas. */
     List<CcQueue> findByActiveTrue();
 
+    /** Filas ativas com transbordo configurado (Fase 5e.2) — universo avaliado pelo
+     * {@code CallCenterQueueOverflowService} a cada ciclo do scheduler. */
+    List<CcQueue> findByActiveTrueAndOverflowQueueIsNotNull();
+
     /** Quantas filas já cadastradas ficam fora de [start, end] (Fase 19 — D20). */
     @Query(value = """
         SELECT count(*) FROM cc_queues
