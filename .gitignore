@@ -99,3 +99,6 @@ asterisk/config/acl.conf
 
 # --- Claude Code (sessão local — não versionar) ---
 .claude/settings.local.json
+
+# --- Diretório de trabalho local temporário (nunca vai pro git/Azure) ---
+area/

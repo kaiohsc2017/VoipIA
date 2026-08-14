@@ -176,3 +176,34 @@ api.voiphash.com.br {
 		header_up X-Forwarded-Proto {scheme}
 	}
 }
+
+# ── ReportECH (manager.voiphash.com.br) ──────────────────────────────────────
+# Sistema de relatórios ECH, integrado ao Caddy principal.
+manager.voiphash.com.br {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+	}
+
+	# ── API (ASP.NET Core) ────────────────────────────────────────────────────
+	@api {
+		path /api/*
+	}
+	handle @api {
+		reverse_proxy echweb-api:8080
+	}
+
+	# ── Health check da API ───────────────────────────────────────────────────
+	handle /health/* {
+		reverse_proxy echweb-api:8080
+	}
+
+	# ── Frontend (React SPA) ──────────────────────────────────────────────────
+	handle {
+		reverse_proxy echweb-web:80
+	}
+}
