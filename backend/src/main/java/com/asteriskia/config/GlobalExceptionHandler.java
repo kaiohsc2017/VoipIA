@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -51,6 +52,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleResourceNotFound(ResourceNotFoundException ex) {
         log.debug("Recurso não encontrado: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<Map<String, String>> handleMissingRequestHeader(MissingRequestHeaderException ex) {
+        // Gap pré-existente encontrado durante o deploy da Fase 17 (co-browsing): faltar um
+        // header obrigatório (ex: Authorization nos endpoints públicos de chat) é entrada
+        // inválida do cliente, não um erro do servidor — sem este handler caía no catch-all
+        // de Exception abaixo e virava sempre 500 "erro inesperado".
+        log.debug("Header obrigatório ausente: {}", ex.getHeaderName());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", "Header obrigatório ausente: " + ex.getHeaderName()));
     }
 
     @ExceptionHandler(ResponseStatusException.class)
