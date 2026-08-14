@@ -40,7 +40,11 @@ services:
   # PostgreSQL 16 — Banco de dados unificado (Telecom + Agentes)
   # ---------------------------------------------------------------------------
   postgres:
-    image: postgres:16-alpine
+    # Fase 25 do plano omnicanal Parte III: troca de postgres:16-alpine para a imagem oficial
+    # com a extensão pgvector pré-instalada — mesmo binário PostgreSQL 16, formato de dado
+    # idêntico (Debian em vez de Alpine, mas o diretório de dados do Postgres é compatível entre
+    # as duas), habilita CREATE EXTENSION vector para a base de conhecimento vetorial do chat.
+    image: pgvector/pgvector:pg16
     container_name: asteriskia-postgres
     restart: unless-stopped
     # Achado de segurança (débito aceito): nenhum serviço tinha resource limits —
@@ -218,7 +222,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
+          # 1536m (era 1g) — Fase 25 (base de conhecimento/RAG do chat do Call
+          # Center) sobe um servidor HTTP interno de embeddings no mesmo
+          # container, carregando o modelo sentence-transformers (~118M
+          # parâmetros) + torch em CPU, além do loop de polling já existente.
+          memory: 1536m
           cpus: "1.0"
     depends_on:
       backend:

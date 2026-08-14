@@ -43,6 +43,7 @@ const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agent
   { key: 'financeiro.envios',    label: 'Análise Sob Demanda',    system: 'Financeiro' },
   { key: 'financeiro.callcenter', label: 'Call Center',           system: 'Financeiro' },
   { key: 'financeiro.callcenter_nps', label: 'Pesquisa de Satisfação (NPS)', system: 'Financeiro' },
+  { key: 'financeiro.callcenter_autosservico', label: 'Autosserviço (Base de Conhecimento)', system: 'Financeiro' },
   { key: 'callcenter.agentes',   label: 'Agentes',                system: 'Call Center' },
   { key: 'callcenter.ramais',    label: 'Senha do ramal (sensível)', system: 'Call Center' },
   { key: 'callcenter.filas',     label: 'Filas',                  system: 'Call Center' },
@@ -56,6 +57,7 @@ const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agent
   { key: 'callcenter.insights.dashboard',   label: 'Insights — Dashboard',      system: 'Call Center' },
   { key: 'callcenter.insights.processing',  label: 'Insights — Processamento',  system: 'Call Center' },
   { key: 'callcenter.config',    label: 'Configurações (pausas/tabulações)', system: 'Call Center' },
+  { key: 'callcenter.kb',        label: 'Base de Conhecimento',   system: 'Call Center' },
 ];
 
 type PermMap = Record<string, { canRead: boolean; canWrite: boolean }>;

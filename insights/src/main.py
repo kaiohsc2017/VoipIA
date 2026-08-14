@@ -17,6 +17,8 @@ import dataclasses
 import logging
 from datetime import datetime
 
+import uvicorn
+
 from src.audio_decode import PCM_SAMPLE_RATE, decode_to_pcm
 from src.backend_client import (
     get_active_scorecard,
@@ -40,6 +42,7 @@ from src.config import (
     get_gemini_model_stt,
 )
 from src.discovery import AudioPair, discover_pairs
+from src.embedding_server import app as embedding_app
 from src.evaluation_llm import EvaluationResult, ScorecardItemInput, evaluate_call
 from src.insights_llm import generate_insights
 from src.masking import mask_segments
@@ -593,5 +596,21 @@ async def poll_loop() -> None:
         await asyncio.sleep(max(0.0, POLL_INTERVAL_SECONDS - elapsed))
 
 
+async def run_embedding_server() -> None:
+    """Sobe o servidor HTTP interno de embeddings (Fase 25 — base de
+    conhecimento/RAG do chat do Call Center) na porta 8000 — sem publicação
+    ao host, só acessível pela rede interna docker."""
+    config = uvicorn.Config(embedding_app, host="0.0.0.0", port=8000, log_level="warning")
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
+async def main() -> None:
+    # Roda o loop de polling (voz — Verint/portal do supervisor/Call Center)
+    # concorrentemente com o servidor HTTP de embeddings — mesmo processo,
+    # mesmo container, duas responsabilidades assíncronas independentes.
+    await asyncio.gather(poll_loop(), run_embedding_server())
+
+
 if __name__ == "__main__":
-    asyncio.run(poll_loop())
+    asyncio.run(main())

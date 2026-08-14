@@ -71,7 +71,12 @@ public final class ResourceCatalog {
             "financeiro.insights",
             "financeiro.envios",
             "financeiro.callcenter",
-            "financeiro.callcenter_nps"
+            "financeiro.callcenter_nps",
+            // callcenter_autosservico (Fase 25, §25.4): custo de IA do nó consultar_base do chat
+            // (embedding é local/CPU, sem custo — só a geração final via Gemini gera gasto). Sem
+            // tela própria no submenu Financeiro do Telecom — mesmo padrão de callcenter_nps, o
+            // painel de alerta vive embutido na aba "Base de Conhecimento" do Call Center.
+            "financeiro.callcenter_autosservico"
     );
 
     // Módulo Call Center (voz) — Fase 2 do plano modulo-callcenter-omnicanal.plan.md.
@@ -114,7 +119,10 @@ public final class ResourceCatalog {
             "callcenter.reports",
             // callcenter.config (Fase 12.6): CRUD de motivos de pausa e tabulações — catálogos
             // de configuração do Call Center que antes só existiam via seed (V47), sem UI própria.
-            "callcenter.config"
+            "callcenter.config",
+            // callcenter.kb (Fase 25): base de conhecimento própria (artigos + fontes externas)
+            // consultada pelo nó consultar_base do chat.
+            "callcenter.kb"
     );
 
     public static List<String> all() {

@@ -35,7 +35,7 @@ public class FlowGraphNodeCatalog {
     private static final Set<String> IMPLEMENTED_TYPES =
             Set.of(
                     "inicio", "tocar_audio", "menu_opcoes", "condicao", "definir_variavel", "enviar_fila",
-                    "pesquisa_satisfacao", "pausar_gravacao", "coletar_texto", "encerrar");
+                    "pesquisa_satisfacao", "pausar_gravacao", "coletar_texto", "consultar_base", "encerrar");
 
     private static final List<FlowGraphNodeType> NODE_TYPES =
             List.of(
@@ -124,6 +124,13 @@ public class FlowGraphNodeCatalog {
                             "Pesquisa de satisfação",
                             "both",
                             List.of(prop("pesquisaId", "Pesquisa", "select"))),
+                    node(
+                            "consultar_base",
+                            "Consultar base de conhecimento (IA)",
+                            "chat",
+                            List.of(
+                                    prop("variavelPergunta", "Variável com a pergunta", "string"),
+                                    prop("filaId", "Fila de fallback (sem 2ª aresta)", "select"))),
                     node("encerrar", "Encerrar", "both", List.of()));
 
     public List<FlowGraphNodeType> all() {

@@ -17,6 +17,7 @@ import { ChatTab } from './components/ChatTab';
 import { ReportsQueueTab } from './components/ReportsQueueTab';
 import { ConfiguracoesTab } from './components/ConfiguracoesTab';
 import { PesquisasTab } from './components/PesquisasTab';
+import { KbTab } from './components/KbTab';
 import { revokeSession } from './api/client';
 import { authSessionFromToken } from './hooks/useAuthSession';
 import { useShellBridge } from './hooks/useShellBridge';
@@ -42,6 +43,7 @@ const TAB_RESOURCE = {
   chat: 'callcenter.chat',
   reports: 'callcenter.reports',
   pesquisas: 'callcenter.config',
+  kb: 'callcenter.kb',
   configuracoes: 'callcenter.config',
 } as const;
 
@@ -135,6 +137,7 @@ export default function App() {
     { id: 'chat' },
     { id: 'reports' },
     { id: 'pesquisas' },
+    { id: 'kb' },
     { id: 'configuracoes' },
   ];
   const visibleTabs = TABS.filter(t => session.hasRead(TAB_RESOURCE[t.id]));
@@ -187,6 +190,7 @@ export default function App() {
             {currentTab === 'chat' && <ChatTab isAdmin={session.role === 'ADMIN'} />}
             {currentTab === 'reports' && <ReportsQueueTab isAdmin={session.role === 'ADMIN'} />}
             {currentTab === 'pesquisas' && <PesquisasTab canWrite={session.hasWrite('callcenter.config')} />}
+            {currentTab === 'kb' && <KbTab canWrite={session.hasWrite('callcenter.kb')} />}
             {currentTab === 'configuracoes' && <ConfiguracoesTab canWrite={session.hasWrite('callcenter.config')} />}
             {!currentTab && (
               <p style={{ color: 'var(--text-muted)' }}>Você não tem permissão de leitura em nenhuma aba do Call Center.</p>

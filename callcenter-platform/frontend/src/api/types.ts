@@ -837,3 +837,43 @@ export interface CcUpdateRangeResult {
   range: CcRangeView;
   extensionsOutsideRange: number;
 }
+
+// ─── Base de conhecimento / RAG do chat (Fase 25) ───────────────────────────
+
+export interface CcKbArticle {
+  id: number;
+  title: string;
+  body: string;
+  tags: string | null;
+  active: boolean;
+  version: number;
+  indexedVersion: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CcKbArticleRequest {
+  title: string;
+  body: string;
+  tags: string | null;
+}
+
+export interface CcKbExternalSource {
+  id: number;
+  url: string;
+  active: boolean;
+  lastFetchedAt: string | null;
+  lastFetchSuccess: boolean | null;
+  lastFetchError: string | null;
+  createdAt: string;
+}
+
+export interface CcKbExternalSourceRequest {
+  url: string;
+}
+
+export interface CcKbStatsView {
+  matched: number;
+  total: number;
+  containmentRate: number;
+}

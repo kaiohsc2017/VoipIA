@@ -195,6 +195,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.callcenter")
                         .requestMatchers(HttpMethod.GET, "/api/v1/financeiro/cost-alerts/callcenter_nps")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.callcenter_nps")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/financeiro/cost-alerts/callcenter_autosservico")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.callcenter_autosservico")
                         // Módulo Call Center (voz) — Fase 2. ramal-secret precisa vir ANTES do
                         // matcher genérico de /agentes/**, e é protegido por um resource_key
                         // próprio (callcenter.ramais) por expor a senha SIP do ramal.
@@ -275,6 +277,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/callcenter/reports/reprocess").hasAuthority("ROLE_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/reports/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.reports")
+                        // Base de conhecimento (RAG do chat) — Fase 25.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/kb/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.kb")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da
@@ -325,6 +330,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.callcenter")
                         .requestMatchers("/api/v1/financeiro/cost-alerts/callcenter_nps")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.callcenter_nps")
+                        .requestMatchers("/api/v1/financeiro/cost-alerts/callcenter_autosservico")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.callcenter_autosservico")
                         // Rotação de secret SIP (Fase 13) — callcenter.ramais, não
                         // callcenter.agentes, mesmo resource de ramal-secret; precisa vir antes
                         // do matcher genérico de /agentes/**.
@@ -365,6 +372,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.insights.reports")
                         .requestMatchers("/api/v1/callcenter/chat/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.chat")
+                        .requestMatchers("/api/v1/callcenter/kb/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.kb")
 
                         // Endpoints internos (dialplan/serviços via X-Internal-Key: ura-routing,
                         // ingestão de gravação, chamada de saída — Fase 23) exigem ROLE_INTERNAL

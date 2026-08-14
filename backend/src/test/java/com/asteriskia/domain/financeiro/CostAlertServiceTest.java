@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.asteriskia.domain.call.CallCostService;
 import com.asteriskia.domain.call.MonthlyCostSummary;
+import com.asteriskia.domain.callcenter.kb.CcKbAnswerLogRepository;
 import com.asteriskia.domain.callcenter.nps.CcSurveyResponseRepository;
 import com.asteriskia.domain.insights.InsightMonthlyCostSummary;
 import com.asteriskia.domain.insights.InsightsCostService;
@@ -39,6 +40,7 @@ class CostAlertServiceTest {
     @Mock private CallCostService callCostService;
     @Mock private InsightsCostService insightsCostService;
     @Mock private CcSurveyResponseRepository surveyResponseRepository;
+    @Mock private CcKbAnswerLogRepository kbAnswerLogRepository;
     @Mock private TelegramBotService telegramBotService;
 
     private CostAlertService service;
@@ -46,7 +48,8 @@ class CostAlertServiceTest {
     @BeforeEach
     void setUp() {
         service = new CostAlertService(
-                repository, callCostService, insightsCostService, surveyResponseRepository, telegramBotService);
+                repository, callCostService, insightsCostService, surveyResponseRepository,
+                kbAnswerLogRepository, telegramBotService);
     }
 
     private static FinanceiroCostAlertConfig config(
@@ -140,6 +143,17 @@ class CostAlertServiceTest {
 
         assertThat(view.scope()).isEqualTo("callcenter");
         assertThat(view.currentMonthSpendUsd()).isEqualByComparingTo(BigDecimal.valueOf(2));
+    }
+
+    @Test
+    void getConfig_somaGastoDeCallcenterAutosservicoUsandoAnswerLog() {
+        when(repository.findById("callcenter_autosservico")).thenReturn(Optional.empty());
+        when(kbAnswerLogRepository.sumCostUsdBetween(any(), any())).thenReturn(BigDecimal.valueOf(1.5));
+
+        CostAlertConfigView view = service.getConfig("callcenter_autosservico");
+
+        assertThat(view.scope()).isEqualTo("callcenter_autosservico");
+        assertThat(view.currentMonthSpendUsd()).isEqualByComparingTo(BigDecimal.valueOf(1.5));
     }
 
     @Test

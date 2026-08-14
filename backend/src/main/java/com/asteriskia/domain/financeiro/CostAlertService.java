@@ -3,6 +3,7 @@ package com.asteriskia.domain.financeiro;
 import com.asteriskia.domain.call.CallCostService;
 import com.asteriskia.domain.call.CallRecordFilter;
 import com.asteriskia.domain.call.MonthlyCostSummary;
+import com.asteriskia.domain.callcenter.kb.CcKbAnswerLogRepository;
 import com.asteriskia.domain.callcenter.nps.CcSurveyResponseRepository;
 import com.asteriskia.domain.insights.InsightMonthlyCostSummary;
 import com.asteriskia.domain.insights.InsightsCostFilter;
@@ -39,12 +40,13 @@ public class CostAlertService {
     // novo aqui sem replicar nos outros 2 lugares deixaria a rota nova cair no
     // anyRequest().authenticated() genérico, sem exigir a permissão financeiro.<scope>.
     private static final List<String> SCOPES =
-            List.of("ura", "insights", "envios", "callcenter", "callcenter_nps");
+            List.of("ura", "insights", "envios", "callcenter", "callcenter_nps", "callcenter_autosservico");
 
     private final FinanceiroCostAlertConfigRepository repository;
     private final CallCostService callCostService;
     private final InsightsCostService insightsCostService;
     private final CcSurveyResponseRepository surveyResponseRepository;
+    private final CcKbAnswerLogRepository kbAnswerLogRepository;
     private final TelegramBotService telegramBotService;
 
     @Transactional(readOnly = true)
@@ -109,6 +111,7 @@ public class CostAlertService {
                             new InsightsCostFilter(monthStart, now, null, "callcenter", null)),
                     InsightMonthlyCostSummary::totalCostUsd);
             case "callcenter_nps" -> surveyResponseRepository.sumAiCostUsdBetween(monthStart, now);
+            case "callcenter_autosservico" -> kbAnswerLogRepository.sumCostUsdBetween(monthStart, now);
             default -> throw invalidScope(scope);
         };
     }
@@ -164,6 +167,7 @@ public class CostAlertService {
             case "envios" -> "Análise Sob Demanda";
             case "callcenter" -> "Call Center";
             case "callcenter_nps" -> "Pesquisa de Satisfação (NPS)";
+            case "callcenter_autosservico" -> "Autosserviço (Base de Conhecimento)";
             default -> scope;
         };
     }
