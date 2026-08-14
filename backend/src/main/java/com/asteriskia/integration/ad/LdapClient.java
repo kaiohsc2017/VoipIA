@@ -86,6 +86,15 @@ public class LdapClient {
      * Aceitável para o volume-alvo desta fase; paginação real fica para quando o volume real de
      * usuários no AD for conhecido.
      */
+    // Fase 10 (D1): sem PagedResultsControl, o AD trunca silenciosamente a resposta no seu
+    // limite padrão de política (MaxPageSize, tipicamente 1000) — um resultado exatamente nesse
+    // teto é sinal forte de truncamento (não implementamos paginação nesta fatia, D1 do plano
+    // .claude/plans/callcenter-fase10-seguranca-endurecimento.plan.md; isso é uma pendência
+    // funcional registrada em CLAUDE.md, não uma correção de segurança). Um usuário desabilitado
+    // no AD que caia fora da página devolvida nunca é visto pelo sync — risco real de acesso
+    // retido, daí o aviso explícito em vez de silêncio total.
+    private static final int SUSPECTED_TRUNCATION_THRESHOLD = 1000;
+
     public List<LdapUserAttributes> fetchAll() {
         AdLdapConfig cfg = currentConfig();
         if (!cfg.enabled() || cfg.host().isBlank()) {
@@ -98,7 +107,15 @@ public class LdapClient {
                         .is("user")
                         .and("sAMAccountName")
                         .isPresent();
-        return template.search(query, ATTRIBUTES_MAPPER);
+        List<LdapUserAttributes> result = template.search(query, ATTRIBUTES_MAPPER);
+        if (result.size() >= SUSPECTED_TRUNCATION_THRESHOLD) {
+            log.warn(
+                    "AD fetchAll retornou {} usuários — possível truncamento silencioso pelo limite de página do "
+                            + "servidor (sem PagedResultsControl implementado); usuários fora da página podem não ser "
+                            + "sincronizados, incluindo desabilitações.",
+                    result.size());
+        }
+        return result;
     }
 
     /** Testa uma conexão com parâmetros arbitrários (do body da requisição, não persistidos). */

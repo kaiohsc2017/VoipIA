@@ -39,8 +39,11 @@ public class AriClient {
 
     // Fase 5c: audioPath referencia a biblioteca de áudios (cc_audio_files), mas o valor ainda
     // chega aqui como string livre — allowlist defensiva contra path traversal mesmo com a
-    // resolução por id já feita a montante (PlayAudioNodeHandler/MenuNodeHandler).
-    private static final java.util.regex.Pattern SAFE_MEDIA = java.util.regex.Pattern.compile("^[A-Za-z0-9_:/-]+$");
+    // resolução por id já feita a montante (PlayAudioNodeHandler/MenuNodeHandler). Restrito aos
+    // prefixos que o ARI de fato aceita (sound:/recording:/digits:) e sem path absoluto — Fase 10,
+    // achado H1: a regex anterior aceitava "/etc/passwd" (sem ".."), decorativa contra esse vetor.
+    private static final java.util.regex.Pattern SAFE_MEDIA =
+            java.util.regex.Pattern.compile("^(sound|recording|digits):[A-Za-z0-9_/-]+$");
 
     /** Inicia a reprodução e devolve o {@code playbackId} do ARI (correlacionado por {@link AriPlaybackTracker}). */
     public String play(String channelId, String media) {
@@ -78,7 +81,19 @@ public class AriClient {
         }
     }
 
+    // Fase 10, achado CRITICAL C1: "name" chega de um nó de fluxo editável (definir_variavel,
+    // PERM_WRITE_callcenter.fluxos) — sem allowlist, um nome como "FILE(/etc/asterisk/manager.conf,0,0)"
+    // é repassado ao endpoint ARI /channels/{id}/variable, que o Asterisk interpreta como sintaxe de
+    // função de dialplan (Set()), incluindo funções com capacidade de escrita em arquivo. Só nome de
+    // variável simples é aceito — nunca sintaxe de função (sem parênteses).
+    private static final java.util.regex.Pattern SAFE_VARIABLE_NAME =
+            java.util.regex.Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
+
     public void setChannelVar(String channelId, String name, String value) {
+        if (name == null || !SAFE_VARIABLE_NAME.matcher(name).matches()) {
+            log.warn("AriClient.setChannelVar recusado — nome de variável fora do allowlist: {}", name);
+            return;
+        }
         var uri =
                 UriComponentsBuilder.fromPath("/channels/{id}/variable")
                         .queryParam("variable", name)

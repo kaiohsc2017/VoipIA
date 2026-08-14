@@ -27,6 +27,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class CallCenterAudioController {
 
     private final CallCenterAudioService audioService;
+    private final AudioUploadRateLimiter rateLimiter;
 
     @GetMapping
     public ResponseEntity<List<CcAudioFileDto>> list() {
@@ -38,7 +39,12 @@ public class CallCenterAudioController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(required = false) String name,
             @RequestParam(required = false) Long businessUnitId) {
-        return ResponseEntity.ok(audioService.upload(file, name, businessUnitId, currentUsername()));
+        String username = currentUsername();
+        if (!rateLimiter.allow(username)) {
+            throw new ResponseStatusException(
+                    org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "Muitos uploads — tente novamente em breve.");
+        }
+        return ResponseEntity.ok(audioService.upload(file, name, businessUnitId, username));
     }
 
     /** Pré-escuta no editor — já PCM wav, sem transcodificação (diferente de InsightsController,

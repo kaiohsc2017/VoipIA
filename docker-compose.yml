@@ -446,7 +446,11 @@ services:
         VITE_API_URL:      ${VITE_API_URL:-https://app.voiphash.com.br/api/v1}
         VITE_ASTERISK_WS:  ${VITE_ASTERISK_WS:-wss://app.voiphash.com.br/asterisk-ws}
         VITE_SIP_URI:      ${VITE_SIP_URI:-sip:9001@app.voiphash.com.br}
-        VITE_SIP_PASSWORD: ${VITE_SIP_PASSWORD:-webrtc9001pass}
+        # Fase 10 (endurecimento/segurança): sem default — o antigo "webrtc9001pass" era uma
+        # senha SIP fraca versionada no repositório, embutida silenciosamente no bundle do
+        # frontend em build-time se a variável não estivesse definida no .env real. Build falha
+        # explicitamente em vez disso; produção já define VITE_SIP_PASSWORD em env/.env.
+        VITE_SIP_PASSWORD: ${VITE_SIP_PASSWORD:?defina VITE_SIP_PASSWORD em env/.env antes do build do frontend}
         VITE_STUN_URL:        ${VITE_STUN_URL:-stun:stun.l.google.com:19302}
         VITE_TURN_URL:        ${VITE_TURN_URL:-}
         VITE_TURN_USER:       ${VITE_TURN_USER:-asteriskia}
@@ -462,6 +466,15 @@ services:
     # "nginx" (ver Dockerfile) em vez de root.
     cap_add:
       - NET_BIND_SERVICE
+    # Fase 10 (endurecimento): nginx:1.27-alpine já traz wget — health real (não decorativo,
+    # D5 do plano), mas sem acoplar depends_on de outro serviço a service_healthy deste aqui
+    # (nada depende do frontend ficar saudável para subir).
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     depends_on:
       backend:
         condition: service_healthy
@@ -495,6 +508,18 @@ services:
           cpus: "1.0"
     environment:
       TURN_CREDENTIAL: ${TURN_CREDENTIAL}
+    # Fase 10 (endurecimento, D5): imagem só tem bash (sem curl/wget/nc/turnutils_uclient sem
+    # credencial pré-validada) — em vez de inventar um teste que sempre passa, usa o pseudo-
+    # dispositivo /dev/tcp do bash pra confirmar que o listener TCP 3478 (habilitado por padrão
+    # junto do UDP, listening-port=3478 no turnserver.conf) está de fato aceitando conexão. Não é
+    # validação de protocolo STUN/TURN completa, só prova que o processo está vivo e bound —
+    # suficiente pra distinguir "coturn caiu" de "coturn rodando".
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/3478"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     volumes:
       - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
       - /var/lib/docker/volumes/asteriskia_caddy_data/_data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/app.voiphash.com.br:/etc/coturn/tls:ro
@@ -624,9 +649,19 @@ services:
         limits:
           memory: 256m
           cpus: "0.5"
+    # Fase 10 (endurecimento, D5): healthcheck real para observabilidade — NUNCA acoplar
+    # depends_on de outro serviço a "service_healthy" deste Caddy (regra inegociável nº 1 do
+    # projeto: nunca deixar o Caddy cair sem religar imediatamente; um healthcheck que fique
+    # unhealthy não deve, por si só, impedir nada de subir/continuar rodando).
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     depends_on:
       frontend:
-        condition: service_started   # nginx não tem healthcheck — started é suficiente
+        condition: service_started   # frontend tem healthcheck próprio (D5), mas started já basta aqui
       backend:
         condition: service_healthy
       agents-backend:

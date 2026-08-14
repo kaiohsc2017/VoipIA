@@ -8,6 +8,9 @@ import jakarta.annotation.PreDestroy;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,6 +56,23 @@ public class AriEventListener extends TextWebSocketHandler {
 
     private static final long RECONNECT_DELAY_MS = 5000;
 
+    /** Fase 10, achado HIGH H2: {@code onStasisStart} criava uma thread daemon nova por chamada,
+     * sem cap — N chamadas simultâneas (flood, ou reconexão do listener recriando estado) esgotam
+     * threads/memória do backend antes de qualquer limite de container atuar. Mesmo padrão já
+     * usado em {@code ChatFlowLauncherService} (Fase 24) para o canal de chat — pool limitado,
+     * novas execuções ficam enfileiradas (nunca rejeitadas) até uma thread liberar. Escala da VPS
+     * de dev/homologação; revisitar quando o volume real for dimensionado para servidor dedicado. */
+    private static final int MAX_CONCURRENT_FLOW_EXECUTIONS = 50;
+
+    private final ExecutorService flowExecutor =
+            Executors.newFixedThreadPool(
+                    MAX_CONCURRENT_FLOW_EXECUTIONS,
+                    runnable -> {
+                        var thread = new Thread(runnable, "callcenter-ari-flow");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
+
     private final AriClient ariClient;
     private final AriPlaybackTracker playbackTracker;
     private final AriRecordingTracker recordingTracker;
@@ -79,6 +99,15 @@ public class AriEventListener extends TextWebSocketHandler {
     @PreDestroy
     void stop() {
         running = false;
+        flowExecutor.shutdown();
+        try {
+            if (!flowExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                flowExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            flowExecutor.shutdownNow();
+        }
     }
 
     private void runLoop() {
@@ -177,7 +206,7 @@ public class AriEventListener extends TextWebSocketHandler {
         var channelId = channel.path("id").asText(null);
         var extension = firstArg(event.path("args"));
         if (channelId == null || extension == null) {
-            log.error("StasisStart sem channelId/extension utilizável — payload: {}", event);
+            log.error("StasisStart sem channelId/extension utilizável — payload: {}", redactCaller(event));
             return;
         }
         var context = channel.path("dialplan").path("context").asText(null);
@@ -197,9 +226,7 @@ public class AriEventListener extends TextWebSocketHandler {
                 extension.startsWith(NPS_ARG_PREFIX)
                         ? () -> npsExecutionService.start(channelId, extension.substring(NPS_ARG_PREFIX.length()), driver)
                         : () -> engine.start(channelId, extension, channelId, driver);
-        var thread = new Thread(task, "callcenter-flow-" + channelId);
-        thread.setDaemon(true);
-        thread.start();
+        flowExecutor.submit(task);
     }
 
     private void onRecordingFinished(JsonNode event) {
@@ -240,13 +267,25 @@ public class AriEventListener extends TextWebSocketHandler {
         }
     }
 
-    /** Remove o campo `channel.caller` (número/ANI, tratado como PII no restante do projeto —
-     * ver regras de exibição de ANI do Insights) antes de logar o payload de diagnóstico. */
+    /** Remove os campos `channel.caller`/`channel.connected`/`channel.caller_rdnis` (número/ANI,
+     * tratado como PII no restante do projeto — ver regras de exibição de ANI do Insights) antes
+     * de logar o payload de diagnóstico. Fase 10, achado MEDIUM M1: o log de erro do StasisStart
+     * malformado (payload inesperado, ainda plausível sem tráfego real confirmado) não passava por
+     * esta redação. */
     private JsonNode redactCaller(JsonNode event) {
         var copy = event.deepCopy();
         var channel = copy.path("channel");
-        if (channel.isObject() && channel.has("caller")) {
-            ((com.fasterxml.jackson.databind.node.ObjectNode) channel).put("caller", "***redigido***");
+        if (channel.isObject()) {
+            var channelNode = (com.fasterxml.jackson.databind.node.ObjectNode) channel;
+            if (channel.has("caller")) {
+                channelNode.put("caller", "***redigido***");
+            }
+            if (channel.has("connected")) {
+                channelNode.put("connected", "***redigido***");
+            }
+            if (channel.has("caller_rdnis")) {
+                channelNode.put("caller_rdnis", "***redigido***");
+            }
         }
         return copy;
     }

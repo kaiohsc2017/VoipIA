@@ -121,4 +121,24 @@ class CallCenterAudioServiceTest {
 
         assertThat(service.resolveSoundPath(999L)).isEmpty();
     }
+
+    @Test
+    @DisplayName("Fase 10 — upload rejeitado com 429 quando o semáforo de transcode está saturado")
+    void upload_semaforoSaturado_rejeitaCom429() throws Exception {
+        var semaphore = (java.util.concurrent.Semaphore) ReflectionTestUtils.getField(service, "transcodeSemaphore");
+        semaphore.acquire(semaphore.availablePermits());
+        try {
+            var file = new MockMultipartFile("file", "boas-vindas.wav", "audio/wav", buildMinimalWav());
+
+            assertThatThrownBy(() -> service.upload(file, "teste", null, "kaio"))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .hasMessageContaining("Muitos uploads");
+        } finally {
+            // Devolve os permits que este teste tomou (equivalente ao release() que outro upload
+            // teria feito ao terminar) — sem isso, o próximo teste desta classe herdaria o
+            // semáforo vazio, já que a instância é recriada por teste mas o release do próprio
+            // teste anterior nunca aconteceu.
+            semaphore.release(3);
+        }
+    }
 }

@@ -225,6 +225,21 @@ export default function Sistema() {
           de execução a cada chamada ao LLM. Alterações feitas pelo painel de Config. IA são
           aplicadas imediatamente, sem reiniciar o container.
         </Callout>
+
+        <SubSection title="Call Center — ARI/AD/chat (backend Java, Fase 10)">
+          <Card>
+            <FieldTable
+              headers={['Variável', 'Descrição']}
+              rows={[
+                [<FieldName>AST_ARI_BASE_URL / AST_ARI_USER / AST_ARI_PASSWORD</FieldName>, 'Credencial ARI (mesmo usuário/senha do ari.conf do Asterisk) — sempre em header Basic, nunca na URL.'],
+                [<FieldName>AD_LDAP_ENABLED / AD_LDAP_HOST / AD_LDAP_PORT / AD_LDAP_USE_SSL</FieldName>, 'Conexão com o Active Directory (Fase 1). Desligar SSL permite bind em texto claro na rede — resíduo aceito, documentado na seção de Segurança do Call Center.'],
+                [<FieldName>AD_LDAP_BASE_DN / AD_LDAP_BIND_DN / AD_LDAP_BIND_PASSWORD</FieldName>, 'Credencial de serviço para consulta ao AD — mascarada em GET /settings pelo sufixo _PASSWORD.'],
+                [<FieldName>AD_LOCAL_FALLBACK_ENABLED</FieldName>, 'Permite login local quando o AD está indisponível — nunca sequestra conta espelhada do AD nem burla desativação.'],
+                [<FieldName>INTERNAL_API_KEY</FieldName>, 'Autenticação de /api/v1/internal/** (chamado pelo dialplan via CURL) — nunca visível em log/extensions.conf sem redação.'],
+              ]}
+            />
+          </Card>
+        </SubSection>
       </Section>
     </>
   );

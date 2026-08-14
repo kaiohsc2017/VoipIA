@@ -2,6 +2,7 @@ package com.asteriskia.domain.callcenter.chat;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
@@ -42,11 +43,16 @@ public class PublicCallCenterChatController {
     private final PublicChatRateLimiter rateLimiter;
     private final com.asteriskia.config.JwtService jwtService;
 
-    public record StartSessionRequest(@NotBlank String customerRef, String customerName) {}
+    // Fase 10, achado HIGH H1: sem teto de tamanho, um IP dentro do limite de rate ainda podia
+    // enviar sessões/mensagens com payload gigante — abuso de banco e, quando a sessão está em
+    // modo bot, de custo de IA (text entra no prompt do nó consultar_base).
+    public record StartSessionRequest(
+            @NotBlank @Size(max = 120) String customerRef, @Size(max = 120) String customerName) {}
 
     public record StartSessionResponse(Long sessionId, String token) {}
 
-    public record CustomerMessageRequest(@NotBlank String text, String customerName) {}
+    public record CustomerMessageRequest(
+            @NotBlank @Size(max = 4000) String text, @Size(max = 120) String customerName) {}
 
     @PostMapping("/sessions")
     public StartSessionResponse startSession(@jakarta.validation.Valid @RequestBody StartSessionRequest request,

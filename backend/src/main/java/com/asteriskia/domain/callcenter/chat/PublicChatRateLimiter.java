@@ -3,6 +3,7 @@ package com.asteriskia.domain.callcenter.chat;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -11,6 +12,11 @@ import org.springframework.stereotype.Component;
  * não escala pra múltiplas réplicas do backend (exigiria um contador compartilhado, ex: Redis);
  * aceitável hoje porque o backend roda single-instance nesta VPS (produção real de 200 canais
  * vai para servidor dedicado a dimensionar, decisão já registrada no CLAUDE.md).
+ *
+ * <p>Fase 10, achado MEDIUM M1: a chave (IP do visitante) nunca era removida do mapa mesmo com a
+ * deque esvaziada pela expiração da janela — em ambiente exposto continuamente (scanners/bots com
+ * IPs variados), o número de chaves crescia sem limite até o próximo restart do backend.
+ * {@link #expireStaleBuckets()} varre e remove periodicamente qualquer deque que ficou vazia.
  */
 @Component
 public class PublicChatRateLimiter {
@@ -50,5 +56,29 @@ public class PublicChatRateLimiter {
             }
             return allowed;
         }
+    }
+
+    /** Expurgo periódico (a cada 15min) das chaves cuja janela já esvaziou — evita crescimento
+     * ilimitado de memória por IP único ao longo do uptime. {@code remove(key, window)} com a
+     * referência exata evita apagar uma deque nova criada por outra thread entre a checagem da
+     * janela expirada de {@link #allow} e esta remoção (corrida clássica de remove-then-recreate). */
+    @Scheduled(fixedRate = 15 * 60_000L)
+    void expireStaleBuckets() {
+        expireStale(sessionStartsByIp, SESSION_START_WINDOW_MS);
+        expireStale(messagesBySession, MESSAGE_WINDOW_MS);
+    }
+
+    private <K> void expireStale(ConcurrentHashMap<K, Deque<Long>> buckets, long windowMs) {
+        long now = System.currentTimeMillis();
+        buckets.forEach((key, window) -> {
+            synchronized (window) {
+                while (!window.isEmpty() && now - window.peekFirst() > windowMs) {
+                    window.pollFirst();
+                }
+                if (window.isEmpty()) {
+                    buckets.remove(key, window);
+                }
+            }
+        });
     }
 }

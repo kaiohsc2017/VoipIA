@@ -22,11 +22,13 @@
     var API_BASE = (currentScript && currentScript.dataset.apiBase) || (location.origin + '/api/v1');
     var CUSTOMER_REF_KEY = 'asteriskia_cc_chat_ref';
     var POLL_INTERVAL_MS = 3000;
+    var POLL_MAX_BACKOFF_MS = 30000;
 
     var state = {
         sessionId: null,
         token: null,
         pollTimer: null,
+        pollBackoffMs: POLL_INTERVAL_MS,
         lastMessageCount: 0,
     };
 
@@ -176,22 +178,36 @@
                 if (!res.ok) throw new Error('Falha ao carregar mensagens (' + res.status + ')');
                 return res.json();
             })
-            .then(renderMessages)
+            .then(function (data) {
+                state.pollBackoffMs = POLL_INTERVAL_MS;
+                renderMessages(data);
+            })
             .catch(function () {
-                // Silencioso no polling — não spamma a UI a cada 3s se a rede oscilar;
-                // erros reais de envio já aparecem via sendMessage().
-            });
+                // Fase 10 (achado MEDIUM): sem backoff, uma queda do backend (deploy, restart de
+                // container) mantinha todo widget aberto batendo a cada 3s durante a
+                // indisponibilidade inteira. Dobra o intervalo até um teto, volta ao normal no
+                // próximo sucesso — silencioso na UI (erros reais de envio já aparecem via
+                // sendMessage()).
+                state.pollBackoffMs = Math.min(state.pollBackoffMs * 2, POLL_MAX_BACKOFF_MS);
+            })
+            .then(scheduleNextPoll);
+    }
+
+    function scheduleNextPoll() {
+        if (!state.pollTimer) return; // polling foi parado (stopPolling) enquanto a requisição estava em voo.
+        state.pollTimer = setTimeout(fetchMessages, state.pollBackoffMs);
     }
 
     function startPolling() {
         if (state.pollTimer) return;
+        state.pollBackoffMs = POLL_INTERVAL_MS;
+        state.pollTimer = setTimeout(function () {}, 0); // marca "ativo" antes do primeiro fetch assíncrono.
         fetchMessages();
-        state.pollTimer = setInterval(fetchMessages, POLL_INTERVAL_MS);
     }
 
     function stopPolling() {
         if (state.pollTimer) {
-            clearInterval(state.pollTimer);
+            clearTimeout(state.pollTimer);
             state.pollTimer = null;
         }
     }

@@ -1,4 +1,4 @@
-package com.asteriskia.domain.callcenter;
+package com.asteriskia.domain.callcenter.flow.audio;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -8,54 +8,47 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** Fase 13, D9-A — rate limit de leitura da credencial SIP (10 req/min por usuário). */
-class SipCredentialsRateLimiterTest {
+/** Fase 10 — rate limit de upload da biblioteca de áudios (6 uploads/min por usuário). */
+class AudioUploadRateLimiterTest {
 
     @Test
-    @DisplayName("permite até o limite de requisições por usuário na janela")
+    @DisplayName("permite até o limite de uploads por usuário na janela")
     void allow_upToLimit_returnsTrue() {
-        var limiter = new SipCredentialsRateLimiter();
-
-        for (int i = 0; i < 10; i++) {
+        var limiter = new AudioUploadRateLimiter();
+        for (int i = 0; i < 6; i++) {
             assertThat(limiter.allow("kaio")).isTrue();
         }
     }
 
     @Test
-    @DisplayName("bloqueia a partir da 11ª requisição na mesma janela")
+    @DisplayName("bloqueia a partir do 7º upload na mesma janela")
     void allow_beyondLimit_returnsFalse() {
-        var limiter = new SipCredentialsRateLimiter();
-
-        for (int i = 0; i < 10; i++) {
+        var limiter = new AudioUploadRateLimiter();
+        for (int i = 0; i < 6; i++) {
             limiter.allow("kaio");
         }
-
         assertThat(limiter.allow("kaio")).isFalse();
     }
 
     @Test
-    @DisplayName("cada usuário tem a própria janela — um bloqueado não afeta o outro")
+    @DisplayName("cada usuário tem a própria janela")
     void allow_independentPerUsername() {
-        var limiter = new SipCredentialsRateLimiter();
-
-        for (int i = 0; i < 10; i++) {
+        var limiter = new AudioUploadRateLimiter();
+        for (int i = 0; i < 6; i++) {
             limiter.allow("kaio");
         }
         assertThat(limiter.allow("kaio")).isFalse();
-
         assertThat(limiter.allow("romano")).isTrue();
     }
 
     @Test
-    @DisplayName("Fase 10 — expurgo periódico remove usuário com janela já expirada")
     @SuppressWarnings("unchecked")
     void expireStaleBuckets_removeUsuarioComJanelaExpirada() throws Exception {
-        var limiter = new SipCredentialsRateLimiter();
+        var limiter = new AudioUploadRateLimiter();
         limiter.allow("kaio");
-        var field = SipCredentialsRateLimiter.class.getDeclaredField("requestsByUsername");
+        var field = AudioUploadRateLimiter.class.getDeclaredField("uploadsByUsername");
         field.setAccessible(true);
         var buckets = (Map<String, Deque<Long>>) field.get(limiter);
-        assertThat(buckets).containsKey("kaio");
         Deque<Long> staleWindow = new ArrayDeque<>();
         staleWindow.add(System.currentTimeMillis() - 5 * 60_000L);
         buckets.put("kaio", staleWindow);

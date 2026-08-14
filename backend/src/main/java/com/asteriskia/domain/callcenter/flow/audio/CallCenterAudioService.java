@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Semaphore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +32,15 @@ public class CallCenterAudioService {
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("wav", "mp3", "ogg", "m4a", "gsm", "flac");
     private static final long MAX_FILE_SIZE_BYTES = 20L * 1024 * 1024;
+
+    // Fase 10, achado MEDIUM: cada upload dispara um processo ffmpeg (até 30s) sem limite —
+    // N uploads simultâneos = N processos competindo por CPU no container backend (que também
+    // hospeda o listener ARI/AMI e os schedulers do Call Center). Teto de concorrência, não de
+    // fila — upload que não consegue permit em tempo curto falha explicitamente (429), nunca
+    // enfileira indefinidamente.
+    private static final int MAX_CONCURRENT_TRANSCODES = 3;
+    private static final long TRANSCODE_PERMIT_WAIT_SECONDS = 5;
+    private final Semaphore transcodeSemaphore = new Semaphore(MAX_CONCURRENT_TRANSCODES);
 
     private final CcAudioFileRepository audioFileRepository;
     private final BusinessUnitRepository businessUnitRepository;
@@ -68,9 +78,23 @@ public class CallCenterAudioService {
         if (!finalTarget.startsWith(libraryDir.toPath())) {
             throw new IllegalStateException("Nome de arquivo inválido gerado para o upload.");
         }
+        boolean acquired = false;
         try {
             tempOriginal = Files.createTempFile("cc-audio-upload-", "." + extension);
             file.transferTo(tempOriginal);
+
+            try {
+                acquired = transcodeSemaphore.tryAcquire(TRANSCODE_PERMIT_WAIT_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new ResponseStatusException(
+                        org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "Upload interrompido, tente novamente.");
+            }
+            if (!acquired) {
+                throw new ResponseStatusException(
+                        org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,
+                        "Muitos uploads de áudio em processamento — tente novamente em alguns segundos.");
+            }
 
             boolean converted = transcodeToPcm8kMono(tempOriginal, finalTarget);
             if (!converted) {
@@ -100,6 +124,9 @@ public class CallCenterAudioService {
             deleteQuietly(finalTarget);
             throw new IllegalStateException("Falha ao processar upload de áudio.", e);
         } finally {
+            if (acquired) {
+                transcodeSemaphore.release();
+            }
             if (tempOriginal != null) {
                 deleteQuietly(tempOriginal);
             }

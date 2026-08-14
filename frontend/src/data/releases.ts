@@ -643,4 +643,14 @@ export const RELEASES: ReleaseEntry[] = [
       'Aba "Relatórios" do Call Center ganha 3 novos relatórios: "Gamificação" (ranking de agentes por nota média de satisfação, com volume mínimo de chamadas para entrar no ranking), "Perfil do cliente" (histórico de contatos, top assuntos e nota média de quem mais liga/conversa) e "Produtividade" (login/pausas/logout do agente, volume, e pontos fortes/de melhoria já calculados pela análise de qualidade existente).',
     ],
   },
+  {
+    version: 'v1.72',
+    date: '2026-08-14',
+    changes: [
+      'Endurecimento de segurança do Call Center: corrigido um risco de escrita arbitrária no servidor de telefonia via variável de fluxo, limitado o número de chamadas simultâneas processadas ao mesmo tempo e adicionados limites de tamanho/frequência nas mensagens do chat público e no envio de áudios da biblioteca de fluxos.',
+      'Removida do repositório uma senha padrão fraca do softphone que só valia se o ambiente não tivesse a senha real configurada (produção já estava protegida).',
+      'Monitoramento de saúde adicionado aos containers de frontend, proxy HTTPS e retransmissor de chamadas de vídeo/voz (antes só avisavam problema depois de já estarem fora do ar).',
+      'Nova seção "Call Center" na página de Documentação, cobrindo operação, fluxos, relatórios e o resumo desta revisão de segurança.',
+    ],
+  },
 ];

@@ -1,4 +1,4 @@
-package com.asteriskia.domain.callcenter;
+package com.asteriskia.domain.callcenter.flow.audio;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -7,26 +7,22 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * SipCredentialsRateLimiter — limita quantas vezes por minuto um usuário pode ler a própria
- * credencial SIP ({@code GET /agentes/me/sip-credentials}, Fase 13, D9-A). É uma credencial que
- * circula ao browser sob demanda; auditada a cada leitura, mas ainda vale limitar o ritmo — mesmo
- * padrão em memória de {@code PublicChatRateLimiter} (Fase 7b), aceitável na escala desta VPS
- * single-instance.
- *
- * <p>Fase 10, achado LOW: chave é username de conta real (bounded pelo número de contas, não por
- * atacante externo), mas o mesmo expurgo periódico de {@code PublicChatRateLimiter} é aplicado
- * aqui por paridade de padrão.
+ * AudioUploadRateLimiter — limita quantos uploads por minuto um usuário pode enviar à biblioteca
+ * de áudios do Flow Builder (Fase 5c). Upload é a operação mais cara em CPU/IO da API autenticada
+ * do módulo (dispara um processo {@code ffmpeg}) — mesmo padrão em memória já usado por
+ * {@code SipCredentialsRateLimiter}/{@code PublicChatRateLimiter}, aceitável na escala desta VPS
+ * single-instance. Fase 10, achado MEDIUM (upload sem rate limit, ausência de teto de frequência).
  */
 @Component
-public class SipCredentialsRateLimiter {
+public class AudioUploadRateLimiter {
 
-    private static final int LIMIT = 10;
+    private static final int LIMIT = 6;
     private static final long WINDOW_MS = 60_000L;
 
-    private final ConcurrentHashMap<String, Deque<Long>> requestsByUsername = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Deque<Long>> uploadsByUsername = new ConcurrentHashMap<>();
 
     public boolean allow(String username) {
-        Deque<Long> window = requestsByUsername.computeIfAbsent(username, k -> new ArrayDeque<>());
+        Deque<Long> window = uploadsByUsername.computeIfAbsent(username, k -> new ArrayDeque<>());
         synchronized (window) {
             long now = System.currentTimeMillis();
             while (!window.isEmpty() && now - window.peekFirst() > WINDOW_MS) {
@@ -43,13 +39,13 @@ public class SipCredentialsRateLimiter {
     @Scheduled(fixedRate = 15 * 60_000L)
     void expireStaleBuckets() {
         long now = System.currentTimeMillis();
-        requestsByUsername.forEach((key, window) -> {
+        uploadsByUsername.forEach((key, window) -> {
             synchronized (window) {
                 while (!window.isEmpty() && now - window.peekFirst() > WINDOW_MS) {
                     window.pollFirst();
                 }
                 if (window.isEmpty()) {
-                    requestsByUsername.remove(key, window);
+                    uploadsByUsername.remove(key, window);
                 }
             }
         });

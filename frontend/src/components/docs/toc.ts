@@ -41,6 +41,16 @@ export const TOC: TocGroup[] = [
     ],
   },
   {
+    label: 'Call Center',
+    items: [
+      { id: 'callcenter-visao-geral', label: 'Visão Geral do Módulo' },
+      { id: 'callcenter-operacao', label: 'Operação — Agentes e Filas' },
+      { id: 'callcenter-fluxos', label: 'Flow Builder — Voz e Chat' },
+      { id: 'callcenter-relatorios', label: 'Relatórios e Insights' },
+      { id: 'callcenter-seguranca', label: 'Segurança e Endurecimento' },
+    ],
+  },
+  {
     label: 'Agentes',
     items: [
       { id: 'agentes-visao-geral', label: 'Visão Geral' },
