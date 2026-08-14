@@ -703,4 +703,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Chat do Call Center ganha limite de chats simultâneos por agente: configurável na fila (vale para quem não tem valor próprio) e no cadastro do agente (sempre prevalece quando definido). Um agente em ligação de voz continua nunca recebendo um chat novo.',
     ],
   },
+  {
+    version: 'v1.80',
+    date: '2026-08-14',
+    changes: [
+      'Chat do Call Center passa a aceitar anexos, nos dois sentidos (agente e cliente): extensões permitidas são cadastradas uma a uma pelo administrador, cada canal define uma cota de armazenamento por pessoa e por quantos dias o arquivo fica guardado.',
+    ],
+  },
 ];
