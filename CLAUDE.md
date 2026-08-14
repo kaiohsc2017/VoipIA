@@ -458,15 +458,22 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    já disponível desde a V69 da Fase 25) só entra depois que a Fase 10 medir custo real de 30
 >    dias de operação e produzir a recomendação de hardware — nenhuma das duas ainda aconteceu.
 > 2. **Plano-mãe do Call Center, fases nunca concluídas**: Fase 1/AD (dados reais do DC, paginação
->    do `fetchAll()`, `employee_id` não espelhado); Fase 5 (sub-fases 5d simulador, 5e horário/
->    transbordo, 5f skill+traço na UI; 7 nós do catálogo ainda bloqueados); Fase 7/Chat
->    (`CALLCENTER_CHAT_PUBLIC_QUEUE_ID` sem fila real, widget nunca validado numa página real,
->    WhatsApp/Telegram sem credenciais, blending, anexos); Fase 9 (o que ficou fora da 9c: agregado
->    de fluxo/URA, timeline omnicanal, exportação Excel/PDF, agendamento, rechamada 24h/7d,
->    aderência à escala); Fase 10 (teste de carga SIPp, ver item 1 acima); Fase 14 (screen pop,
->    bloqueada pela Fase 1); Fase 16 (copiloto de IA, depende da 14); Fase 17 ✅ (co-browsing,
->    deployada em 2026-08-14); Fase 18 (IA local, roadmap concluído — sem código pendente, ver
->    item 1 acima).
+>    do `fetchAll()`, `employee_id` não espelhado); **Fase 5 ✅ concluída em 2026-08-14** (5d
+>    simulador v1.74, 5e.1 horário/feriados v1.75, 5e.2 transbordo+`transferir_ramal` v1.76, 5f.1
+>    skill v1.77, 5f.2 tela de traço v1.78 — ver
+>    `.claude/plans/callcenter-fases-5-7-9.plan.md` §2 para o detalhe de cada fatia; dos 7 nós do
+>    catálogo antes bloqueados, `horario_funcionamento`/`transferir_ramal` foram desbloqueados por
+>    esta fase e `pausar_gravacao`/`pesquisa_satisfacao` já estavam implementados desde as Fases
+>    5c/21 — restam só `agente_ia` [Fase 16], `coletar_entrada` [depende de STT no ARI/Fase 14] e
+>    `consultar_api` [SSRF é escopo da Fase 10]); Fase 7/Chat — 7c blending ✅, 7d anexos ✅, 7e
+>    Telegram ✅ (todas 2026-08-14, ver `asteriskia_callcenter_fase7e_telegram.md` e o mesmo plano
+>    acima) — restam `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` sem fila real, widget nunca validado numa
+>    página real, WhatsApp sem credenciais; Fase 9 (o que ficou fora da 9c: agregado de fluxo/URA,
+>    agregado de chat, timeline omnicanal, exportação Excel/PDF, agendamento, rechamada 24h/7d,
+>    aderência à escala — próximos itens do mesmo plano `callcenter-fases-5-7-9.plan.md`, seção
+>    9c.1-9c.7); Fase 10 (teste de carga SIPp, ver item 1 acima); Fase 14 (screen pop, bloqueada
+>    pela Fase 1); Fase 16 (copiloto de IA, depende da 14); Fase 17 ✅ (co-browsing, deployada em
+>    2026-08-14); Fase 18 (IA local, roadmap concluído — sem código pendente, ver item 1 acima).
 > 3. **Maior incerteza aberta do projeto inteiro**: nenhuma chamada real de voz atravessou uma
 >    fila do Call Center ainda — todo o motor ARI/Stasis/AMI foi validado só com mocks/curl;
 >    eventos AMI de canal da Fase 23 nunca confirmados com tráfego real.
