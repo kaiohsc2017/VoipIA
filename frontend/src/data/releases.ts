@@ -621,4 +621,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Custo de IA da base de conhecimento aparece na aba própria do Financeiro, com alerta de gasto mensal configurável desde o primeiro dia.',
     ],
   },
+  {
+    version: 'v1.69',
+    date: '2026-08-14',
+    changes: [
+      'Aba "Relatórios" do Call Center ganha um relatório de chamada e de chat, linha a linha: fila, agente, tempo de espera, nota de satisfação, fluxo/opção escolhida na URA e categoria/sentimento da transcrição — com filtro por período, fila, agente, nota, tempo de espera, opção escolhida e trecho da transcrição.',
+    ],
+  },
 ];

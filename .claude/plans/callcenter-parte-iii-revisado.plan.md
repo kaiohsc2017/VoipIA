@@ -757,7 +757,7 @@ registrada.
 
 ---
 
-### FASE 9c (ampliada) — Relatório analítico de chamada e de chat
+### FASE 9c (ampliada) — Relatório analítico de chamada e de chat — ✅ **implementada, testada, revisada e deployada (2026-08-14)**
 Escopo do plano-mãe, com as colunas e filtros exatos do `add.txt`:
 
 - **Chamada**: início/fim · URA · fluxo · número do cliente · opções escolhidas · tempo em fila ·
@@ -769,6 +769,26 @@ Escopo do plano-mãe, com as colunas e filtros exatos do `add.txt`:
   - A busca por trecho reusa o índice full-text `tsvector`+GIN da V35 — **já existe**, não é
     trabalho novo.
 - **Chat**: mesmas colunas aplicáveis + gravação de co-browsing quando houver (Fase 17).
+
+**Entregue** (`GET /api/v1/callcenter/reports/calls` e `/chats`, RBAC `callcenter.reports`,
+nova sub-view "Chamada (detalhe)"/"Chat (detalhe)" na aba Relatórios já existente): reusa a
+busca full-text de transcrição (Fase 8/V35), o link de áudio já persistido (Fase 3/8) e o traço
+de execução de fluxo (Fase 5b) só como leitura — "opção escolhida" resolvida pelo `sourceHandle`
+real da aresta no grafo da versão publicada, nunca por heurística sobre o id. Sem migration
+nova. Chat sem NPS (pesquisa de satisfação não liga a `chat_session` hoje) nem trecho de
+transcrição (sem índice full-text) — gaps aceitos, documentados no código. Gap de escopo por BU
+também documentado (mesmo padrão já aceito no Insights do Call Center, Fase 8). Co-browsing
+(Fase 17) fica para quando aquela fase existir.
+- 2 achados reais corrigidos (`ecc:security-reviewer` + `ecc:java-reviewer` + `ecc:react-reviewer`
+  em paralelo): HIGH — cache de grafo de fluxo recriado por linha em vez de por página (nunca
+  cacheava de verdade); MEDIUM — endpoints sem teto de tamanho de página; MEDIUM — condição de
+  corrida entre buscas concorrentes no frontend (resposta antiga podia sobrescrever uma mais
+  nova). Todos corrigidos antes do deploy.
+- Suíte completa do backend 605/605 verde (11 novos testes, 0 regressão). `tsc --noEmit` e
+  `npm run build` do `callcenter-platform/frontend` limpos.
+- Deployado (`docker compose up -d --build backend frontend`) e validado em produção via curl
+  com JWT forjado: `/calls` e `/chats` retornam 200 (vazio — sem interações reais nesta VPS de
+  dev) para ADMIN, 403 sem token. Release notes `v1.69` registrada.
 
 ---
 
