@@ -69,10 +69,34 @@ public class CcChatService {
         if (channel.getDefaultQueue() == null) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Canal de chat sem fila padrão configurada.");
         }
-        return startSession(channel, channel.getDefaultQueue(), customerRef, customerName);
+        return startSession(channel, channel.getDefaultQueue(), customerRef, customerName, null);
+    }
+
+    /** Fase 7e — sessão criada a partir de um chat_id de um canal externo (Telegram, D2 — long
+     * polling nunca webhook). {@code externalRef} é o chat_id em si; {@code customerRef} vira
+     * {@code "<type>-<externalRef>"} (mesma família de chave estável já usada em
+     * {@code "cliente-<customerRef>"} pra uploader de anexos). Reusa o MESMO {@code startSession}
+     * — nenhuma lógica de roteamento/bot duplicada entre webchat e Telegram (a premissa "um flow
+     * engine, agnóstico de canal" da Fase 24 se prova de novo aqui). */
+    @Transactional
+    public CcChatSession startExternalSession(String channelCode, String externalRef, String customerName) {
+        if (externalRef == null || externalRef.isBlank()) {
+            throw new IllegalArgumentException("externalRef é obrigatório.");
+        }
+        CcChatChannel channel = channelRepository.findByCodeAndActiveTrue(channelCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Canal de chat inválido ou inativo: " + channelCode));
+        if (channel.getDefaultQueue() == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Canal de chat sem fila padrão configurada.");
+        }
+        String customerRef = channel.getType() + "-" + externalRef;
+        return startSession(channel, channel.getDefaultQueue(), customerRef, customerName, externalRef);
     }
 
     private CcChatSession startSession(CcChatChannel channel, CcQueue queue, String customerRef, String customerName) {
+        return startSession(channel, queue, customerRef, customerName, null);
+    }
+
+    private CcChatSession startSession(CcChatChannel channel, CcQueue queue, String customerRef, String customerName, String externalRef) {
         if (customerRef == null || customerRef.isBlank()) {
             throw new IllegalArgumentException("customerRef é obrigatório.");
         }
@@ -84,6 +108,7 @@ public class CcChatService {
                 .businessUnit(queue.getBusinessUnit())
                 .customerRef(customerRef)
                 .customerName(customerName)
+                .externalRef(externalRef)
                 .status(hasBotFlow ? "bot" : "waiting")
                 .startedAt(LocalDateTime.now())
                 .build());
@@ -201,6 +226,10 @@ public class CcChatService {
             // Sem custo se ninguém estiver ouvindo — o listener (Fase 24) só age quando há um
             // ChatChannelDriver registrado para esta sessão (bot em execução).
             eventPublisher.publishEvent(new ChatCustomerMessageReceivedEvent(sessionId, body));
+        } else {
+            // Agente/sistema respondendo — Fase 7e: sem custo para webchat (sem listener
+            // interessado), mas é o que entrega a resposta de volta ao cliente no Telegram.
+            eventPublisher.publishEvent(new ChatAgentMessageSentEvent(sessionId, body));
         }
         return message;
     }
@@ -230,6 +259,7 @@ public class CcChatService {
                 .body(body)
                 .build());
         messagingTemplate.convertAndSend("/topic/callcenter/chat/session/" + sessionId, toView(session));
+        eventPublisher.publishEvent(new ChatAgentMessageSentEvent(sessionId, body));
         return message;
     }
 

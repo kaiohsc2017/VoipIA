@@ -2,11 +2,17 @@ package com.asteriskia.domain.callcenter.chat;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public interface CcChatSessionRepository extends JpaRepository<CcChatSession, Long> {
+
+    /** Fase 7e — sessão aberta (não encerrada) para um chat_id do Telegram num canal específico
+     * (mesma restrição do índice único parcial da V79: {@code channel_id, external_ref WHERE
+     * closed_at IS NULL}). */
+    Optional<CcChatSession> findByChannelIdAndExternalRefAndClosedAtIsNull(Long channelId, String externalRef);
 
     List<CcChatSession> findByQueueIdAndStatusOrderByStartedAtAsc(Long queueId, String status);
 

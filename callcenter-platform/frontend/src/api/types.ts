@@ -872,6 +872,8 @@ export interface ChatChannelView {
   /** Fase 7d — cota total (bytes) e retenção (dias) de anexos por uploader neste canal. */
   attachmentQuotaBytes: number;
   attachmentRetentionDays: number;
+  /** Fase 7e — só a referência (chave no .env), nunca o valor do token do bot Telegram. */
+  telegramBotTokenRef?: string;
 }
 
 export interface ChatChannelRequest {
@@ -885,6 +887,7 @@ export interface ChatChannelRequest {
   active?: boolean;
   attachmentQuotaBytes?: number | null;
   attachmentRetentionDays?: number | null;
+  telegramBotTokenRef?: string | null;
 }
 
 // Anexos no chat (Fase 7d) — GET/POST /callcenter/chat/{sessionId}/attachments,

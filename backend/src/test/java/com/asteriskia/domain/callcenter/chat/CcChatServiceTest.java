@@ -478,4 +478,75 @@ class CcChatServiceTest {
         verify(eventPublisher).publishEvent(captor.capture());
         assertThat(captor.getValue().sessionId()).isEqualTo(5L);
     }
+
+    // --- Fase 7e: Telegram (long polling) ---
+
+    @Test
+    @DisplayName("startExternalSession cria sessão com externalRef=chatId e customerRef derivado do tipo do canal")
+    void startExternalSession_createsSessionWithExternalRef() {
+        CcChatChannel channel = CcChatChannel.builder()
+                .id(1L).code("tg").type("telegram").active(true).defaultQueue(queueOf(10L)).build();
+        when(channelRepository.findByCodeAndActiveTrue("tg")).thenReturn(Optional.of(channel));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        CcChatSession result = service.startExternalSession("tg", "555111", "Cliente Telegram");
+
+        assertThat(result.getExternalRef()).isEqualTo("555111");
+        assertThat(result.getCustomerRef()).isEqualTo("telegram-555111");
+        assertThat(result.getStatus()).isEqualTo("waiting");
+    }
+
+    @Test
+    @DisplayName("startExternalSession sem fila padrão responde 503, nunca 500")
+    void startExternalSession_withoutDefaultQueue_throws503() {
+        CcChatChannel channel = CcChatChannel.builder().id(1L).code("tg").type("telegram").active(true).build();
+        when(channelRepository.findByCodeAndActiveTrue("tg")).thenReturn(Optional.of(channel));
+
+        assertThatThrownBy(() -> service.startExternalSession("tg", "555111", "Cliente"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("fila padrão");
+
+        verify(sessionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("startExternalSession rejeita externalRef vazio")
+    void startExternalSession_blankExternalRef_throws() {
+        assertThatThrownBy(() -> service.startExternalSession("tg", "  ", "Cliente"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verify(channelRepository, never()).findByCodeAndActiveTrue(anyString());
+    }
+
+    @Test
+    @DisplayName("postMessage de agente publica ChatAgentMessageSentEvent (entrega Telegram, sem custo pro webchat)")
+    void postMessage_agent_publishesAgentMessageSentEvent() {
+        CcAgent agent = agentOf(1L);
+        CcChatSession session = sessionOf(5L, "active", agent);
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        when(agentStateService.currentAgent()).thenReturn(agent);
+        when(messageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("joao", null));
+
+        service.postMessage(5L, "agent", null, "Como posso ajudar?");
+
+        ArgumentCaptor<ChatAgentMessageSentEvent> captor = ArgumentCaptor.forClass(ChatAgentMessageSentEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().sessionId()).isEqualTo(5L);
+        assertThat(captor.getValue().body()).isEqualTo("Como posso ajudar?");
+    }
+
+    @Test
+    @DisplayName("postBotMessage publica ChatAgentMessageSentEvent (entrega Telegram da resposta do fluxo)")
+    void postBotMessage_publishesAgentMessageSentEvent() {
+        CcChatSession session = sessionOf(5L, "bot", null);
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        when(messageRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.postBotMessage(5L, "Olá!");
+
+        ArgumentCaptor<ChatAgentMessageSentEvent> captor = ArgumentCaptor.forClass(ChatAgentMessageSentEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().body()).isEqualTo("Olá!");
+    }
 }

@@ -14,7 +14,11 @@ public record ChatChannelView(
         String awayMessage,
         Boolean active,
         Long attachmentQuotaBytes,
-        Integer attachmentRetentionDays) {
+        Integer attachmentRetentionDays,
+        /** Fase 7e — só a referência (chave), nunca o valor do token — mesmo princípio de
+         * mascaramento já usado em {@code GET /settings} para chaves terminadas em
+         * {@code _TOKEN}/{@code _CREDENTIAL}. */
+        String telegramBotTokenRef) {
 
     public static ChatChannelView from(CcChatChannel channel) {
         return new ChatChannelView(
@@ -30,6 +34,7 @@ public record ChatChannelView(
                 channel.getAwayMessage(),
                 channel.getActive(),
                 channel.getAttachmentQuotaBytes(),
-                channel.getAttachmentRetentionDays());
+                channel.getAttachmentRetentionDays(),
+                channel.getTelegramBotTokenRef());
     }
 }

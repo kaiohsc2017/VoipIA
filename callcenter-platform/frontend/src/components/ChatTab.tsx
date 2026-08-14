@@ -100,6 +100,7 @@ export function ChatTab({ isAdmin }: ChatTabProps) {
           defaultQueueId: channel.defaultQueueId ?? null, botFlowId: channel.botFlowId ?? null,
           greetingMessage: channel.greetingMessage ?? '', awayMessage: channel.awayMessage ?? '', active: channel.active,
           attachmentQuotaBytes: channel.attachmentQuotaBytes, attachmentRetentionDays: channel.attachmentRetentionDays,
+          telegramBotTokenRef: channel.telegramBotTokenRef ?? '',
         }
       : { code: '', displayName: '', type: 'webchat', active: true });
   };
@@ -378,6 +379,11 @@ export function ChatTab({ isAdmin }: ChatTabProps) {
               <input className="form-input" style={{ width: 200 }} placeholder="Nome de exibição"
                 aria-label="Nome de exibição do canal"
                 value={channelForm.displayName} onChange={e => setChannelForm({ ...channelForm, displayName: e.target.value })} />
+              <select className="form-input" style={{ width: 140 }} aria-label="Tipo do canal" value={channelForm.type ?? 'webchat'}
+                onChange={e => setChannelForm({ ...channelForm, type: e.target.value })}>
+                <option value="webchat">Webchat</option>
+                <option value="telegram">Telegram</option>
+              </select>
               <select className="form-input" style={{ width: 200 }} aria-label="Fila padrão do canal" value={channelForm.defaultQueueId ?? ''}
                 onChange={e => setChannelForm({ ...channelForm, defaultQueueId: e.target.value ? Number(e.target.value) : null })}>
                 <option value="">— Fila padrão —</option>
@@ -398,6 +404,12 @@ export function ChatTab({ isAdmin }: ChatTabProps) {
                 aria-label="Mensagem de ausência do canal"
                 value={channelForm.awayMessage ?? ''}
                 onChange={e => setChannelForm({ ...channelForm, awayMessage: e.target.value })} />
+              {channelForm.type === 'telegram' && (
+                <input className="form-input" style={{ width: '100%' }} placeholder="Referência do token no .env (ex: CALLCENTER_TELEGRAM_BOT_TOKEN) — nunca o token em si"
+                  aria-label="Referência do token do bot Telegram"
+                  value={channelForm.telegramBotTokenRef ?? ''}
+                  onChange={e => setChannelForm({ ...channelForm, telegramBotTokenRef: e.target.value })} />
+              )}
               <div className="flex items-center" style={{ gap: 8, width: '100%', marginTop: 4 }}>
                 <label htmlFor="chat-attachment-quota" style={{ fontSize: '.8rem' }}>Cota de anexos por usuário (MB)</label>
                 <input id="chat-attachment-quota" type="number" min={1} className="form-input" style={{ width: 100 }}

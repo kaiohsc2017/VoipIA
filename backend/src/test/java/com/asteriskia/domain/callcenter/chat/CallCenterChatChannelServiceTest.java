@@ -43,7 +43,7 @@ class CallCenterChatChannelServiceTest {
                 .thenReturn(Optional.of(CcChatChannel.builder().id(1L).code("webchat").build()));
 
         assertThatThrownBy(() -> service.create(
-                        new ChatChannelRequest("webchat", "Site", "webchat", null, null, null, null, true, null, null)))
+                        new ChatChannelRequest("webchat", "Site", "webchat", null, null, null, null, true, null, null, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Já existe");
 
@@ -61,7 +61,7 @@ class CallCenterChatChannelServiceTest {
         when(flowRepository.findById(20L)).thenReturn(Optional.of(flow));
         when(channelRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var result = service.create(new ChatChannelRequest("webchat", "Site", "webchat", 10L, 20L, "Olá!", null, true, null, null));
+        var result = service.create(new ChatChannelRequest("webchat", "Site", "webchat", 10L, 20L, "Olá!", null, true, null, null, null));
 
         assertThat(result.getDefaultQueue()).isEqualTo(queue);
         assertThat(result.getBotFlow()).isEqualTo(flow);
@@ -74,11 +74,69 @@ class CallCenterChatChannelServiceTest {
         when(channelRepository.findByCodeAndActiveTrue("webchat")).thenReturn(Optional.empty());
         when(channelRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var result = service.create(new ChatChannelRequest("webchat", "Site", null, null, null, null, null, null, null, null));
+        var result = service.create(new ChatChannelRequest("webchat", "Site", null, null, null, null, null, null, null, null, null));
 
         assertThat(result.getDefaultQueue()).isNull();
         assertThat(result.getBotFlow()).isNull();
         assertThat(result.getType()).isEqualTo("webchat");
         assertThat(result.getActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("create canal telegram exige telegramBotTokenRef")
+    void create_telegramWithoutTokenRef_throws() {
+        when(channelRepository.findByCodeAndActiveTrue("tg")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.create(
+                        new ChatChannelRequest("tg", "Telegram", "telegram", null, null, null, null, true, null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("telegramBotTokenRef");
+
+        verify(channelRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("create canal telegram rejeita telegramBotTokenRef fora do padrão (achado CRITICAL — nunca aceitar chave arbitrária do .env)")
+    void create_telegramWithArbitraryEnvKeyAsTokenRef_throws() {
+        when(channelRepository.findByCodeAndActiveTrue("tg")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.create(new ChatChannelRequest(
+                        "tg", "Telegram", "telegram", null, null, null, null, true, null, null, "POSTGRES_PASSWORD")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("telegramBotTokenRef");
+        assertThatThrownBy(() -> service.create(new ChatChannelRequest(
+                        "tg2", "Telegram", "telegram", null, null, null, null, true, null, null, "BACKEND_JWT_SECRET")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.create(new ChatChannelRequest(
+                        "tg3", "Telegram", "telegram", null, null, null, null, true, null, null, "INTERNAL_API_KEY")))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verify(channelRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("create canal telegram aceita telegramBotTokenRef com sufixo (multi-bot futuro), sempre prefixado CALLCENTER_TELEGRAM_BOT_TOKEN")
+    void create_telegramWithSuffixedTokenRef_allowed() {
+        when(channelRepository.findByCodeAndActiveTrue("tg")).thenReturn(Optional.empty());
+        when(channelRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = service.create(new ChatChannelRequest(
+                "tg", "Telegram", "telegram", null, null, null, null, true, null, null,
+                "CALLCENTER_TELEGRAM_BOT_TOKEN_VENDAS"));
+
+        assertThat(result.getTelegramBotTokenRef()).isEqualTo("CALLCENTER_TELEGRAM_BOT_TOKEN_VENDAS");
+    }
+
+    @Test
+    @DisplayName("create canal telegram com telegramBotTokenRef nunca expõe o valor do token, só a referência")
+    void create_telegramWithTokenRef_storesOnlyReference() {
+        when(channelRepository.findByCodeAndActiveTrue("tg")).thenReturn(Optional.empty());
+        when(channelRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = service.create(new ChatChannelRequest(
+                "tg", "Telegram", "telegram", null, null, null, null, true, null, null, "CALLCENTER_TELEGRAM_BOT_TOKEN"));
+
+        assertThat(result.getTelegramBotTokenRef()).isEqualTo("CALLCENTER_TELEGRAM_BOT_TOKEN");
+        assertThat(ChatChannelView.from(result).telegramBotTokenRef()).isEqualTo("CALLCENTER_TELEGRAM_BOT_TOKEN");
     }
 }

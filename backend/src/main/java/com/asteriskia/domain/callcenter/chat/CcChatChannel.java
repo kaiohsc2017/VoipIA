@@ -82,6 +82,14 @@ public class CcChatChannel {
     @Column(name = "attachment_retention_days", nullable = false)
     private Integer attachmentRetentionDays = 10;
 
+    /** Fase 7e (D1/D2) — referência (chave) para o token do bot Telegram gerenciado por
+     * {@code SettingsService}/{@code EnvFileStore} (ex.: {@code CALLCENTER_TELEGRAM_BOT_TOKEN}).
+     * NUNCA o valor real do token — só a chave que localiza o segredo no .env, mascarado em
+     * {@code GET /settings} pelo sufixo {@code _TOKEN}/{@code _CREDENTIAL}. Só usado quando
+     * {@link #type} == {@code "telegram"}. */
+    @Column(name = "telegram_bot_token_ref", length = 100)
+    private String telegramBotTokenRef;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

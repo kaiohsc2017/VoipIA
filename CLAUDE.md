@@ -475,6 +475,79 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    filtram por BU); Jira sem credenciais reais; atribuir grupo de acesso customizado a um
 >    usuário pela UI ainda não existe (só ADMIN/USER binário).
 
+### ✅ Fase 7e do plano `.claude/plans/callcenter-fases-5-7-9.plan.md` — Telegram (long polling) (2026-08-14) — deployada e validada em produção
+Último item da release 14 (7c blending + 7d anexos + 7e Telegram), fecha o canal de chat com uma
+segunda prova real da premissa "um flow engine, agnóstico de canal" (a primeira foi a Fase 24,
+webchat vs. bot): o Telegram passa a ser só mais um `CcChatChannel` — o mesmo `CcChatService`, o
+mesmo `ChatChannelDriver`, o mesmo motor de fluxo, sem nenhuma lógica de bot duplicada.
+- **D2 confirmada: long polling, nunca webhook.** `TelegramLongPollingClient` (`@Scheduled`,
+  padrão estrutural de `ChatAttachmentRetentionScheduler`/`CostAlertScheduler` — erro num canal
+  nunca derruba o scheduler nem afeta os demais) chama `getUpdates` com offset incremental. Nenhuma
+  rota pública nova — o backend só chama para fora, a rede corporativa não precisa aceitar nada.
+  Migration **V79**: `cc_chat_channels.telegram_bot_token_ref` (referência ao token, nunca o valor
+  em texto puro — mesmo padrão `_TOKEN`/`_CREDENTIAL` mascarado em `GET /settings`, resolvido em
+  runtime via `EnvFileStore.readRaw()`), `cc_chat_sessions.external_ref` (chat_id do Telegram) +
+  índice único parcial `(channel_id, external_ref) WHERE closed_at IS NULL` (nunca duas sessões
+  simultâneas abertas pro mesmo chat_id), `cc_telegram_poll_state` (offset por canal, sobrevive a
+  restart sem reprocessar updates antigos).
+- **Token nunca vaza em log/exceção.** A própria API do Telegram exige o token no path da URL (sem
+  alternativa de header oficial) — `TelegramApiClient` só loga `e.getClass().getSimpleName()` em
+  qualquer falha HTTP, nunca `e.getMessage()` nem a URI da requisição (mesma disciplina já usada
+  para a API key do Gemini em `CallCenterNpsTranscriptionScheduler`/`llm.py`). Testado com
+  `ListAppender` do Logback forçando um erro HTTP com o token embutido na mensagem simulada e
+  confirmando que nenhum evento de log emitido o contém.
+- **Idempotência por `update_id`, defensiva além do offset do Telegram**: mensagem nova de um
+  chat_id sem sessão aberta cria uma `cc_chat_session` via `CcChatService.startExternalSession`
+  (novo método, `customerRef = "<tipo-do-canal>-<chatId>"`, reusa o mesmo `startSession` privado —
+  publica `ChatBotSessionStartedEvent` normalmente se o canal tiver fluxo de bot); mensagem de um
+  chat_id já em conversa reusa a sessão (`CcChatSessionRepository.findByChannelIdAndExternalRefAndClosedAtIsNull`)
+  e chama o mesmo `CcChatService.postMessage("customer", ...)` do webchat.
+- **Entrega de volta ao Telegram**: novo evento `ChatAgentMessageSentEvent`, publicado por
+  `CcChatService.postMessage` (agente/sistema) e `postBotMessage` (motor de fluxo) — sem custo
+  para sessões webchat (nenhum listener interessado, mesmo padrão de
+  `ChatCustomerMessageReceivedEvent`); `TelegramLongPollingClient` ouve o evento e, só quando a
+  sessão pertence a um canal Telegram com `externalRef` preenchido, chama `sendMessage`.
+- CRUD de canal (`CallCenterChatChannelController`/`Service`, RBAC herdado — mesmo
+  `callcenter.chat` de sempre, nenhum resource novo): canal `telegram` exige
+  `telegramBotTokenRef` na criação/edição (400 claro, nunca 500); a leitura (`ChatChannelView`)
+  devolve só a referência, nunca resolve/expõe o valor real do token. Frontend
+  (`callcenter-platform/frontend`, `ChatTab.tsx`) ganhou um seletor de tipo de canal
+  (Webchat/Telegram) e, condicionalmente, o campo de referência do token.
+- **3 achados reais corrigidos antes do deploy** (`ecc:security-reviewer` + `ecc:java-reviewer`,
+  em paralelo): (1) **CRITICAL** — `telegramBotTokenRef` só era validado como "não vazio", sem
+  allowlist de padrão: qualquer usuário com só `PERM_WRITE_callcenter.chat` (nível de confiança bem
+  menor que `telecom.settings`) podia apontar a referência para QUALQUER chave do `.env`
+  (`POSTGRES_PASSWORD`, `BACKEND_JWT_SECRET`, `INTERNAL_API_KEY`...) e o
+  `TelegramLongPollingClient` resolveria e vazaria esse segredo pra um servidor externo (Telegram)
+  a cada ciclo de polling — corrigido com uma allowlist por padrão
+  (`^CALLCENTER_TELEGRAM_BOT_TOKEN(_[A-Z0-9_]+)?$`) validada em duas camadas: na escrita
+  (`CallCenterChatChannelService`) e de novo na leitura (`TelegramLongPollingClient.resolveToken`,
+  defesa em profundidade contra uma linha que tenha chegado ao banco por outra via); (2) **HIGH**
+  — `onAgentMessageSent` era um `@EventListener` comum, disparado ainda dentro da transação de
+  `CcChatService#postMessage`/`postBotMessage` — a chamada HTTP bloqueante ao Telegram (até 15s)
+  prendia uma conexão do pool fazendo puro I/O de rede, mesma classe de achado já corrigida antes
+  neste projeto (Fase 21 NPS) — corrigido virando `@TransactionalEventListener(AFTER_COMMIT,
+  fallbackExecution=true)`, mesmo padrão de `ChatFlowLauncherService.onBotSessionStarted`; (3)
+  **MEDIUM** — o offset só era persistido ao fim do lote inteiro: uma falha no meio do
+  processamento (ex.: sessão fechada por um agente entre a consulta e o post) fazia o próximo
+  ciclo reprocessar TODOS os updates do lote, inclusive os já entregues com sucesso, duplicando
+  mensagem no transcript — corrigido persistindo o offset update a update.
+- Suíte completa do backend **855/855 verde** (22 testes novos entre `TelegramApiClientTest`,
+  `TelegramLongPollingClientTest` e os acréscimos em `CcChatServiceTest`/
+  `CallCenterChatChannelServiceTest`, 0 regressão). `tsc --noEmit` e `npm run build` do
+  `callcenter-platform/frontend` limpos.
+- **Gaps aceitos, documentados no código** (fora de escopo desta fatia, decisão do plano): mensagem
+  sem texto (foto/sticker/etc.) do Telegram é ignorada — o update ainda avança o offset, mas nada
+  vira mensagem de chat; sem anexo/mídia via Telegram nesta fatia (D6/Fase 7d é webchat-only); sem
+  retomada de sessão após reload do lado do cliente (mesmo gap já aceito na Fase 7b); um bot real
+  do Telegram não foi configurado/testado ponta a ponta nesta VPS de dev (sem credencial real) —
+  só a infraestrutura de long polling, validada com `getUpdates`/`sendMessage` mockados.
+- Deployado (`docker compose up -d --build backend frontend`, migration V79 confirmada em
+  `flyway_schema_history`) e validado em produção: canal Telegram sem token configurado nunca
+  chama a API (log de aviso, sem erro), CRUD do canal via curl com JWT ADMIN forjado inline
+  (criar/editar canal `telegram` sem `telegramBotTokenRef` → 400; com referência → 200, resposta
+  nunca inclui valor de token). Release notes `v1.81` registrada.
+
 ### ✅ Fase 10 do plano Call Center Parte III (parte 2) — particionamento (2026-08-14) — deployada e validada em produção; INTERNAL_API_KEY rotacionada de novo
 Usuário reverteu a posição conservadora original da Fase 10 (§10-§11 de
 `.claude/plans/callcenter-fase10-seguranca-endurecimento.plan.md`) e pediu para particionar agora,

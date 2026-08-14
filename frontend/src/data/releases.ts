@@ -710,4 +710,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Chat do Call Center passa a aceitar anexos, nos dois sentidos (agente e cliente): extensões permitidas são cadastradas uma a uma pelo administrador, cada canal define uma cota de armazenamento por pessoa e por quantos dias o arquivo fica guardado.',
     ],
   },
+  {
+    version: 'v1.81',
+    date: '2026-08-14',
+    changes: [
+      'Chat do Call Center ganha um canal Telegram: cadastre um canal do tipo Telegram apontando para o token do bot (guardado como referência em Configuração, nunca em texto puro) e o mesmo motor de fluxo/atendimento do webchat passa a valer também para conversas via Telegram, sem rota nova exposta à internet.',
+    ],
+  },
 ];

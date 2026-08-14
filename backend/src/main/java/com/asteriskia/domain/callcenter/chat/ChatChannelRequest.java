@@ -22,4 +22,9 @@ public record ChatChannelRequest(
          * default do banco só se a coluna já não tiver outro valor — por isso o service sempre
          * aplica um valor explícito (nunca deixa nulo ir para o UPDATE). */
         Long attachmentQuotaBytes,
-        Integer attachmentRetentionDays) {}
+        Integer attachmentRetentionDays,
+        /** Fase 7e — referência (chave) ao token do bot Telegram no .env
+         * (ex.: {@code CALLCENTER_TELEGRAM_BOT_TOKEN}). NUNCA o valor do token em si — só
+         * obrigatório quando {@code type == "telegram"}, validado em
+         * {@code CallCenterChatChannelService}. */
+        String telegramBotTokenRef) {}

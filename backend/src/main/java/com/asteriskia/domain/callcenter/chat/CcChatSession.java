@@ -54,6 +54,13 @@ public class CcChatSession {
     @Column(name = "customer_ref", nullable = false, length = 120)
     private String customerRef;
 
+    /** Fase 7e — chat_id do Telegram (ou outro identificador externo de canal futuro) que
+     * originou esta sessão; {@code null} para webchat/simulador. Combinado com {@code channel_id}
+     * num índice único parcial (só {@code closed_at IS NULL}) para nunca existirem duas sessões
+     * simultâneas abertas para o mesmo chat_id no mesmo canal (V79). */
+    @Column(name = "external_ref", length = 120)
+    private String externalRef;
+
     @Column(name = "customer_name", length = 150)
     private String customerName;
 
