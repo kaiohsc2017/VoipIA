@@ -470,6 +470,43 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    filtram por BU); Jira sem credenciais reais; atribuir grupo de acesso customizado a um
 >    usuário pela UI ainda não existe (só ADMIN/USER binário).
 
+### ✅ Fase 10 do plano Call Center Parte III (parte 2) — particionamento de cc_interaction_events/cc_chat_messages (2026-08-14) — deployada e validada em produção; INTERNAL_API_KEY rotacionada de novo
+Usuário reverteu a posição conservadora original da Fase 10 (§10-§11 de
+`.claude/plans/callcenter-fase10-seguranca-endurecimento.plan.md`) e pediu para particionar agora,
+mesmo sem volume real — decisão dele, registrada no plano.
+- **Migration V71**: `cc_interaction_events`/`cc_chat_messages` viraram `PARTITION BY RANGE`
+  mensal (`occurred_at`/`created_at`), 36 partições (2025-01 a 2027-12) + 1 partição `DEFAULT` em
+  cada, para nunca falhar um `INSERT` por falta de partição. Confirmado **0 linhas** nas duas
+  tabelas antes de escrever o SQL — elimina o risco normal dessa conversão (nada a migrar). PK
+  virou composto (`id, occurred_at`/`id, created_at` — exigência do Postgres para PK em tabela
+  particionada); confirmado que nenhuma FK de outra tabela referencia essas duas, e as entidades
+  JPA usam só `id` (globalmente único via `BIGSERIAL`) — **zero mudança de código Java**. Testada
+  em transação `BEGIN/ROLLBACK` direto em produção antes de aplicar de verdade via Flyway; depois
+  de aplicada, um `INSERT` de teste (revertido) confirmou roteamento correto para a partição do
+  mês certo. **Gap aceito, documentado no próprio SQL**: sem job de manutenção para criar
+  partições além de 2027-12 — fica para quando fizer sentido (mesmo padrão de
+  `AiModelPricingSyncScheduler`).
+- **`INTERNAL_API_KEY` rotacionada pela segunda vez** nesta mesma Fase 10 — a chave já rotacionada
+  na fatia 1 tinha sido exposta de novo em output de comando (`grep` no `extensions.conf` gerado)
+  durante a investigação da parte 1 (teste de carga). Chave nova gerada e escrita no `.env` por
+  script que nunca imprime o valor; containers `backend`/`ai-agent`/`docker-helper`/`insights`/
+  `asterisk` recriados + `dialplan reload`. Validado **sem nunca expor a chave em texto puro**:
+  hash SHA-256 truncado idêntico entre `.env` e o `extensions.conf` gerado; curl de dentro do
+  próprio container confirmou 403 sem chave e autenticação bem-sucedida com a chave nova.
+- Suíte completa do backend **662/662 verde** (0 regressão — a única falha na primeira rodada foi
+  o flake conhecido de `ffmpeg` ausente no container Maven ad hoc, confirmado não-representativo
+  ao reinstalar o binário nesse mesmo container e rodar só aquele teste: 5/5 verde).
+  `tsc --noEmit` e `npm run build` do `callcenter-platform/frontend` limpos (sem alteração nesta
+  fatia — validação de zero regressão).
+- Deployado (`docker compose up -d --build backend` para a migration +
+  `docker compose up -d --force-recreate backend ai-agent docker-helper insights asterisk` para a
+  rotação de chave + `dialplan reload`) e validado em produção — todos os 11 containers
+  `healthy`. Commit `42eb9c9`, push para `origin main` e `azure main:desenvolvimento`.
+- Teste de carga SIPp (parte 1 da Fase 10) continua **não concluído** — VPS sem folga de memória
+  (~130-190Mi livres, ~1,9Gi de swap em uso) para um teste honesto sem risco à produção
+  compartilhada com outros projetos no mesmo host; fica pendente de servidor dedicado ou janela de
+  manutenção com folga de memória.
+
 ### ✅ Hardening Docker (GID 1500 compartilhado) — backend/ai-agent/agents-backend não-root (2026-08-14) — deployado e validado em produção
 Fecha de vez o débito de segurança F-HIGH da auditoria de 2026-07-02 registrado mais abaixo neste
 arquivo ("Débito de segurança — 2 de 3 fechados") — os 3 containers que ainda rodavam como root
