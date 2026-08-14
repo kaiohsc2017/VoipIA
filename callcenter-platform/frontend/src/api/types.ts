@@ -816,6 +816,42 @@ export interface AgentPeriodComparison {
   occupancyPctDelta: number | null;
 }
 
+// ─── Fase 9c — relatório analítico de chamada e chat ───────────────────────────────────────────
+
+export interface CallReportRow {
+  interactionId: number;
+  queuedAt: string;
+  answeredAt: string | null;
+  endedAt: string | null;
+  direction: 'INBOUND' | 'OUTBOUND' | null;
+  ani: string | null;
+  queueName: string | null;
+  agentName: string | null;
+  waitSeconds: number | null;
+  npsScore: number | null;
+  flowName: string | null;
+  chosenOptionDigit: string | null;
+  chosenOptionLabel: string | null;
+  audioFileId: number | null;
+  categoriaAssunto: string | null;
+  sentimentoGeral: string | null;
+  criticidade: string | null;
+  findingsByTipo: Record<string, number>;
+}
+
+export interface ChatReportRow {
+  sessionId: number;
+  startedAt: string;
+  claimedAt: string | null;
+  closedAt: string | null;
+  customerRef: string;
+  customerName: string | null;
+  queueName: string | null;
+  agentName: string | null;
+  dispositionName: string | null;
+  transcriptPath: string | null;
+}
+
 // Fase 19 (Parte III) — ranges de ramal configuráveis + interruptor global de NPS.
 export type CcRangeType = 'AGENT' | 'QUEUE' | 'FLOW';
 
