@@ -963,3 +963,117 @@ export interface CcKbStatsView {
   total: number;
   containmentRate: number;
 }
+
+// ─── Fase 27 — gamificação, perfil do cliente, produtividade ───────────────────────────────────
+
+export interface AgentGamificationRow {
+  position: number | null;
+  agentId: number;
+  agentName: string;
+  totalAtendidas: number;
+  totalRealizadas: number;
+  npsMedio: number | null;
+}
+
+export interface GamificationReport {
+  minCalls: number;
+  ranking: AgentGamificationRow[];
+  belowMinimum: AgentGamificationRow[];
+}
+
+export interface CustomerProfileSummaryRow {
+  normalizedId: string;
+  displayContact: string | null;
+  totalChamadas: number;
+  totalChats: number;
+  primeiroContato: string | null;
+  ultimoContato: string | null;
+  npsMedio: number | null;
+  topAssunto: string | null;
+}
+
+export interface CustomerProfileSubjectCount {
+  assunto: string;
+  total: number;
+}
+
+export interface CustomerProfileInteractionSummary {
+  interactionId: number;
+  queuedAt: string;
+  queueName: string | null;
+  agentName: string | null;
+  npsScore: number | null;
+  dispositionLabel: string | null;
+  categoriaAssunto: string | null;
+}
+
+export interface CustomerProfileChatSummary {
+  sessionId: number;
+  startedAt: string;
+  queueName: string | null;
+  agentName: string | null;
+  dispositionLabel: string | null;
+}
+
+export interface CustomerProfileDetail {
+  normalizedId: string;
+  displayContact: string | null;
+  totalChamadas: number;
+  totalChats: number;
+  npsMedio: number | null;
+  topAssuntos: CustomerProfileSubjectCount[];
+  chamadas: CustomerProfileInteractionSummary[];
+  chats: CustomerProfileChatSummary[];
+}
+
+export interface AgentProductivityItemAverage {
+  itemId: number;
+  pergunta: string | null;
+  media: number | null;
+}
+
+export interface AgentProductivityAggregate {
+  totalChamadas: number;
+  notaMedia: number | null;
+  autoFails: number;
+  notaPorItem: AgentProductivityItemAverage[];
+  achadosPorTipo: Record<string, number>;
+}
+
+export interface AgentProductivityFinding {
+  tipo: string;
+  descricao: string;
+  trechoReferencia: string | null;
+  prioridade: string;
+}
+
+export interface AgentProductivityResumo {
+  totalAtendidas: number;
+  totalRealizadas: number;
+  avgTalkSeconds: number | null;
+  avgOutboundTalkSeconds: number | null;
+  npsMedio: number | null;
+  occupancyPct: number | null;
+  occupiedSeconds: number;
+  availableSeconds: number;
+  pausedSeconds: number;
+  offlineSeconds: number;
+}
+
+export interface AgentProductivityStateEntry {
+  state: string;
+  pauseReasonLabel: string | null;
+  startedAt: string;
+  endedAt: string | null;
+}
+
+export interface AgentProductivityReport {
+  agentId: number;
+  agentName: string;
+  resumo: AgentProductivityResumo;
+  timeline: AgentProductivityStateEntry[];
+  analise: AgentProductivityAggregate;
+  achadosGraves: AgentProductivityFinding[];
+  pontosFortes: string[];
+  pontosMelhoria: string[];
+}

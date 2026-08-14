@@ -7,6 +7,9 @@ import type {
 } from '../api/types';
 import { CallDetailReport, ChatDetailReport } from './DetailReportTab';
 import { QualityReportTab } from './QualityReportTab';
+import { GamificationReportTab } from './GamificationReportTab';
+import { CustomerProfileReportTab } from './CustomerProfileReportTab';
+import { AgentProductivityReportTab } from './AgentProductivityReportTab';
 
 export function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -33,9 +36,14 @@ interface ReportsQueueTabProps {
  * de Sidebar própria por sub-relatório — timeline omnicanal, exportação e agendamento ficam para
  * fatias futuras. Sem gráfico — este app não tem `recharts` nas dependências (mesma decisão já
  * registrada em InsightsDashboardTab.tsx); tabela cobre a necessidade desta entrega.
+ *
+ * Fase 27 acrescenta 3 sub-relatórios (gamificação, perfil do cliente, produtividade do agente),
+ * mesmo padrão de seletor único sem entrada de Sidebar própria.
  */
 export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
-  const [view, setView] = useState<'queue' | 'agent' | 'call-detail' | 'chat-detail' | 'quality'>('queue');
+  const [view, setView] = useState<
+    'queue' | 'agent' | 'call-detail' | 'chat-detail' | 'quality' | 'gamification' | 'customer-profile' | 'productivity'
+  >('queue');
 
   const [reprocessFrom, setReprocessFrom] = useState(daysAgoIso(7));
   const [reprocessTo, setReprocessTo] = useState(todayIso());
@@ -65,6 +73,9 @@ export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
         <button type="button" onClick={() => setView('call-detail')} disabled={view === 'call-detail'}>Chamada (detalhe)</button>
         <button type="button" onClick={() => setView('chat-detail')} disabled={view === 'chat-detail'}>Chat (detalhe)</button>
         <button type="button" onClick={() => setView('quality')} disabled={view === 'quality'}>Qualidade</button>
+        <button type="button" onClick={() => setView('gamification')} disabled={view === 'gamification'}>Gamificação</button>
+        <button type="button" onClick={() => setView('customer-profile')} disabled={view === 'customer-profile'}>Perfil do cliente</button>
+        <button type="button" onClick={() => setView('productivity')} disabled={view === 'productivity'}>Produtividade</button>
       </div>
 
       {view === 'queue' && <QueueReport reprocessTick={reprocessTick} />}
@@ -72,6 +83,9 @@ export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
       {view === 'call-detail' && <CallDetailReport />}
       {view === 'chat-detail' && <ChatDetailReport />}
       {view === 'quality' && <QualityReportTab isAdmin={isAdmin} />}
+      {view === 'gamification' && <GamificationReportTab />}
+      {view === 'customer-profile' && <CustomerProfileReportTab />}
+      {view === 'productivity' && <AgentProductivityReportTab />}
 
       {isAdmin && (
         <section style={{ background: '#fff8e1', padding: 12, borderRadius: 8 }}>

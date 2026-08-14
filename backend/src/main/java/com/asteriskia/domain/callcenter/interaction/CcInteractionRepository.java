@@ -35,6 +35,10 @@ public interface CcInteractionRepository
      * agente (Fase 9b), mesmo padrão de {@link #findByQueueIdAndQueuedAtBetween}. */
     List<CcInteraction> findByAgentIdAndQueuedAtBetween(Long agentId, LocalDateTime from, LocalDateTime to);
 
+    /** Todas as interações do período, sem filtro de fila/agente — base do "Perfil do cliente"
+     * (Fase 27), que agrupa por ANI normalizado entre toda a operação. */
+    List<CcInteraction> findByQueuedAtBetween(LocalDateTime from, LocalDateTime to);
+
     /** Ids de interações atendidas cujo tempo de espera (answered_at - queued_at) cai no
      * intervalo informado, em segundos — filtro "tempo de espera" do relatório analítico de
      * chamada (Fase 9c). Nunca atendidas (answered_at nulo) não têm tempo de espera definido,

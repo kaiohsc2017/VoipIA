@@ -636,4 +636,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Calendário de feriados configurável, usado no intervalo mínimo de 5 dias úteis entre duas execuções do mesmo recorte.',
     ],
   },
+  {
+    version: 'v1.71',
+    date: '2026-08-14',
+    changes: [
+      'Aba "Relatórios" do Call Center ganha 3 novos relatórios: "Gamificação" (ranking de agentes por nota média de satisfação, com volume mínimo de chamadas para entrar no ranking), "Perfil do cliente" (histórico de contatos, top assuntos e nota média de quem mais liga/conversa) e "Produtividade" (login/pausas/logout do agente, volume, e pontos fortes/de melhoria já calculados pela análise de qualidade existente).',
+    ],
+  },
 ];

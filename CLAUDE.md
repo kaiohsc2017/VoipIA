@@ -444,8 +444,10 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > **Lista de pendências reais em aberto para o projeto (atualizada em 2026-08-14)** — ver
 > `.claude/plans/callcenter-parte-iii-revisado.plan.md` e `.claude/plans/modulo-callcenter-omnicanal.plan.md`
 > para o detalhe de cada item:
-> 1. **Plano Call Center Parte III** — próxima fase: **27** (gamificação/perfil de cliente/
->    produtividade, depende da 26 ✅, já deployada em 2026-08-14).
+> 1. **Plano Call Center Parte III** — Fase 27 (gamificação/perfil de cliente/produtividade) ✅
+>    deployada em 2026-08-14, encerrando a "camada analítica completa" (release 11 do plano
+>    revisado: 9c → 26 → 27). Próxima fase: **10** (endurecimento/carga, não iniciada), seguida de
+>    17 (co-browsing) e 18 (IA local, só desenho conceitual).
 > 2. **Plano-mãe do Call Center, fases nunca concluídas**: Fase 1/AD (dados reais do DC, paginação
 >    do `fetchAll()`, `employee_id` não espelhado); Fase 5 (sub-fases 5d simulador, 5e horário/
 >    transbordo, 5f skill+traço na UI; 7 nós do catálogo ainda bloqueados); Fase 7/Chat
@@ -489,6 +491,52 @@ host: `/opt/AsteriskIA/env`, `/opt/AsteriskIA/asterisk/config`, `fail2ban_socket
 - `asterisk`/`coturn`/`security`/`docker-helper` continuam root — ver seção de débito de
   segurança mais abaixo pro porquê de cada um (portas privilegiadas, `NET_ADMIN`,
   `network_mode: host`, `docker.sock`).
+
+### ✅ Fase 27 do plano Call Center Parte III — gamificação, perfil do cliente, produtividade (2026-08-14) — deployada e validada em produção
+Encerra a "camada analítica completa" do plano revisado (9c → 26 → 27) com 3 relatórios novos,
+todos GET on-the-fly sem persistência/cooldown (não geram nem agregam nada caro o bastante pra
+justificar — diferente da Fase 26) sob `/api/v1/callcenter/reports/{gamification,customer-profile,
+agent-productivity}`, RBAC herdado do matcher genérico já existente (`callcenter.reports`), sem
+migration nova.
+- **Gamificação**: ranking por NPS médio (`cc_agg_agent_daily`, Fase 9b) ponderado pelo volume de
+  atendidas de cada dia — nunca a média simples dos dias. **Volume mínimo configurável** (default
+  5 atendidas no período): agente abaixo do mínimo fica em lista à parte, sem posição — decisão
+  explícita do plano ("agente com 3 chamadas e NPS 10 não é o melhor da operação").
+- **Perfil do cliente**: agrupa `cc_interactions`/`cc_chat_sessions` por identidade normalizada de
+  telefone (`AniNormalizer`, novo — remove código do país, insere/reconhece o 9º dígito do
+  celular). **Gap conhecido, documentado no código**: sem `resolved_ad_sam` (Fase 14, ainda
+  inexistente), é o único identificador disponível — voz e chat só correlacionam quando o
+  telefone informado no chat normaliza pro mesmo dígito da ligação. Top assuntos por tabulação de
+  voz + categoria do Insight (mesma cadeia `cc_recordings → call_audio_files → call_insights` já
+  usada na Fase 9c).
+- **Produtividade do agente**: resumo (volume/TMA/NPS/ocupação, de `cc_agg_agent_daily`) +
+  timeline de login/pausa/logout (`cc_agent_states`, Fase 4) + pontos fortes/de melhoria —
+  **reusa `AgentReportAggregationService` (Fase 8) tal como já existe, sem nenhuma chamada de IA
+  nova**: extremos de `notaPorItem` (as 3 maiores/menores médias) viram "pontos fortes"/"pontos de
+  melhoria" calculados em Java, nunca narrados por LLM nesta tela.
+- **3 achados reais corrigidos** (`ecc:security-reviewer` + `ecc:java-reviewer` + `ecc:react-reviewer`
+  em paralelo): (1) MEDIUM — `page` negativo no endpoint de listagem do perfil do cliente
+  derrubava em 500 genérico (`PageRequest.of` rejeita `page < 0`, sem handler dedicado) — corrigido
+  clampando o valor; (2) MEDIUM — `displayContact` (perfil do cliente) assumia que o último
+  elemento da lista era o contato mais recente, mas a query derivada não garante ordem — corrigido
+  buscando o máximo explícito por `queuedAt`/`startedAt`, com teste novo provando o caso fora de
+  ordem; (3) HIGH no frontend — o painel de detalhe do "Perfil do cliente" não tinha a mesma
+  guarda de sequência já usada na busca paginada da mesma tela, então a resposta de um cliente
+  clicado primeiro podia sobrescrever a de um clicado depois, se chegasse fora de ordem — corrigido
+  espelhando o padrão `searchSeq`. 1 MEDIUM de acessibilidade também corrigido (cabeçalho de
+  coluna de ação sem rótulo).
+- Suíte completa do backend **638/638 verde** (23 novos testes, 0 regressão — a única falha
+  observada é o flake pré-existente e não relacionado de conversão ffmpeg). `tsc --noEmit` e
+  `npm run build` do `callcenter-platform/frontend` limpos.
+- Deployado (`docker compose up -d --build backend frontend`) e validado em produção via curl com
+  JWT forjado: RBAC correto (403 sem token nos 3 endpoints), 404 em agente/contato inexistente,
+  400 em contato inválido, `page=-1` retornando 200 (não mais 500). Release notes `v1.71`
+  registrada.
+- **Gap aceito, documentado no código**: sem escopo por BU (mesmo padrão já aceito no Insights do
+  Call Center, Fase 8, e no relatório 9c) e sem paginação em banco na varredura de período do
+  perfil do cliente (aceitável no volume atual desta VPS de dev, mesmo padrão já aceito em
+  `CallCenterDetailReportService#searchChats`). Aderência à escala ficou de fora, como já previsto
+  no plano — não existe conceito de escala/turno no sistema ainda.
 
 ### ✅ Fase 26 do plano Call Center Parte III — relatório de qualidade (2026-08-14) — deployada e validada em produção
 Agrega `CallEvaluation`/`CallEvaluationItem` (Fase 8, já computados pela IA quando a chamada foi
