@@ -1338,6 +1338,52 @@ tbody td {
   font-size: 0.78rem;
 }
 
+/* Fase 5f.2 — traço de execução real do fluxo */
+.flow-trace-panel {
+  width: 340px;
+  overflow-y: auto;
+}
+
+.flow-trace-canvas {
+  width: 100%;
+  height: 260px;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  margin: 10px 0;
+}
+
+.flow-trace-execution-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.flow-trace-execution-item {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.flow-node-trace-visited {
+  outline: 2px solid var(--clr-primary);
+  outline-offset: 2px;
+}
+
+.flow-node-trace-unvisited {
+  opacity: 0.45;
+}
+
+.flow-edge-trace-taken path {
+  stroke: var(--clr-primary);
+  stroke-width: 2.5;
+}
+
+.flow-edge-trace-untaken path {
+  opacity: 0.3;
+}
+
 .flow-simulation-step-detail {
   margin-top: 4px;
   font-size: 0.72rem;

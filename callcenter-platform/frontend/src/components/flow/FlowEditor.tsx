@@ -14,7 +14,7 @@ import {
   type NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { ArrowLeft, Save, Rocket, Undo2, Redo2, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Save, Rocket, Undo2, Redo2, FlaskConical, History } from 'lucide-react';
 import api, { getErrorMessage } from '../../api/client';
 import { GenericNode, FlowCatalogContext, type GenericNodeData } from './nodes/GenericNode';
 import { MenuNode } from './nodes/MenuNode';
@@ -22,6 +22,7 @@ import { HorarioFuncionamentoNode } from './nodes/HorarioFuncionamentoNode';
 import { NodePalette } from './NodePalette';
 import { NodePropertiesPanel } from './NodePropertiesPanel';
 import { SimulationPanel } from './SimulationPanel';
+import { ExecutionTracePanel } from './ExecutionTracePanel';
 import type { FlowGraphDocument, FlowGraphNodeType, FlowGraphValidationResult, FlowVersionView, FlowView } from '../../api/types';
 
 interface FlowEditorProps {
@@ -62,6 +63,7 @@ export function FlowEditor({ flow, canWrite, onBack }: FlowEditorProps) {
   const [msg, setMsg] = useState('');
   const [issues, setIssues] = useState<FlowGraphValidationResult | null>(null);
   const [showSimulation, setShowSimulation] = useState(false);
+  const [showTrace, setShowTrace] = useState(false);
 
   // Pilha local de desfazer/refazer — snapshots do grafo, sem lib nova.
   const historyRef = useRef<{ stack: FlowGraphDocument[]; index: number }>({ stack: [], index: -1 });
@@ -210,21 +212,30 @@ export function FlowEditor({ flow, canWrite, onBack }: FlowEditorProps) {
         <div className="flow-editor-toolbar">
           <button className="btn btn-ghost btn-sm" onClick={onBack}><ArrowLeft size={14} /> Voltar</button>
           <span className="flow-editor-title">{flow.name}</span>
-          {canWrite && (
-            <div className="flex" style={{ gap: 8, marginLeft: 'auto' }}>
-              <button className="btn btn-ghost btn-sm" onClick={undo} title="Desfazer"><Undo2 size={14} /></button>
-              <button className="btn btn-ghost btn-sm" onClick={redo} title="Refazer"><Redo2 size={14} /></button>
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={() => { setSelectedNodeId(null); setShowSimulation(s => !s); }}
-                title="Simular fluxo (dry-run)"
-              >
-                <FlaskConical size={14} /> Simular
-              </button>
-              <button className="btn btn-ghost btn-sm" onClick={saveDraft}><Save size={14} /> Salvar rascunho</button>
-              <button className="btn btn-primary btn-sm" onClick={publish}><Rocket size={14} /> Publicar</button>
-            </div>
-          )}
+          <div className="flex" style={{ gap: 8, marginLeft: 'auto' }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => { setSelectedNodeId(null); setShowSimulation(false); setShowTrace(t => !t); }}
+              title="Traço de execuções reais (Fase 5f.2)"
+            >
+              <History size={14} /> Traço
+            </button>
+            {canWrite && (
+              <>
+                <button className="btn btn-ghost btn-sm" onClick={undo} title="Desfazer"><Undo2 size={14} /></button>
+                <button className="btn btn-ghost btn-sm" onClick={redo} title="Refazer"><Redo2 size={14} /></button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => { setSelectedNodeId(null); setShowTrace(false); setShowSimulation(s => !s); }}
+                  title="Simular fluxo (dry-run)"
+                >
+                  <FlaskConical size={14} /> Simular
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={saveDraft}><Save size={14} /> Salvar rascunho</button>
+                <button className="btn btn-primary btn-sm" onClick={publish}><Rocket size={14} /> Publicar</button>
+              </>
+            )}
+          </div>
         </div>
 
         {msg && <div className="flash-message" style={{ background: 'var(--bg-primary-soft)', color: 'var(--clr-primary)' }}>{msg}</div>}
@@ -265,7 +276,9 @@ export function FlowEditor({ flow, canWrite, onBack }: FlowEditorProps) {
               <MiniMap />
             </ReactFlow>
           </div>
-          {showSimulation ? (
+          {showTrace ? (
+            <ExecutionTracePanel flowId={flow.id} onClose={() => setShowTrace(false)} />
+          ) : showSimulation ? (
             <SimulationPanel flowId={flow.id} onClose={() => setShowSimulation(false)} />
           ) : (
             canWrite && (

@@ -1,5 +1,6 @@
 package com.asteriskia.domain.callcenter.flow.engine;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -10,6 +11,10 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface CcFlowExecutionRepository extends JpaRepository<CcFlowExecution, Long> {
     Page<CcFlowExecution> findByFlowIdOrderByStartedAtDesc(Long flowId, Pageable pageable);
+
+    /** Tela de traço de execução (Fase 5f.2) — período obrigatório, nunca "todas as execuções". */
+    Page<CcFlowExecution> findByFlowIdAndStartedAtBetweenOrderByStartedAtDesc(
+            Long flowId, LocalDateTime from, LocalDateTime to, Pageable pageable);
 
     List<CcFlowExecution> findByFlowId(Long flowId);
 

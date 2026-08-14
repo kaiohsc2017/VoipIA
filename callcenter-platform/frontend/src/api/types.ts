@@ -591,6 +591,34 @@ export interface FlowGraphEdge {
   targetHandle?: string | null;
 }
 
+// Traço de execução real do fluxo (Fase 5b/5f.2) — GET .../fluxos/{id}/execucoes[/{execId}/passos].
+// Período (from/to) é sempre obrigatório na listagem: cc_flow_execution_steps é particionada por
+// mês em entered_at (V72), e uma busca sem filtro de período varreria todas as partições.
+export interface FlowExecutionView {
+  id: number;
+  flowId: number;
+  flowVersionId: number;
+  channelId: string;
+  channelUniqueId?: string | null;
+  startedAt: string;
+  endedAt?: string | null;
+  outcome?: string | null;
+  lastNodeId?: string | null;
+}
+
+export interface FlowExecutionStepView {
+  id: number;
+  nodeId: string;
+  nodeType: string;
+  enteredAt: string;
+  exitedAt?: string | null;
+  takenEdge?: string | null;
+  // Passo sensível (config `sensivel=true` no nó, ver FlowGraphNodeCatalog) nunca chega com
+  // valor real — o motor de execução nunca grava o dado capturado em `detail` para esses nós,
+  // então este campo já vem sempre nulo/vazio para eles.
+  detail?: string | null;
+}
+
 // ---- Insights do Call Center (Fase 8) — GET /api/v1/callcenter/insights/** ----
 // Mesmo pipeline de IA do módulo Insights (Verint), aplicado às gravações source=callcenter.
 // Campos exclusivos do XML da Verint (customerNumber, organization, dnis, codec, transferEvents…)
