@@ -491,8 +491,11 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    fila do Call Center ainda — todo o motor ARI/Stasis/AMI foi validado só com mocks/curl;
 >    eventos AMI de canal da Fase 23 nunca confirmados com tráfego real.
 > 4. **Débitos transversais (fora do Call Center)**: CSP **✅ migrado para enforcement real em
->    2026-08-15** (ver seção "Débito de segurança" mais abaixo); BU incompleto (Alertas Zabbix e
->    Insights do Call Center/relatório 9c não filtram por BU); Jira sem credenciais reais.
+>    2026-08-15** (ver seção "Débito de segurança" mais abaixo); BU incompleto — **Insights do
+>    Call Center (`/calls`, detalhe, áudio) ✅ fechado em 2026-08-15** (dashboard/relatório 9c
+>    seguem sem escopo de BU, gap residual aceito — só contagens agregadas, sem conteúdo real);
+>    Alertas Zabbix segue sem escopo (depende de decisão de produto sobre como derivar BU de um
+>    host monitorado). Jira sem credenciais reais.
 >    **Catálogo de nós do Flow Builder do Call
 >    Center 100% implementado desde 2026-08-15** — os 3 últimos nós saíram do estado bloqueado
 >    nesta entrega: `agente_ia` (Fase A — CRUD de persona/prompt/modelo, migration V87,
@@ -1424,11 +1427,19 @@ nesses cadastros), Chamadas (`CallRecordService`, via `uras.business_unit_id`) e
   escopo desta entrega.
 - Usuários pré-existentes (antes da migration V26) foram migrados com `access_indeterminate=true`
   e vinculados a todas as BUs ativas, para não perder acesso retroativamente.
-- **Gap conhecido, não coberto**: Insights do Call Center (`CallCenterInsightsController`, Fase 8
-  do módulo Call Center) também não filtra por BU — mesmo padrão já aceito no módulo Insights
-  (Verint), que nunca teve escopo de BU. Um usuário com `PERM_READ_callcenter.insights.*` vê
-  transcrição/áudio de todas as BUs. Resolver exigiria join de `call_audio_files.ccRecordingId`
-  até `cc_recordings.businessUnit` em `InsightsSpecifications` — fora do escopo desta fatia.
+- ✅ **Insights do Call Center — gap de BU fechado em 2026-08-15** (commit `a859bfd`):
+  `CallCenterInsightsController` (`/calls`, `/calls/{id}`, `/calls/{id}/audio` — a superfície com
+  conteúdo real, transcrição/áudio) agora filtra por `BusinessUnitContext`, via novo
+  `InsightsSpecifications.restrictedToBusinessUnits` (subquery Criteria até
+  `cc_recordings.business_unit`, já que `call_audio_files.ccRecordingId` é um `Long` cru sem
+  relação JPA). Fail-open documentado para gravação sem `ccRecordingId`/sem BU atribuída (mesmo
+  padrão de `CallRecordService`); registro fora do escopo sempre 404 (nunca 403). Insights
+  (Verint) permanece deliberadamente sem escopo de BU (decisão de produto já tomada, sem mudança).
+  **Gap residual aceito**: `/dashboard` (só contagens agregadas) e `/processing` (só status/nome
+  de arquivo) do Insights do Call Center seguem sem filtro de BU — nenhum dos dois expõe
+  conteúdo/PII, decisão de priorizar a superfície mais sensível primeiro. Alertas Zabbix
+  (`AlertService`) segue sem escopo de BU — depende de decisão de produto sobre como derivar BU de
+  um host monitorado, ainda não tomada.
 
 ### ✅ Fase 8 do módulo Call Center — Insights (pipeline de IA) (2026-08-07) — deployada e validada em produção
 Reaproveita integralmente o pipeline de Insights (Verint) — STT/diarização/análise de
