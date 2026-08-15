@@ -20,10 +20,14 @@ import org.springframework.stereotype.Component;
  * {@code horario_funcionamento} (delega a {@code BusinessHoursService}, 3 handles fixos —
  * {@code hr-aberto}/{@code hr-fechado}/{@code hr-feriado}). Sub-fase 5e.2 somou
  * {@code transferir_ramal} (delega a {@code ChannelDriver.transferToExtension} — exclusivo do
- * canal voz, ramal validado por allowlist estrita antes de qualquer uso). Os 3 restantes ({@code
- * coletar_entrada}, {@code consultar_api}, {@code agente_ia}) continuam {@code false} — ficam
- * para sub-fases futuras (5f/16). {@link FlowGraphValidator} bloqueia a
- * publicação de qualquer fluxo que use um nó ainda não implementado.
+ * canal voz, ramal validado por allowlist estrita antes de qualquer uso). Fase 14 (identidade do
+ * contato) implementou {@code coletar_entrada} (delega a
+ * {@code ColetarEntradaNodeHandler} — grava/transcreve via {@code driver.recordResponse} +
+ * {@code CallCenterIdentityResolver}; propriedade {@code identificarContato} liga a
+ * confirmação falada + persistência em {@code cc_interactions.resolved_ad_sam}). Os 2 restantes
+ * ({@code consultar_api}, {@code agente_ia}) continuam {@code false} — ficam para sub-fases
+ * futuras (Fase 10/16). {@link FlowGraphValidator} bloqueia a publicação de qualquer fluxo que
+ * use um nó ainda não implementado.
  *
  * <p>Fase 24 (chat) prova a premissa de motor agnóstico de canal: {@code menu_opcoes},
  * {@code tocar_audio}, {@code enviar_fila}, {@code encerrar}, {@code condicao},
@@ -39,7 +43,7 @@ public class FlowGraphNodeCatalog {
             Set.of(
                     "inicio", "tocar_audio", "menu_opcoes", "condicao", "definir_variavel", "enviar_fila",
                     "pesquisa_satisfacao", "pausar_gravacao", "coletar_texto", "consultar_base",
-                    "horario_funcionamento", "transferir_ramal", "encerrar");
+                    "horario_funcionamento", "transferir_ramal", "coletar_entrada", "encerrar");
 
     private static final List<FlowGraphNodeType> NODE_TYPES =
             List.of(
@@ -61,11 +65,15 @@ public class FlowGraphNodeCatalog {
                                     prop("tentativas", "Tentativas até desistir", "number"))),
                     node(
                             "coletar_entrada",
-                            "Coletar entrada",
-                            "both",
+                            "Coletar entrada (voz)",
+                            "voice",
                             List.of(
                                     prop("variavel", "Variável de destino", "string"),
-                                    prop("sensivel", "Dado sensível (não registrar no traço)", "boolean"))),
+                                    prop("sensivel", "Dado sensível (não registrar no traço)", "boolean"),
+                                    prop(
+                                            "identificarContato",
+                                            "Identificar contato (busca + confirmação no AD)",
+                                            "boolean"))),
                     node(
                             "condicao",
                             "Condição",

@@ -197,6 +197,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.callcenter_nps")
                         .requestMatchers(HttpMethod.GET, "/api/v1/financeiro/cost-alerts/callcenter_autosservico")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.callcenter_autosservico")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/financeiro/cost-alerts/callcenter_identidade")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_financeiro.callcenter_identidade")
                         // Módulo Call Center (voz) — Fase 2. ramal-secret precisa vir ANTES do
                         // matcher genérico de /agentes/**, e é protegido por um resource_key
                         // próprio (callcenter.ramais) por expor a senha SIP do ramal.
@@ -343,6 +345,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.callcenter_nps")
                         .requestMatchers("/api/v1/financeiro/cost-alerts/callcenter_autosservico")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.callcenter_autosservico")
+                        .requestMatchers("/api/v1/financeiro/cost-alerts/callcenter_identidade")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_financeiro.callcenter_identidade")
                         // Rotação de secret SIP (Fase 13) — callcenter.ramais, não
                         // callcenter.agentes, mesmo resource de ramal-secret; precisa vir antes
                         // do matcher genérico de /agentes/**.

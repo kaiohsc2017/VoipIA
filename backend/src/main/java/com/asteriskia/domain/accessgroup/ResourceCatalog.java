@@ -76,7 +76,12 @@ public final class ResourceCatalog {
             // (embedding é local/CPU, sem custo — só a geração final via Gemini gera gasto). Sem
             // tela própria no submenu Financeiro do Telecom — mesmo padrão de callcenter_nps, o
             // painel de alerta vive embutido na aba "Base de Conhecimento" do Call Center.
-            "financeiro.callcenter_autosservico"
+            "financeiro.callcenter_autosservico",
+            // callcenter_identidade (Fase 14, §identidade do contato): custo de IA da transcrição
+            // do login/nome falado + confirmação, na cascata de identificação de contato. Mesmo
+            // padrão de callcenter_nps/callcenter_autosservico — sem tela própria no submenu
+            // Financeiro do Telecom, painel de alerta embutido no Desktop do Agente do Call Center.
+            "financeiro.callcenter_identidade"
     );
 
     // Módulo Call Center (voz) — Fase 2 do plano modulo-callcenter-omnicanal.plan.md.

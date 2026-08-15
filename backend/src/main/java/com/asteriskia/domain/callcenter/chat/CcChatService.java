@@ -9,6 +9,8 @@ import com.asteriskia.domain.callcenter.interaction.CallCenterAgentStateService;
 import com.asteriskia.domain.callcenter.interaction.CcDisposition;
 import com.asteriskia.domain.callcenter.interaction.CcDispositionRepository;
 import com.asteriskia.domain.callcenter.cobrowsing.CobrowseConsentService;
+import com.asteriskia.domain.callcenter.identity.CallCenterIdentityResolver;
+import com.asteriskia.domain.callcenter.identity.IdentitySource;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +52,7 @@ public class CcChatService {
     private final ApplicationEventPublisher eventPublisher;
     private final CobrowseConsentService cobrowseConsentService;
     private final ChatBlendingService blendingService;
+    private final CallCenterIdentityResolver identityResolver;
 
     @Transactional
     public CcChatSession startSession(String channelCode, Long queueId, String customerRef, String customerName) {
@@ -378,6 +381,26 @@ public class CcChatService {
         CcChatSession session = findSessionOrThrow(sessionId);
         assertOwnerOrAdmin(session);
         return session;
+    }
+
+    /** Fase 14 — resolve a identidade de uma sessão de chat contra o AD por login de rede
+     * (exato, {@code sam_account_name}). Chamado tanto pelo início de sessão do widget interno
+     * (login opcional informado pelo próprio contato, {@code IdentitySource.URA_INPUT}) quanto
+     * por um caminho autenticado futuro (JWT já validado, {@code IdentitySource.NETWORK_LOGIN}).
+     * Nunca falha a requisição chamadora por login inválido — retorna se resolveu ou não, para o
+     * controller decidir a resposta (sem expor detalhe de por que não resolveu — nunca revela se
+     * um login existe ou não no AD para quem não está autenticado). */
+    @Transactional
+    public boolean resolveIdentity(Long sessionId, String login, IdentitySource source) {
+        CcChatSession session = findSessionOrThrow(sessionId);
+        var resolved = identityResolver.resolveByLogin(login, source);
+        if (resolved.isEmpty()) {
+            return false;
+        }
+        session.setResolvedAdSam(resolved.get().adUser().getSamAccountName());
+        session.setIdentitySource(source.name());
+        sessionRepository.save(session);
+        return true;
     }
 
     private CcChatSession findSessionOrThrow(Long sessionId) {

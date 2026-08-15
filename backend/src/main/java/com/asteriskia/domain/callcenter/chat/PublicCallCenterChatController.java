@@ -3,6 +3,7 @@ package com.asteriskia.domain.callcenter.chat;
 import com.asteriskia.domain.callcenter.cobrowsing.CcCobrowseSession;
 import com.asteriskia.domain.callcenter.cobrowsing.CobrowseConsentService;
 import com.asteriskia.domain.callcenter.cobrowsing.CobrowseIngestService;
+import com.asteriskia.domain.callcenter.identity.IdentitySource;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -61,8 +62,16 @@ public class PublicCallCenterChatController {
     // Fase 10, achado HIGH H1: sem teto de tamanho, um IP dentro do limite de rate ainda podia
     // enviar sessões/mensagens com payload gigante — abuso de banco e, quando a sessão está em
     // modo bot, de custo de IA (text entra no prompt do nó consultar_base).
+    // Fase 14 — networkLogin é opcional e autorrelatado pelo próprio contato (widget interno,
+    // D8: rede corporativa, não internet aberta) — nunca falha o início de sessão se inválido.
+    // O resultado da resolução NUNCA volta na resposta HTTP (nem como booleano): esse endpoint é
+    // público e sem autenticação, e devolver "existe/não existe" ao próprio chamador anônimo é um
+    // oráculo de enumeração de login válido do AD corporativo. A identidade fica só persistida
+    // (resolved_ad_sam da sessão) para consumo pelo agente/screen pop, nunca refletida de volta.
     public record StartSessionRequest(
-            @NotBlank @Size(max = 120) String customerRef, @Size(max = 120) String customerName) {}
+            @NotBlank @Size(max = 120) String customerRef,
+            @Size(max = 120) String customerName,
+            @Size(max = 128) String networkLogin) {}
 
     public record StartSessionResponse(Long sessionId, String token) {}
 
@@ -89,6 +98,10 @@ public class PublicCallCenterChatController {
 
         CcChatSession session = chatService.startSession(WEBCHAT_CHANNEL_CODE, request.customerRef(), request.customerName());
         String token = jwtService.generateChatCustomerToken(session.getId());
+        if (request.networkLogin() != null && !request.networkLogin().isBlank()
+                && rateLimiter.allowIdentification(ip)) {
+            chatService.resolveIdentity(session.getId(), request.networkLogin(), IdentitySource.URA_INPUT);
+        }
         log.info("Sessão de chat interna iniciada: id={} ip={}", session.getId(), ip);
         return new StartSessionResponse(session.getId(), token);
     }

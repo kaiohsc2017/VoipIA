@@ -18,6 +18,7 @@ import com.asteriskia.domain.callcenter.interaction.CallCenterAgentStateService;
 import com.asteriskia.domain.callcenter.interaction.CcDisposition;
 import com.asteriskia.domain.callcenter.interaction.CcDispositionRepository;
 import com.asteriskia.domain.callcenter.cobrowsing.CobrowseConsentService;
+import com.asteriskia.domain.callcenter.identity.CallCenterIdentityResolver;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -64,6 +65,8 @@ class CcChatServiceTest {
     private ApplicationEventPublisher eventPublisher;
     @Mock
     private CobrowseConsentService cobrowseConsentService;
+    @Mock
+    private CallCenterIdentityResolver identityResolver;
 
     // Real, não mock — é lógica pura sobre os getters de CcAgent/CcQueue (ambos POJOs simples
     // nos testes desta classe), mais simples que stubar resolveLimit em cada teste de claim.
@@ -75,7 +78,8 @@ class CcChatServiceTest {
     void setUp() {
         service = new CcChatService(channelRepository, sessionRepository, messageRepository,
                 queueRepository, dispositionRepository, agentStateService, messagingTemplate,
-                transcriptExportService, eventPublisher, cobrowseConsentService, blendingService);
+                transcriptExportService, eventPublisher, cobrowseConsentService, blendingService,
+                identityResolver);
     }
 
     @AfterEach
@@ -548,5 +552,40 @@ class CcChatServiceTest {
         ArgumentCaptor<ChatAgentMessageSentEvent> captor = ArgumentCaptor.forClass(ChatAgentMessageSentEvent.class);
         verify(eventPublisher).publishEvent(captor.capture());
         assertThat(captor.getValue().body()).isEqualTo("Olá!");
+    }
+
+    @Test
+    @DisplayName("resolveIdentity com login válido persiste resolved_ad_sam/identity_source na sessão")
+    void resolveIdentity_validLogin_persistsOnSession() {
+        CcChatSession session = sessionOf(5L, "waiting", null);
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        var adUser = com.asteriskia.integration.ad.AdUser.builder()
+                .samAccountName("jsilva").displayName("João Silva").build();
+        when(identityResolver.resolveByLogin("jsilva", com.asteriskia.domain.callcenter.identity.IdentitySource.URA_INPUT))
+                .thenReturn(Optional.of(com.asteriskia.domain.callcenter.identity.ResolvedIdentity.exact(
+                        adUser, com.asteriskia.domain.callcenter.identity.IdentitySource.URA_INPUT)));
+
+        boolean resolved = service.resolveIdentity(
+                5L, "jsilva", com.asteriskia.domain.callcenter.identity.IdentitySource.URA_INPUT);
+
+        assertThat(resolved).isTrue();
+        assertThat(session.getResolvedAdSam()).isEqualTo("jsilva");
+        assertThat(session.getIdentitySource()).isEqualTo("URA_INPUT");
+        verify(sessionRepository).save(session);
+    }
+
+    @Test
+    @DisplayName("resolveIdentity com login inválido não persiste nada e retorna false")
+    void resolveIdentity_invalidLogin_returnsFalseWithoutPersisting() {
+        CcChatSession session = sessionOf(5L, "waiting", null);
+        when(sessionRepository.findById(5L)).thenReturn(Optional.of(session));
+        when(identityResolver.resolveByLogin(anyString(), any())).thenReturn(Optional.empty());
+
+        boolean resolved = service.resolveIdentity(
+                5L, "inexistente", com.asteriskia.domain.callcenter.identity.IdentitySource.URA_INPUT);
+
+        assertThat(resolved).isFalse();
+        assertThat(session.getResolvedAdSam()).isNull();
+        verify(sessionRepository, never()).save(any());
     }
 }

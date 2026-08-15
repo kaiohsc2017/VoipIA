@@ -5,6 +5,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -30,6 +31,16 @@ public class CallCenterInteractionController {
     @GetMapping("/current")
     public ResponseEntity<InteractionView> current() {
         return ResponseEntity.ok(service.currentInteraction());
+    }
+
+    /** Fase 14 — histórico de contatos anteriores do mesmo contato identificado na interação
+     * informada (screen pop). O {@code resolvedAdSam} usado na busca vem sempre da própria
+     * interação {@code id}, carregada e validada contra o agente autenticado dentro do serviço
+     * — nunca de um parâmetro do chamador (isso seria um IDOR, permitindo enumerar o histórico e
+     * a identidade de qualquer contato do AD). */
+    @GetMapping("/{id}/contact-history")
+    public ResponseEntity<List<InteractionView>> contactHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(service.contactHistory(id));
     }
 
     @GetMapping("/dispositions")

@@ -781,4 +781,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Nova tela em Configurações → Active Directory: status da última sincronização, botão "Sincronizar agora", consulta de usuário no espelho local e CRUD de mapeamento de grupo AD → grupo de acesso.',
     ],
   },
+  {
+    version: 'v1.91',
+    date: '2026-08-15',
+    changes: [
+      'Call Center: identificação automática do contato (login de rede, entrada falada confirmada por IA ou número de quem liga) contra o Active Directory, com histórico de atendimentos anteriores do mesmo contato exibido no painel do agente.',
+      'Fluxo de voz do Call Center: novo nó "Coletar entrada (voz)" com opção de identificar o contato durante a coleta.',
+    ],
+  },
 ];

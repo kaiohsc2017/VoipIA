@@ -43,11 +43,18 @@ public class PublicChatRateLimiter {
     private static final int ATTACHMENT_LIMIT = 10;
     private static final long ATTACHMENT_WINDOW_MS = 60_000L;
 
+    // Fase 14 — tentativa de identificação por login de rede no início de sessão do widget.
+    // Teto baixo por IP: cada início de sessão já tenta no máximo uma vez (não é um loop de
+    // retry do cliente), então um número baixo já cobre o uso legítimo com folga.
+    private static final int IDENTIFICATION_LIMIT = 5;
+    private static final long IDENTIFICATION_WINDOW_MS = 10 * 60_000L;
+
     private final ConcurrentHashMap<String, Deque<Long>> sessionStartsByIp = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Deque<Long>> messagesBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Deque<Long>> cobrowseConsentBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Deque<Long>> cobrowseEventsBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Deque<Long>> attachmentsBySession = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Deque<Long>> identificationByIp = new ConcurrentHashMap<>();
 
     public boolean allowSessionStart(String clientIp) {
         return allow(sessionStartsByIp, clientIp, SESSION_START_LIMIT, SESSION_START_WINDOW_MS);
@@ -67,6 +74,10 @@ public class PublicChatRateLimiter {
 
     public boolean allowAttachment(Long sessionId) {
         return allow(attachmentsBySession, sessionId, ATTACHMENT_LIMIT, ATTACHMENT_WINDOW_MS);
+    }
+
+    public boolean allowIdentification(String clientIp) {
+        return allow(identificationByIp, clientIp, IDENTIFICATION_LIMIT, IDENTIFICATION_WINDOW_MS);
     }
 
     /** Sincronizado por chave individual (não trava o mapa inteiro). Cada deque fica limitada
@@ -100,6 +111,7 @@ public class PublicChatRateLimiter {
         expireStale(cobrowseConsentBySession, COBROWSE_CONSENT_WINDOW_MS);
         expireStale(cobrowseEventsBySession, COBROWSE_EVENTS_WINDOW_MS);
         expireStale(attachmentsBySession, ATTACHMENT_WINDOW_MS);
+        expireStale(identificationByIp, IDENTIFICATION_WINDOW_MS);
     }
 
     private <K> void expireStale(ConcurrentHashMap<K, Deque<Long>> buckets, long windowMs) {

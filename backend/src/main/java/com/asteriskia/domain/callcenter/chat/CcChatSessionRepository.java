@@ -28,4 +28,8 @@ public interface CcChatSessionRepository extends JpaRepository<CcChatSession, Lo
 
     /** Agregado diário de chat (Fase 9c.2) — sessões de uma fila iniciadas num dia. */
     List<CcChatSession> findByQueueIdAndStartedAtBetween(Long queueId, LocalDateTime from, LocalDateTime to);
+
+    /** Histórico de contatos anteriores no screen pop (Fase 14) — últimas sessões de chat do
+     * mesmo contato identificado, excluída a sessão atual. */
+    List<CcChatSession> findTop10ByResolvedAdSamAndIdNotOrderByStartedAtDesc(String resolvedAdSam, Long excludedId);
 }

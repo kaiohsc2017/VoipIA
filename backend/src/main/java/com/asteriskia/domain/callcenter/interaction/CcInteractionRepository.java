@@ -48,4 +48,8 @@ public interface CcInteractionRepository
                     + "AND EXTRACT(EPOCH FROM (answered_at - queued_at)) BETWEEN :min AND :max",
             nativeQuery = true)
     List<Long> findIdsByWaitSecondsBetween(@Param("min") long min, @Param("max") long max);
+
+    /** Histórico de contatos anteriores no screen pop (Fase 14) — últimas interações do mesmo
+     * contato identificado, excluída a interação atual. */
+    List<CcInteraction> findTop10ByResolvedAdSamAndIdNotOrderByQueuedAtDesc(String resolvedAdSam, Long excludedId);
 }

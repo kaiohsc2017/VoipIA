@@ -64,6 +64,15 @@ public class CcChatSession {
     @Column(name = "customer_name", length = 150)
     private String customerName;
 
+    /** Fase 14 — {@code sam_account_name} do AD resolvido pela cascata de identificação
+     * ({@code CallCenterIdentityResolver}), ou {@code null} se não resolvido (estado normal). */
+    @Column(name = "resolved_ad_sam", length = 128)
+    private String resolvedAdSam;
+
+    /** Espelha {@code IdentitySource} — {@code null} junto com {@code resolvedAdSam} nulo. */
+    @Column(name = "identity_source", length = 20)
+    private String identitySource;
+
     @Builder.Default
     @Column(nullable = false, length = 20)
     private String status = "waiting";

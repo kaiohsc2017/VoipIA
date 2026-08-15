@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.asteriskia.domain.call.CallCostService;
 import com.asteriskia.domain.call.MonthlyCostSummary;
+import com.asteriskia.domain.callcenter.identity.CcIdentityResolutionLogRepository;
 import com.asteriskia.domain.callcenter.kb.CcKbAnswerLogRepository;
 import com.asteriskia.domain.callcenter.nps.CcSurveyResponseRepository;
 import com.asteriskia.domain.insights.InsightMonthlyCostSummary;
@@ -41,6 +42,7 @@ class CostAlertServiceTest {
     @Mock private InsightsCostService insightsCostService;
     @Mock private CcSurveyResponseRepository surveyResponseRepository;
     @Mock private CcKbAnswerLogRepository kbAnswerLogRepository;
+    @Mock private CcIdentityResolutionLogRepository identityResolutionLogRepository;
     @Mock private TelegramBotService telegramBotService;
 
     private CostAlertService service;
@@ -49,7 +51,7 @@ class CostAlertServiceTest {
     void setUp() {
         service = new CostAlertService(
                 repository, callCostService, insightsCostService, surveyResponseRepository,
-                kbAnswerLogRepository, telegramBotService);
+                kbAnswerLogRepository, identityResolutionLogRepository, telegramBotService);
     }
 
     private static FinanceiroCostAlertConfig config(
