@@ -1024,6 +1024,26 @@ export interface ChatPeriodMetrics {
   avgConcurrentChats: number | null;
 }
 
+export interface CcReportSchedule {
+  id: number;
+  name: string;
+  reportType: 'CALLS_EXCEL' | 'CALLS_PDF' | 'CHATS_EXCEL' | 'CHATS_PDF';
+  queue: CcQueue | null;
+  agent: CcAgent | null;
+  periodDays: number;
+  frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  dayOfWeek: number | null;
+  dayOfMonth: number | null;
+  hourOfDay: number;
+  channel: 'telegram' | 'email';
+  recipient: string;
+  active: boolean;
+  createdBy: string;
+  createdAt: string;
+  lastRunAt: string | null;
+  lastRunStatus: string | null;
+}
+
 export interface RecallAndDispositionSummary {
   totalReceived: number;
   recall24hCount: number;

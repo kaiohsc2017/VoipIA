@@ -759,4 +759,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Nova aba "E-mail (SMTP)" em Sistema → Configuração, com botão de teste de conexão — prepara a infraestrutura para o agendamento de relatórios por e-mail do Call Center. Nenhum fluxo do sistema envia e-mail de verdade ainda enquanto o envio não for habilitado.',
     ],
   },
+  {
+    version: 'v1.88',
+    date: '2026-08-14',
+    changes: [
+      'Relatórios do Call Center ganham agendamento: crie um envio periódico (diário/semanal/mensal) do relatório de chamada ou chat por Telegram ou e-mail — nova aba "Agendamentos".',
+    ],
+  },
 ];

@@ -4,7 +4,8 @@ import api, { getErrorMessage } from '../api/client';
 import type {
   CcQueue, CcAgent, FlowView, QueuePeriodMetrics, QueuePeriodComparison,
   AgentPeriodMetrics, AgentPeriodComparison, FlowPeriodMetrics, FlowNodeAbandonmentRow,
-  ChatPeriodMetrics, TimelineEventRow, RecallAndDispositionSummary, Page, ReportGranularity,
+  ChatPeriodMetrics, TimelineEventRow, RecallAndDispositionSummary, CcReportSchedule,
+  Page, ReportGranularity,
 } from '../api/types';
 import { CallDetailReport, ChatDetailReport } from './DetailReportTab';
 import { QualityReportTab } from './QualityReportTab';
@@ -43,7 +44,7 @@ interface ReportsQueueTabProps {
  */
 export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
   const [view, setView] = useState<
-    'queue' | 'agent' | 'flow' | 'chat-summary' | 'timeline' | 'call-detail' | 'chat-detail' | 'quality' | 'gamification' | 'customer-profile' | 'productivity'
+    'queue' | 'agent' | 'flow' | 'chat-summary' | 'timeline' | 'schedules' | 'call-detail' | 'chat-detail' | 'quality' | 'gamification' | 'customer-profile' | 'productivity'
   >('queue');
 
   const [reprocessFrom, setReprocessFrom] = useState(daysAgoIso(7));
@@ -74,6 +75,7 @@ export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
         <button type="button" onClick={() => setView('flow')} disabled={view === 'flow'}>Fluxo/URA</button>
         <button type="button" onClick={() => setView('chat-summary')} disabled={view === 'chat-summary'}>Chat (agregado)</button>
         <button type="button" onClick={() => setView('timeline')} disabled={view === 'timeline'}>Timeline do contato</button>
+        <button type="button" onClick={() => setView('schedules')} disabled={view === 'schedules'}>Agendamentos</button>
         <button type="button" onClick={() => setView('call-detail')} disabled={view === 'call-detail'}>Chamada (detalhe)</button>
         <button type="button" onClick={() => setView('chat-detail')} disabled={view === 'chat-detail'}>Chat (detalhe)</button>
         <button type="button" onClick={() => setView('quality')} disabled={view === 'quality'}>Qualidade</button>
@@ -87,6 +89,7 @@ export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
       {view === 'flow' && <FlowReport reprocessTick={reprocessTick} />}
       {view === 'chat-summary' && <ChatSummaryReport reprocessTick={reprocessTick} />}
       {view === 'timeline' && <TimelineReport />}
+      {view === 'schedules' && <SchedulesPanel />}
       {view === 'call-detail' && <CallDetailReport />}
       {view === 'chat-detail' && <ChatDetailReport />}
       {view === 'quality' && <QualityReportTab isAdmin={isAdmin} />}
@@ -763,6 +766,153 @@ function TimelineReport() {
           </div>
         </>
       )}
+    </>
+  );
+}
+
+/** Sub-fase 9c.6 — CRUD de agendamento de exportação (Telegram/e-mail). */
+function SchedulesPanel() {
+  const [schedules, setSchedules] = useState<CcReportSchedule[]>([]);
+  const [queues, setQueues] = useState<CcQueue[]>([]);
+  const [error, setError] = useState('');
+  const [name, setName] = useState('');
+  const [reportType, setReportType] = useState<CcReportSchedule['reportType']>('CALLS_EXCEL');
+  const [queueId, setQueueId] = useState<number | ''>('');
+  const [periodDays, setPeriodDays] = useState(7);
+  const [frequency, setFrequency] = useState<CcReportSchedule['frequency']>('DAILY');
+  const [dayOfWeek, setDayOfWeek] = useState(1);
+  const [dayOfMonth, setDayOfMonth] = useState(1);
+  const [hourOfDay, setHourOfDay] = useState(8);
+  const [channel, setChannel] = useState<CcReportSchedule['channel']>('telegram');
+  const [recipient, setRecipient] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const load = () => {
+    api.get<CcReportSchedule[]>('/callcenter/reports/schedules')
+      .then(({ data }) => setSchedules(data))
+      .catch(err => setError(getErrorMessage(err, 'Falha ao carregar agendamentos')));
+  };
+
+  useEffect(() => {
+    load();
+    api.get<CcQueue[]>('/callcenter/filas').then(({ data }) => setQueues(data)).catch(() => setQueues([]));
+  }, []);
+
+  const create = () => {
+    setSaving(true);
+    setError('');
+    api.post('/callcenter/reports/schedules', {
+      name, reportType, queueId: queueId || undefined, periodDays,
+      frequency, dayOfWeek: frequency === 'WEEKLY' ? dayOfWeek : undefined,
+      dayOfMonth: frequency === 'MONTHLY' ? dayOfMonth : undefined,
+      hourOfDay, channel, recipient,
+    })
+      .then(() => { setName(''); setRecipient(''); load(); })
+      .catch(err => setError(getErrorMessage(err, 'Falha ao criar agendamento')))
+      .finally(() => setSaving(false));
+  };
+
+  const toggleActive = (s: CcReportSchedule) => {
+    api.put(`/callcenter/reports/schedules/${s.id}/active`, { active: !s.active })
+      .then(load)
+      .catch(err => setError(getErrorMessage(err, 'Falha ao atualizar agendamento')));
+  };
+
+  const remove = (id: number) => {
+    api.delete(`/callcenter/reports/schedules/${id}`).then(load)
+      .catch(err => setError(getErrorMessage(err, 'Falha ao remover agendamento')));
+  };
+
+  return (
+    <>
+      {error && <p style={{ color: 'var(--danger, #c0392b)' }}>{error}</p>}
+
+      <section style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end', background: '#f5f5f5', padding: 12, borderRadius: 8 }}>
+        <label>Nome <input type="text" value={name} onChange={e => setName(e.target.value)} /></label>
+        <label>
+          Relatório
+          <select value={reportType} onChange={e => setReportType(e.target.value as CcReportSchedule['reportType'])}>
+            <option value="CALLS_EXCEL">Chamadas (Excel)</option>
+            <option value="CALLS_PDF">Chamadas (PDF)</option>
+            <option value="CHATS_EXCEL">Chats (Excel)</option>
+            <option value="CHATS_PDF">Chats (PDF)</option>
+          </select>
+        </label>
+        <label>
+          Fila
+          <select value={queueId} onChange={e => setQueueId(e.target.value ? Number(e.target.value) : '')}>
+            <option value="">Todas</option>
+            {queues.map(q => <option key={q.id} value={q.id}>{q.displayName}</option>)}
+          </select>
+        </label>
+        <label>Últimos N dias <input type="number" min={1} value={periodDays} onChange={e => setPeriodDays(Number(e.target.value))} style={{ width: 60 }} /></label>
+        <label>
+          Frequência
+          <select value={frequency} onChange={e => setFrequency(e.target.value as CcReportSchedule['frequency'])}>
+            <option value="DAILY">Diária</option>
+            <option value="WEEKLY">Semanal</option>
+            <option value="MONTHLY">Mensal</option>
+          </select>
+        </label>
+        {frequency === 'WEEKLY' && (
+          <label>
+            Dia da semana
+            <select value={dayOfWeek} onChange={e => setDayOfWeek(Number(e.target.value))}>
+              <option value={1}>Segunda</option><option value={2}>Terça</option><option value={3}>Quarta</option>
+              <option value={4}>Quinta</option><option value={5}>Sexta</option><option value={6}>Sábado</option>
+              <option value={7}>Domingo</option>
+            </select>
+          </label>
+        )}
+        {frequency === 'MONTHLY' && (
+          <label>Dia do mês <input type="number" min={1} max={28} value={dayOfMonth} onChange={e => setDayOfMonth(Number(e.target.value))} style={{ width: 60 }} /></label>
+        )}
+        <label>Hora <input type="number" min={0} max={23} value={hourOfDay} onChange={e => setHourOfDay(Number(e.target.value))} style={{ width: 60 }} /></label>
+        <label>
+          Canal
+          <select value={channel} onChange={e => setChannel(e.target.value as CcReportSchedule['channel'])}>
+            <option value="telegram">Telegram</option>
+            <option value="email">E-mail</option>
+          </select>
+        </label>
+        <label>Destinatário <input type="text" value={recipient} onChange={e => setRecipient(e.target.value)}
+          placeholder={channel === 'telegram' ? 'chat_id' : 'email@empresa.com'} /></label>
+        <button type="button" onClick={create} disabled={saving || !name.trim() || !recipient.trim()}>
+          {saving ? 'Criando…' : 'Criar agendamento'}
+        </button>
+      </section>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 12 }}>
+        <thead>
+          <tr>
+            <th align="left">Nome</th><th align="left">Relatório</th><th align="left">Frequência</th>
+            <th align="left">Canal</th><th align="left">Destinatário</th><th align="left">Última execução</th>
+            <th align="left">Status</th><th align="left">Ativo</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {schedules.map(s => (
+            <tr key={s.id}>
+              <td>{s.name}</td>
+              <td>{s.reportType}</td>
+              <td>{s.frequency}{s.frequency === 'WEEKLY' ? ` (dia ${s.dayOfWeek})` : s.frequency === 'MONTHLY' ? ` (dia ${s.dayOfMonth})` : ''} às {s.hourOfDay}h</td>
+              <td>{s.channel}</td>
+              <td>{s.recipient}</td>
+              <td>{s.lastRunAt ? new Date(s.lastRunAt).toLocaleString('pt-BR') : 'Nunca'}</td>
+              <td>{s.lastRunStatus ?? '—'}</td>
+              <td>
+                <button type="button" onClick={() => toggleActive(s)}>{s.active ? 'Desativar' : 'Ativar'}</button>
+              </td>
+              <td>
+                <button type="button" onClick={() => remove(s.id)}>Remover</button>
+              </td>
+            </tr>
+          ))}
+          {schedules.length === 0 && (
+            <tr><td colSpan={9} style={{ textAlign: 'center', padding: 12 }}>Nenhum agendamento cadastrado.</td></tr>
+          )}
+        </tbody>
+      </table>
     </>
   );
 }

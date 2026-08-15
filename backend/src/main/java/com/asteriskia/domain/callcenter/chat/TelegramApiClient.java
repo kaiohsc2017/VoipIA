@@ -78,6 +78,34 @@ public class TelegramApiClient {
 
     private record SendMessageBody(String chat_id, String text) {}
 
+    /** {@code sendDocument} — anexo binário (relatório exportado, Fase 9c.6). Multipart, mesma
+     * disciplina de nunca logar {@code e.getMessage()}/URI (o token vai no path). */
+    public boolean sendDocument(String botToken, String chatId, byte[] content, String filename) {
+        try {
+            var webClient = webClientBuilder.baseUrl(BASE_URL).build();
+            var builder = new org.springframework.http.client.MultipartBodyBuilder();
+            builder.part("chat_id", chatId);
+            builder.part("document", new org.springframework.core.io.ByteArrayResource(content) {
+                @Override
+                public String getFilename() {
+                    return filename;
+                }
+            });
+            JsonNode response = webClient
+                    .post()
+                    .uri(uriBuilder -> uriBuilder.path("/bot{token}/sendDocument").build(botToken))
+                    .contentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA)
+                    .bodyValue(builder.build())
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .block(REQUEST_TIMEOUT);
+            return response != null && response.path("ok").asBoolean(false);
+        } catch (Exception e) {
+            log.warn("Falha ao enviar documento ao Telegram (chatId={}, causa={}).", chatId, e.getClass().getSimpleName());
+            return false;
+        }
+    }
+
     private List<TelegramUpdate> parseUpdates(JsonNode response) {
         List<TelegramUpdate> updates = new ArrayList<>();
         if (response == null || !response.path("ok").asBoolean(false)) {
