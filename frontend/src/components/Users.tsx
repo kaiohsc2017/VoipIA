@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api, { getErrorMessage } from '../api/client';
+import type { AccessGroup } from '../api/types';
 import type { AppUser, BusinessUnitOption, CcQueueOption, CreateForm, EditForm, TotpSetup } from './userModalTypes';
 import { EMPTY_CREATE, maxAccessDate } from './userModalTypes';
 import { CreateUserModal } from './CreateUserModal';
@@ -14,12 +15,15 @@ export default function Users() {
   // 403 e a lista fica vazia — o checkbox "atendente" fica sem opção de fila, o que é o
   // comportamento correto (não deveria atribuir fila que não pode ver).
   const [queues, setQueues] = useState<CcQueueOption[]>([]);
+  // Grupos de acesso customizados (RBAC granular) para o seletor de grupo do cadastro de
+  // usuário — mesmo endpoint já usado por AccessGroups.tsx.
+  const [accessGroups, setAccessGroups] = useState<AccessGroup[]>([]);
   const [loading, setLoading]     = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser]   = useState<AppUser | null>(null);
   const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE);
   const [editForm, setEditForm]   = useState<EditForm>({
-    displayName: '', password: '', isActive: true, role: 'USER',
+    displayName: '', password: '', isActive: true, role: 'USER', accessGroupId: null,
     businessUnitIds: [], accessExpiresAt: maxAccessDate(), accessIndeterminate: false,
   });
   const [saving, setSaving]       = useState(false);
@@ -66,6 +70,11 @@ export default function Users() {
     api.get<CcQueueOption[]>('/callcenter/filas')
       .then(r => setQueues(r.data ?? []))
       .catch(() => setQueues([]));
+    // Sem ROLE_ADMIN, /access-groups retorna 403 — lista fica vazia e o seletor de grupo
+    // customizado só mostra a opção padrão (fallback pelo Perfil).
+    api.get<AccessGroup[]>('/access-groups')
+      .then(r => setAccessGroups(r.data ?? []))
+      .catch(() => setAccessGroups([]));
   }, []);
 
   // ---- Criar usuário ----
@@ -96,6 +105,7 @@ export default function Users() {
     setEditUser(u);
     setEditForm({
       displayName: u.displayName, password: '', isActive: u.isActive, role: u.role,
+      accessGroupId: null,
       businessUnitIds: u.businessUnitIds ?? [],
       accessExpiresAt: u.accessExpiresAt ?? maxAccessDate(),
       accessIndeterminate: u.accessIndeterminate,
@@ -115,6 +125,7 @@ export default function Users() {
         password: editForm.password || undefined,
         isActive: editForm.isActive,
         role: editForm.role,
+        accessGroupId: editForm.accessGroupId,
         businessUnitIds: editForm.businessUnitIds,
         accessExpiresAt: editForm.accessIndeterminate ? null : editForm.accessExpiresAt,
         accessIndeterminate: editForm.accessIndeterminate,
@@ -329,6 +340,11 @@ export default function Users() {
                       <span className={`badge ${u.role === 'ADMIN' ? 'badge-warning' : 'badge-info'}`}>
                         {u.role === 'ADMIN' ? '🛡 Admin' : '👤 User'}
                       </span>
+                      {u.accessGroupId != null && u.accessGroupId > 2 && (
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                          {u.accessGroupName}
+                        </div>
+                      )}
                     </td>
                     <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                       {(u.businessUnitIds ?? []).length === 0
@@ -410,7 +426,8 @@ export default function Users() {
       {/* Modal — Criar Usuário */}
       {showCreate && (
         <CreateUserModal
-          form={createForm} setForm={setCreateForm} businessUnits={businessUnits} queues={queues}
+          form={createForm} setForm={setCreateForm} businessUnits={businessUnits}
+          accessGroups={accessGroups} queues={queues}
           saving={saving} onClose={() => setShowCreate(false)} onSave={handleCreate}
         />
       )}
@@ -419,6 +436,7 @@ export default function Users() {
       {editUser && (
         <EditUserModal
           user={editUser} form={editForm} setForm={setEditForm} businessUnits={businessUnits}
+          accessGroups={accessGroups}
           saving={saving} onClose={() => setEditUser(null)} onSave={handleEdit}
         />
       )}

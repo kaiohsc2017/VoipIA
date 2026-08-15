@@ -15,8 +15,11 @@ public record UserResponse(
         List<Integer> businessUnitIds,
         String accessExpiresAt,
         Boolean accessIndeterminate,
-        Boolean totpEnabled) {
+        Boolean totpEnabled,
+        Integer accessGroupId,
+        String accessGroupName) {
     static UserResponse from(AppUser u) {
+        var accessGroup = u.getAccessGroup();
         return new UserResponse(
                 u.getId(),
                 u.getUsername(),
@@ -31,6 +34,8 @@ public record UserResponse(
                 u.getBusinessUnits().stream().map(BusinessUnit::getId).toList(),
                 u.getAccessExpiresAt() != null ? u.getAccessExpiresAt().toString() : null,
                 u.getAccessIndeterminate(),
-                u.getTotpEnabled());
+                u.getTotpEnabled(),
+                accessGroup != null ? accessGroup.getId() : null,
+                accessGroup != null ? accessGroup.getName() : null);
     }
 }

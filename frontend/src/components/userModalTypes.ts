@@ -15,6 +15,8 @@ export interface AppUser {
   accessExpiresAt: string | null;
   accessIndeterminate: boolean;
   totpEnabled: boolean;
+  accessGroupId: number | null;
+  accessGroupName: string | null;
 }
 
 export interface BusinessUnitOption {
@@ -40,6 +42,8 @@ export interface CreateForm {
   password: string;
   displayName: string;
   role: string;
+  /** Grupo de acesso customizado (RBAC granular) — se selecionado, prevalece sobre `role`. */
+  accessGroupId: number | null;
   businessUnitIds: number[];
   accessExpiresAt: string;
   accessIndeterminate: boolean;
@@ -53,6 +57,8 @@ export interface EditForm {
   password: string;
   isActive: boolean;
   role: string;
+  /** Grupo de acesso customizado (RBAC granular) — se selecionado, prevalece sobre `role`. */
+  accessGroupId: number | null;
   businessUnitIds: number[];
   accessExpiresAt: string;
   accessIndeterminate: boolean;
@@ -77,7 +83,7 @@ export const toggleBu = (ids: number[], id: number): number[] =>
   ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id];
 
 export const EMPTY_CREATE: CreateForm = {
-  username: '', password: '', displayName: '', role: 'USER',
+  username: '', password: '', displayName: '', role: 'USER', accessGroupId: null,
   businessUnitIds: [], accessExpiresAt: maxAccessDate(), accessIndeterminate: false,
   callCenterAgent: false, queueMemberships: [],
 };

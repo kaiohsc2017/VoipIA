@@ -8,6 +8,9 @@ public record UpdateUserRequest(
         String password,
         Boolean isActive,
         String role,
+        /** Grupo de acesso customizado (RBAC granular) — se informado, tem precedência sobre
+         * {@code role} na resolução do grupo do usuário. */
+        Integer accessGroupId,
         List<Integer> businessUnitIds,
         LocalDate accessExpiresAt,
         Boolean accessIndeterminate) {}

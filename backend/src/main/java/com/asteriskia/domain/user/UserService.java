@@ -43,6 +43,24 @@ public class UserService {
                                         "Grupo de acesso seed ausente: id=" + groupId));
     }
 
+    /**
+     * Resolve o grupo de acesso do usuário: se {@code accessGroupId} for informado (grupo
+     * customizado escolhido explicitamente pela UI), tem precedência sobre o fallback binário
+     * {@link #resolveGroupForRole(String)} — que continua existindo para o fluxo legado
+     * ADMIN|USER sem grupo customizado selecionado.
+     */
+    public AccessGroup resolveAccessGroup(Integer accessGroupId, String role) {
+        if (accessGroupId != null) {
+            return accessGroupRepo
+                    .findById(accessGroupId)
+                    .orElseThrow(
+                            () ->
+                                    new IllegalArgumentException(
+                                            "Grupo de acesso não encontrado: id=" + accessGroupId));
+        }
+        return resolveGroupForRole(role);
+    }
+
     /** Resolve os IDs de BU informados, validando que todos existem. */
     public Set<BusinessUnit> resolveBusinessUnits(List<Integer> ids) {
         List<BusinessUnit> found = businessUnitRepo.findAllById(ids);

@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
+import type { AccessGroup } from '../api/types';
 import type { AppUser, BusinessUnitOption, EditForm } from './userModalTypes';
 import { MAX_ACCESS_DAYS, maxAccessDate, toggleBu } from './userModalTypes';
 
@@ -7,12 +8,13 @@ interface EditUserModalProps {
   form: EditForm;
   setForm: Dispatch<SetStateAction<EditForm>>;
   businessUnits: BusinessUnitOption[];
+  accessGroups: AccessGroup[];
   saving: boolean;
   onClose: () => void;
   onSave: () => void;
 }
 
-export function EditUserModal({ user, form, setForm, businessUnits, saving, onClose, onSave }: EditUserModalProps) {
+export function EditUserModal({ user, form, setForm, businessUnits, accessGroups, saving, onClose, onSave }: EditUserModalProps) {
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal modal-sm">
@@ -44,6 +46,21 @@ export function EditUserModal({ user, form, setForm, businessUnits, saving, onCl
               <option value="USER">👤 Usuário</option>
               <option value="ADMIN">🛡 Administrador</option>
             </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Grupo de acesso customizado</label>
+            <select className="form-select"
+              value={form.accessGroupId ?? ''}
+              onChange={e => setForm(f => ({ ...f, accessGroupId: e.target.value ? Number(e.target.value) : null }))}>
+              <option value="">— usar Perfil acima (padrão) —</option>
+              {accessGroups.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+              Se selecionado, este grupo (RBAC granular) prevalece sobre o Perfil acima. Grupo
+              atual: {user.accessGroupName ?? '—'}.
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label">Status</label>

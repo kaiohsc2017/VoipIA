@@ -55,6 +55,21 @@ public class UserController {
                                                 || "PERM_WRITE_callcenter.filas".equals(a.getAuthority()));
     }
 
+    /**
+     * Achado de segurança (security-reviewer): a rota é protegida também por
+     * PERM_WRITE_telecom.users (não só ROLE_ADMIN) — sem esta checagem, um grupo customizado
+     * com essa permissão (mas sem ser ADMIN) conseguiria se auto-promover ou promover qualquer
+     * outro usuário atribuindo o grupo "Administradores" (id=1) via accessGroupId, ou role="ADMIN"
+     * — escalada de privilégio vertical. Atribuir grupo de acesso/papel ADMIN é operação de gestão
+     * de RBAC, tratada como ROLE_ADMIN puro em todo o resto do sistema (ex: /access-groups/**).
+     */
+    private boolean isAdminCaller() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null
+                && auth.getAuthorities().stream()
+                        .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+    }
+
     // Ramal inicial — o primeiro usuário recebe 9001
     private static final int EXTENSION_START = 9001;
 
@@ -98,6 +113,11 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new ErrorResponse("Vincular atendente a filas requer permissão de escrita em Filas do Call Center."));
         }
+        boolean requestedAdmin = "ADMIN".equals(req.role());
+        if ((req.accessGroupId() != null || requestedAdmin) && !isAdminCaller()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ErrorResponse("Atribuir grupo de acesso customizado ou perfil ADMIN requer ROLE_ADMIN."));
+        }
         if (userRepo.findByUsername(req.username()).isPresent()) {
             return ResponseEntity.badRequest()
                     .body(new ErrorResponse("Username já existe: " + req.username()));
@@ -105,15 +125,16 @@ public class UserController {
 
         boolean accessIndeterminate = Boolean.TRUE.equals(req.accessIndeterminate());
         Set<BusinessUnit> businessUnits;
+        com.asteriskia.domain.accessgroup.AccessGroup accessGroup;
+        int extension = userRepo.findNextExtension(EXTENSION_START);
+        String role = req.role() != null ? req.role() : "USER";
         try {
             userService.validateAccessWindow(req.accessExpiresAt(), accessIndeterminate);
             businessUnits = userService.resolveBusinessUnits(req.businessUnitIds());
+            accessGroup = userService.resolveAccessGroup(req.accessGroupId(), role);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
         }
-
-        int extension = userRepo.findNextExtension(EXTENSION_START);
-        String role = req.role() != null ? req.role() : "USER";
 
         AppUser user =
                 AppUser.builder()
@@ -123,7 +144,7 @@ public class UserController {
                         .extension(extension)
                         .isActive(true)
                         .role(role)
-                        .accessGroup(userService.resolveGroupForRole(role))
+                        .accessGroup(accessGroup)
                         .businessUnits(businessUnits)
                         .accessExpiresAt(accessIndeterminate ? null : req.accessExpiresAt())
                         .accessIndeterminate(accessIndeterminate)
@@ -164,6 +185,11 @@ public class UserController {
             @PathVariable Integer id,
             @Valid @RequestBody UpdateUserRequest req,
             HttpServletRequest httpRequest) {
+        boolean requestedAdmin = "ADMIN".equals(req.role());
+        if ((req.accessGroupId() != null || requestedAdmin) && !isAdminCaller()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ErrorResponse("Atribuir grupo de acesso customizado ou perfil ADMIN requer ROLE_ADMIN."));
+        }
         var userOpt = userRepo.findById(id);
         if (userOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -188,6 +214,9 @@ public class UserController {
                 user.setAccessIndeterminate(indeterminate);
                 user.setAccessExpiresAt(expiresAt);
             }
+            if (req.accessGroupId() != null) {
+                user.setAccessGroup(userService.resolveAccessGroup(req.accessGroupId(), req.role()));
+            }
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
         }
@@ -208,7 +237,14 @@ public class UserController {
         if (req.role() != null) {
             changes.append("role=").append(req.role()).append(" ");
             user.setRole(req.role());
-            user.setAccessGroup(userService.resolveGroupForRole(req.role()));
+            // accessGroupId explícito (tratado acima) tem precedência — só recai no fallback
+            // binário pelo role legado quando nenhum grupo customizado foi selecionado.
+            if (req.accessGroupId() == null) {
+                user.setAccessGroup(userService.resolveGroupForRole(req.role()));
+            }
+        }
+        if (req.accessGroupId() != null) {
+            changes.append("accessGroupId=").append(req.accessGroupId()).append(" ");
         }
         if (req.businessUnitIds() != null) {
             changes.append("bus=").append(req.businessUnitIds()).append(" ");

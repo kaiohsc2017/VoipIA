@@ -255,6 +255,109 @@ class UserControllerTest {
 
         @Test
         @WithMockUser(roles = "ADMIN")
+        void createUser_comAccessGroupIdCustomizado_devePrevalecerSobreRole() throws Exception {
+            mockGrupos();
+            when(accessGroupRepo.findById(7))
+                    .thenReturn(Optional.of(group(7, "Supervisores")));
+            when(userRepo.findByUsername("novo")).thenReturn(Optional.empty());
+            when(userRepo.findNextExtension(9001)).thenReturn(9003);
+            when(businessUnitRepo.findAllById(List.of(5))).thenReturn(List.of(bu(5)));
+            when(userRepo.save(any(AppUser.class))).thenAnswer(inv -> inv.getArgument(0));
+            doNothing().when(auditService).log(any(), any(), any(), anyBoolean());
+
+            String body =
+                    """
+                    {
+                        "username": "novo",
+                        "password": "senha123",
+                        "displayName": "Novo Usuário",
+                        "role": "USER",
+                        "accessGroupId": 7,
+                        "businessUnitIds": [5],
+                        "accessIndeterminate": true
+                    }
+                    """;
+
+            mockMvc.perform(post("/api/v1/users").contentType("application/json").content(body))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.accessGroupId").value(7))
+                    .andExpect(jsonPath("$.accessGroupName").value("Supervisores"));
+
+            org.mockito.ArgumentCaptor<AppUser> captor =
+                    org.mockito.ArgumentCaptor.forClass(AppUser.class);
+            verify(userRepo).save(captor.capture());
+            assertThat(captor.getValue().getAccessGroup().getId()).isEqualTo(7);
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        void createUser_accessGroupIdInexistente_deveRetornar400ENaoSalvar() throws Exception {
+            when(accessGroupRepo.findById(999)).thenReturn(Optional.empty());
+            when(userRepo.findByUsername("novo")).thenReturn(Optional.empty());
+            when(businessUnitRepo.findAllById(List.of(5))).thenReturn(List.of(bu(5)));
+
+            String body =
+                    """
+                    {
+                        "username": "novo",
+                        "password": "senha123",
+                        "displayName": "Novo Usuário",
+                        "accessGroupId": 999,
+                        "businessUnitIds": [5],
+                        "accessIndeterminate": true
+                    }
+                    """;
+
+            mockMvc.perform(post("/api/v1/users").contentType("application/json").content(body))
+                    .andExpect(status().isBadRequest());
+
+            verify(userRepo, never()).save(any());
+        }
+
+        @Test
+        @WithMockUser(authorities = "PERM_WRITE_telecom.users")
+        void createUser_naoAdminComAccessGroupId_deveRetornar403ENaoSalvar() throws Exception {
+            String body =
+                    """
+                    {
+                        "username": "novo",
+                        "password": "senha123",
+                        "displayName": "Novo Usuário",
+                        "accessGroupId": 1,
+                        "businessUnitIds": [5],
+                        "accessIndeterminate": true
+                    }
+                    """;
+
+            mockMvc.perform(post("/api/v1/users").contentType("application/json").content(body))
+                    .andExpect(status().isForbidden());
+
+            verify(userRepo, never()).save(any());
+        }
+
+        @Test
+        @WithMockUser(authorities = "PERM_WRITE_telecom.users")
+        void createUser_naoAdminComRoleAdmin_deveRetornar403ENaoSalvar() throws Exception {
+            String body =
+                    """
+                    {
+                        "username": "novo",
+                        "password": "senha123",
+                        "displayName": "Novo Usuário",
+                        "role": "ADMIN",
+                        "businessUnitIds": [5],
+                        "accessIndeterminate": true
+                    }
+                    """;
+
+            mockMvc.perform(post("/api/v1/users").contentType("application/json").content(body))
+                    .andExpect(status().isForbidden());
+
+            verify(userRepo, never()).save(any());
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
         void createUser_usernameJaExiste_deveRetornar400() throws Exception {
             when(userRepo.findByUsername("kaio")).thenReturn(Optional.of(baseUser().build()));
 
@@ -639,6 +742,76 @@ class UserControllerTest {
                     org.mockito.ArgumentCaptor.forClass(AppUser.class);
             verify(userRepo).save(captor.capture());
             assertThat(captor.getValue().getAccessGroup().getId()).isEqualTo(1);
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        void updateUser_comAccessGroupIdCustomizado_devePrevalecerSobreRole() throws Exception {
+            when(accessGroupRepo.findById(7))
+                    .thenReturn(Optional.of(group(7, "Supervisores")));
+            AppUser existente = baseUser().build(); // role=USER, grupo=2
+            when(userRepo.findById(1)).thenReturn(Optional.of(existente));
+            when(userRepo.save(any(AppUser.class))).thenAnswer(inv -> inv.getArgument(0));
+            doNothing().when(auditService).log(any(), any(), any(), anyBoolean());
+
+            String body = """
+                    { "accessGroupId": 7 }
+                    """;
+
+            mockMvc.perform(put("/api/v1/users/1").contentType("application/json").content(body))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.accessGroupId").value(7))
+                    .andExpect(jsonPath("$.accessGroupName").value("Supervisores"));
+
+            org.mockito.ArgumentCaptor<AppUser> captor =
+                    org.mockito.ArgumentCaptor.forClass(AppUser.class);
+            verify(userRepo).save(captor.capture());
+            assertThat(captor.getValue().getAccessGroup().getId()).isEqualTo(7);
+            // role legado não deve ter sido alterado, já que só accessGroupId foi enviado
+            assertThat(captor.getValue().getRole()).isEqualTo("USER");
+        }
+
+        @Test
+        @WithMockUser(roles = "ADMIN")
+        void updateUser_accessGroupIdInexistente_deveRetornar400ENaoSalvar() throws Exception {
+            when(accessGroupRepo.findById(999)).thenReturn(Optional.empty());
+            when(userRepo.findById(1)).thenReturn(Optional.of(baseUser().build()));
+
+            String body = """
+                    { "accessGroupId": 999 }
+                    """;
+
+            mockMvc.perform(put("/api/v1/users/1").contentType("application/json").content(body))
+                    .andExpect(status().isBadRequest());
+
+            verify(userRepo, never()).save(any());
+        }
+
+        @Test
+        @WithMockUser(authorities = "PERM_WRITE_telecom.users")
+        void updateUser_naoAdminComAccessGroupId_deveRetornar403ENaoSalvar() throws Exception {
+            String body = """
+                    { "accessGroupId": 1 }
+                    """;
+
+            mockMvc.perform(put("/api/v1/users/1").contentType("application/json").content(body))
+                    .andExpect(status().isForbidden());
+
+            verify(userRepo, never()).findById(anyInt());
+            verify(userRepo, never()).save(any());
+        }
+
+        @Test
+        @WithMockUser(authorities = "PERM_WRITE_telecom.users")
+        void updateUser_naoAdminComRoleAdmin_deveRetornar403ENaoSalvar() throws Exception {
+            String body = """
+                    { "role": "ADMIN" }
+                    """;
+
+            mockMvc.perform(put("/api/v1/users/1").contentType("application/json").content(body))
+                    .andExpect(status().isForbidden());
+
+            verify(userRepo, never()).save(any());
         }
 
         @Test

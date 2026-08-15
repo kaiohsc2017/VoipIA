@@ -491,8 +491,37 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    eventos AMI de canal da Fase 23 nunca confirmados com tráfego real.
 > 4. **Débitos transversais (fora do Call Center)**: CSP em `Report-Only` (nunca migrado pra
 >    enforcement real); BU incompleto (Alertas Zabbix e Insights do Call Center/relatório 9c não
->    filtram por BU); Jira sem credenciais reais; atribuir grupo de acesso customizado a um
->    usuário pela UI ainda não existe (só ADMIN/USER binário).
+>    filtram por BU); Jira sem credenciais reais. Nó `agente_ia` do catálogo de fluxo do Call
+>    Center segue `implementado=false`, sem escopo definido em nenhuma fase aberta. Fila real do
+>    chat público (Telegram/Webchat) segue sem `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` configurado —
+>    nenhuma fila real cadastrada nesta VPS de dev.
+
+### ✅ Atribuir grupo de acesso customizado a um usuário pela UI (2026-08-15) — deployada e validada em produção
+Fechava a última lacuna binária do RBAC granular (V22): a UI de usuários (`Users.tsx`) só permitia
+o Perfil ADMIN|USER, nunca um dos grupos de acesso customizados já cadastrados em "Grupos de
+Acesso". Sem migration nova — `app_users.access_group_id` já existia como FK obrigatória desde a
+V22, só faltava a UI e a API aceitarem um valor explícito.
+- **Backend**: `CreateUserRequest`/`UpdateUserRequest` ganharam `accessGroupId` (opcional).
+  `UserService.resolveAccessGroup(accessGroupId, role)` — se informado, prevalece sobre o
+  fallback binário `resolveGroupForRole(role)` (que continua existindo, sem quebrar o fluxo
+  legado). `UserResponse` passou a expor `accessGroupId`/`accessGroupName`.
+- **1 achado CRITICAL real corrigido antes do deploy** (`ecc:security-reviewer`): a rota
+  `/api/v1/users/**` de escrita aceita `PERM_WRITE_telecom.users` além de `ROLE_ADMIN` — sem
+  checagem adicional, um usuário com só essa permissão (não-ADMIN) conseguiria se auto-promover
+  atribuindo o grupo "Administradores" (id=1) via `accessGroupId`, ou `role="ADMIN"` — escalada de
+  privilégio vertical trivial e generalizada a qualquer grupo customizado futuro com permissões
+  amplas. Corrigido com `isAdminCaller()` (mesmo padrão de `hasCallCenterQueueWriteAccess()`):
+  `accessGroupId` explícito ou `role="ADMIN"` agora exigem `ROLE_ADMIN` de verdade no chamador,
+  retornando 403 caso contrário — atribuir grupo/perfil ADMIN é operação de gestão de RBAC, mesmo
+  nível de exigência já usado em `/access-groups/**`.
+- **Frontend**: `CreateUserModal.tsx`/`EditUserModal.tsx` ganharam um seletor "Grupo de acesso
+  customizado" (populado via `GET /access-groups`, mesmo endpoint de `AccessGroups.tsx`) — opção
+  padrão "usar Perfil acima" preserva o comportamento binário quando nada é selecionado. Listagem
+  de usuários mostra o nome do grupo customizado abaixo do badge Perfil quando `accessGroupId > 2`
+  (ids 1/2 são os grupos seed Administradores/Usuários, já refletidos pelo badge).
+- Suíte completa do backend **921/921 verde** (10 novos testes, 0 regressão — a única falha é o
+  flake conhecido de `ffmpeg` ausente no container Maven ad hoc). `tsc --noEmit` e `npm run build`
+  do frontend Telecom limpos. Release notes `v1.93` registrada.
 
 ### ✅ Fase 14 do plano-mãe do Call Center — identidade do contato e screen pop (2026-08-15) — deployada e validada em produção
 Desbloqueada pela Fase 1/AD (espelho local `ad_users` já com paginação/employeeID corretos).

@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
+import type { AccessGroup } from '../api/types';
 import type { BusinessUnitOption, CcQueueOption, CreateForm } from './userModalTypes';
 import { MAX_ACCESS_DAYS, maxAccessDate, toggleBu } from './userModalTypes';
 
@@ -6,13 +7,14 @@ interface CreateUserModalProps {
   form: CreateForm;
   setForm: Dispatch<SetStateAction<CreateForm>>;
   businessUnits: BusinessUnitOption[];
+  accessGroups: AccessGroup[];
   queues: CcQueueOption[];
   saving: boolean;
   onClose: () => void;
   onSave: () => void;
 }
 
-export function CreateUserModal({ form, setForm, businessUnits, queues, saving, onClose, onSave }: CreateUserModalProps) {
+export function CreateUserModal({ form, setForm, businessUnits, accessGroups, queues, saving, onClose, onSave }: CreateUserModalProps) {
   const toggleQueue = (queueId: number) => {
     setForm(f => {
       const exists = f.queueMemberships.some(m => m.queueId === queueId);
@@ -67,6 +69,20 @@ export function CreateUserModal({ form, setForm, businessUnits, queues, saving, 
               <option value="USER">👤 Usuário</option>
               <option value="ADMIN">🛡 Administrador</option>
             </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Grupo de acesso customizado</label>
+            <select className="form-select"
+              value={form.accessGroupId ?? ''}
+              onChange={e => setForm(f => ({ ...f, accessGroupId: e.target.value ? Number(e.target.value) : null }))}>
+              <option value="">— usar Perfil acima (padrão) —</option>
+              {accessGroups.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+              Se selecionado, este grupo (RBAC granular) prevalece sobre o Perfil acima.
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label">Unidade(s) de Negócio (BU) *</label>

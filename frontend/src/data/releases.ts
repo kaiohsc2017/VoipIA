@@ -797,4 +797,11 @@ export const RELEASES: ReleaseEntry[] = [
       'O perfil de IA é gerado em segundo plano (nunca trava o atendimento) e reaproveitado por 24h antes de ser regerado.',
     ],
   },
+  {
+    version: 'v1.93',
+    date: '2026-08-15',
+    changes: [
+      'Cadastro de Usuários: agora é possível atribuir um grupo de acesso customizado (RBAC granular) a um usuário, além do Perfil binário Admin/Usuário — só administradores podem fazer essa atribuição.',
+    ],
+  },
 ];

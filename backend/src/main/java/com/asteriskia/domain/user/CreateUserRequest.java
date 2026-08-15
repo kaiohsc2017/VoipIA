@@ -14,6 +14,9 @@ public record CreateUserRequest(
                 String password,
         @NotBlank(message = "Nome de exibição obrigatório") String displayName,
         String role,
+        /** Grupo de acesso customizado (RBAC granular) — se informado, tem precedência sobre
+         * {@code role} na resolução do grupo do usuário. */
+        Integer accessGroupId,
         @NotEmpty(message = "Selecione ao menos uma Unidade de Negócio (BU)")
                 List<Integer> businessUnitIds,
         LocalDate accessExpiresAt,
