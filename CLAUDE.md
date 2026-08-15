@@ -1434,11 +1434,12 @@ nesses cadastros), Chamadas (`CallRecordService`, via `uras.business_unit_id`) e
   relação JPA). Fail-open documentado para gravação sem `ccRecordingId`/sem BU atribuída (mesmo
   padrão de `CallRecordService`); registro fora do escopo sempre 404 (nunca 403). Insights
   (Verint) permanece deliberadamente sem escopo de BU (decisão de produto já tomada, sem mudança).
-  **Gap residual aceito**: `/dashboard` (só contagens agregadas) e `/processing` (só status/nome
-  de arquivo) do Insights do Call Center seguem sem filtro de BU — nenhum dos dois expõe
-  conteúdo/PII, decisão de priorizar a superfície mais sensível primeiro. Alertas Zabbix
-  (`AlertService`) segue sem escopo de BU — depende de decisão de produto sobre como derivar BU de
-  um host monitorado, ainda não tomada.
+  `/processing` (status/nome de arquivo) ganhou o mesmo filtro logo em seguida (commit `7ee536b`,
+  extensão trivial via a mesma Specification). **Gap residual aceito**: `/dashboard` (só contagens
+  agregadas, 6 queries JPQL de agregado) segue sem filtro de BU — nenhuma exposição de
+  conteúdo/PII, custo de reescrita desproporcional ao risco. Alertas Zabbix (`AlertService`) segue
+  sem escopo de BU — depende de decisão de produto sobre como derivar BU de um host monitorado,
+  ainda não tomada.
 
 ### ✅ Fase 8 do módulo Call Center — Insights (pipeline de IA) (2026-08-07) — deployada e validada em produção
 Reaproveita integralmente o pipeline de Insights (Verint) — STT/diarização/análise de
