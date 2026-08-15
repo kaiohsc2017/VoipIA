@@ -27,9 +27,14 @@ import org.springframework.stereotype.Component;
  * confirmação falada + persistência em {@code cc_interactions.resolved_ad_sam}). Fase B do
  * plano-mãe implementou {@code agente_ia} (delega a {@code AgenteIaNodeHandler} — laço limitado
  * de pergunta→resposta via {@code CallCenterIaAgentConversationService}, persona cadastrada na
- * Fase A/{@code CcIaAgent}). Só {@code consultar_api} continua {@code false} — fica para uma
- * sub-fase futura (Fase 10, SSRF é o risco central). {@link FlowGraphValidator} bloqueia a
- * publicação de qualquer fluxo que use um nó ainda não implementado.
+ * Fase A/{@code CcIaAgent}). Fase 10 implementou {@code consultar_api} (delega a
+ * {@code ConsultarApiNodeHandler} — a URL nunca é digitada livremente no fluxo, {@code
+ * settingsKey} referencia uma chave do {@code .env} cadastrada por quem tem acesso a
+ * Configurações, mesmo padrão de allowlist de {@code TelegramLongPollingClient.resolveToken};
+ * guard de host privado/loopback como defesa em profundidade) — **todos os nós do catálogo do
+ * plano-mãe agora {@code implementado=true}**. {@link FlowGraphValidator} bloqueia a publicação
+ * de qualquer fluxo que use um nó ainda não implementado (regra que permanece valendo para
+ * qualquer nó novo que seja adicionado ao catálogo no futuro).
  *
  * <p>Fase 24 (chat) prova a premissa de motor agnóstico de canal: {@code menu_opcoes},
  * {@code tocar_audio}, {@code enviar_fila}, {@code encerrar}, {@code condicao},
@@ -45,7 +50,8 @@ public class FlowGraphNodeCatalog {
             Set.of(
                     "inicio", "tocar_audio", "menu_opcoes", "condicao", "definir_variavel", "enviar_fila",
                     "pesquisa_satisfacao", "pausar_gravacao", "coletar_texto", "consultar_base",
-                    "horario_funcionamento", "transferir_ramal", "coletar_entrada", "agente_ia", "encerrar");
+                    "horario_funcionamento", "transferir_ramal", "coletar_entrada", "agente_ia",
+                    "consultar_api", "encerrar");
 
     private static final List<FlowGraphNodeType> NODE_TYPES =
             List.of(
@@ -92,7 +98,8 @@ public class FlowGraphNodeCatalog {
                             "both",
                             List.of(
                                     prop("settingsKey", "Chave de configuração (Settings)", "string"),
-                                    prop("timeoutSegundos", "Timeout (s)", "number"))),
+                                    prop("timeoutSegundos", "Timeout (s)", "number"),
+                                    prop("variavel", "Salvar resposta na variável", "string"))),
                     node(
                             "enviar_fila",
                             "Enviar para fila",

@@ -3,15 +3,18 @@ package com.asteriskia.domain.callcenter.flow;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
  * FlowGraphValidatorTest — início obrigatório/único, nó órfão, aresta para nó inexistente, tipo
  * desconhecido, canal incompatível, bloqueio de publicação por nó não implementado, ciclo é só
- * aviso. Desde a sub-fase 5b, 7 tipos passaram a {@code implementado=true}
- * ({@code FlowGraphNodeCatalog}) — os testes de bloqueio usam {@code consultar_api}, que
- * permanece não implementado (fica para a 5d).
+ * aviso. Desde a Fase 10 (nó {@code consultar_api}), **todos** os tipos do catálogo real são
+ * {@code implementado=true} — os testes de bloqueio usam {@code FAKE_UNIMPLEMENTED_TYPE}, um tipo
+ * sintético só desta suíte (via subclasse anônima de {@link FlowGraphNodeCatalog}), para continuar
+ * cobrindo a regra em si (que segue valendo para qualquer nó novo adicionado no futuro) sem
+ * depender de um exemplo real ainda pendente no catálogo de produção.
  *
  * <p>Os nós usam o formato real persistido pela UI: {@code type} é sempre {@code "generic"} (tipo
  * de renderização do React Flow) — o tipo de domínio do catálogo vem em {@code data.nodeType}
@@ -20,7 +23,22 @@ import org.junit.jupiter.api.Test;
  */
 class FlowGraphValidatorTest {
 
-    private final FlowGraphValidator validator = new FlowGraphValidator(new ObjectMapper(), new FlowGraphNodeCatalog());
+    private static final String FAKE_UNIMPLEMENTED_TYPE = "fake_unimplemented_type";
+
+    private final FlowGraphNodeCatalog catalogWithFakeUnimplementedType =
+            new FlowGraphNodeCatalog() {
+                @Override
+                public java.util.Optional<FlowGraphNodeType> findByType(String type) {
+                    if (FAKE_UNIMPLEMENTED_TYPE.equals(type)) {
+                        return java.util.Optional.of(
+                                new FlowGraphNodeType(FAKE_UNIMPLEMENTED_TYPE, "Tipo fake (teste)", "both", false, List.of()));
+                    }
+                    return super.findByType(type);
+                }
+            };
+
+    private final FlowGraphValidator validator =
+            new FlowGraphValidator(new ObjectMapper(), catalogWithFakeUnimplementedType);
 
     private static String graph(String nodesJson, String edgesJson) {
         return "{\"schemaVersion\":1,\"nodes\":" + nodesJson + ",\"edges\":" + edgesJson + "}";
@@ -124,7 +142,7 @@ class FlowGraphValidatorTest {
     @Test
     @DisplayName("grafo válido para salvar rascunho não gera erro mesmo com nó ainda não implementado")
     void validGraph_savingDraft_noErrorForUnimplementedNode() {
-        var nodes = "[" + n("n1", "inicio") + "," + n("n2", "consultar_api") + "]";
+        var nodes = "[" + n("n1", "inicio") + "," + n("n2", "fake_unimplemented_type") + "]";
         var edges = "[{\"id\":\"e1\",\"source\":\"n1\",\"target\":\"n2\"}]";
         var result = validator.validate(graph(nodes, edges), "voice", false);
 
@@ -134,7 +152,7 @@ class FlowGraphValidatorTest {
     @Test
     @DisplayName("publicar bloqueia fluxo que usa nó ainda não implementado pelo motor")
     void publish_nodeNotImplemented_rejected() {
-        var nodes = "[" + n("n1", "inicio") + "," + n("n2", "consultar_api") + "]";
+        var nodes = "[" + n("n1", "inicio") + "," + n("n2", "fake_unimplemented_type") + "]";
         var edges = "[{\"id\":\"e1\",\"source\":\"n1\",\"target\":\"n2\"}]";
         var result = validator.validate(graph(nodes, edges), "voice", true);
 
