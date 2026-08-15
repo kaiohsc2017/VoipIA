@@ -32,6 +32,7 @@ public class SettingsTestController {
     private final RestTemplate restTemplate;
     private final JiraIntegrationService jiraService;
     private final LdapClient ldapClient;
+    private final EmailSenderService emailSenderService;
 
     // -------------------------------------------------------------------------
     // Jira
@@ -204,6 +205,31 @@ public class SettingsTestController {
         } catch (Exception e) {
             log.warn("Teste SIP DNS falhou: {}", e.getMessage());
             return bad("Não foi possível resolver o host \"" + host + "\": " + e.getMessage());
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // E-mail (CFG-email do plano do Call Center)
+    // -------------------------------------------------------------------------
+
+    @PostMapping("/email")
+    public ResponseEntity<?> testEmail(@RequestBody Map<String, String> body) {
+        String host = body.getOrDefault("SMTP_HOST", "").trim();
+        String username = body.getOrDefault("SMTP_USERNAME", "").trim();
+        String password = body.getOrDefault("SMTP_PASSWORD_CREDENTIAL", "").trim();
+        int port = parseIntOrDefault(body.get("SMTP_PORT"), 587);
+        boolean starttls = !"false".equalsIgnoreCase(body.getOrDefault("SMTP_STARTTLS", "true"));
+
+        if (host.isEmpty() || username.isEmpty() || password.isEmpty() || isMasked(password)) {
+            return bad("Preencha host, usuário e senha SMTP antes de testar.");
+        }
+
+        try {
+            String message = emailSenderService.testConnection(host, port, username, password, starttls);
+            return ok(message);
+        } catch (Exception e) {
+            log.warn("Teste de e-mail falhou: {}", e.getClass().getSimpleName());
+            return bad("Falha ao conectar: " + sanitize(e.getMessage()));
         }
     }
 

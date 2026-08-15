@@ -752,4 +752,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Os relatórios analíticos de chamada e chat do Call Center ganham exportação em Excel e PDF, respeitando os mesmos filtros já aplicados na busca.',
     ],
   },
+  {
+    version: 'v1.87',
+    date: '2026-08-14',
+    changes: [
+      'Nova aba "E-mail (SMTP)" em Sistema → Configuração, com botão de teste de conexão — prepara a infraestrutura para o agendamento de relatórios por e-mail do Call Center. Nenhum fluxo do sistema envia e-mail de verdade ainda enquanto o envio não for habilitado.',
+    ],
+  },
 ];
