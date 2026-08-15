@@ -25,4 +25,7 @@ public interface CcChatSessionRepository extends JpaRepository<CcChatSession, Lo
     /** Todas as sessões do período — base do "Perfil do cliente" (Fase 27), mesmo padrão de
      * {@link com.asteriskia.domain.callcenter.interaction.CcInteractionRepository#findByQueuedAtBetween}. */
     List<CcChatSession> findByStartedAtBetween(LocalDateTime from, LocalDateTime to);
+
+    /** Agregado diário de chat (Fase 9c.2) — sessões de uma fila iniciadas num dia. */
+    List<CcChatSession> findByQueueIdAndStartedAtBetween(Long queueId, LocalDateTime from, LocalDateTime to);
 }

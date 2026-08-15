@@ -4,7 +4,7 @@ import api, { getErrorMessage } from '../api/client';
 import type {
   CcQueue, CcAgent, FlowView, QueuePeriodMetrics, QueuePeriodComparison,
   AgentPeriodMetrics, AgentPeriodComparison, FlowPeriodMetrics, FlowNodeAbandonmentRow,
-  ReportGranularity,
+  ChatPeriodMetrics, ReportGranularity,
 } from '../api/types';
 import { CallDetailReport, ChatDetailReport } from './DetailReportTab';
 import { QualityReportTab } from './QualityReportTab';
@@ -43,7 +43,7 @@ interface ReportsQueueTabProps {
  */
 export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
   const [view, setView] = useState<
-    'queue' | 'agent' | 'flow' | 'call-detail' | 'chat-detail' | 'quality' | 'gamification' | 'customer-profile' | 'productivity'
+    'queue' | 'agent' | 'flow' | 'chat-summary' | 'call-detail' | 'chat-detail' | 'quality' | 'gamification' | 'customer-profile' | 'productivity'
   >('queue');
 
   const [reprocessFrom, setReprocessFrom] = useState(daysAgoIso(7));
@@ -72,6 +72,7 @@ export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
         <button type="button" onClick={() => setView('queue')} disabled={view === 'queue'}>Fila (voz)</button>
         <button type="button" onClick={() => setView('agent')} disabled={view === 'agent'}>Agente (voz)</button>
         <button type="button" onClick={() => setView('flow')} disabled={view === 'flow'}>Fluxo/URA</button>
+        <button type="button" onClick={() => setView('chat-summary')} disabled={view === 'chat-summary'}>Chat (agregado)</button>
         <button type="button" onClick={() => setView('call-detail')} disabled={view === 'call-detail'}>Chamada (detalhe)</button>
         <button type="button" onClick={() => setView('chat-detail')} disabled={view === 'chat-detail'}>Chat (detalhe)</button>
         <button type="button" onClick={() => setView('quality')} disabled={view === 'quality'}>Qualidade</button>
@@ -83,6 +84,7 @@ export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
       {view === 'queue' && <QueueReport reprocessTick={reprocessTick} />}
       {view === 'agent' && <AgentReport reprocessTick={reprocessTick} />}
       {view === 'flow' && <FlowReport reprocessTick={reprocessTick} />}
+      {view === 'chat-summary' && <ChatSummaryReport reprocessTick={reprocessTick} />}
       {view === 'call-detail' && <CallDetailReport />}
       {view === 'chat-detail' && <ChatDetailReport />}
       {view === 'quality' && <QualityReportTab isAdmin={isAdmin} />}
@@ -94,7 +96,7 @@ export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
         <section style={{ background: '#fff8e1', padding: 12, borderRadius: 8 }}>
           <h3 style={{ marginTop: 0 }}>Reprocessar agregados (admin)</h3>
           <p style={{ marginTop: 0, fontSize: 13, color: 'var(--text-muted, #666)' }}>
-            Reprocessa fila, agente e fluxo/URA juntos para o intervalo informado.
+            Reprocessa fila, agente, fluxo/URA e chat juntos para o intervalo informado.
           </p>
           {reprocessError && <p style={{ color: 'var(--danger, #c0392b)' }}>{reprocessError}</p>}
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
@@ -540,6 +542,107 @@ function FlowReport({ reprocessTick }: { reprocessTick: number }) {
           </table>
         </section>
       )}
+    </>
+  );
+}
+
+/** Sub-fase 9c.2 — relatório agregado de chat (FRT/ART/concorrência/contenção do bot). */
+function ChatSummaryReport({ reprocessTick }: { reprocessTick: number }) {
+  const [queues, setQueues] = useState<CcQueue[]>([]);
+  const [selectedQueueId, setSelectedQueueId] = useState<number | ''>('');
+  const [granularity, setGranularity] = useState<ReportGranularity>('day');
+  const [from, setFrom] = useState(daysAgoIso(30));
+  const [to, setTo] = useState(todayIso());
+  const [rows, setRows] = useState<ChatPeriodMetrics[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.get<CcQueue[]>('/callcenter/filas')
+      .then(({ data }) => setQueues(data))
+      .catch(() => setQueues([]));
+  }, []);
+
+  useEffect(() => {
+    if (!selectedQueueId) {
+      setRows([]);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    api.get<ChatPeriodMetrics[]>('/callcenter/reports/chats/summary', {
+      params: { queueId: selectedQueueId, from, to, granularity },
+    })
+      .then(({ data }) => setRows(data))
+      .catch(err => setError(getErrorMessage(err, 'Falha ao carregar relatório')))
+      .finally(() => setLoading(false));
+  }, [selectedQueueId, granularity, from, to, reprocessTick]);
+
+  return (
+    <>
+      {error && <p style={{ color: 'var(--danger, #c0392b)' }}>{error}</p>}
+
+      <section style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
+        <label>
+          Fila
+          <select value={selectedQueueId} onChange={e => setSelectedQueueId(e.target.value ? Number(e.target.value) : '')}>
+            <option value="">Selecione…</option>
+            {queues.map(q => <option key={q.id} value={q.id}>{q.displayName}</option>)}
+          </select>
+        </label>
+        <label>
+          Granularidade
+          <select value={granularity} onChange={e => setGranularity(e.target.value as ReportGranularity)}>
+            <option value="day">Dia</option>
+            <option value="week">Semana</option>
+            <option value="month">Mês</option>
+            <option value="year">Ano</option>
+          </select>
+        </label>
+        <label>De <input type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
+        <label>Até <input type="date" value={to} onChange={e => setTo(e.target.value)} /></label>
+      </section>
+
+      {loading && <p>Carregando…</p>}
+
+      {!loading && selectedQueueId && (
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th align="left">Período</th>
+              <th align="right">Recebidos</th>
+              <th align="right">Assumidos</th>
+              <th align="right">Encerrados</th>
+              <th align="right">Contidos pelo bot</th>
+              <th align="right">Escalados</th>
+              <th align="right">Taxa contenção</th>
+              <th align="right">FRT (s)</th>
+              <th align="right">ART (s)</th>
+              <th align="right">Concorrência média</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.periodLabel}>
+                <td>{r.periodLabel}</td>
+                <td align="right">{r.received}</td>
+                <td align="right">{r.claimed}</td>
+                <td align="right">{r.closed}</td>
+                <td align="right">{r.botContained}</td>
+                <td align="right">{r.botEscalated}</td>
+                <td align="right">{fmt(r.botContainmentRatePct, '%')}</td>
+                <td align="right">{fmt(r.avgFrtSeconds)}</td>
+                <td align="right">{fmt(r.avgResponseSeconds)}</td>
+                <td align="right">{fmt(r.avgConcurrentChats)}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={10} style={{ textAlign: 'center', padding: 12 }}>Sem dados no período.</td></tr>
+            )}
+          </tbody>
+        </table>
+      )}
+      {!selectedQueueId && <p>Selecione uma fila para ver o relatório.</p>}
     </>
   );
 }

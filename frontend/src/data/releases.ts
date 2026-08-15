@@ -724,4 +724,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Relatórios do Call Center ganham a aba "Fluxo/URA": volume de execuções por desfecho (concluída, transferida para fila/ramal, abandonada, erro), duração média das chamadas e um painel de abandono por nó — mostra exatamente em qual pergunta/menu do fluxo as ligações mais estão morrendo.',
     ],
   },
+  {
+    version: 'v1.83',
+    date: '2026-08-14',
+    changes: [
+      'Relatórios do Call Center ganham a aba "Chat (agregado)": tempo de primeira resposta (FRT), tempo médio de resposta (ART), concorrência média de chats simultâneos e taxa de contenção do bot (quantas conversas o assistente resolveu sozinho, sem precisar de um agente humano).',
+    ],
+  },
 ];

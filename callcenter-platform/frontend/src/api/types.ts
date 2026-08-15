@@ -1009,6 +1009,21 @@ export interface FlowPeriodMetrics {
   avgDurationSeconds: number | null;
 }
 
+export interface ChatPeriodMetrics {
+  queueId: number | null;
+  queueName: string | null;
+  periodLabel: string;
+  received: number;
+  claimed: number;
+  closed: number;
+  botContained: number;
+  botEscalated: number;
+  botContainmentRatePct: number | null;
+  avgFrtSeconds: number | null;
+  avgResponseSeconds: number | null;
+  avgConcurrentChats: number | null;
+}
+
 export interface FlowNodeAbandonmentRow {
   nodeId: string;
   nodeType: string;

@@ -30,6 +30,7 @@ public class CallCenterReportsQueryService {
     private final CcAggAgentDailyRepository agentAggRepository;
     private final CcAggFlowDailyRepository flowAggRepository;
     private final CcAggFlowNodeDailyRepository flowNodeAggRepository;
+    private final CcAggChatDailyRepository chatAggRepository;
 
     public enum Granularity { DAY, WEEK, MONTH, YEAR }
 
@@ -305,6 +306,71 @@ public class CallCenterReportsQueryService {
 
         return new FlowPeriodMetrics(flowId, flowName, label, executions, completed, transferredQueue,
                 transferredExtension, abandoned, errored, abandonRatePct, avgDurationSeconds);
+    }
+
+    // ─── Chat (sub-fase 9c.2) ─────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<ChatPeriodMetrics> queryChat(Long queueId, LocalDate from, LocalDate to, Granularity granularity) {
+        List<CcAggChatDaily> rows = chatAggRepository.findByQueueIdAndDateBetweenOrderByDateAsc(queueId, from, to);
+        return groupByPeriodChat(rows, granularity);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, List<ChatPeriodMetrics>> queryAllChats(LocalDate from, LocalDate to, Granularity granularity) {
+        List<CcAggChatDaily> rows = chatAggRepository.findByDateBetweenOrderByQueueIdAscDateAsc(from, to);
+        Map<Long, List<CcAggChatDaily>> byQueue = new LinkedHashMap<>();
+        for (CcAggChatDaily row : rows) {
+            byQueue.computeIfAbsent(row.getQueue().getId(), k -> new java.util.ArrayList<>()).add(row);
+        }
+        Map<Long, List<ChatPeriodMetrics>> result = new LinkedHashMap<>();
+        byQueue.forEach((queueId, queueRows) -> result.put(queueId, groupByPeriodChat(queueRows, granularity)));
+        return result;
+    }
+
+    private List<ChatPeriodMetrics> groupByPeriodChat(List<CcAggChatDaily> rows, Granularity granularity) {
+        if (granularity == Granularity.DAY) {
+            return rows.stream()
+                    .map(r -> combineChat(List.of(r), r.getDate().toString()))
+                    .toList();
+        }
+        Map<String, List<CcAggChatDaily>> grouped = new LinkedHashMap<>();
+        for (CcAggChatDaily row : rows) {
+            grouped.computeIfAbsent(periodLabel(row.getDate(), granularity), k -> new java.util.ArrayList<>()).add(row);
+        }
+        return grouped.entrySet().stream()
+                .map(e -> combineChat(e.getValue(), e.getKey()))
+                .sorted(Comparator.comparing(ChatPeriodMetrics::periodLabel))
+                .toList();
+    }
+
+    private ChatPeriodMetrics combineChat(List<CcAggChatDaily> rows, String label) {
+        if (rows.isEmpty()) {
+            return new ChatPeriodMetrics(null, null, label, 0, 0, 0, 0, 0, null, null, null, null);
+        }
+        Long queueId = rows.get(0).getQueue().getId();
+        String queueName = rows.get(0).getQueue().getDisplayName();
+
+        int received = rows.stream().mapToInt(CcAggChatDaily::getReceived).sum();
+        int claimed = rows.stream().mapToInt(CcAggChatDaily::getClaimed).sum();
+        int closed = rows.stream().mapToInt(CcAggChatDaily::getClosed).sum();
+        int botContained = rows.stream().mapToInt(CcAggChatDaily::getBotContained).sum();
+        int botEscalated = rows.stream().mapToInt(CcAggChatDaily::getBotEscalated).sum();
+
+        int botTotal = botContained + botEscalated;
+        BigDecimal botContainmentRatePct = botTotal == 0
+                ? null
+                : BigDecimal.valueOf(botContained)
+                        .divide(BigDecimal.valueOf(botTotal), 4, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100))
+                        .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal avgFrtSeconds = weightedAverage(rows, CcAggChatDaily::getAvgFrtSeconds, CcAggChatDaily::getClaimed);
+        BigDecimal avgResponseSeconds = weightedAverage(rows, CcAggChatDaily::getAvgResponseSeconds, CcAggChatDaily::getReceived);
+        BigDecimal avgConcurrentChats = weightedAverage(rows, CcAggChatDaily::getAvgConcurrentChats, CcAggChatDaily::getReceived);
+
+        return new ChatPeriodMetrics(queueId, queueName, label, received, claimed, closed, botContained,
+                botEscalated, botContainmentRatePct, avgFrtSeconds, avgResponseSeconds, avgConcurrentChats);
     }
 
     private <T> BigDecimal weightedAverage(List<T> rows, Function<T, BigDecimal> valueFn, Function<T, Integer> weightFn) {

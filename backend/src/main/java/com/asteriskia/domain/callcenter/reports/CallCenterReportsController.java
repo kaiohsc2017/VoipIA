@@ -38,6 +38,7 @@ public class CallCenterReportsController {
     private final CallCenterQueueAggregationService aggregationService;
     private final CallCenterAgentAggregationService agentAggregationService;
     private final CallCenterFlowAggregationService flowAggregationService;
+    private final CallCenterChatAggregationService chatAggregationService;
     private final CallCenterDetailReportService detailReportService;
 
     public record ReprocessRequest(@NotNull LocalDate from, @NotNull LocalDate to) {}
@@ -117,6 +118,23 @@ public class CallCenterReportsController {
         return ResponseEntity.ok(queryService.queryFlowNodeAbandonment(flowId, from, to));
     }
 
+    /** Agregado diário de chat (Fase 9c.2) — FRT/ART/concorrência/contenção do bot. Path distinto
+     * de {@code /chats} (relatório detalhado linha a linha da Fase 9c) para não colidir. */
+    @GetMapping("/chats/summary")
+    public ResponseEntity<?> chatsSummary(
+            @RequestParam(required = false) Long queueId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "DAY") String granularity) {
+        CallCenterReportsQueryService.Granularity g = parseGranularity(granularity);
+        if (queueId != null) {
+            List<ChatPeriodMetrics> metrics = queryService.queryChat(queueId, from, to, g);
+            return ResponseEntity.ok(metrics);
+        }
+        Map<Long, List<ChatPeriodMetrics>> byQueue = queryService.queryAllChats(from, to, g);
+        return ResponseEntity.ok(byQueue);
+    }
+
     /** Relatório analítico de chamada, linha a linha (Fase 9c) — fila/agente/NPS/tempo de espera/
      * opção escolhida/trecho de transcrição, todos opcionais. */
     @GetMapping("/calls")
@@ -166,15 +184,16 @@ public class CallCenterReportsController {
         return Math.min(Math.max(size, 1), 100);
     }
 
-    /** Reprocessa fila, agente E fluxo juntos num único endpoint (decisão da fatia 9b, estendida
-     * na 9c.1) — o supervisor pede "reprocesse esse intervalo" sem precisar saber que são três
-     * agregados internos distintos; os três cálculos são independentes e baratos o bastante
-     * (mesmo limite de 400 dias) pra rodar em série na mesma chamada. */
+    /** Reprocessa fila, agente, fluxo E chat juntos num único endpoint (decisão da fatia 9b,
+     * estendida em 9c.1/9c.2) — o supervisor pede "reprocesse esse intervalo" sem precisar saber
+     * que são quatro agregados internos distintos; os cálculos são independentes e baratos o
+     * bastante (mesmo limite de 400 dias) pra rodar em série na mesma chamada. */
     @PostMapping("/reprocess")
     public ResponseEntity<Void> reprocess(@jakarta.validation.Valid @RequestBody ReprocessRequest request) {
         aggregationService.reprocessRange(request.from(), request.to());
         agentAggregationService.reprocessRange(request.from(), request.to());
         flowAggregationService.reprocessRange(request.from(), request.to());
+        chatAggregationService.reprocessRange(request.from(), request.to());
         return ResponseEntity.ok().build();
     }
 
