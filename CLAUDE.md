@@ -469,8 +469,8 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    `.claude/plans/callcenter-fases-5-7-9.plan.md` §2 para o detalhe de cada fatia; dos 7 nós do
 >    catálogo antes bloqueados, `horario_funcionamento`/`transferir_ramal` foram desbloqueados por
 >    esta fase e `pausar_gravacao`/`pesquisa_satisfacao` já estavam implementados desde as Fases
->    5c/21 — restam só `agente_ia` [Fase 16], `coletar_entrada` [depende de STT no ARI/Fase 14] e
->    `consultar_api` [SSRF é escopo da Fase 10]); Fase 7/Chat — 7c blending ✅, 7d anexos ✅, 7e
+>    5c/21 — `agente_ia` [Fases A/B ✅ 2026-08-15] e `coletar_entrada` [Fase 14 ✅ 2026-08-15] já
+>    desbloqueados; resta só `consultar_api` [SSRF é escopo da Fase 10]); Fase 7/Chat — 7c blending ✅, 7d anexos ✅, 7e
 >    Telegram ✅ (todas 2026-08-14, ver `asteriskia_callcenter_fase7e_telegram.md` e o mesmo plano
 >    acima) — restam `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` sem fila real, widget nunca validado numa
 >    página real, WhatsApp sem credenciais; **Fase 9 ✅ concluída em 2026-08-14** — 9c.1 agregado
@@ -492,12 +492,14 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > 4. **Débitos transversais (fora do Call Center)**: CSP em `Report-Only` (nunca migrado pra
 >    enforcement real); BU incompleto (Alertas Zabbix e Insights do Call Center/relatório 9c não
 >    filtram por BU); Jira sem credenciais reais. Nó `agente_ia` do catálogo de fluxo do Call
->    Center — **Fase A (CRUD de persona/prompt/modelo) ✅ deployada em 2026-08-15**, migration V87
->    (`cc_ia_agents`/`cc_ia_agent_turns`, este último ainda sem consumidor); segue
->    `implementado=false` no catálogo — a **Fase B (execução real: chamar o Gemini de verdade
->    durante a ligação/chat) continua sem escopo definido em nenhuma fase aberta**.
->    Fila real do chat público (Telegram/Webchat) segue sem `CALLCENTER_CHAT_PUBLIC_QUEUE_ID`
->    configurado —
+>    Center — **Fases A e B ✅ deployadas em 2026-08-15**: Fase A é o CRUD de persona/prompt/modelo
+>    (migration V87, `cc_ia_agents`/`cc_ia_agent_turns`); Fase B é a execução real
+>    (`AgenteIaNodeHandler` + `CallCenterIaAgentConversationService` — laço limitado de
+>    pergunta→resposta, canal `both`, sem RAG ainda, escala pra `fallbackQueue` do agente por
+>    timeout/custo/erro/`maxTurns`). Nó agora `implementado=true` no catálogo — **é o único nó do
+>    plano-mãe que saiu do estado bloqueado nesta entrega**; só `consultar_api` segue pendente
+>    (escopo de SSRF, Fase 10). Fila real do chat público (Telegram/Webchat) segue sem
+>    `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` configurado —
 >    nenhuma fila real cadastrada nesta VPS de dev.
 
 ### ✅ Atribuir grupo de acesso customizado a um usuário pela UI (2026-08-15) — deployada e validada em produção
