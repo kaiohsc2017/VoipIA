@@ -469,8 +469,9 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    `.claude/plans/callcenter-fases-5-7-9.plan.md` §2 para o detalhe de cada fatia; dos 7 nós do
 >    catálogo antes bloqueados, `horario_funcionamento`/`transferir_ramal` foram desbloqueados por
 >    esta fase e `pausar_gravacao`/`pesquisa_satisfacao` já estavam implementados desde as Fases
->    5c/21 — `agente_ia` [Fases A/B ✅ 2026-08-15] e `coletar_entrada` [Fase 14 ✅ 2026-08-15] já
->    desbloqueados; resta só `consultar_api` [SSRF é escopo da Fase 10]); Fase 7/Chat — 7c blending ✅, 7d anexos ✅, 7e
+>    5c/21 — `agente_ia` [Fases A/B ✅ 2026-08-15], `coletar_entrada` [Fase 14 ✅ 2026-08-15] e
+>    `consultar_api` [✅ 2026-08-15] já desbloqueados — **os 7 nós do catálogo original desta fase
+>    estão todos implementados agora**); Fase 7/Chat — 7c blending ✅, 7d anexos ✅, 7e
 >    Telegram ✅ (todas 2026-08-14, ver `asteriskia_callcenter_fase7e_telegram.md` e o mesmo plano
 >    acima) — restam `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` sem fila real, widget nunca validado numa
 >    página real, WhatsApp sem credenciais; **Fase 9 ✅ concluída em 2026-08-14** — 9c.1 agregado
@@ -491,14 +492,17 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    eventos AMI de canal da Fase 23 nunca confirmados com tráfego real.
 > 4. **Débitos transversais (fora do Call Center)**: CSP em `Report-Only` (nunca migrado pra
 >    enforcement real); BU incompleto (Alertas Zabbix e Insights do Call Center/relatório 9c não
->    filtram por BU); Jira sem credenciais reais. Nó `agente_ia` do catálogo de fluxo do Call
->    Center — **Fases A e B ✅ deployadas em 2026-08-15**: Fase A é o CRUD de persona/prompt/modelo
->    (migration V87, `cc_ia_agents`/`cc_ia_agent_turns`); Fase B é a execução real
->    (`AgenteIaNodeHandler` + `CallCenterIaAgentConversationService` — laço limitado de
->    pergunta→resposta, canal `both`, sem RAG ainda, escala pra `fallbackQueue` do agente por
->    timeout/custo/erro/`maxTurns`). Nó agora `implementado=true` no catálogo — **é o único nó do
->    plano-mãe que saiu do estado bloqueado nesta entrega**; só `consultar_api` segue pendente
->    (escopo de SSRF, Fase 10). Fila real do chat público (Telegram/Webchat) segue sem
+>    filtram por BU); Jira sem credenciais reais. **Catálogo de nós do Flow Builder do Call
+>    Center 100% implementado desde 2026-08-15** — os 3 últimos nós saíram do estado bloqueado
+>    nesta entrega: `agente_ia` (Fase A — CRUD de persona/prompt/modelo, migration V87,
+>    `cc_ia_agents`/`cc_ia_agent_turns`; Fase B — execução real, `AgenteIaNodeHandler` +
+>    `CallCenterIaAgentConversationService`, laço limitado de pergunta→resposta, canal `both`, sem
+>    RAG ainda, escala pra `fallbackQueue` por timeout/custo/erro/`maxTurns`) e `consultar_api`
+>    (`ConsultarApiNodeHandler` — URL nunca livre no fluxo, só referência a chave do `.env`
+>    validada por allowlist, escrita restrita a `PERM_WRITE_telecom.settings`/`ROLE_ADMIN`; guard
+>    de host privado/loopback como defesa em profundidade). `FlowGraphValidator` continua
+>    bloqueando a publicação de qualquer nó novo que seja adicionado sem handler. Fila real do
+>    chat público (Telegram/Webchat) segue sem
 >    `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` configurado —
 >    nenhuma fila real cadastrada nesta VPS de dev.
 
