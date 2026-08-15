@@ -738,4 +738,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Relatórios do Call Center ganham a aba "Timeline do contato": busque um telefone e veja, numa única lista paginada e ordenada por data, todas as chamadas e conversas de chat desse cliente — mesmo vindo de canais diferentes.',
     ],
   },
+  {
+    version: 'v1.85',
+    date: '2026-08-14',
+    changes: [
+      'O relatório de fila de voz ganha um painel de rechamada e tabulações: quantos clientes ligaram de novo em 24h/7d (mesmo que tenham caído em outra fila) e quais foram as tabulações mais usadas no período.',
+    ],
+  },
 ];

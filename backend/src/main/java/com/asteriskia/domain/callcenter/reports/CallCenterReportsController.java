@@ -41,6 +41,7 @@ public class CallCenterReportsController {
     private final CallCenterChatAggregationService chatAggregationService;
     private final CallCenterDetailReportService detailReportService;
     private final CallCenterTimelineService timelineService;
+    private final CallCenterRecallService recallService;
 
     public record ReprocessRequest(@NotNull LocalDate from, @NotNull LocalDate to) {}
 
@@ -147,6 +148,16 @@ public class CallCenterReportsController {
             @RequestParam(defaultValue = "20") int size) {
         PageRequest pageable = PageRequest.of(page, clampPageSize(size));
         return ResponseEntity.ok(timelineService.timeline(contact, from, to, pageable));
+    }
+
+    /** Rechamada 24h/7d + top tabulações de uma fila (Fase 9c.4) — painel sobre o relatório de
+     * fila (9a) já existente, sem tela/resource novo. */
+    @GetMapping("/queues/{queueId}/recall")
+    public ResponseEntity<RecallAndDispositionSummary> queueRecall(
+            @org.springframework.web.bind.annotation.PathVariable Long queueId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(recallService.summarize(queueId, from, to));
     }
 
     /** Relatório analítico de chamada, linha a linha (Fase 9c) — fila/agente/NPS/tempo de espera/

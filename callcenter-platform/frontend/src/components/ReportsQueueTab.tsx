@@ -4,7 +4,7 @@ import api, { getErrorMessage } from '../api/client';
 import type {
   CcQueue, CcAgent, FlowView, QueuePeriodMetrics, QueuePeriodComparison,
   AgentPeriodMetrics, AgentPeriodComparison, FlowPeriodMetrics, FlowNodeAbandonmentRow,
-  ChatPeriodMetrics, TimelineEventRow, Page, ReportGranularity,
+  ChatPeriodMetrics, TimelineEventRow, RecallAndDispositionSummary, Page, ReportGranularity,
 } from '../api/types';
 import { CallDetailReport, ChatDetailReport } from './DetailReportTab';
 import { QualityReportTab } from './QualityReportTab';
@@ -132,6 +132,8 @@ function QueueReport({ reprocessTick }: { reprocessTick: number }) {
   const [comparison, setComparison] = useState<QueuePeriodComparison | null>(null);
   const [comparing, setComparing] = useState(false);
 
+  const [recall, setRecall] = useState<RecallAndDispositionSummary | null>(null);
+
   useEffect(() => {
     api.get<CcQueue[]>('/callcenter/filas')
       .then(({ data }) => setQueues(data))
@@ -141,6 +143,7 @@ function QueueReport({ reprocessTick }: { reprocessTick: number }) {
   useEffect(() => {
     if (!selectedQueueId) {
       setRows([]);
+      setRecall(null);
       return;
     }
     setLoading(true);
@@ -151,6 +154,11 @@ function QueueReport({ reprocessTick }: { reprocessTick: number }) {
       .then(({ data }) => setRows(data))
       .catch(err => setError(getErrorMessage(err, 'Falha ao carregar relatório')))
       .finally(() => setLoading(false));
+    api.get<RecallAndDispositionSummary>(`/callcenter/reports/queues/${selectedQueueId}/recall`, {
+      params: { from, to },
+    })
+      .then(({ data }) => setRecall(data))
+      .catch(() => setRecall(null));
   }, [selectedQueueId, granularity, from, to, reprocessTick]);
 
   const runComparison = () => {
@@ -259,6 +267,29 @@ function QueueReport({ reprocessTick }: { reprocessTick: number }) {
           </table>
         )}
       </section>
+
+      {recall && selectedQueueId && (
+        <section>
+          <h3>Rechamada e tabulações (período)</h3>
+          <p style={{ fontSize: 13, color: 'var(--text-muted, #666)' }}>
+            Rechamada 24h: {recall.recall24hCount} de {recall.totalReceived} ({fmt(recall.recall24hRatePct, '%')}) —
+            {' '}Rechamada 7d: {recall.recall7dCount} de {recall.totalReceived} ({fmt(recall.recall7dRatePct, '%')})
+          </p>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr><th align="left">Tabulação</th><th align="right">Quantidade</th></tr>
+            </thead>
+            <tbody>
+              {recall.topDispositions.map(d => (
+                <tr key={d.label}><td>{d.label}</td><td align="right">{d.count}</td></tr>
+              ))}
+              {recall.topDispositions.length === 0 && (
+                <tr><td colSpan={2} style={{ textAlign: 'center', padding: 12 }}>Sem tabulação no período.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+      )}
     </>
   );
 }

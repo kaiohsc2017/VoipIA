@@ -1024,6 +1024,15 @@ export interface ChatPeriodMetrics {
   avgConcurrentChats: number | null;
 }
 
+export interface RecallAndDispositionSummary {
+  totalReceived: number;
+  recall24hCount: number;
+  recall24hRatePct: number | null;
+  recall7dCount: number;
+  recall7dRatePct: number | null;
+  topDispositions: { label: string; count: number }[];
+}
+
 export interface TimelineEventRow {
   eventType: 'CALL' | 'CHAT';
   eventId: number;
