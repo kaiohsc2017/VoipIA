@@ -23,4 +23,11 @@ public interface CcFlowExecutionStepRepository extends JpaRepository<CcFlowExecu
      * {@code sourceHandle} da aresta no grafo da versão em vez de adivinhar por regex sobre o id
      * (ver {@code CallCenterDetailReportService}). */
     List<CcFlowExecutionStep> findByNodeTypeAndTakenEdgeIsNotNull(String nodeType);
+
+    /** Agregado diário de abandono por nó (Fase 9c.1) — passos das execuções de um fluxo,
+     * filtrando por {@code enteredAt} (coluna de partição da V72) para habilitar pruning; a lista
+     * de execuções do dia já vem calculada pelo service, então o filtro por {@code executionId}
+     * aqui só restringe ao fluxo/dia certos, sem varrer partições de outros meses. */
+    List<CcFlowExecutionStep> findByExecutionIdInAndEnteredAtBetween(
+            List<Long> executionIds, LocalDateTime from, LocalDateTime to);
 }

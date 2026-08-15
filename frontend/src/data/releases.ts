@@ -717,4 +717,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Chat do Call Center ganha um canal Telegram: cadastre um canal do tipo Telegram apontando para o token do bot (guardado como referência em Configuração, nunca em texto puro) e o mesmo motor de fluxo/atendimento do webchat passa a valer também para conversas via Telegram, sem rota nova exposta à internet.',
     ],
   },
+  {
+    version: 'v1.82',
+    date: '2026-08-14',
+    changes: [
+      'Relatórios do Call Center ganham a aba "Fluxo/URA": volume de execuções por desfecho (concluída, transferida para fila/ramal, abandonada, erro), duração média das chamadas e um painel de abandono por nó — mostra exatamente em qual pergunta/menu do fluxo as ligações mais estão morrendo.',
+    ],
+  },
 ];

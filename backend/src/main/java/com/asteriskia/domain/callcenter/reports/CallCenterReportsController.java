@@ -37,6 +37,7 @@ public class CallCenterReportsController {
     private final CallCenterReportsQueryService queryService;
     private final CallCenterQueueAggregationService aggregationService;
     private final CallCenterAgentAggregationService agentAggregationService;
+    private final CallCenterFlowAggregationService flowAggregationService;
     private final CallCenterDetailReportService detailReportService;
 
     public record ReprocessRequest(@NotNull LocalDate from, @NotNull LocalDate to) {}
@@ -91,6 +92,31 @@ public class CallCenterReportsController {
         return ResponseEntity.ok(queryService.compareAgent(agentId, periodAFrom, periodATo, periodBFrom, periodBTo));
     }
 
+    /** Agregado diário de fluxo/URA (Fase 9c.1). */
+    @GetMapping("/flows")
+    public ResponseEntity<?> flows(
+            @RequestParam(required = false) Long flowId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "DAY") String granularity) {
+        CallCenterReportsQueryService.Granularity g = parseGranularity(granularity);
+        if (flowId != null) {
+            List<FlowPeriodMetrics> metrics = queryService.queryFlow(flowId, from, to, g);
+            return ResponseEntity.ok(metrics);
+        }
+        Map<Long, List<FlowPeriodMetrics>> byFlow = queryService.queryAllFlows(from, to, g);
+        return ResponseEntity.ok(byFlow);
+    }
+
+    /** Abandono por nó de um fluxo, somado no período (Fase 9c.1). */
+    @GetMapping("/flows/{flowId}/nodes")
+    public ResponseEntity<List<FlowNodeAbandonmentRow>> flowNodes(
+            @org.springframework.web.bind.annotation.PathVariable Long flowId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(queryService.queryFlowNodeAbandonment(flowId, from, to));
+    }
+
     /** Relatório analítico de chamada, linha a linha (Fase 9c) — fila/agente/NPS/tempo de espera/
      * opção escolhida/trecho de transcrição, todos opcionais. */
     @GetMapping("/calls")
@@ -140,14 +166,15 @@ public class CallCenterReportsController {
         return Math.min(Math.max(size, 1), 100);
     }
 
-    /** Reprocessa fila E agente juntos num único endpoint (decisão desta fatia 9b) — o
-     * supervisor pede "reprocesse esse intervalo" sem precisar saber que são dois agregados
-     * internos distintos; os dois cálculos são independentes e baratos o bastante (mesmo limite
-     * de 400 dias) pra rodar em série na mesma chamada. */
+    /** Reprocessa fila, agente E fluxo juntos num único endpoint (decisão da fatia 9b, estendida
+     * na 9c.1) — o supervisor pede "reprocesse esse intervalo" sem precisar saber que são três
+     * agregados internos distintos; os três cálculos são independentes e baratos o bastante
+     * (mesmo limite de 400 dias) pra rodar em série na mesma chamada. */
     @PostMapping("/reprocess")
     public ResponseEntity<Void> reprocess(@jakarta.validation.Valid @RequestBody ReprocessRequest request) {
         aggregationService.reprocessRange(request.from(), request.to());
         agentAggregationService.reprocessRange(request.from(), request.to());
+        flowAggregationService.reprocessRange(request.from(), request.to());
         return ResponseEntity.ok().build();
     }
 

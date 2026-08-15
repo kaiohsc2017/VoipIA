@@ -468,10 +468,11 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    `consultar_api` [SSRF é escopo da Fase 10]); Fase 7/Chat — 7c blending ✅, 7d anexos ✅, 7e
 >    Telegram ✅ (todas 2026-08-14, ver `asteriskia_callcenter_fase7e_telegram.md` e o mesmo plano
 >    acima) — restam `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` sem fila real, widget nunca validado numa
->    página real, WhatsApp sem credenciais; Fase 9 (o que ficou fora da 9c: agregado de fluxo/URA,
->    agregado de chat, timeline omnicanal, exportação Excel/PDF, agendamento, rechamada 24h/7d,
->    aderência à escala — próximos itens do mesmo plano `callcenter-fases-5-7-9.plan.md`, seção
->    9c.1-9c.7); Fase 10 (teste de carga SIPp, ver item 1 acima); Fase 14 (screen pop, bloqueada
+>    página real, WhatsApp sem credenciais; Fase 9 — 9c.1 (agregado de fluxo/URA: volume/desfecho
+>    de execução + abandono por nó, `cc_agg_flow_daily`/`cc_agg_flow_node_daily`, migration V80)
+>    ✅ deployada em 2026-08-14; restam 9c.2 (agregado de chat), 9c.3 (timeline omnicanal +
+>    drill-down), 9c.4 (rechamada 24h/7d + top tabulações), 9c.5 (Excel/PDF), 9c.6 (agendamento),
+>    9c.7 (aderência à escala) — próximos itens do mesmo plano `callcenter-fases-5-7-9.plan.md`; Fase 10 (teste de carga SIPp, ver item 1 acima); Fase 14 (screen pop, bloqueada
 >    pela Fase 1); Fase 16 (copiloto de IA, depende da 14); Fase 17 ✅ (co-browsing, deployada em
 >    2026-08-14); Fase 18 (IA local, roadmap concluído — sem código pendente, ver item 1 acima).
 > 3. **Maior incerteza aberta do projeto inteiro**: nenhuma chamada real de voz atravessou uma

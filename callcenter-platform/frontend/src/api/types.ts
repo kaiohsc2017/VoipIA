@@ -995,6 +995,28 @@ export interface AgentPeriodComparison {
   occupancyPctDelta: number | null;
 }
 
+export interface FlowPeriodMetrics {
+  flowId: number | null;
+  flowName: string | null;
+  periodLabel: string;
+  executions: number;
+  completed: number;
+  transferredQueue: number;
+  transferredExtension: number;
+  abandoned: number;
+  errored: number;
+  abandonRatePct: number | null;
+  avgDurationSeconds: number | null;
+}
+
+export interface FlowNodeAbandonmentRow {
+  nodeId: string;
+  nodeType: string;
+  entries: number;
+  abandonedHere: number;
+  abandonRatePct: number | null;
+}
+
 // ─── Fase 9c — relatório analítico de chamada e chat ───────────────────────────────────────────
 
 export interface CallReportRow {

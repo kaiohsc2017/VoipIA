@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
 import type {
-  CcQueue, CcAgent, QueuePeriodMetrics, QueuePeriodComparison,
-  AgentPeriodMetrics, AgentPeriodComparison, ReportGranularity,
+  CcQueue, CcAgent, FlowView, QueuePeriodMetrics, QueuePeriodComparison,
+  AgentPeriodMetrics, AgentPeriodComparison, FlowPeriodMetrics, FlowNodeAbandonmentRow,
+  ReportGranularity,
 } from '../api/types';
 import { CallDetailReport, ChatDetailReport } from './DetailReportTab';
 import { QualityReportTab } from './QualityReportTab';
@@ -42,7 +43,7 @@ interface ReportsQueueTabProps {
  */
 export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
   const [view, setView] = useState<
-    'queue' | 'agent' | 'call-detail' | 'chat-detail' | 'quality' | 'gamification' | 'customer-profile' | 'productivity'
+    'queue' | 'agent' | 'flow' | 'call-detail' | 'chat-detail' | 'quality' | 'gamification' | 'customer-profile' | 'productivity'
   >('queue');
 
   const [reprocessFrom, setReprocessFrom] = useState(daysAgoIso(7));
@@ -70,6 +71,7 @@ export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button type="button" onClick={() => setView('queue')} disabled={view === 'queue'}>Fila (voz)</button>
         <button type="button" onClick={() => setView('agent')} disabled={view === 'agent'}>Agente (voz)</button>
+        <button type="button" onClick={() => setView('flow')} disabled={view === 'flow'}>Fluxo/URA</button>
         <button type="button" onClick={() => setView('call-detail')} disabled={view === 'call-detail'}>Chamada (detalhe)</button>
         <button type="button" onClick={() => setView('chat-detail')} disabled={view === 'chat-detail'}>Chat (detalhe)</button>
         <button type="button" onClick={() => setView('quality')} disabled={view === 'quality'}>Qualidade</button>
@@ -80,6 +82,7 @@ export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
 
       {view === 'queue' && <QueueReport reprocessTick={reprocessTick} />}
       {view === 'agent' && <AgentReport reprocessTick={reprocessTick} />}
+      {view === 'flow' && <FlowReport reprocessTick={reprocessTick} />}
       {view === 'call-detail' && <CallDetailReport />}
       {view === 'chat-detail' && <ChatDetailReport />}
       {view === 'quality' && <QualityReportTab isAdmin={isAdmin} />}
@@ -91,7 +94,7 @@ export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
         <section style={{ background: '#fff8e1', padding: 12, borderRadius: 8 }}>
           <h3 style={{ marginTop: 0 }}>Reprocessar agregados (admin)</h3>
           <p style={{ marginTop: 0, fontSize: 13, color: 'var(--text-muted, #666)' }}>
-            Reprocessa fila e agente juntos para o intervalo informado.
+            Reprocessa fila, agente e fluxo/URA juntos para o intervalo informado.
           </p>
           {reprocessError && <p style={{ color: 'var(--danger, #c0392b)' }}>{reprocessError}</p>}
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
@@ -397,6 +400,146 @@ function AgentReport({ reprocessTick }: { reprocessTick: number }) {
           </table>
         )}
       </section>
+    </>
+  );
+}
+
+/** Sub-fase 9c.1 — relatório de fluxo/URA (volume/desfecho + abandono por nó). */
+function FlowReport({ reprocessTick }: { reprocessTick: number }) {
+  const [flows, setFlows] = useState<FlowView[]>([]);
+  const [selectedFlowId, setSelectedFlowId] = useState<number | ''>('');
+  const [granularity, setGranularity] = useState<ReportGranularity>('day');
+  const [from, setFrom] = useState(daysAgoIso(30));
+  const [to, setTo] = useState(todayIso());
+  const [rows, setRows] = useState<FlowPeriodMetrics[]>([]);
+  const [nodeRows, setNodeRows] = useState<FlowNodeAbandonmentRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.get<FlowView[]>('/callcenter/flows')
+      .then(({ data }) => setFlows(data.filter(f => f.active)))
+      .catch(() => setFlows([]));
+  }, []);
+
+  useEffect(() => {
+    if (!selectedFlowId) {
+      setRows([]);
+      setNodeRows([]);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    Promise.all([
+      api.get<FlowPeriodMetrics[]>('/callcenter/reports/flows', {
+        params: { flowId: selectedFlowId, from, to, granularity },
+      }),
+      api.get<FlowNodeAbandonmentRow[]>(`/callcenter/reports/flows/${selectedFlowId}/nodes`, {
+        params: { from, to },
+      }),
+    ])
+      .then(([metrics, nodes]) => {
+        setRows(metrics.data);
+        setNodeRows(nodes.data);
+      })
+      .catch(err => setError(getErrorMessage(err, 'Falha ao carregar relatório')))
+      .finally(() => setLoading(false));
+  }, [selectedFlowId, granularity, from, to, reprocessTick]);
+
+  return (
+    <>
+      {error && <p style={{ color: 'var(--danger, #c0392b)' }}>{error}</p>}
+
+      <section style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
+        <label>
+          Fluxo
+          <select value={selectedFlowId} onChange={e => setSelectedFlowId(e.target.value ? Number(e.target.value) : '')}>
+            <option value="">Selecione…</option>
+            {flows.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        </label>
+        <label>
+          Granularidade
+          <select value={granularity} onChange={e => setGranularity(e.target.value as ReportGranularity)}>
+            <option value="day">Dia</option>
+            <option value="week">Semana</option>
+            <option value="month">Mês</option>
+            <option value="year">Ano</option>
+          </select>
+        </label>
+        <label>De <input type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
+        <label>Até <input type="date" value={to} onChange={e => setTo(e.target.value)} /></label>
+      </section>
+
+      {loading && <p>Carregando…</p>}
+
+      {!loading && selectedFlowId && (
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th align="left">Período</th>
+              <th align="right">Execuções</th>
+              <th align="right">Concluídas</th>
+              <th align="right">Transf. fila</th>
+              <th align="right">Transf. ramal</th>
+              <th align="right">Abandonadas</th>
+              <th align="right">Erro</th>
+              <th align="right">Taxa abandono</th>
+              <th align="right">Duração média (s)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.periodLabel}>
+                <td>{r.periodLabel}</td>
+                <td align="right">{r.executions}</td>
+                <td align="right">{r.completed}</td>
+                <td align="right">{r.transferredQueue}</td>
+                <td align="right">{r.transferredExtension}</td>
+                <td align="right">{r.abandoned}</td>
+                <td align="right">{r.errored}</td>
+                <td align="right">{fmt(r.abandonRatePct, '%')}</td>
+                <td align="right">{fmt(r.avgDurationSeconds)}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={9} style={{ textAlign: 'center', padding: 12 }}>Sem dados no período.</td></tr>
+            )}
+          </tbody>
+        </table>
+      )}
+      {!selectedFlowId && <p>Selecione um fluxo para ver o relatório.</p>}
+
+      {!loading && selectedFlowId && (
+        <section>
+          <h3>Abandono por nó (período)</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th align="left">Nó</th>
+                <th align="left">Tipo</th>
+                <th align="right">Entradas</th>
+                <th align="right">Abandonos aqui</th>
+                <th align="right">Taxa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {nodeRows.map(n => (
+                <tr key={n.nodeId}>
+                  <td>{n.nodeId}</td>
+                  <td>{n.nodeType}</td>
+                  <td align="right">{n.entries}</td>
+                  <td align="right">{n.abandonedHere}</td>
+                  <td align="right">{fmt(n.abandonRatePct, '%')}</td>
+                </tr>
+              ))}
+              {nodeRows.length === 0 && (
+                <tr><td colSpan={5} style={{ textAlign: 'center', padding: 12 }}>Sem dados no período.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+      )}
     </>
   );
 }

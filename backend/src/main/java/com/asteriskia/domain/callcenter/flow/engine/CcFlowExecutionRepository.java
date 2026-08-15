@@ -27,4 +27,8 @@ public interface CcFlowExecutionRepository extends JpaRepository<CcFlowExecution
      * "opção escolhida" do relatório analítico de chamada (Fase 9c). Nula quando a interação não
      * passou pelo motor de fluxo visual (ex.: rota legada de URA por ramal 2XXX). */
     Optional<CcFlowExecution> findByInteractionId(Long interactionId);
+
+    /** Agregado diário de fluxo/URA (Fase 9c.1) — todas as execuções de um fluxo iniciadas num
+     * dia, para calcular volume/desfecho/duração média. */
+    List<CcFlowExecution> findByFlowIdAndStartedAtBetween(Long flowId, LocalDateTime from, LocalDateTime to);
 }

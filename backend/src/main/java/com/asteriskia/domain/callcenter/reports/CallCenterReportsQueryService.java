@@ -28,6 +28,8 @@ public class CallCenterReportsQueryService {
 
     private final CcAggQueueDailyRepository aggRepository;
     private final CcAggAgentDailyRepository agentAggRepository;
+    private final CcAggFlowDailyRepository flowAggRepository;
+    private final CcAggFlowNodeDailyRepository flowNodeAggRepository;
 
     public enum Granularity { DAY, WEEK, MONTH, YEAR }
 
@@ -209,6 +211,100 @@ public class CallCenterReportsQueryService {
 
         return new AgentPeriodMetrics(agentId, agentName, label, answered, avgTalkSeconds,
                 occupiedSeconds, availableSeconds, pausedSeconds, offlineSeconds, occupancyPct);
+    }
+
+    // ─── Fluxo/URA (sub-fase 9c.1) ────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<FlowPeriodMetrics> queryFlow(Long flowId, LocalDate from, LocalDate to, Granularity granularity) {
+        List<CcAggFlowDaily> rows = flowAggRepository.findByFlowIdAndDateBetweenOrderByDateAsc(flowId, from, to);
+        return groupByPeriodFlow(rows, granularity);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, List<FlowPeriodMetrics>> queryAllFlows(LocalDate from, LocalDate to, Granularity granularity) {
+        List<CcAggFlowDaily> rows = flowAggRepository.findByDateBetweenOrderByFlowIdAscDateAsc(from, to);
+        Map<Long, List<CcAggFlowDaily>> byFlow = new LinkedHashMap<>();
+        for (CcAggFlowDaily row : rows) {
+            byFlow.computeIfAbsent(row.getFlow().getId(), k -> new java.util.ArrayList<>()).add(row);
+        }
+        Map<Long, List<FlowPeriodMetrics>> result = new LinkedHashMap<>();
+        byFlow.forEach((flowId, flowRows) -> result.put(flowId, groupByPeriodFlow(flowRows, granularity)));
+        return result;
+    }
+
+    /** Abandono por nó, somado no período — não é ponderado nem agrupado por granularidade
+     * (diferente das métricas de volume), é uma soma simples dos registros diários do intervalo,
+     * ordenada pela maior taxa de abandono primeiro para o supervisor ver logo o pior nó. */
+    @Transactional(readOnly = true)
+    public List<FlowNodeAbandonmentRow> queryFlowNodeAbandonment(Long flowId, LocalDate from, LocalDate to) {
+        List<CcAggFlowNodeDaily> rows = flowNodeAggRepository.findByFlowIdAndDateBetween(flowId, from, to);
+        Map<String, int[]> byNode = new LinkedHashMap<>(); // [entries, abandonedHere]
+        Map<String, String> nodeTypeByNode = new LinkedHashMap<>();
+        for (CcAggFlowNodeDaily row : rows) {
+            int[] counter = byNode.computeIfAbsent(row.getNodeId(), k -> new int[2]);
+            counter[0] += row.getEntries();
+            counter[1] += row.getAbandonedHere();
+            nodeTypeByNode.put(row.getNodeId(), row.getNodeType());
+        }
+        return byNode.entrySet().stream()
+                .map(e -> {
+                    int entries = e.getValue()[0];
+                    int abandonedHere = e.getValue()[1];
+                    BigDecimal rate = entries == 0
+                            ? null
+                            : BigDecimal.valueOf(abandonedHere)
+                                    .divide(BigDecimal.valueOf(entries), 4, RoundingMode.HALF_UP)
+                                    .multiply(BigDecimal.valueOf(100))
+                                    .setScale(2, RoundingMode.HALF_UP);
+                    return new FlowNodeAbandonmentRow(e.getKey(), nodeTypeByNode.get(e.getKey()), entries, abandonedHere, rate);
+                })
+                .sorted(Comparator.comparing(FlowNodeAbandonmentRow::abandonRatePct,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+    }
+
+    private List<FlowPeriodMetrics> groupByPeriodFlow(List<CcAggFlowDaily> rows, Granularity granularity) {
+        if (granularity == Granularity.DAY) {
+            return rows.stream()
+                    .map(r -> combineFlow(List.of(r), r.getDate().toString()))
+                    .toList();
+        }
+        Map<String, List<CcAggFlowDaily>> grouped = new LinkedHashMap<>();
+        for (CcAggFlowDaily row : rows) {
+            grouped.computeIfAbsent(periodLabel(row.getDate(), granularity), k -> new java.util.ArrayList<>()).add(row);
+        }
+        return grouped.entrySet().stream()
+                .map(e -> combineFlow(e.getValue(), e.getKey()))
+                .sorted(Comparator.comparing(FlowPeriodMetrics::periodLabel))
+                .toList();
+    }
+
+    private FlowPeriodMetrics combineFlow(List<CcAggFlowDaily> rows, String label) {
+        if (rows.isEmpty()) {
+            return new FlowPeriodMetrics(null, null, label, 0, 0, 0, 0, 0, 0, null, null);
+        }
+        Long flowId = rows.get(0).getFlow().getId();
+        String flowName = rows.get(0).getFlow().getName();
+
+        int executions = rows.stream().mapToInt(CcAggFlowDaily::getExecutions).sum();
+        int completed = rows.stream().mapToInt(CcAggFlowDaily::getCompleted).sum();
+        int transferredQueue = rows.stream().mapToInt(CcAggFlowDaily::getTransferredQueue).sum();
+        int transferredExtension = rows.stream().mapToInt(CcAggFlowDaily::getTransferredExtension).sum();
+        int abandoned = rows.stream().mapToInt(CcAggFlowDaily::getAbandoned).sum();
+        int errored = rows.stream().mapToInt(CcAggFlowDaily::getErrored).sum();
+
+        BigDecimal abandonRatePct = executions == 0
+                ? null
+                : BigDecimal.valueOf(abandoned)
+                        .divide(BigDecimal.valueOf(executions), 4, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100))
+                        .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal avgDurationSeconds = weightedAverage(rows, CcAggFlowDaily::getAvgDurationSeconds, CcAggFlowDaily::getExecutions);
+
+        return new FlowPeriodMetrics(flowId, flowName, label, executions, completed, transferredQueue,
+                transferredExtension, abandoned, errored, abandonRatePct, avgDurationSeconds);
     }
 
     private <T> BigDecimal weightedAverage(List<T> rows, Function<T, BigDecimal> valueFn, Function<T, Integer> weightFn) {
