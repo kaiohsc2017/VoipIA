@@ -205,6 +205,19 @@ class InsightsQueryServiceTest {
     }
 
     @Test
+    @DisplayName("findProcessing: businessUnitIds não nulo aplica a Specification sem lançar")
+    void findProcessing_withBusinessUnitIds_appliesSpec() {
+        Pageable pageable = PageRequest.of(0, 20);
+        var filter = new InsightsProcessingFilter(null, null, null, null);
+        when(audioFileRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(Page.empty());
+
+        var result = service.findProcessing(filter, pageable, "callcenter", java.util.Set.of(5));
+
+        org.assertj.core.api.Assertions.assertThat(result.getTotalElements()).isZero();
+        verify(audioFileRepository).findAll(any(Specification.class), eq(pageable));
+    }
+
+    @Test
     @DisplayName("detail: registro fora do escopo de BU vira 404 antes de montar a resposta")
     void detail_wrongBusinessUnit_rejected() {
         when(audioFileRepository.findById(1L)).thenReturn(java.util.Optional.of(audioFileWithRecording(9L)));

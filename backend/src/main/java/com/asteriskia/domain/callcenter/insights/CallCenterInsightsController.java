@@ -43,17 +43,17 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
  * Center pertencem à operação, não a um supervisor individual) — a permissão de aba
  * ({@code callcenter.insights.*}) já basta.
  *
- * <p><b>Escopo por BU (2026-08-15)</b>: {@code /calls}, {@code /calls/{id}} e
- * {@code /calls/{id}/audio} — a superfície que expõe conteúdo real (transcrição/áudio) —
- * agora filtram por {@link BusinessUnitContext}, mesmo padrão de
- * {@code CallCenterRecordingService.findRecordings}. Fail-open pra gravação sem BU
- * atribuída (ver {@code InsightsSpecifications.restrictedToBusinessUnits}) — a BU é
- * opcional no cadastro de fila, não obrigatória. <b>Gap residual aceito, documentado</b>:
- * {@code /dashboard} (só contagens agregadas, sem conteúdo) e {@code /processing} (só
- * status/nome de arquivo, sem transcrição) continuam sem escopo de BU — decisão de
- * priorizar a superfície com PII/conteúdo real primeiro; mesmo gap ainda aberto pra
- * Alertas Zabbix ({@code AlertService}), que depende de uma decisão de produto sobre como
- * derivar BU de um host monitorado (não resolvido aqui).
+ * <p><b>Escopo por BU (2026-08-15)</b>: {@code /calls}, {@code /calls/{id}},
+ * {@code /calls/{id}/audio} e {@code /processing} — toda a superfície que expõe conteúdo real
+ * ou metadado operacional por registro — agora filtram por {@link BusinessUnitContext}, mesmo
+ * padrão de {@code CallCenterRecordingService.findRecordings}. Fail-open pra gravação sem BU
+ * atribuída (ver {@code InsightsSpecifications.restrictedToBusinessUnits}) — a BU é opcional no
+ * cadastro de fila, não obrigatória. <b>Gap residual aceito, documentado</b>: {@code /dashboard}
+ * (só contagens agregadas, sem registro individual) continua sem escopo de BU — reescrever as 6
+ * queries JPQL de agregado (criticidade/categoria/achados/nota média/auto-fails) com filtro de BU
+ * condicional teria custo desproporcional ao risco de expor só números somados, sem conteúdo;
+ * mesmo gap ainda aberto pra Alertas Zabbix ({@code AlertService}), que depende de uma decisão
+ * de produto sobre como derivar BU de um host monitorado (não resolvido aqui).
  */
 @Slf4j
 @RestController
@@ -135,7 +135,7 @@ public class CallCenterInsightsController {
                 dateFrom != null ? LocalDateTime.of(dateFrom, LocalTime.MIN) : null,
                 dateTo != null ? LocalDateTime.of(dateTo, LocalTime.MAX) : null,
                 fileName);
-        return ResponseEntity.ok(queryService.findProcessing(filter, pageable, SOURCE));
+        return ResponseEntity.ok(queryService.findProcessing(filter, pageable, SOURCE, businessUnitScope()));
     }
 
     /**

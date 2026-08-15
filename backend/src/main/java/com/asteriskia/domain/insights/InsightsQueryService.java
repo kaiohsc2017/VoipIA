@@ -198,7 +198,19 @@ public class InsightsQueryService {
     /** source parametrizado (Fase 8 do Call Center). */
     public Page<InsightProcessingItem> findProcessing(
             InsightsProcessingFilter filter, Pageable pageable, String source) {
-        Page<CallAudioFile> page = audioFileRepository.findAll(withProcessingFilters(filter, source), pageable);
+        return findProcessing(filter, pageable, source, null);
+    }
+
+    /** {@code businessUnitIds} (2026-08-15, extensão do gap de BU fechado em {@code /calls}): só
+     * usada por {@code source="callcenter"} — Insights (Verint) nunca teve conceito de BU e
+     * continua sem restrição. {@code null} = sem restrição (ADMIN). */
+    public Page<InsightProcessingItem> findProcessing(
+            InsightsProcessingFilter filter, Pageable pageable, String source, Set<Integer> businessUnitIds) {
+        Specification<CallAudioFile> spec = withProcessingFilters(filter, source);
+        if (businessUnitIds != null) {
+            spec = spec.and(InsightsSpecifications.restrictedToBusinessUnits(businessUnitIds));
+        }
+        Page<CallAudioFile> page = audioFileRepository.findAll(spec, pageable);
         return page.map(a -> InsightProcessingItem.from(a,
                 "pending".equals(a.getStatus()) && a.getIngestedAt() != null
                         ? (int) audioFileRepository.countPendingBefore(a.getIngestedAt()) + 1
