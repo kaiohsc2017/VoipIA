@@ -482,7 +482,8 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    fatia; **a leva inteira do plano (Fases 5, 7 e 9) está fechada**. Fase 10 (teste de carga
 >    SIPp, ver item 1 acima); **Fase 14 ✅ concluída em 2026-08-15** (identidade do contato/screen
 >    pop, v1.91 — ver `asteriskia_callcenter_fase14_identidade_screenpop.md`; desbloqueia a Fase
->    16); Fase 16 (copiloto de IA, depende da 14 — agora liberada); Fase 17 ✅ (co-browsing,
+>    16); **Fase 16 ✅ concluída em 2026-08-15** (histórico do contato e copiloto de IA para o
+>    agente, v1.92 — ver `asteriskia_callcenter_fase16_copiloto_ia.md`); Fase 17 ✅ (co-browsing,
 >    deployada em 2026-08-14); Fase 18 (IA local,
 >    roadmap concluído — sem código pendente, ver item 1 acima).
 > 3. **Maior incerteza aberta do projeto inteiro**: nenhuma chamada real de voz atravessou uma
@@ -540,6 +541,61 @@ confirmada > ANI, contra `ad_users` — nunca consulta o AD ao vivo. Migration *
   específico no fluxo de voz (diferente do chat público, que já tem `PublicChatRateLimiter`) —
   custo leve de CPU por chamada com `identificarContato=true`, aceitável no volume atual desta
   VPS de dev.
+
+### ✅ Fase 16 do plano-mãe do Call Center — histórico do contato e copiloto de IA para o agente (2026-08-15) — deployada e validada em produção
+Desbloqueada pela Fase 14. Migration **V86**: `cc_contact_profiles` (perfil traçado por IA,
+`resolved_ad_sam`/`profile_json` jsonb/custo) + `cc_contact_profile_feedback` (útil/não útil por
+ação sugerida) + frente `callcenter_copiloto` no Financeiro (a de pior perfil de custo do módulo —
+dispara por contato, não por gravação).
+- **16.1 — histórico unificado voz+chat** (`CallCenterContactHistoryService`, pacote novo
+  `domain/callcenter/copilot/`): deliberadamente diferente do `CallCenterTimelineService` (Fase
+  9c.3, relatório paginado por ANI normalizado) — aqui a chave é `resolved_ad_sam` (mais precisa
+  que ANI, que varia entre celular/fixo/chat do mesmo contato) e o volume é sempre pequeno
+  (últimos N contatos), consulta de hot-path do atendimento, não relatório de supervisor. Cache em
+  memória de 45s por sam (mesmo padrão de TTL do `UraRoutingService`).
+- **16.2 — perfil de IA** (`ContactProfileGenerator`, `@Async`): chamada DIRETA ao Gemini em Java
+  (não via serviço Python, apesar do plano original sugerir isso) — mesmo padrão já estabelecido
+  no domínio Call Center para geração de texto (Fase 8/14/21/25: header `x-goog-api-key`, nunca
+  `e.getMessage()` em log). Saída estruturada via `responseSchema` (mesmo padrão do
+  `CallCenterNpsTranscriptionScheduler`); `riscoEscalonamento` sempre clampado para `[0,1]` antes
+  de persistir (lição do overflow numérico de `call_insights.aderencia_script`, Fase 8). **Geração
+  nunca bloqueia o atendimento**: `ContactProfileService.getOrTrigger` devolve na hora
+  (`READY`/`GENERATING`/`UNAVAILABLE`) e dispara a geração em segundo plano quando ausente/vencida
+  (cache de 24h, configurável); dedup por `inFlight` (`ConcurrentHashMap.newKeySet`) evita
+  multiplicar chamadas ao Gemini enquanto o frontend faz polling do mesmo contato.
+- **16.3 — UI**: painel "Copiloto de IA" no Desktop do Agente (`DesktopAgenteTab.tsx`) — histórico
+  + resumo/sentimento/temas/risco/ações sugeridas, cada ação com botão de feedback útil/não útil.
+  Aproveitado para também exibir, pela primeira vez, o bloco de identidade da Fase 14 (a nota "AD
+  ainda não disponível" no componente estava desatualizada — a Fase 14 nunca tinha sido conectada
+  ao frontend antes desta fase).
+- **1 achado HIGH real corrigido no frontend** (`ecc:react-reviewer`): o `useEffect` que dispara o
+  polling dependia de `interaction?.identity` (objeto) — como `interaction` é repolado a cada 5s
+  e o backend sempre devolve um objeto novo, o efeito reiniciava a cada poll mesmo sem o contato
+  mudar, resetando o painel para "Gerando perfil…" e refazendo os fetches sem necessidade;
+  corrigido dependendo de `interaction?.identity?.samAccountName` (primitivo estável). 1 achado
+  MEDIUM também corrigido: uma chamada de rede dentro do updater funcional de `setProfile` (efeito
+  colateral impuro, arriscado sob StrictMode) — movida para uma `ref` de status lida fora do
+  updater.
+- **RBAC sem endpoint/resource novo**: os 3 endpoints novos (`contact-history-unified`,
+  `contact-profile`, `contact-profile/feedback`, todos sob `/callcenter/interactions/{id}/**`) já
+  caem no matcher genérico existente (`PERM_READ`/`PERM_WRITE_callcenter.desktop`) — mesma
+  disciplina anti-IDOR da Fase 14 aplicada desde o primeiro commit: nenhum dos três aceita
+  `resolvedAdSam` do chamador, sempre derivado da interação `{id}` já validada contra o agente
+  autenticado (`CallCenterInteractionService.ownedInteractionWithResolvedSam`); o feedback ainda
+  valida que o `profileId` pertence ao mesmo sam da interação antes de salvar. Confirmado por
+  `ecc:security-reviewer`: nenhum achado CRITICAL/HIGH.
+- **Gaps aceitos, documentados no código**: sem escopo por BU (mesmo padrão já aceito no restante
+  do domínio); `fetchAll`/histórico não pagina no banco antes do corte em memória (aceitável no
+  volume atual desta VPS de dev); cache de histórico sem eviction de chaves antigas (mesmo padrão
+  já aceito no `UraRoutingService`); o nó de fluxo `agente_ia` do catálogo (ainda
+  `implementado=false`) **não é escopo desta fase** — apesar de listas de pendência antigas do
+  `CLAUDE.md` associarem os dois, a especificação real da Fase 16 (`modulo-callcenter-omnicanal.
+  plan.md` §16.1-16.4) é só o copiloto para o agente humano, sem nenhum trabalho de motor de
+  fluxo; `agente_ia` fica como item separado em aberto.
+- Suíte completa do backend **912/913 verde** (17 novos testes, 0 regressão — a única falha é o
+  flake conhecido de `ffmpeg`). `tsc --noEmit` e `npm run build` do `callcenter-platform/frontend`
+  limpos. Deployado (migration V86 confirmada em `flyway_schema_history`) e validado via curl.
+  Release notes `v1.92` registrada.
 
 ### ✅ Fase 7e do plano `.claude/plans/callcenter-fases-5-7-9.plan.md` — Telegram (long polling) (2026-08-14) — deployada e validada em produção
 Último item da release 14 (7c blending + 7d anexos + 7e Telegram), fecha o canal de chat com uma

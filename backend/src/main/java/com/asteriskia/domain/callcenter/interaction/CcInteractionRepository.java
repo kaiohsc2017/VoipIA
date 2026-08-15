@@ -52,4 +52,9 @@ public interface CcInteractionRepository
     /** Histórico de contatos anteriores no screen pop (Fase 14) — últimas interações do mesmo
      * contato identificado, excluída a interação atual. */
     List<CcInteraction> findTop10ByResolvedAdSamAndIdNotOrderByQueuedAtDesc(String resolvedAdSam, Long excludedId);
+
+    /** Histórico unificado voz+chat (Fase 16.1, {@code CallCenterContactHistoryService}) — todas
+     * as interações do contato, sem exclusão (a interação/sessão atual é excluída em memória pelo
+     * serviço, depois de já ter feito o merge com o lado do chat). */
+    List<CcInteraction> findByResolvedAdSamOrderByQueuedAtDesc(String resolvedAdSam);
 }

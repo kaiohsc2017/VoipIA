@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
-import { PhoneCall, Coffee, Circle, Mic, MicOff, PhoneOff } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { PhoneCall, Coffee, Circle, Mic, MicOff, PhoneOff, ThumbsUp, ThumbsDown, Sparkles } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
 import type {
   AgentStateView, CcPauseReason, CcDisposition, InteractionView,
   DesktopSummaryView, DesktopCallHistoryItem, DesktopPauseItem,
+  ContactHistoryItem, ContactProfileView,
 } from '../api/types';
 import { useSipPhone } from '../hooks/useSipPhone';
 import type { ShellCallAction, ShellCallState } from '../hooks/useShellBridge';
@@ -24,6 +25,20 @@ const STATE_LABEL: Record<string, string> = {
 };
 
 const POLL_INTERVAL_MS = 5000;
+const PROFILE_POLL_INTERVAL_MS = 6000;
+
+const RISK_LABEL: Record<'baixo' | 'medio' | 'alto', string> = {
+  baixo: 'Baixo',
+  medio: 'Médio',
+  alto: 'Alto',
+};
+
+function riskLevel(risco: number | undefined): 'baixo' | 'medio' | 'alto' {
+  if (risco == null) return 'baixo';
+  if (risco >= 0.66) return 'alto';
+  if (risco >= 0.33) return 'medio';
+  return 'baixo';
+}
 
 const TRANSCRIPTION_LABEL: Record<string, string> = {
   SEM_GRAVACAO: 'Sem gravação',
@@ -39,10 +54,10 @@ function formatDuration(totalSeconds: number | null | undefined): string {
 }
 
 /**
- * DesktopAgenteTab — estados do agente, interação em curso e tabulação (Fase 4). O screen pop
- * de dados do AD (nome/BU/cargo/gestor) ainda não está disponível — a Fase 1 (AD) segue pendente
- * de dados reais de conexão com o Domain Controller; esta tela mostra só o que já existe
- * (fila/ANI/horários) até o AD ser conectado.
+ * DesktopAgenteTab — estados do agente, interação em curso e tabulação (Fase 4). Screen pop de
+ * identidade do contato (Fase 14) e painel do copiloto de IA — histórico unificado voz+chat
+ * (Fase 16.1) e perfil/ações sugeridas por IA (Fase 16.2/16.3) — aparecem só quando a interação
+ * tem um contato identificado; sem identidade resolvida, o atendimento segue normal sem eles.
  */
 export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: DesktopAgenteTabProps) {
   // D10-A: embutido no shell, o único UA SIP é o Softphone.tsx do Telecom — este painel só
@@ -79,6 +94,66 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
   const [selectedPauseReason, setSelectedPauseReason] = useState<number | ''>('');
   const [selectedDisposition, setSelectedDisposition] = useState<number | ''>('');
   const [error, setError] = useState('');
+
+  // Fase 16 (copiloto de IA) — histórico unificado e perfil de IA do contato identificado
+  // (Fase 14) na interação em curso. Só busca quando há um contato resolvido — sem isso, os
+  // dois endpoints devolvem vazio/UNAVAILABLE por design (nunca aceitam sam do frontend).
+  const [contactHistory, setContactHistory] = useState<ContactHistoryItem[]>([]);
+  const [profile, setProfile] = useState<ContactProfileView | null>(null);
+  const [feedbackSent, setFeedbackSent] = useState<Record<number, boolean>>({});
+
+  // interaction é repolado a cada POLL_INTERVAL_MS (loadState acima) e o backend sempre devolve
+  // um objeto novo, mesmo quando nada mudou — depender de interaction?.identity (objeto) faria
+  // este efeito reiniciar a cada 5s, resetando o painel e refazendo os fetches sem necessidade.
+  // samAccountName é estável entre polls do MESMO contato, então é a dependência certa.
+  const identitySam = interaction?.identity?.samAccountName;
+  const profileStatusRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    setContactHistory([]);
+    setProfile(null);
+    setFeedbackSent({});
+    profileStatusRef.current = undefined;
+    if (!interaction?.id || !identitySam) return;
+    let cancelled = false;
+    const interactionId = interaction.id;
+
+    api.get<ContactHistoryItem[]>(`/callcenter/interactions/${interactionId}/contact-history-unified`)
+      .then(({ data }) => { if (!cancelled) setContactHistory(data); })
+      .catch(() => { /* histórico é complementar — falha aqui não impede o atendimento */ });
+
+    const loadProfile = () => {
+      api.get<ContactProfileView>(`/callcenter/interactions/${interactionId}/contact-profile`)
+        .then(({ data }) => {
+          if (cancelled) return;
+          profileStatusRef.current = data.status;
+          setProfile(data);
+        })
+        .catch(() => { /* perfil é complementar — falha aqui nunca bloqueia o atendimento */ });
+    };
+    loadProfile();
+    const profileTimer = setInterval(() => {
+      // Só continua o polling enquanto ainda não há um perfil pronto — status=READY para de
+      // ser reconsultado em intervalo curto (o backend regera sozinho em segundo plano quando
+      // o cache expira; o agente não precisa de polling contínuo pra isso). Lê de uma ref (não
+      // de dentro de um updater de setState) para nunca disparar um efeito colateral de rede a
+      // partir de um callback que o React pode invocar mais de uma vez.
+      if (profileStatusRef.current !== 'READY') {
+        loadProfile();
+      }
+    }, PROFILE_POLL_INTERVAL_MS);
+
+    return () => { cancelled = true; clearInterval(profileTimer); };
+  }, [interaction?.id, identitySam]);
+
+  const sendProfileFeedback = (actionIndex: number, useful: boolean) => {
+    if (!interaction?.id || !profile?.profileId) return;
+    api.post(`/callcenter/interactions/${interaction.id}/contact-profile/feedback`, {
+      profileId: profile.profileId, actionIndex, useful,
+    })
+      .then(() => setFeedbackSent(prev => ({ ...prev, [actionIndex]: true })))
+      .catch(() => { /* feedback é opcional — falha silenciosa não vale um alerta pro agente */ });
+  };
 
   const [metricsTab, setMetricsTab] = useState<'resumo' | 'historico' | 'pausas'>('resumo');
   const [summary, setSummary] = useState<DesktopSummaryView | null>(null);
@@ -253,11 +328,89 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
           ) : (
             <p style={{ color: 'var(--text-muted)' }}>Nenhuma chamada em atendimento.</p>
           )}
-          <p style={{ color: 'var(--text-muted)', fontSize: '.8rem', marginTop: 12 }}>
-            Dados do Active Directory (nome, BU, cargo, gestor) ainda não disponíveis nesta tela —
-            a integração com o Domain Controller está pendente.
-          </p>
+          {interaction?.identity ? (
+            <div className="form-grid" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              <div><span style={{ color: 'var(--text-muted)' }}>Contato identificado:</span> {interaction.identity.displayName ?? interaction.identity.samAccountName}</div>
+              {interaction.identity.department && <div><span style={{ color: 'var(--text-muted)' }}>Departamento:</span> {interaction.identity.department}</div>}
+              {interaction.identity.title && <div><span style={{ color: 'var(--text-muted)' }}>Cargo:</span> {interaction.identity.title}</div>}
+              {interaction.identity.telephoneNumber && <div><span style={{ color: 'var(--text-muted)' }}>Telefone:</span> {interaction.identity.telephoneNumber}</div>}
+            </div>
+          ) : interaction ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: '.8rem', marginTop: 12 }}>
+              Contato não identificado nesta chamada.
+            </p>
+          ) : null}
         </div>
+
+        {interaction?.identity && (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="flex items-center" style={{ gap: 8, marginBottom: 12 }}>
+              <Sparkles size={16} />
+              <strong>Copiloto de IA</strong>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <strong style={{ fontSize: '.85rem' }}>Histórico de contatos anteriores</strong>
+              {contactHistory.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '.85rem', marginTop: 6 }}>
+                  Nenhum atendimento anterior registrado para este contato.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+                  {contactHistory.map(item => (
+                    <div key={`${item.channel}-${item.referenceId}`} style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>
+                      [{item.channel === 'voz' ? 'Voz' : 'Chat'}] {item.startedAt ? new Date(item.startedAt).toLocaleString('pt-BR') : '—'}
+                      {' — '}{item.queueName ?? '—'} · {item.agentName ?? '—'} · {item.dispositionLabel ?? 'sem tabulação'}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <strong style={{ fontSize: '.85rem' }}>Perfil & Ações sugeridas (IA — nunca fato, só indício)</strong>
+              {!profile || profile.status === 'GENERATING' ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '.85rem', marginTop: 6 }}>Gerando perfil…</p>
+              ) : (
+                <div style={{ marginTop: 6 }}>
+                  <p style={{ fontSize: '.9rem', margin: '4px 0' }}>{profile.resumoPerfil}</p>
+                  {profile.sentimentoHistorico && (
+                    <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', margin: '4px 0' }}>
+                      Sentimento histórico: {profile.sentimentoHistorico} · Risco de escalonamento: {RISK_LABEL[riskLevel(profile.riscoEscalonamento)]}
+                    </p>
+                  )}
+                  {!!profile.temasRecorrentes?.length && (
+                    <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', margin: '4px 0' }}>
+                      Temas recorrentes: {profile.temasRecorrentes.join(', ')}
+                    </p>
+                  )}
+                  {!!profile.acoesSugeridas?.length && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                      {profile.acoesSugeridas.map((acaoItem, idx) => (
+                        <div key={idx} className="card" style={{ padding: 10 }}>
+                          <div style={{ fontSize: '.85rem' }}><strong>{acaoItem.acao}</strong></div>
+                          <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>{acaoItem.justificativa}</div>
+                          {feedbackSent[idx] ? (
+                            <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Obrigado pelo feedback.</span>
+                          ) : (
+                            <div className="flex items-center" style={{ gap: 6, marginTop: 6 }}>
+                              <button className="btn btn-ghost btn-sm" aria-label="Ação útil" onClick={() => sendProfileFeedback(idx, true)}>
+                                <ThumbsUp size={12} />
+                              </button>
+                              <button className="btn btn-ghost btn-sm" aria-label="Ação não útil" onClick={() => sendProfileFeedback(idx, false)}>
+                                <ThumbsDown size={12} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {isAcw && (
           <div className="card">

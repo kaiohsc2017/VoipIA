@@ -376,6 +376,20 @@ export interface CcDisposition {
   active: boolean;
 }
 
+// Fase 14 — bloco de identidade resolvida contra o AD local (screen pop); ausente quando o
+// contato não foi identificado, o que é o estado normal, não um erro.
+export interface ContactIdentityView {
+  samAccountName?: string;
+  displayName?: string;
+  department?: string;
+  office?: string;
+  title?: string;
+  managerSam?: string;
+  email?: string;
+  telephoneNumber?: string;
+  source?: string;
+}
+
 export interface InteractionView {
   id: number;
   queueName?: string;
@@ -386,6 +400,33 @@ export interface InteractionView {
   answeredAt?: string;
   endedAt?: string;
   dispositionLabel?: string;
+  identity?: ContactIdentityView;
+}
+
+// Fase 16.1 — item do histórico unificado voz+chat de um contato identificado.
+export interface ContactHistoryItem {
+  channel: 'voz' | 'chat';
+  referenceId: number;
+  queueName?: string;
+  agentName?: string;
+  startedAt?: string;
+  endedAt?: string;
+  dispositionLabel?: string;
+}
+
+// Fase 16.2/16.3 — perfil do contato traçado por IA (copiloto). status=GENERATING sinaliza que o
+// frontend deve continuar fazendo polling; a geração nunca bloqueia o atendimento.
+export interface ContactProfileView {
+  status: 'UNAVAILABLE' | 'GENERATING' | 'READY';
+  profileId?: number;
+  resumoPerfil?: string;
+  sentimentoHistorico?: string;
+  temasRecorrentes?: string[];
+  riscoEscalonamento?: number;
+  acoesSugeridas?: { acao: string; justificativa: string }[];
+  generatedAt?: string;
+  model?: string;
+  costUsd?: number;
 }
 
 // Painel pessoal do agente (Fase 22) — GET /callcenter/desktop/me/*. Somente leitura do próprio

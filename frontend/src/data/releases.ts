@@ -789,4 +789,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Fluxo de voz do Call Center: novo nó "Coletar entrada (voz)" com opção de identificar o contato durante a coleta.',
     ],
   },
+  {
+    version: 'v1.92',
+    date: '2026-08-15',
+    changes: [
+      'Call Center — Desktop do Agente: painel de "Copiloto de IA" com histórico unificado de atendimentos (voz e chat) e um perfil do contato gerado por IA, com resumo, temas recorrentes, risco de escalonamento e ações sugeridas — cada ação com botão de feedback (útil/não útil).',
+      'O perfil de IA é gerado em segundo plano (nunca trava o atendimento) e reaproveitado por 24h antes de ser regerado.',
+    ],
+  },
 ];

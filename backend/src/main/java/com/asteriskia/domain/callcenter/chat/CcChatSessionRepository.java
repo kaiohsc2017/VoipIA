@@ -32,4 +32,8 @@ public interface CcChatSessionRepository extends JpaRepository<CcChatSession, Lo
     /** Histórico de contatos anteriores no screen pop (Fase 14) — últimas sessões de chat do
      * mesmo contato identificado, excluída a sessão atual. */
     List<CcChatSession> findTop10ByResolvedAdSamAndIdNotOrderByStartedAtDesc(String resolvedAdSam, Long excludedId);
+
+    /** Histórico unificado voz+chat (Fase 16.1, {@code CallCenterContactHistoryService}) — todas
+     * as sessões do contato, sem exclusão (a sessão atual é excluída em memória pelo serviço). */
+    List<CcChatSession> findByResolvedAdSamOrderByStartedAtDesc(String resolvedAdSam);
 }

@@ -1,6 +1,8 @@
 package com.asteriskia.domain.callcenter.interaction;
 
+import com.asteriskia.domain.callcenter.copilot.ContactProfileView;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -41,6 +43,33 @@ public class CallCenterInteractionController {
     @GetMapping("/{id}/contact-history")
     public ResponseEntity<List<InteractionView>> contactHistory(@PathVariable Long id) {
         return ResponseEntity.ok(service.contactHistory(id));
+    }
+
+    /** Fase 16.1 — histórico unificado voz+chat do contato identificado (diferente de {@code
+     * contact-history} acima, que é só voz e existe desde a Fase 14). Mesmas garantias
+     * anti-IDOR. */
+    @GetMapping("/{id}/contact-history-unified")
+    public ResponseEntity<List<com.asteriskia.domain.callcenter.copilot.ContactHistoryItem>> unifiedContactHistory(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(service.unifiedContactHistory(id));
+    }
+
+    /** Fase 16.2 — perfil do contato traçado por IA (copiloto), com as mesmas garantias
+     * anti-IDOR do histórico acima. {@code status=GENERATING} sinaliza ao frontend continuar
+     * fazendo polling — a geração nunca bloqueia esta requisição. */
+    @GetMapping("/{id}/contact-profile")
+    public ResponseEntity<ContactProfileView> contactProfile(@PathVariable Long id) {
+        return ResponseEntity.ok(service.contactProfile(id));
+    }
+
+    public record ContactProfileFeedbackRequest(@NotNull Long profileId, int actionIndex, boolean useful) {}
+
+    /** Fase 16.3 — feedback (útil/não útil) sobre uma ação sugerida do copiloto. */
+    @PostMapping("/{id}/contact-profile/feedback")
+    public ResponseEntity<Void> contactProfileFeedback(
+            @PathVariable Long id, @Valid @RequestBody ContactProfileFeedbackRequest request) {
+        service.submitContactProfileFeedback(id, request.profileId(), request.actionIndex(), request.useful());
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/dispositions")

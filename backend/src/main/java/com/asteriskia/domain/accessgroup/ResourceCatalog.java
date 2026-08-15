@@ -81,7 +81,12 @@ public final class ResourceCatalog {
             // do login/nome falado + confirmação, na cascata de identificação de contato. Mesmo
             // padrão de callcenter_nps/callcenter_autosservico — sem tela própria no submenu
             // Financeiro do Telecom, painel de alerta embutido no Desktop do Agente do Call Center.
-            "financeiro.callcenter_identidade"
+            "financeiro.callcenter_identidade",
+            // callcenter_copiloto (Fase 16, §copiloto de IA para o agente): custo de IA da
+            // geração do perfil do contato (Fase 16.2) — o pior perfil de custo do módulo (dispara
+            // por contato, não por gravação). Mesmo padrão de callcenter_nps/identidade — sem
+            // tela própria no submenu Financeiro, alerta embutido no Desktop do Agente.
+            "financeiro.callcenter_copiloto"
     );
 
     // Módulo Call Center (voz) — Fase 2 do plano modulo-callcenter-omnicanal.plan.md.

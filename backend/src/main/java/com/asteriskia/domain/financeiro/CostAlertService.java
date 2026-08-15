@@ -3,6 +3,7 @@ package com.asteriskia.domain.financeiro;
 import com.asteriskia.domain.call.CallCostService;
 import com.asteriskia.domain.call.CallRecordFilter;
 import com.asteriskia.domain.call.MonthlyCostSummary;
+import com.asteriskia.domain.callcenter.copilot.CcContactProfileRepository;
 import com.asteriskia.domain.callcenter.identity.CcIdentityResolutionLogRepository;
 import com.asteriskia.domain.callcenter.kb.CcKbAnswerLogRepository;
 import com.asteriskia.domain.callcenter.nps.CcSurveyResponseRepository;
@@ -43,7 +44,7 @@ public class CostAlertService {
     private static final List<String> SCOPES =
             List.of(
                     "ura", "insights", "envios", "callcenter", "callcenter_nps", "callcenter_autosservico",
-                    "callcenter_identidade");
+                    "callcenter_identidade", "callcenter_copiloto");
 
     private final FinanceiroCostAlertConfigRepository repository;
     private final CallCostService callCostService;
@@ -51,6 +52,7 @@ public class CostAlertService {
     private final CcSurveyResponseRepository surveyResponseRepository;
     private final CcKbAnswerLogRepository kbAnswerLogRepository;
     private final CcIdentityResolutionLogRepository identityResolutionLogRepository;
+    private final CcContactProfileRepository contactProfileRepository;
     private final TelegramBotService telegramBotService;
 
     @Transactional(readOnly = true)
@@ -117,6 +119,7 @@ public class CostAlertService {
             case "callcenter_nps" -> surveyResponseRepository.sumAiCostUsdBetween(monthStart, now);
             case "callcenter_autosservico" -> kbAnswerLogRepository.sumCostUsdBetween(monthStart, now);
             case "callcenter_identidade" -> identityResolutionLogRepository.sumAiCostUsdBetween(monthStart, now);
+            case "callcenter_copiloto" -> contactProfileRepository.sumCostUsdBetween(monthStart, now);
             default -> throw invalidScope(scope);
         };
     }
@@ -174,6 +177,7 @@ public class CostAlertService {
             case "callcenter_nps" -> "Pesquisa de Satisfação (NPS)";
             case "callcenter_autosservico" -> "Autosserviço (Base de Conhecimento)";
             case "callcenter_identidade" -> "Identidade do Contato (Fase 14)";
+            case "callcenter_copiloto" -> "Copiloto de IA (Fase 16)";
             default -> scope;
         };
     }
