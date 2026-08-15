@@ -32,6 +32,13 @@
 #
 # Uso:
 #   bash install-oracle9.sh [--update]
+#
+# Variáveis de ambiente opcionais (dimensionamento de hardware — recomendação
+# documentada em CLAUDE.md/tela Documentação, NUNCA validada por teste de carga):
+#   ASTERISKIA_AGENT_COUNT=<n>          quantidade de agentes de Call Center simultâneos
+#                                       (pula a pergunta interativa; útil em automação)
+#   ASTERISKIA_ACCEPT_HARDWARE_RISK=yes aceita seguir com hardware abaixo do recomendado
+#                                       em execução não-interativa (sem isso, aborta)
 # =============================================================================
 
 set -euo pipefail
@@ -138,8 +145,62 @@ PUBLIC_IP=$(curl -sf --max-time 5 https://api.ipify.org 2>/dev/null || \
 log_ok "IP público: ${CYAN}${PUBLIC_IP}${NC}"
 
 TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
-[ "$TOTAL_RAM" -ge 3500 ] || log_warn "RAM disponível: ${TOTAL_RAM}MB. Recomendado: 4GB+"
+CPU_COUNT=$(nproc)
 log_ok "RAM: ${TOTAL_RAM}MB"
+log_ok "vCPU: ${CPU_COUNT}"
+
+# ── Dimensionamento de hardware pelo volume de agentes ───────────────────────
+# Referência documentada (CLAUDE.md / tela Documentação → Call Center → Segurança
+# e Endurecimento Operacional): 250 agentes simultâneos ⇒ ~24 vCPU / ~64GB RAM em
+# servidor único (ou 2 servidores dedicados App+Banco) — recomendação por cálculo/
+# composição, NUNCA validada por teste de carga real (descartado por decisão do
+# usuário em 2026-08-15). Escala linear a partir dessa referência, com piso mínimo
+# para instalações pequenas/dev.
+log_step "1b. Dimensionamento de hardware para o volume de agentes"
+log_info "Referência (250 agentes simultâneos): ~24 vCPU / ~64GB RAM em servidor único"
+log_info "(ou App 16-24vCPU/32GB + Banco dedicado 8vCPU/32GB/NVMe em 2 servidores)."
+log_info "Ver detalhes em CLAUDE.md ou na tela Documentação do sistema."
+
+AGENT_COUNT="${ASTERISKIA_AGENT_COUNT:-}"
+if [ -z "$AGENT_COUNT" ]; then
+    if [ -t 0 ]; then
+        read -r -p "Quantos agentes de Call Center vão se conectar simultaneamente neste ambiente? [10]: " AGENT_COUNT
+        AGENT_COUNT="${AGENT_COUNT:-10}"
+    else
+        AGENT_COUNT=10
+        log_warn "Execução não-interativa sem ASTERISKIA_AGENT_COUNT definido — assumindo 10 agentes (ambiente pequeno/dev)."
+    fi
+fi
+case "$AGENT_COUNT" in
+    ''|*[!0-9]*) log_err "Valor inválido para quantidade de agentes simultâneos: '$AGENT_COUNT' (esperado número inteiro)." ;;
+esac
+
+REC_CPU=$(( (AGENT_COUNT * 24 + 249) / 250 )); [ "$REC_CPU" -lt 2 ] && REC_CPU=2
+REC_RAM_GB=$(( (AGENT_COUNT * 64 + 249) / 250 )); [ "$REC_RAM_GB" -lt 4 ] && REC_RAM_GB=4
+REC_RAM_MB=$(( REC_RAM_GB * 1024 ))
+
+log_info "Detectado neste servidor: ${CPU_COUNT} vCPU / ${TOTAL_RAM}MB RAM"
+log_info "Recomendado para ${AGENT_COUNT} agentes simultâneos: ${REC_CPU} vCPU / ${REC_RAM_GB}GB RAM"
+
+HARDWARE_ABAIXO=0
+if [ "$CPU_COUNT" -lt "$REC_CPU" ]; then HARDWARE_ABAIXO=1; fi
+if [ "$TOTAL_RAM" -lt "$REC_RAM_MB" ]; then HARDWARE_ABAIXO=1; fi
+
+if [ "$HARDWARE_ABAIXO" -eq 1 ]; then
+    log_warn "Hardware ABAIXO do recomendado para ${AGENT_COUNT} agentes simultâneos."
+    log_warn "Risco: degradação de áudio (RTP), lentidão no backend/PostgreSQL e instabilidade"
+    log_warn "sob carga real — esta recomendação não foi validada por teste de carga."
+    if [ -t 0 ]; then
+        read -r -p "Digite 'ACEITO O RISCO' (maiúsculas) para prosseguir mesmo assim, ou qualquer outra tecla para abortar: " RISK_ACK
+        [ "$RISK_ACK" = "ACEITO O RISCO" ] || log_err "Instalação abortada — hardware insuficiente para ${AGENT_COUNT} agentes simultâneos."
+        log_warn "Risco aceito pelo operador — prosseguindo com hardware abaixo do recomendado."
+    else
+        [ "${ASTERISKIA_ACCEPT_HARDWARE_RISK:-}" = "yes" ] || log_err "Instalação abortada (execução não-interativa): hardware abaixo do recomendado para ${AGENT_COUNT} agentes. Defina ASTERISKIA_ACCEPT_HARDWARE_RISK=yes para prosseguir mesmo assim."
+        log_warn "ASTERISKIA_ACCEPT_HARDWARE_RISK=yes — prosseguindo mesmo com hardware abaixo do recomendado."
+    fi
+else
+    log_ok "Hardware compatível com o volume de ${AGENT_COUNT} agentes informado."
+fi
 
 # ── Pacotes que conflitam com docker-ce ──────────────────────────────────────
 log_step "2. Removendo pacotes conflitantes (podman/buildah/runc do container-tools)"
