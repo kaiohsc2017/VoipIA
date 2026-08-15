@@ -445,12 +445,15 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > para o detalhe de cada item:
 > 1. **Plano Call Center Parte III** — Fase 27 (gamificação/perfil de cliente/produtividade) ✅
 >    deployada em 2026-08-14, encerrando a "camada analítica completa" (release 11 do plano
->    revisado: 9c → 26 → 27). Fase 10 (endurecimento/carga) segue em andamento: fatia 1
+>    revisado: 9c → 26 → 27). Fase 10 (endurecimento/carga) está **encerrada**: fatia 1
 >    (segurança/healthchecks/documentação) ✅ e parte 2 (particionamento de
->    `cc_interaction_events`/`cc_chat_messages`, migration V71) ✅ deployadas em 2026-08-14; só a
->    parte 1 da Fase 10 (teste de carga SIPp) segue pendente — VPS sem folga de memória para um
->    teste honesto sem risco à produção (ver
->    `.claude/plans/callcenter-fase10-seguranca-endurecimento.plan.md` §10-§11). Fase 17
+>    `cc_interaction_events`/`cc_chat_messages`, migration V71) ✅ deployadas em 2026-08-14; o
+>    teste de carga SIPp (parte 1) foi **descartado por decisão do usuário em 2026-08-15** — não
+>    será feito (ver `.claude/plans/callcenter-fase10-seguranca-endurecimento.plan.md` §10-§11 para
+>    o histórico da tentativa). Em seu lugar, foi produzida uma recomendação de hardware para 250
+>    agentes simultâneos (ver seção "Recomendação de hardware — 250 agentes simultâneos" logo
+>    abaixo desta lista de pendências) — a VPS atual (2 vCPU / 3.8Gi RAM, já em swap com a carga
+>    de desenvolvimento) está muito abaixo do necessário para esse volume. Fase 17
 >    (co-browsing) ✅ deployada em 2026-08-14. Fase 18 (IA local) **não tem código pendente** — é
 >    um estudo/roadmap já integralmente escrito em `modulo-callcenter-omnicanal.plan.md` §18, com
 >    decisão explícita de manter-se com API por ora; a Onda 1 (memória/RAG local via `pgvector`,
@@ -479,8 +482,8 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    (v1.85), 9c.5 exportação Excel/PDF (v1.86), CFG-email — configuração SMTP em Sistema →
 >    Configuração (v1.87), 9c.6 agendamento por Telegram/e-mail (v1.88), 9c.7 escala/aderência do
 >    agente (v1.89) — ver `.claude/plans/callcenter-fases-5-7-9.plan.md` §2 para o detalhe de cada
->    fatia; **a leva inteira do plano (Fases 5, 7 e 9) está fechada**. Fase 10 (teste de carga
->    SIPp, ver item 1 acima); **Fase 14 ✅ concluída em 2026-08-15** (identidade do contato/screen
+>    fatia; **a leva inteira do plano (Fases 5, 7 e 9) está fechada**. Fase 10 (encerrada — teste
+>    de carga SIPp descartado, ver item 1 acima); **Fase 14 ✅ concluída em 2026-08-15** (identidade do contato/screen
 >    pop, v1.91 — ver `asteriskia_callcenter_fase14_identidade_screenpop.md`; desbloqueia a Fase
 >    16); **Fase 16 ✅ concluída em 2026-08-15** (histórico do contato e copiloto de IA para o
 >    agente, v1.92 — ver `asteriskia_callcenter_fase16_copiloto_ia.md`); Fase 17 ✅ (co-browsing,
@@ -508,6 +511,63 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    chat público (Telegram/Webchat) segue sem
 >    `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` configurado —
 >    nenhuma fila real cadastrada nesta VPS de dev.
+
+### 📐 Recomendação de hardware — 250 agentes simultâneos (2026-08-15)
+Produzida em substituição ao teste de carga SIPp (descartado, ver item 1 da lista de pendências
+acima). É dimensionamento por cálculo/composição de literatura + observação da VPS atual, **não**
+validado por teste de carga real — trate como ponto de partida, não como garantia.
+
+**Diagnóstico da VPS atual**: 2 vCPU / 3.8Gi RAM — já em ~2,3Gi usados e ~2,9Gi de swap em uso só
+com a carga de *desenvolvimento* (múltiplos containers, sem tráfego real de 250 agentes). Está
+ordens de grandeza abaixo do necessário para o volume-alvo; não é uma questão de "aumentar um
+pouco", é preciso trocar de classe de servidor.
+
+**Premissas de carga** (250 agentes = 250 ramais SIP registrados simultaneamente, cenário de pico
+com boa parte em conversação ativa ao mesmo tempo — não só logados):
+- **Áudio (Asterisk)**: Asterisk só repassa RTP entre softphone↔tronco/fila (sem transcodificação
+  na maioria das chamadas — só o Módulo 1/NPS/`agente_ia` passam por AudioSocket pro ai-agent).
+  G.711 ≈ 87 kbps por perna com overhead RTP; 250 chamadas simultâneas bidirecionais ≈ **45-90
+  Mbps** só de mídia, fora sinalização SIP/WebRTC. Co-browsing/gravação simultânea (Fases 17/8)
+  soma I/O de disco, não rede.
+- **Backend Java (Spring Boot + WebSocket STOMP)**: 250 conexões persistentes (softphone,
+  Desktop do Agente com polling de 3-5s do copiloto/histórico/chat) + pool de conexões ao
+  Postgres. JVM sob esse volume de threads/heap precisa de headroom real, não os 1Gi/1 vCPU
+  atuais do `docker-compose.yml`.
+- **PostgreSQL**: já particionado (V71/V72) mas o volume de escrita cresce linear com agentes
+  ativos (`cc_interaction_events`, `cc_chat_messages`, `cc_agent_states`, embeddings pgvector da
+  Fase 25). Precisa de I/O de disco rápido (NVMe) e RAM suficiente pra `shared_buffers`/cache —
+  é tipicamente o primeiro gargalo antes da CPU num call center desse tamanho.
+- **ai-agent (Python/AudioSocket+Gemini)**: só atende as chamadas que passam por IA (URA,
+  pesquisa NPS falada, nó `agente_ia`) — bem menos que 250 simultâneas na prática, mas cada sessão
+  mantém streaming ao Gemini (I/O de rede + algum CPU de framing PCM), não CPU-bound pesado.
+- **insights (embeddings locais via pgvector, CPU)**: picos de CPU durante reindexação da KB
+  (Fase 25) e processamento de gravações — não é hot-path de chamada, pode tolerar fila.
+
+**Recomendação — topologia de 2 servidores** (separar banco do resto reduz o maior risco de
+contenção de I/O sob carga real):
+
+| Servidor | Papel | vCPU | RAM | Disco | Rede |
+|----------|-------|------|-----|-------|------|
+| **App** | Caddy + Asterisk + backend Java + ai-agent + frontend + insights + agents-api + docker-helper + security | **16-24 vCPU** | **32 GB** | 200 GB SSD/NVMe | 1 Gbps dedicado (headroom p/ pico de RTP) |
+| **Banco** | PostgreSQL 16 dedicado (pgvector já em uso desde V69) | **8 vCPU** | **32 GB** (permite `shared_buffers` generoso + cache de SO) | 200-500 GB **NVMe** (IOPS é o gargalo real, não capacidade) | 1 Gbps interno |
+
+Se preferir um único servidor por simplicidade operacional (aceitável nesta fase, mas com menos
+margem): **24-32 vCPU / 64 GB RAM / NVMe**, com os limites de `docker-compose.yml` (hoje
+tipicamente `1 vCPU`/`1Gi` por serviço) revisados para refletir a RAM real disponível — os limites
+atuais foram calibrados pra uma VPS de 2 vCPU/3.8Gi de desenvolvimento, não para produção.
+
+**Pontos de atenção específicos**:
+- Portas RTP `15000-15500/udp` (250 no total) já cobrem 250 chamadas simultâneas sem ajuste —
+  **confirmar isso antes de qualquer outra coisa** se o volume real chegar perto do limite.
+- `max_connections` do Postgres e o tamanho do pool HikariCP do backend precisam crescer juntos
+  (250 agentes com polling multiplicam conexões); considerar PgBouncer se o pool direto não for
+  suficiente.
+- Bandwidth de rede externa: dimensionar para o pico de RTP (45-90 Mbps) **mais** tráfego de
+  gravação simultânea sendo baixada por supervisores/relatórios — recomendar contratar 1 Gbps
+  cheio, não só o mínimo calculado.
+- Esta recomendação não substitui uma validação empírica: quando houver volume real ou uma janela
+  seguinda (servidor dedicado, fora da VPS compartilhada com outros projetos), vale medir de fato
+  antes de comprar hardware definitivo.
 
 ### ✅ Atribuir grupo de acesso customizado a um usuário pela UI (2026-08-15) — deployada e validada em produção
 Fechava a última lacuna binária do RBAC granular (V22): a UI de usuários (`Users.tsx`) só permitia
@@ -744,10 +804,9 @@ mesmo sem volume real — decisão dele, registrada no plano.
   `docker compose up -d --force-recreate backend ai-agent docker-helper insights asterisk` para a
   rotação de chave + `dialplan reload`) e validado em produção — todos os 11 containers
   `healthy`. Commit `42eb9c9`, push para `origin main` e `azure main:desenvolvimento`.
-- Teste de carga SIPp (parte 1 da Fase 10) continua **não concluído** — VPS sem folga de memória
-  (~130-190Mi livres, ~1,9Gi de swap em uso) para um teste honesto sem risco à produção
-  compartilhada com outros projetos no mesmo host; fica pendente de servidor dedicado ou janela de
-  manutenção com folga de memória.
+- Teste de carga SIPp (parte 1 da Fase 10) **descartado por decisão do usuário em 2026-08-15** —
+  não será feito. Substituído por uma recomendação de hardware para 250 agentes simultâneos (ver
+  seção própria mais abaixo neste arquivo).
 - **Extensão do particionamento ao fluxo/URA (migration V72)**: `cc_flow_execution_steps` (traço
   nó a nó do Flow Builder, Fase 5b) também particionada por mês (`entered_at`), mesmo padrão da
   V71. `cc_flow_executions` (uma linha por chamada) **permanece não particionada** — restrição

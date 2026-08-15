@@ -9,11 +9,10 @@ export default function CallCenterSegurancaOperacao() {
       <Section id="callcenter-seguranca" title="Segurança e Endurecimento Operacional">
         <p>
           Escopo desta fatia da Fase 10: revisão de segurança completa + limites de recurso/
-          healthchecks + esta documentação. <strong>Fora de escopo, deliberadamente</strong>: teste
-          de carga SIPp (roda em produção real), particionamento de tabelas de evento
-          (<code>cc_interaction_events</code>/<code>cc_chat_messages</code>) e recomendação
-          numérica de hardware — todos dependem de um dado que este módulo ainda não tem: volume
-          real de tráfego.
+          healthchecks + esta documentação. O teste de carga SIPp foi <strong>descartado por
+          decisão do usuário em 2026-08-15</strong> — não será executado. Em seu lugar, a seção
+          abaixo traz uma recomendação de hardware por composição/cálculo (não por medição real)
+          para o cenário de 250 agentes simultâneos.
         </p>
 
         <SubSection title="RBAC — cobertura confirmada, não apenas assumida">
@@ -101,13 +100,46 @@ export default function CallCenterSegurancaOperacao() {
           </p>
         </SubSection>
 
-        <SubSection title="Recomendação de hardware do servidor dedicado — qualitativa, não numérica">
+        <SubSection title="Recomendação de hardware — 250 agentes simultâneos (2026-08-15)">
+          <Callout tone="warn">
+            Produzida por cálculo/composição a partir do que foi desenvolvido, <strong>não</strong>
+            por teste de carga real (descartado por decisão do usuário) — trate como ponto de
+            partida, não como garantia. A VPS atual de desenvolvimento (2 vCPU / 3.8Gi RAM) já
+            opera em swap (~2,9Gi em uso) só com a carga de dev, sem tráfego real de 250 agentes —
+            está ordens de grandeza abaixo do necessário para esse volume.
+          </Callout>
           <p>
-            Sem teste de carga real (parte 1 da Fase 10, ainda não executada), qualquer número aqui
-            seria chute. O dimensionamento final depende de 4 eixos, cada um a medir quando a
-            carga real existir: canais SIP simultâneos × codec (RTP/CPU), <code>cpus</code>/
-            <code>memory</code> por container sob carga real (não a janela ociosa observada acima),
-            IOPS de gravação de chamada, e retenção em disco (gravação + transcript de chat).
+            Premissa de carga: 250 ramais SIP registrados, cenário de pico com boa parte em
+            conversação ativa simultânea (não só logados). Asterisk repassa RTP sem transcodificar
+            na maioria das chamadas (só Módulo 1/NPS/<code>agente_ia</code> passam por AudioSocket
+            ao ai-agent) — G.711 ≈ 87 kbps por perna com overhead RTP, logo 250 chamadas
+            bidirecionais simultâneas ≈ 45-90 Mbps só de mídia. O backend Java sustenta 250
+            conexões WebSocket STOMP persistentes mais o polling do Desktop do Agente (copiloto,
+            histórico, chat); o PostgreSQL (já particionado desde V71/V72, com pgvector da Fase 25)
+            é tipicamente o primeiro gargalo de I/O antes da CPU, não a Asterisk.
+          </p>
+          <Card>
+            <FieldTable
+              headers={['Servidor', 'Papel', 'vCPU', 'RAM', 'Disco', 'Rede']}
+              rows={[
+                ['App', 'Caddy + Asterisk + backend Java + ai-agent + frontend + insights + agents-api + docker-helper + security', '16-24', '32 GB', '200 GB SSD/NVMe', '1 Gbps dedicado'],
+                ['Banco', 'PostgreSQL 16 dedicado (pgvector)', '8', '32 GB', '200-500 GB NVMe (IOPS é o gargalo real)', '1 Gbps interno'],
+              ]}
+            />
+          </Card>
+          <p>
+            Alternativa em servidor único (menos margem, aceitável por simplicidade operacional):
+            24-32 vCPU / 64 GB RAM / NVMe — revisando os limites de <code>docker-compose.yml</code>
+            (hoje calibrados para a VPS de 2 vCPU/3.8Gi de desenvolvimento, tipicamente 1 vCPU/1Gi
+            por serviço).
+          </p>
+          <p>
+            Pontos de atenção: o range RTP <code>15000-15500/udp</code> já cobre as 250 portas
+            necessárias, sem ajuste; <code>max_connections</code> do PostgreSQL e o pool HikariCP
+            do backend precisam crescer junto (considerar PgBouncer); contratar 1 Gbps cheio, não
+            só o mínimo calculado, por causa de gravações sendo baixadas em paralelo por
+            supervisores/relatórios. Quando houver servidor dedicado fora da VPS compartilhada
+            atual, vale medir de fato antes de qualquer compra definitiva.
           </p>
         </SubSection>
       </Section>
