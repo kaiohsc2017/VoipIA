@@ -490,9 +490,10 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > 3. **Maior incerteza aberta do projeto inteiro**: nenhuma chamada real de voz atravessou uma
 >    fila do Call Center ainda — todo o motor ARI/Stasis/AMI foi validado só com mocks/curl;
 >    eventos AMI de canal da Fase 23 nunca confirmados com tráfego real.
-> 4. **Débitos transversais (fora do Call Center)**: CSP em `Report-Only` (nunca migrado pra
->    enforcement real); BU incompleto (Alertas Zabbix e Insights do Call Center/relatório 9c não
->    filtram por BU); Jira sem credenciais reais. **Catálogo de nós do Flow Builder do Call
+> 4. **Débitos transversais (fora do Call Center)**: CSP **✅ migrado para enforcement real em
+>    2026-08-15** (ver seção "Débito de segurança" mais abaixo); BU incompleto (Alertas Zabbix e
+>    Insights do Call Center/relatório 9c não filtram por BU); Jira sem credenciais reais.
+>    **Catálogo de nós do Flow Builder do Call
 >    Center 100% implementado desde 2026-08-15** — os 3 últimos nós saíram do estado bloqueado
 >    nesta entrega: `agente_ia` (Fase A — CRUD de persona/prompt/modelo, migration V87,
 >    `cc_ia_agents`/`cc_ia_agent_turns`; Fase B — execução real, `AgenteIaNodeHandler` +
@@ -1663,9 +1664,14 @@ fatia 9c futura.
   navegador não foi feita (sem acesso a browser nesta sessão).
 
 ### ✅ Débito de segurança — 2 de 3 fechados (2026-07-03), 1 parcial
-- **CSP**: `Content-Security-Policy-Report-Only` ativo no Caddyfile (não bloqueia nada, só reporta
-  violações no console do browser) — validado em produção. Migrar pra enforcement real exige
-  observar violações reais primeiro (softphone, WebRTC) antes de trocar pra `Content-Security-Policy`.
+- **CSP**: ✅ **migrado para enforcement real em 2026-08-15** (`Content-Security-Policy`, não mais
+  `-Report-Only`) — validado em produção via Chrome headless antes e depois da mudança (Telecom,
+  Agentes, Insights, Call Center incluindo o Flow Builder), zero bloqueio real. `script-src` perdeu
+  `'unsafe-inline'` (motivo original — Agentes UMD com `<script>` inline — não existe mais desde a
+  migração pra Vite em 2026-07-19); `style-src`/`font-src` ganharam os hosts do Google Fonts
+  (`fonts.googleapis.com`/`fonts.gstatic.com`, usados via `@import` em `index.css` das 4 SPAs).
+  `connect-src`/`media-src` inalterados — softphone WebRTC não foi testado de novo com chamada real
+  nesta mudança especificamente (só herda a mesma política já validada há tempo em Report-Only).
 - **Token JWT via query string em WS/SSE**: substituído por token de streaming dedicado (60s, claim
   `scope=stream`) — `POST /api/v1/auth/streaming-token` (Java) emite, `StreamingTokenFilter` (Java) e
   `_ws_auth` (Python) validam. Streaming token não funciona como Bearer normal nem pode gerar outro
