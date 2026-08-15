@@ -731,4 +731,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Relatórios do Call Center ganham a aba "Chat (agregado)": tempo de primeira resposta (FRT), tempo médio de resposta (ART), concorrência média de chats simultâneos e taxa de contenção do bot (quantas conversas o assistente resolveu sozinho, sem precisar de um agente humano).',
     ],
   },
+  {
+    version: 'v1.84',
+    date: '2026-08-14',
+    changes: [
+      'Relatórios do Call Center ganham a aba "Timeline do contato": busque um telefone e veja, numa única lista paginada e ordenada por data, todas as chamadas e conversas de chat desse cliente — mesmo vindo de canais diferentes.',
+    ],
+  },
 ];

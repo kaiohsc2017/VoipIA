@@ -40,6 +40,7 @@ public class CallCenterReportsController {
     private final CallCenterFlowAggregationService flowAggregationService;
     private final CallCenterChatAggregationService chatAggregationService;
     private final CallCenterDetailReportService detailReportService;
+    private final CallCenterTimelineService timelineService;
 
     public record ReprocessRequest(@NotNull LocalDate from, @NotNull LocalDate to) {}
 
@@ -133,6 +134,19 @@ public class CallCenterReportsController {
         }
         Map<Long, List<ChatPeriodMetrics>> byQueue = queryService.queryAllChats(from, to, g);
         return ResponseEntity.ok(byQueue);
+    }
+
+    /** Timeline omnicanal (voz+chat) de um contato, paginada em banco (Fase 9c.3) — base que a
+     * Fase 16 (copiloto de IA) vai consumir. */
+    @GetMapping("/timeline")
+    public ResponseEntity<Page<TimelineEventRow>> timeline(
+            @RequestParam String contact,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        PageRequest pageable = PageRequest.of(page, clampPageSize(size));
+        return ResponseEntity.ok(timelineService.timeline(contact, from, to, pageable));
     }
 
     /** Relatório analítico de chamada, linha a linha (Fase 9c) — fila/agente/NPS/tempo de espera/

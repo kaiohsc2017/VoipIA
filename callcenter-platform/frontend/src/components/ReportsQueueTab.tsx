@@ -4,7 +4,7 @@ import api, { getErrorMessage } from '../api/client';
 import type {
   CcQueue, CcAgent, FlowView, QueuePeriodMetrics, QueuePeriodComparison,
   AgentPeriodMetrics, AgentPeriodComparison, FlowPeriodMetrics, FlowNodeAbandonmentRow,
-  ChatPeriodMetrics, ReportGranularity,
+  ChatPeriodMetrics, TimelineEventRow, Page, ReportGranularity,
 } from '../api/types';
 import { CallDetailReport, ChatDetailReport } from './DetailReportTab';
 import { QualityReportTab } from './QualityReportTab';
@@ -43,7 +43,7 @@ interface ReportsQueueTabProps {
  */
 export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
   const [view, setView] = useState<
-    'queue' | 'agent' | 'flow' | 'chat-summary' | 'call-detail' | 'chat-detail' | 'quality' | 'gamification' | 'customer-profile' | 'productivity'
+    'queue' | 'agent' | 'flow' | 'chat-summary' | 'timeline' | 'call-detail' | 'chat-detail' | 'quality' | 'gamification' | 'customer-profile' | 'productivity'
   >('queue');
 
   const [reprocessFrom, setReprocessFrom] = useState(daysAgoIso(7));
@@ -73,6 +73,7 @@ export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
         <button type="button" onClick={() => setView('agent')} disabled={view === 'agent'}>Agente (voz)</button>
         <button type="button" onClick={() => setView('flow')} disabled={view === 'flow'}>Fluxo/URA</button>
         <button type="button" onClick={() => setView('chat-summary')} disabled={view === 'chat-summary'}>Chat (agregado)</button>
+        <button type="button" onClick={() => setView('timeline')} disabled={view === 'timeline'}>Timeline do contato</button>
         <button type="button" onClick={() => setView('call-detail')} disabled={view === 'call-detail'}>Chamada (detalhe)</button>
         <button type="button" onClick={() => setView('chat-detail')} disabled={view === 'chat-detail'}>Chat (detalhe)</button>
         <button type="button" onClick={() => setView('quality')} disabled={view === 'quality'}>Qualidade</button>
@@ -85,6 +86,7 @@ export function ReportsQueueTab({ isAdmin }: ReportsQueueTabProps) {
       {view === 'agent' && <AgentReport reprocessTick={reprocessTick} />}
       {view === 'flow' && <FlowReport reprocessTick={reprocessTick} />}
       {view === 'chat-summary' && <ChatSummaryReport reprocessTick={reprocessTick} />}
+      {view === 'timeline' && <TimelineReport />}
       {view === 'call-detail' && <CallDetailReport />}
       {view === 'chat-detail' && <ChatDetailReport />}
       {view === 'quality' && <QualityReportTab isAdmin={isAdmin} />}
@@ -643,6 +645,93 @@ function ChatSummaryReport({ reprocessTick }: { reprocessTick: number }) {
         </table>
       )}
       {!selectedQueueId && <p>Selecione uma fila para ver o relatório.</p>}
+    </>
+  );
+}
+
+/** Sub-fase 9c.3 — timeline omnicanal (voz+chat) de um contato, paginada em banco. */
+function TimelineReport() {
+  const [contact, setContact] = useState('');
+  const [from, setFrom] = useState(daysAgoIso(90));
+  const [to, setTo] = useState(todayIso());
+  const [page, setPage] = useState(0);
+  const [result, setResult] = useState<Page<TimelineEventRow> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [searchTick, setSearchTick] = useState(0);
+
+  useEffect(() => {
+    if (!contact.trim() || searchTick === 0) {
+      return;
+    }
+    setLoading(true);
+    setError('');
+    api.get<Page<TimelineEventRow>>('/callcenter/reports/timeline', {
+      params: { contact, from, to, page, size: 20 },
+    })
+      .then(({ data }) => setResult(data))
+      .catch(err => setError(getErrorMessage(err, 'Falha ao carregar timeline')))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTick, page]);
+
+  const search = () => {
+    setPage(0);
+    setSearchTick(t => t + 1);
+  };
+
+  return (
+    <>
+      {error && <p style={{ color: 'var(--danger, #c0392b)' }}>{error}</p>}
+
+      <section style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
+        <label>
+          Contato (telefone)
+          <input type="text" value={contact} onChange={e => setContact(e.target.value)} placeholder="ex: (11) 98765-4321" />
+        </label>
+        <label>De <input type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
+        <label>Até <input type="date" value={to} onChange={e => setTo(e.target.value)} /></label>
+        <button type="button" onClick={search} disabled={!contact.trim() || loading}>
+          {loading ? 'Buscando…' : 'Buscar'}
+        </button>
+      </section>
+
+      {result && (
+        <>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th align="left">Quando</th>
+                <th align="left">Tipo</th>
+                <th align="left">Fila</th>
+                <th align="left">Agente</th>
+                <th align="right">NPS</th>
+                <th align="left">Tabulação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.content.map(ev => (
+                <tr key={`${ev.eventType}-${ev.eventId}`}>
+                  <td>{new Date(ev.occurredAt).toLocaleString('pt-BR')}</td>
+                  <td>{ev.eventType === 'CALL' ? 'Chamada' : 'Chat'}</td>
+                  <td>{ev.queueName ?? '—'}</td>
+                  <td>{ev.agentName ?? '—'}</td>
+                  <td align="right">{fmt(ev.npsScore)}</td>
+                  <td>{ev.dispositionLabel ?? '—'}</td>
+                </tr>
+              ))}
+              {result.content.length === 0 && (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 12 }}>Nenhum contato encontrado nesse período.</td></tr>
+              )}
+            </tbody>
+          </table>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+            <button type="button" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>Anterior</button>
+            <span>Página {result.number + 1} de {Math.max(1, result.totalPages)} ({result.totalElements} eventos)</span>
+            <button type="button" onClick={() => setPage(p => p + 1)} disabled={page + 1 >= result.totalPages}>Próxima</button>
+          </div>
+        </>
+      )}
     </>
   );
 }

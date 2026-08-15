@@ -1024,6 +1024,16 @@ export interface ChatPeriodMetrics {
   avgConcurrentChats: number | null;
 }
 
+export interface TimelineEventRow {
+  eventType: 'CALL' | 'CHAT';
+  eventId: number;
+  occurredAt: string;
+  queueName: string | null;
+  agentName: string | null;
+  npsScore: number | null;
+  dispositionLabel: string | null;
+}
+
 export interface FlowNodeAbandonmentRow {
   nodeId: string;
   nodeType: string;
