@@ -146,32 +146,37 @@ public class InsightsQueryService {
     }
 
     public InsightsDashboardSummary dashboard() {
-        return dashboard("verint");
+        return dashboard("verint", null);
     }
 
     /** source parametrizado (Fase 8 do Call Center) — todos os agregados (criticidade,
      * categoria, achados, nota média, auto-fails) são filtrados por source via JOIN com
-     * call_audio_files, mesmo padrão já usado pelo dashboard de Insights (verint). */
-    public InsightsDashboardSummary dashboard(String source) {
-        long total = audioFileRepository.countBySource(source);
+     * call_audio_files, mesmo padrão já usado pelo dashboard de Insights (verint).
+     *
+     * businessUnitIds: {@code null} = sem restrição (ADMIN, ou dashboard Verint que não
+     * tem conceito de BU). Escopo de BU fechado em 2026-08-15 — mesmo fail-open de
+     * {@link InsightsSpecifications#restrictedToBusinessUnits} pra gravação sem
+     * ccRecordingId/sem BU atribuída. */
+    public InsightsDashboardSummary dashboard(String source, Set<Integer> businessUnitIds) {
+        long total = audioFileRepository.countBySourceAndBusinessUnit(source, businessUnitIds);
 
         Map<String, Long> porCriticidade = new HashMap<>();
-        for (Object[] row : insightRepository.countByCriticidade(source)) {
+        for (Object[] row : insightRepository.countByCriticidade(source, businessUnitIds)) {
             porCriticidade.put((String) row[0], (Long) row[1]);
         }
 
         Map<String, Long> porCategoria = new HashMap<>();
-        for (Object[] row : insightRepository.countByCategoria(source)) {
+        for (Object[] row : insightRepository.countByCategoria(source, businessUnitIds)) {
             porCategoria.put((String) row[0], (Long) row[1]);
         }
 
         Map<String, Long> achadosPorTipo = new HashMap<>();
-        for (Object[] row : findingRepository.countByTipo(source)) {
+        for (Object[] row : findingRepository.countByTipo(source, businessUnitIds)) {
             achadosPorTipo.put((String) row[0], (Long) row[1]);
         }
 
         Map<String, Double> mediaNotaPorAgente = new HashMap<>();
-        for (Object[] row : evaluationRepository.averageNotaByAgent(source)) {
+        for (Object[] row : evaluationRepository.averageNotaByAgent(source, businessUnitIds)) {
             java.math.BigDecimal media = (java.math.BigDecimal) row[1];
             mediaNotaPorAgente.put((String) row[0], media != null ? media.doubleValue() : null);
         }
@@ -182,7 +187,7 @@ public class InsightsQueryService {
                 .filter(java.util.Objects::nonNull)
                 .filter(m -> m < mediaGeral)
                 .count();
-        long autoFailsNoPeriodo = evaluationRepository.countFailed(source);
+        long autoFailsNoPeriodo = evaluationRepository.countFailed(source, businessUnitIds);
 
         return new InsightsDashboardSummary(total, porCriticidade, porCategoria, achadosPorTipo,
                 mediaGeral, agentesAbaixoMedia, autoFailsNoPeriodo);

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface CallAudioFileRepository
@@ -37,6 +38,14 @@ public interface CallAudioFileRepository
      * Management, V40); a tela "Meus Envios" do portal do supervisor tem seus próprios
      * agregados, à parte, filtrados por uploadedBy. */
     long countBySource(String source);
+
+    /** Total por origem com escopo de BU (dashboard do Call Center, fechado em 2026-08-15).
+     * businessUnitIds: null = sem restrição (ADMIN); fail-open para gravação sem
+     * ccRecordingId/sem BU atribuída — mesmo padrão de InsightsSpecifications. */
+    @Query("SELECT COUNT(c) FROM CallAudioFile c WHERE c.source = :source " +
+           "AND (:businessUnitIds IS NULL OR c.ccRecordingId IS NULL OR c.ccRecordingId IN " +
+           "(SELECT r.id FROM CcRecording r WHERE r.businessUnit IS NULL OR r.businessUnit.id IN :businessUnitIds))")
+    long countBySourceAndBusinessUnit(@Param("source") String source, @Param("businessUnitIds") Set<Integer> businessUnitIds);
 
     /** Arquivos de um lote de upload, na ordem em que foram enviados — base da tela
      * "Meus Envios" (Fase 3 do Quality Management, V40). */

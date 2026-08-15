@@ -21,6 +21,7 @@ import com.asteriskia.domain.callcenter.interaction.CcInteractionRepository;
 import com.asteriskia.domain.callcenter.interaction.Direction;
 import com.asteriskia.domain.callcenter.recording.CcRecording;
 import com.asteriskia.domain.callcenter.recording.CcRecordingRepository;
+import com.asteriskia.domain.masterdata.BusinessUnit;
 import com.asteriskia.domain.insights.CallAudioFile;
 import com.asteriskia.domain.insights.CallAudioFileRepository;
 import com.asteriskia.domain.insights.CallInsight;
@@ -32,10 +33,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
@@ -100,7 +108,7 @@ class CallCenterDetailReportServiceTest {
         when(flowExecutionRepository.findByInteractionId(1L)).thenReturn(Optional.empty());
 
         CallReportFilter filter = new CallReportFilter(null, null, null, null, null, null, null, null, null, null, null);
-        Page<CallReportRow> result = service.searchCalls(filter, PageRequest.of(0, 20));
+        Page<CallReportRow> result = service.searchCalls(filter, PageRequest.of(0, 20), null);
 
         CallReportRow row = result.getContent().get(0);
         assertThat(row.interactionId()).isEqualTo(1L);
@@ -123,7 +131,7 @@ class CallCenterDetailReportServiceTest {
         when(flowExecutionRepository.findByInteractionId(1L)).thenReturn(Optional.empty());
 
         CallReportFilter filter = new CallReportFilter(null, null, null, null, null, null, null, null, null, null, null);
-        Page<CallReportRow> result = service.searchCalls(filter, PageRequest.of(0, 20));
+        Page<CallReportRow> result = service.searchCalls(filter, PageRequest.of(0, 20), null);
 
         assertThat(result.getContent().get(0).waitSeconds()).isNull();
     }
@@ -147,7 +155,7 @@ class CallCenterDetailReportServiceTest {
         when(flowExecutionRepository.findByInteractionId(1L)).thenReturn(Optional.empty());
 
         CallReportFilter filter = new CallReportFilter(null, null, null, null, null, null, null, null, null, null, null);
-        CallReportRow row = service.searchCalls(filter, PageRequest.of(0, 20)).getContent().get(0);
+        CallReportRow row = service.searchCalls(filter, PageRequest.of(0, 20), null).getContent().get(0);
 
         assertThat(row.audioFileId()).isEqualTo(200L);
         assertThat(row.categoriaAssunto()).isEqualTo("Fatura");
@@ -179,7 +187,7 @@ class CallCenterDetailReportServiceTest {
         when(flowExecutionStepRepository.findByExecutionIdOrderByEnteredAtAsc(60L)).thenReturn(List.of(step));
 
         CallReportFilter filter = new CallReportFilter(null, null, null, null, null, null, null, null, null, null, null);
-        CallReportRow row = service.searchCalls(filter, PageRequest.of(0, 20)).getContent().get(0);
+        CallReportRow row = service.searchCalls(filter, PageRequest.of(0, 20), null).getContent().get(0);
 
         assertThat(row.flowName()).isEqualTo("URA Vendas");
         assertThat(row.chosenOptionDigit()).isEqualTo("3");
@@ -202,7 +210,7 @@ class CallCenterDetailReportServiceTest {
         when(flowExecutionStepRepository.findByExecutionIdOrderByEnteredAtAsc(60L)).thenReturn(List.of(step));
 
         CallReportFilter filter = new CallReportFilter(null, null, null, null, null, null, null, null, null, null, null);
-        CallReportRow row = service.searchCalls(filter, PageRequest.of(0, 20)).getContent().get(0);
+        CallReportRow row = service.searchCalls(filter, PageRequest.of(0, 20), null).getContent().get(0);
 
         assertThat(row.flowName()).isEqualTo("URA Vendas");
         assertThat(row.chosenOptionDigit()).isNull();
@@ -218,7 +226,7 @@ class CallCenterDetailReportServiceTest {
         when(flowExecutionRepository.findByInteractionId(1L)).thenReturn(Optional.empty());
 
         CallReportFilter filter = new CallReportFilter(null, null, null, null, null, null, null, 10L, 60L, null, null);
-        service.searchCalls(filter, PageRequest.of(0, 20));
+        service.searchCalls(filter, PageRequest.of(0, 20), null);
 
         org.mockito.Mockito.verify(interactionRepository).findIdsByWaitSecondsBetween(10L, 60L);
     }
@@ -250,7 +258,7 @@ class CallCenterDetailReportServiceTest {
         when(flowExecutionRepository.findByInteractionId(1L)).thenReturn(Optional.empty());
 
         CallReportFilter filter = new CallReportFilter(null, null, null, null, null, null, null, null, null, "3", null);
-        service.searchCalls(filter, PageRequest.of(0, 20));
+        service.searchCalls(filter, PageRequest.of(0, 20), null);
 
         org.mockito.Mockito.verify(flowExecutionStepRepository).findByNodeTypeAndTakenEdgeIsNotNull("menu_opcoes");
     }
@@ -269,7 +277,7 @@ class CallCenterDetailReportServiceTest {
 
         CallReportFilter filter =
                 new CallReportFilter(null, null, null, null, null, null, null, null, null, null, "cobrança indevida");
-        Page<CallReportRow> result = service.searchCalls(filter, PageRequest.of(0, 20));
+        Page<CallReportRow> result = service.searchCalls(filter, PageRequest.of(0, 20), null);
 
         assertThat(result.getContent()).hasSize(1);
     }
@@ -288,10 +296,114 @@ class CallCenterDetailReportServiceTest {
         when(chatSessionRepository.findAll()).thenReturn(List.of(matching, otherQueue));
 
         ChatReportFilter filter = new ChatReportFilter(null, null, 10L, null);
-        Page<ChatReportRow> result = service.searchChats(filter, PageRequest.of(0, 20));
+        Page<ChatReportRow> result = service.searchChats(filter, PageRequest.of(0, 20), null);
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).sessionId()).isEqualTo(1L);
         assertThat(result.getContent().get(0).queueName()).isEqualTo("Suporte");
+    }
+
+    // --- Escopo por BU no relatório 9c (fechado em 2026-08-15) ---
+
+    @Test
+    @DisplayName("searchCalls: ADMIN (businessUnitIds nulo) nunca adiciona restrição de BU à Specification")
+    void searchCalls_admin_neverAddsBusinessUnitRestriction() {
+        when(interactionRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(onePage(interaction));
+        when(recordingRepository.findByInteractionId(1L)).thenReturn(Optional.empty());
+        when(flowExecutionRepository.findByInteractionId(1L)).thenReturn(Optional.empty());
+        ArgumentCaptor<Specification<CcInteraction>> specCaptor = ArgumentCaptor.forClass(Specification.class);
+
+        CallReportFilter filter = new CallReportFilter(null, null, null, null, null, null, null, null, null, null, null);
+        service.searchCalls(filter, PageRequest.of(0, 20), null);
+
+        org.mockito.Mockito.verify(interactionRepository).findAll(specCaptor.capture(), any(PageRequest.class));
+        assertThat(invokesBusinessUnitPredicate(specCaptor.getValue())).isFalse();
+    }
+
+    @Test
+    @DisplayName("searchCalls: usuário restrito a uma BU adiciona a restrição de BU à Specification")
+    void searchCalls_restrictedUser_addsBusinessUnitRestriction() {
+        when(interactionRepository.findAll(any(Specification.class), any(PageRequest.class))).thenReturn(onePage(interaction));
+        when(recordingRepository.findByInteractionId(1L)).thenReturn(Optional.empty());
+        when(flowExecutionRepository.findByInteractionId(1L)).thenReturn(Optional.empty());
+        ArgumentCaptor<Specification<CcInteraction>> specCaptor = ArgumentCaptor.forClass(Specification.class);
+
+        CallReportFilter filter = new CallReportFilter(null, null, null, null, null, null, null, null, null, null, null);
+        service.searchCalls(filter, PageRequest.of(0, 20), Set.of(5));
+
+        org.mockito.Mockito.verify(interactionRepository).findAll(specCaptor.capture(), any(PageRequest.class));
+        assertThat(invokesBusinessUnitPredicate(specCaptor.getValue())).isTrue();
+    }
+
+    /** Invoca a Specification capturada com Root/CriteriaBuilder mockados e confirma se ela
+     * chega a acessar {@code root.get("businessUnit")} — prova indireta de que o predicado de
+     * BU foi (ou não foi) composto, sem precisar de um EntityManager real. */
+    @SuppressWarnings("unchecked")
+    private boolean invokesBusinessUnitPredicate(Specification<CcInteraction> spec) {
+        Root<CcInteraction> root = org.mockito.Mockito.mock(Root.class);
+        CriteriaQuery<?> query = org.mockito.Mockito.mock(CriteriaQuery.class);
+        CriteriaBuilder cb = org.mockito.Mockito.mock(CriteriaBuilder.class);
+        Path<Object> businessUnitPath = org.mockito.Mockito.mock(Path.class);
+        org.mockito.Mockito.lenient().when(cb.and(org.mockito.ArgumentMatchers.any(Predicate.class), org.mockito.ArgumentMatchers.any(Predicate.class)))
+                .thenReturn(org.mockito.Mockito.mock(Predicate.class));
+        org.mockito.Mockito.lenient().when(cb.or(org.mockito.ArgumentMatchers.any(Predicate[].class)))
+                .thenReturn(org.mockito.Mockito.mock(Predicate.class));
+        org.mockito.Mockito.lenient().when(cb.conjunction()).thenReturn(org.mockito.Mockito.mock(Predicate.class));
+        org.mockito.Mockito.lenient().when(cb.isNull(org.mockito.ArgumentMatchers.any())).thenReturn(org.mockito.Mockito.mock(Predicate.class));
+        org.mockito.Mockito.lenient().when(root.get("businessUnit")).thenReturn(businessUnitPath);
+        org.mockito.Mockito.lenient().when(businessUnitPath.get("id")).thenReturn(businessUnitPath);
+        org.mockito.Mockito.lenient().when(businessUnitPath.in(org.mockito.ArgumentMatchers.any(java.util.Collection.class)))
+                .thenReturn(org.mockito.Mockito.mock(Predicate.class));
+        try {
+            spec.toPredicate(root, query, cb);
+            org.mockito.Mockito.verify(root, org.mockito.Mockito.atLeastOnce()).get("businessUnit");
+            return true;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    @Test
+    @DisplayName("searchChats: ADMIN (businessUnitIds nulo) vê sessões de qualquer BU")
+    void searchChats_admin_seesAllBusinessUnits() {
+        BusinessUnit bu7 = BusinessUnit.builder().id(7).build();
+        CcChatSession sessionBu7 = CcChatSession.builder()
+                .id(1L).queue(queue).businessUnit(bu7)
+                .customerRef("cust-1").startedAt(LocalDateTime.of(2026, 8, 14, 9, 0)).build();
+        when(chatSessionRepository.findAll()).thenReturn(List.of(sessionBu7));
+
+        ChatReportFilter filter = new ChatReportFilter(null, null, null, null);
+        Page<ChatReportRow> result = service.searchChats(filter, PageRequest.of(0, 20), null);
+
+        assertThat(result.getContent()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("searchChats: usuário restrito não vê sessão de outra BU")
+    void searchChats_restrictedUser_excludesOtherBusinessUnit() {
+        BusinessUnit bu7 = BusinessUnit.builder().id(7).build();
+        CcChatSession sessionBu7 = CcChatSession.builder()
+                .id(1L).queue(queue).businessUnit(bu7)
+                .customerRef("cust-1").startedAt(LocalDateTime.of(2026, 8, 14, 9, 0)).build();
+        when(chatSessionRepository.findAll()).thenReturn(List.of(sessionBu7));
+
+        ChatReportFilter filter = new ChatReportFilter(null, null, null, null);
+        Page<ChatReportRow> result = service.searchChats(filter, PageRequest.of(0, 20), Set.of(5));
+
+        assertThat(result.getContent()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("searchChats: sessão sem BU atribuída é visível mesmo para usuário restrito (fail-open)")
+    void searchChats_restrictedUser_sessionWithoutBusinessUnitFailsOpen() {
+        CcChatSession sessionSemBu = CcChatSession.builder()
+                .id(1L).queue(queue)
+                .customerRef("cust-1").startedAt(LocalDateTime.of(2026, 8, 14, 9, 0)).build();
+        when(chatSessionRepository.findAll()).thenReturn(List.of(sessionSemBu));
+
+        ChatReportFilter filter = new ChatReportFilter(null, null, null, null);
+        Page<ChatReportRow> result = service.searchChats(filter, PageRequest.of(0, 20), Set.of(5));
+
+        assertThat(result.getContent()).hasSize(1);
     }
 }

@@ -3,6 +3,7 @@ package com.asteriskia.domain.callcenter.interaction;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import org.springframework.data.jpa.domain.Specification;
 
 /** CcInteractionSpecifications — filtros do relatório analítico de chamada (Fase 9c), mesmo
@@ -42,5 +43,14 @@ public final class CcInteractionSpecifications {
 
     public static Specification<CcInteraction> idIn(List<Long> ids) {
         return (root, query, cb) -> root.get("id").in(ids);
+    }
+
+    /** Escopo de BU do relatório 9c (fechado em 2026-08-15) — fail-open pra interação sem
+     * BU atribuída (mesmo padrão de {@code InsightsSpecifications.restrictedToBusinessUnits}).
+     * Chame só quando o chamador for restrito (ADMIN nunca aplica esta specification). */
+    public static Specification<CcInteraction> restrictedToBusinessUnits(Set<Integer> allowedBusinessUnitIds) {
+        return (root, query, cb) -> cb.or(
+                cb.isNull(root.get("businessUnit")),
+                root.get("businessUnit").get("id").in(allowedBusinessUnitIds));
     }
 }

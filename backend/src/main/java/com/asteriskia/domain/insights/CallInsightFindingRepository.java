@@ -6,6 +6,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Set;
 
 @Repository
 public interface CallInsightFindingRepository extends JpaRepository<CallInsightFinding, Long> {
@@ -15,9 +16,13 @@ public interface CallInsightFindingRepository extends JpaRepository<CallInsightF
     void deleteByAudioFileId(Long audioFileId);
 
     // source parametrizado (Fase 8 do Call Center) — ver CallInsightRepository.countByCriticidade.
+    // businessUnitIds: null = sem restrição (ADMIN); fail-open (BU fechada em 2026-08-15).
     @Query("SELECT f.tipo, COUNT(f) FROM CallInsightFinding f " +
-           "JOIN CallAudioFile caf ON caf.id = f.audioFileId WHERE caf.source = :source GROUP BY f.tipo")
-    List<Object[]> countByTipo(@Param("source") String source);
+           "JOIN CallAudioFile caf ON caf.id = f.audioFileId WHERE caf.source = :source " +
+           "AND (:businessUnitIds IS NULL OR caf.ccRecordingId IS NULL OR caf.ccRecordingId IN " +
+           "(SELECT r.id FROM CcRecording r WHERE r.businessUnit IS NULL OR r.businessUnit.id IN :businessUnitIds)) " +
+           "GROUP BY f.tipo")
+    List<Object[]> countByTipo(@Param("source") String source, @Param("businessUnitIds") Set<Integer> businessUnitIds);
 
     @Query("SELECT DISTINCT f.audioFileId FROM CallInsightFinding f WHERE LOWER(f.tipo) = LOWER(:tipo)")
     List<Long> findAudioFileIdsByTipo(@Param("tipo") String tipo);

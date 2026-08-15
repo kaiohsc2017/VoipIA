@@ -3,6 +3,7 @@ package com.asteriskia.domain.callcenter.reports;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -42,8 +43,8 @@ public class CallCenterReportExportService {
 
     private final CallCenterDetailReportService detailReportService;
 
-    public byte[] exportCallsExcel(CallReportFilter filter) {
-        List<CallReportRow> rows = fetchAllCalls(filter);
+    public byte[] exportCallsExcel(CallReportFilter filter, Set<Integer> businessUnitIds) {
+        List<CallReportRow> rows = fetchAllCalls(filter, businessUnitIds);
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet("Chamadas");
             String[] headers = {"Data/Hora", "Direção", "ANI", "Fila", "Agente", "Espera (s)", "NPS",
@@ -75,8 +76,8 @@ public class CallCenterReportExportService {
         }
     }
 
-    public byte[] exportCallsPdf(CallReportFilter filter) {
-        List<CallReportRow> rows = fetchAllCalls(filter);
+    public byte[] exportCallsPdf(CallReportFilter filter, Set<Integer> businessUnitIds) {
+        List<CallReportRow> rows = fetchAllCalls(filter, businessUnitIds);
         StringBuilder html = new StringBuilder(htmlHeader("Relatório de chamadas"));
         html.append("<table><tr><th>Data/Hora</th><th>Direção</th><th>ANI</th><th>Fila</th><th>Agente</th>")
                 .append("<th>Espera (s)</th><th>NPS</th><th>Categoria</th></tr>");
@@ -92,8 +93,8 @@ public class CallCenterReportExportService {
         return renderPdf(html.toString());
     }
 
-    public byte[] exportChatsExcel(ChatReportFilter filter) {
-        List<ChatReportRow> rows = fetchAllChats(filter);
+    public byte[] exportChatsExcel(ChatReportFilter filter, Set<Integer> businessUnitIds) {
+        List<ChatReportRow> rows = fetchAllChats(filter, businessUnitIds);
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet("Chats");
             String[] headers = {"Início", "Assumido em", "Encerrado em", "Cliente", "Fila", "Agente", "Tabulação"};
@@ -119,8 +120,8 @@ public class CallCenterReportExportService {
         }
     }
 
-    public byte[] exportChatsPdf(ChatReportFilter filter) {
-        List<ChatReportRow> rows = fetchAllChats(filter);
+    public byte[] exportChatsPdf(ChatReportFilter filter, Set<Integer> businessUnitIds) {
+        List<ChatReportRow> rows = fetchAllChats(filter, businessUnitIds);
         StringBuilder html = new StringBuilder(htmlHeader("Relatório de chats"));
         html.append("<table><tr><th>Início</th><th>Cliente</th><th>Fila</th><th>Agente</th><th>Tabulação</th></tr>");
         for (ChatReportRow r : rows) {
@@ -133,16 +134,16 @@ public class CallCenterReportExportService {
         return renderPdf(html.toString());
     }
 
-    private List<CallReportRow> fetchAllCalls(CallReportFilter filter) {
+    private List<CallReportRow> fetchAllCalls(CallReportFilter filter, Set<Integer> businessUnitIds) {
         Pageable pageable = PageRequest.of(0, MAX_ROWS, Sort.by(Sort.Direction.DESC, "queuedAt"));
-        Page<CallReportRow> page = detailReportService.searchCalls(filter, pageable);
+        Page<CallReportRow> page = detailReportService.searchCalls(filter, pageable, businessUnitIds);
         assertWithinLimit(page);
         return page.getContent();
     }
 
-    private List<ChatReportRow> fetchAllChats(ChatReportFilter filter) {
+    private List<ChatReportRow> fetchAllChats(ChatReportFilter filter, Set<Integer> businessUnitIds) {
         Pageable pageable = PageRequest.of(0, MAX_ROWS, Sort.by(Sort.Direction.DESC, "startedAt"));
-        Page<ChatReportRow> page = detailReportService.searchChats(filter, pageable);
+        Page<ChatReportRow> page = detailReportService.searchChats(filter, pageable, businessUnitIds);
         assertWithinLimit(page);
         return page.getContent();
     }

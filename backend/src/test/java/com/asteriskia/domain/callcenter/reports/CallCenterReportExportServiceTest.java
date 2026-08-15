@@ -41,10 +41,10 @@ class CallCenterReportExportServiceTest {
                 1L, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now(), "INBOUND",
                 "=cmd|'/c calc'!A1", "Suporte", "Agente 1", 10L, BigDecimal.TEN,
                 null, null, null, null, null, null, null, Map.of());
-        when(detailReportService.searchCalls(any(), any())).thenReturn(new PageImpl<>(List.of(row)));
+        when(detailReportService.searchCalls(any(), any(), any())).thenReturn(new PageImpl<>(List.of(row)));
 
         byte[] excel = service.exportCallsExcel(new CallReportFilter(
-                LocalDateTime.now(), LocalDateTime.now(), null, null, null, null, null, null, null, null, null));
+                LocalDateTime.now(), LocalDateTime.now(), null, null, null, null, null, null, null, null, null), null);
 
         try (Workbook workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(excel))) {
             Sheet sheet = workbook.getSheetAt(0);
@@ -58,12 +58,12 @@ class CallCenterReportExportServiceTest {
     void export_rejectsWhenOverRowLimit() {
         service = new CallCenterReportExportService(detailReportService);
         Page<CallReportRow> hugePage = new PageImpl<>(List.of(), org.springframework.data.domain.PageRequest.of(0, 1), 50_001);
-        when(detailReportService.searchCalls(any(), any())).thenReturn(hugePage);
+        when(detailReportService.searchCalls(any(), any(), any())).thenReturn(hugePage);
 
         CallReportFilter filter = new CallReportFilter(
                 LocalDateTime.now(), LocalDateTime.now(), null, null, null, null, null, null, null, null, null);
 
-        assertThatThrownBy(() -> service.exportCallsExcel(filter))
+        assertThatThrownBy(() -> service.exportCallsExcel(filter, null))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("50000");
     }

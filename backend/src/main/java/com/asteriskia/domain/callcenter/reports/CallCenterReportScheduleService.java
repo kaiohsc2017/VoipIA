@@ -143,6 +143,11 @@ public class CallCenterReportScheduleService {
         markResult(schedule, now, delivered ? "OK" : "FAILED");
     }
 
+    /** Sem restrição de BU: {@code CcReportSchedule} não tem coluna de BU/dono hoje (roda em
+     * background, fora de uma requisição autenticada — não há {@code BusinessUnitContext} pra
+     * consultar). Mesmo comportamento de antes da BU fechada no relatório 9c (2026-08-15) —
+     * gap pré-existente, fora do escopo desta correção; fechar direito exigiria persistir a BU
+     * de quem criou o agendamento. */
     private byte[] buildExport(CcReportSchedule schedule, LocalDate from, LocalDate to) {
         Long queueId = schedule.getQueue() != null ? schedule.getQueue().getId() : null;
         Long agentId = schedule.getAgent() != null ? schedule.getAgent().getId() : null;
@@ -151,11 +156,11 @@ public class CallCenterReportScheduleService {
         CcReportSchedule.ReportType type = CcReportSchedule.ReportType.valueOf(schedule.getReportType());
         return switch (type) {
             case CALLS_EXCEL -> exportService.exportCallsExcel(
-                    new CallReportFilter(fromDt, toDt, queueId, agentId, null, null, null, null, null, null, null));
+                    new CallReportFilter(fromDt, toDt, queueId, agentId, null, null, null, null, null, null, null), null);
             case CALLS_PDF -> exportService.exportCallsPdf(
-                    new CallReportFilter(fromDt, toDt, queueId, agentId, null, null, null, null, null, null, null));
-            case CHATS_EXCEL -> exportService.exportChatsExcel(new ChatReportFilter(fromDt, toDt, queueId, agentId));
-            case CHATS_PDF -> exportService.exportChatsPdf(new ChatReportFilter(fromDt, toDt, queueId, agentId));
+                    new CallReportFilter(fromDt, toDt, queueId, agentId, null, null, null, null, null, null, null), null);
+            case CHATS_EXCEL -> exportService.exportChatsExcel(new ChatReportFilter(fromDt, toDt, queueId, agentId), null);
+            case CHATS_PDF -> exportService.exportChatsPdf(new ChatReportFilter(fromDt, toDt, queueId, agentId), null);
         };
     }
 

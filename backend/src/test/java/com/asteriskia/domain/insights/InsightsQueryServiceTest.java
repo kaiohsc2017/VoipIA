@@ -13,8 +13,10 @@ import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -229,5 +231,49 @@ class InsightsQueryServiceTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.detail(1L, false, java.util.Set.of(5)))
                 .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
         verify(segmentRepository, never()).findByAudioFileIdOrderByStartMsAsc(any());
+    }
+
+    // --- Escopo por BU no dashboard do Call Center (fechado em 2026-08-15) ---
+    // As 6 queries JPQL de agregado (fail-open embutido no próprio @Query, via
+    // ":businessUnitIds IS NULL OR ...") — aqui só testamos que o service repassa o parâmetro
+    // corretamente a cada repositório; a semântica de fail-open do JPQL é a mesma já validada
+    // por InsightsSpecifications.restrictedToBusinessUnits noutros testes deste arquivo.
+
+    private void stubEmptyDashboardRepositories() {
+        lenient().when(insightRepository.countByCriticidade(anyString(), any())).thenReturn(List.of());
+        lenient().when(insightRepository.countByCategoria(anyString(), any())).thenReturn(List.of());
+        lenient().when(findingRepository.countByTipo(anyString(), any())).thenReturn(List.of());
+        lenient().when(evaluationRepository.averageNotaByAgent(anyString(), any())).thenReturn(List.of());
+    }
+
+    @Test
+    @DisplayName("dashboard: ADMIN (businessUnitIds nulo) repassa null a todos os repositórios de agregado")
+    void dashboard_admin_passesNullScopeToAllAggregates() {
+        stubEmptyDashboardRepositories();
+
+        service.dashboard("callcenter", null);
+
+        verify(audioFileRepository).countBySourceAndBusinessUnit("callcenter", null);
+        verify(insightRepository).countByCriticidade("callcenter", null);
+        verify(insightRepository).countByCategoria("callcenter", null);
+        verify(findingRepository).countByTipo("callcenter", null);
+        verify(evaluationRepository).averageNotaByAgent("callcenter", null);
+        verify(evaluationRepository).countFailed("callcenter", null);
+    }
+
+    @Test
+    @DisplayName("dashboard: usuário restrito a uma BU repassa o Set de BUs a todos os repositórios de agregado")
+    void dashboard_restrictedUser_passesBusinessUnitIdsToAllAggregates() {
+        stubEmptyDashboardRepositories();
+        Set<Integer> scope = Set.of(5);
+
+        service.dashboard("callcenter", scope);
+
+        verify(audioFileRepository).countBySourceAndBusinessUnit("callcenter", scope);
+        verify(insightRepository).countByCriticidade("callcenter", scope);
+        verify(insightRepository).countByCategoria("callcenter", scope);
+        verify(findingRepository).countByTipo("callcenter", scope);
+        verify(evaluationRepository).averageNotaByAgent("callcenter", scope);
+        verify(evaluationRepository).countFailed("callcenter", scope);
     }
 }

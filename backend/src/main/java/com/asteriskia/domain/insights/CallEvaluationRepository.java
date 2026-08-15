@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface CallEvaluationRepository extends JpaRepository<CallEvaluation, Long> {
@@ -31,15 +32,21 @@ public interface CallEvaluationRepository extends JpaRepository<CallEvaluation, 
 
     // source parametrizado (Fase 8 do Call Center) — ver CallInsightRepository.countByCriticidade.
     // uploads do portal do supervisor continuam de fora (nota/auto-fail vistos na tela
-    // própria "Meus Envios").
+    // própria "Meus Envios"). businessUnitIds: null = sem restrição (ADMIN); fail-open
+    // (BU fechada em 2026-08-15).
     @Query("SELECT caf.agentName, AVG(ce.notaTotal) FROM CallEvaluation ce " +
            "JOIN CallAudioFile caf ON caf.id = ce.audioFileId " +
-           "WHERE caf.agentName IS NOT NULL AND caf.source = :source GROUP BY caf.agentName")
-    List<Object[]> averageNotaByAgent(@Param("source") String source);
+           "WHERE caf.agentName IS NOT NULL AND caf.source = :source " +
+           "AND (:businessUnitIds IS NULL OR caf.ccRecordingId IS NULL OR caf.ccRecordingId IN " +
+           "(SELECT r.id FROM CcRecording r WHERE r.businessUnit IS NULL OR r.businessUnit.id IN :businessUnitIds)) " +
+           "GROUP BY caf.agentName")
+    List<Object[]> averageNotaByAgent(@Param("source") String source, @Param("businessUnitIds") Set<Integer> businessUnitIds);
 
     @Query("SELECT COUNT(ce) FROM CallEvaluation ce JOIN CallAudioFile caf ON caf.id = ce.audioFileId " +
-           "WHERE ce.isFailed = true AND caf.source = :source")
-    long countFailed(@Param("source") String source);
+           "WHERE ce.isFailed = true AND caf.source = :source " +
+           "AND (:businessUnitIds IS NULL OR caf.ccRecordingId IS NULL OR caf.ccRecordingId IN " +
+           "(SELECT r.id FROM CcRecording r WHERE r.businessUnit IS NULL OR r.businessUnit.id IN :businessUnitIds))")
+    long countFailed(@Param("source") String source, @Param("businessUnitIds") Set<Integer> businessUnitIds);
 
     /** Nota total média de um agente num período — base do relatório de performance (V39).
      * source parametrizado (Fase 8 do Call Center) — nunca mistura verint/callcenter mesmo

@@ -63,7 +63,7 @@ class CallCenterReportScheduleServiceTest {
         CcReportSchedule s = schedule("DAILY", null, null, 8, null, "telegram");
         when(scheduleRepository.findByActiveTrue()).thenReturn(List.of(s));
         when(envFileStore.readRaw()).thenReturn(Map.of("CALLCENTER_TELEGRAM_BOT_TOKEN", "tok"));
-        when(exportService.exportCallsExcel(any())).thenReturn(new byte[]{1});
+        when(exportService.exportCallsExcel(any(), any())).thenReturn(new byte[]{1});
         when(telegramApiClient.sendDocument(anyString(), anyString(), any(), anyString())).thenReturn(true);
 
         service.runDue(LocalDateTime.of(2026, 8, 14, 8, 0));
@@ -83,7 +83,7 @@ class CallCenterReportScheduleServiceTest {
 
         service.runDue(LocalDateTime.of(2026, 8, 14, 8, 0));
 
-        verify(exportService, never()).exportCallsExcel(any());
+        verify(exportService, never()).exportCallsExcel(any(), any());
         verify(scheduleRepository, never()).save(any());
     }
 
@@ -96,7 +96,7 @@ class CallCenterReportScheduleServiceTest {
 
         service.runDue(LocalDateTime.of(2026, 8, 14, 8, 0));
 
-        verify(exportService, never()).exportCallsExcel(any());
+        verify(exportService, never()).exportCallsExcel(any(), any());
     }
 
     @Test
@@ -104,7 +104,7 @@ class CallCenterReportScheduleServiceTest {
     void runDue_email_failsClosedWhenDisabled() {
         CcReportSchedule s = schedule("DAILY", null, null, 8, null, "email");
         when(scheduleRepository.findByActiveTrue()).thenReturn(List.of(s));
-        when(exportService.exportCallsExcel(any())).thenReturn(new byte[]{1});
+        when(exportService.exportCallsExcel(any(), any())).thenReturn(new byte[]{1});
         when(emailSenderService.isEnabled()).thenReturn(false);
 
         service.runDue(LocalDateTime.of(2026, 8, 14, 8, 0));

@@ -1,6 +1,7 @@
 package com.asteriskia.domain.callcenter.reports;
 
 import com.asteriskia.domain.callcenter.interaction.Direction;
+import com.asteriskia.domain.masterdata.BusinessUnitContext;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -8,6 +9,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -45,6 +47,13 @@ public class CallCenterReportsController {
     private final CallCenterReportExportService exportService;
 
     public record ReprocessRequest(@NotNull LocalDate from, @NotNull LocalDate to) {}
+
+    /** {@code null} = sem restrição (ADMIN) — mesmo padrão de
+     * {@code CallCenterInsightsController.businessUnitScope} (BU fechada em 2026-08-15 no
+     * relatório 9c). */
+    private Set<Integer> businessUnitScope() {
+        return BusinessUnitContext.isRestricted() ? BusinessUnitContext.currentBusinessUnitIds() : null;
+    }
 
     @GetMapping("/queues")
     public ResponseEntity<?> queues(
@@ -184,7 +193,7 @@ public class CallCenterReportsController {
                 queueId, agentId, direction, npsMin, npsMax, waitMinSeconds, waitMaxSeconds,
                 chosenOptionDigit, transcriptText);
         PageRequest pageable = PageRequest.of(page, clampPageSize(size), Sort.by(Sort.Direction.DESC, "queuedAt"));
-        return ResponseEntity.ok(detailReportService.searchCalls(filter, pageable));
+        return ResponseEntity.ok(detailReportService.searchCalls(filter, pageable, businessUnitScope()));
     }
 
     /** Relatório analítico de chat, linha a linha (Fase 9c) — sem NPS/trecho de transcrição (ver
@@ -200,7 +209,7 @@ public class CallCenterReportsController {
         ChatReportFilter filter = new ChatReportFilter(
                 LocalDateTime.of(from, LocalTime.MIN), LocalDateTime.of(to, LocalTime.MAX), queueId, agentId);
         PageRequest pageable = PageRequest.of(page, clampPageSize(size), Sort.by(Sort.Direction.DESC, "startedAt"));
-        return ResponseEntity.ok(detailReportService.searchChats(filter, pageable));
+        return ResponseEntity.ok(detailReportService.searchChats(filter, pageable, businessUnitScope()));
     }
 
     /** Exportação Excel/PDF do relatório de chamada (Fase 9c.5) — mesmos filtros de {@link #calls}. */
@@ -219,7 +228,7 @@ public class CallCenterReportsController {
             @RequestParam(required = false) String transcriptText) {
         CallReportFilter filter = buildCallFilter(from, to, queueId, agentId, direction, npsMin, npsMax,
                 waitMinSeconds, waitMaxSeconds, chosenOptionDigit, transcriptText);
-        return fileResponse(exportService.exportCallsExcel(filter), "relatorio-chamadas.xlsx",
+        return fileResponse(exportService.exportCallsExcel(filter, businessUnitScope()), "relatorio-chamadas.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     }
 
@@ -238,7 +247,7 @@ public class CallCenterReportsController {
             @RequestParam(required = false) String transcriptText) {
         CallReportFilter filter = buildCallFilter(from, to, queueId, agentId, direction, npsMin, npsMax,
                 waitMinSeconds, waitMaxSeconds, chosenOptionDigit, transcriptText);
-        return fileResponse(exportService.exportCallsPdf(filter), "relatorio-chamadas.pdf", "application/pdf");
+        return fileResponse(exportService.exportCallsPdf(filter, businessUnitScope()), "relatorio-chamadas.pdf", "application/pdf");
     }
 
     /** Exportação Excel/PDF do relatório de chat (Fase 9c.5) — mesmos filtros de {@link #chats}. */
@@ -250,7 +259,7 @@ public class CallCenterReportsController {
             @RequestParam(required = false) Long agentId) {
         ChatReportFilter filter = new ChatReportFilter(
                 LocalDateTime.of(from, LocalTime.MIN), LocalDateTime.of(to, LocalTime.MAX), queueId, agentId);
-        return fileResponse(exportService.exportChatsExcel(filter), "relatorio-chats.xlsx",
+        return fileResponse(exportService.exportChatsExcel(filter, businessUnitScope()), "relatorio-chats.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     }
 
@@ -262,7 +271,7 @@ public class CallCenterReportsController {
             @RequestParam(required = false) Long agentId) {
         ChatReportFilter filter = new ChatReportFilter(
                 LocalDateTime.of(from, LocalTime.MIN), LocalDateTime.of(to, LocalTime.MAX), queueId, agentId);
-        return fileResponse(exportService.exportChatsPdf(filter), "relatorio-chats.pdf", "application/pdf");
+        return fileResponse(exportService.exportChatsPdf(filter, businessUnitScope()), "relatorio-chats.pdf", "application/pdf");
     }
 
     private CallReportFilter buildCallFilter(LocalDate from, LocalDate to, Long queueId, Long agentId,

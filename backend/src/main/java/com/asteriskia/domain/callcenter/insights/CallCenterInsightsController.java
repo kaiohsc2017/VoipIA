@@ -44,16 +44,15 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
  * ({@code callcenter.insights.*}) já basta.
  *
  * <p><b>Escopo por BU (2026-08-15)</b>: {@code /calls}, {@code /calls/{id}},
- * {@code /calls/{id}/audio} e {@code /processing} — toda a superfície que expõe conteúdo real
- * ou metadado operacional por registro — agora filtram por {@link BusinessUnitContext}, mesmo
- * padrão de {@code CallCenterRecordingService.findRecordings}. Fail-open pra gravação sem BU
- * atribuída (ver {@code InsightsSpecifications.restrictedToBusinessUnits}) — a BU é opcional no
- * cadastro de fila, não obrigatória. <b>Gap residual aceito, documentado</b>: {@code /dashboard}
- * (só contagens agregadas, sem registro individual) continua sem escopo de BU — reescrever as 6
- * queries JPQL de agregado (criticidade/categoria/achados/nota média/auto-fails) com filtro de BU
- * condicional teria custo desproporcional ao risco de expor só números somados, sem conteúdo;
- * mesmo gap ainda aberto pra Alertas Zabbix ({@code AlertService}), que depende de uma decisão
- * de produto sobre como derivar BU de um host monitorado (não resolvido aqui).
+ * {@code /calls/{id}/audio}, {@code /processing} e {@code /dashboard} — toda a superfície,
+ * incluindo os agregados — agora filtram por {@link BusinessUnitContext}, mesmo padrão de
+ * {@code CallCenterRecordingService.findRecordings}. Fail-open pra gravação sem BU atribuída
+ * (ver {@code InsightsSpecifications.restrictedToBusinessUnits} e as 4 queries JPQL de agregado
+ * em {@code CallInsightRepository}/{@code CallInsightFindingRepository}/
+ * {@code CallEvaluationRepository}/{@code CallAudioFileRepository}) — a BU é opcional no
+ * cadastro de fila, não obrigatória. <b>Gap definitivamente fora de escopo</b> (decisão de
+ * produto, não pendência técnica): Alertas Zabbix ({@code AlertService}) nunca terá
+ * segmentação por BU — todo alerta é tratado como um universo único, por design.
  */
 @Slf4j
 @RestController
@@ -118,7 +117,7 @@ public class CallCenterInsightsController {
 
     @GetMapping("/dashboard")
     public ResponseEntity<InsightsDashboardSummary> dashboard() {
-        return ResponseEntity.ok(queryService.dashboard(SOURCE));
+        return ResponseEntity.ok(queryService.dashboard(SOURCE, businessUnitScope()));
     }
 
     @GetMapping("/processing")

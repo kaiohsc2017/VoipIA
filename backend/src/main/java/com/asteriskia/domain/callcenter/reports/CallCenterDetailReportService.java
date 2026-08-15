@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -42,13 +43,12 @@ import org.springframework.transaction.annotation.Transactional;
  * (Fase 8/V35), o link de áudio já persistido (Fase 3/8) e o traço de execução de fluxo (Fase
  * 5b) só como leitura — nunca decide roteamento nem reprocessa nada.
  *
- * <p>GAP CONHECIDO (mesmo padrão já aceito no Insights do Call Center, Fase 8): nenhum filtro de
- * BU é aplicado aqui, embora {@code CcInteraction}/{@code CcRecording}/{@code CcChatSession}
- * tenham campo {@code businessUnit} — um usuário com {@code PERM_READ_callcenter.reports} vê
- * chamadas/chats de todas as BUs, não só a sua. Resolver exigiria estender
- * {@code CcInteractionSpecifications} (e o filtro em memória de {@link #searchChats}) com o
- * mesmo padrão de {@code BusinessUnitContext} usado em outros pontos do domínio; fora do escopo
- * desta fase.
+ * <p><b>Escopo por BU (fechado em 2026-08-15)</b>: {@code searchCalls} filtra via
+ * {@link CcInteractionSpecifications#restrictedToBusinessUnits}; {@code searchChats} aplica o
+ * mesmo predicado dentro do filtro em memória de {@link #matchesChatFilter}. Fail-open pra
+ * chamada/chat sem BU atribuída, mesmo padrão de
+ * {@code InsightsSpecifications.restrictedToBusinessUnits}. {@code businessUnitIds == null} =
+ * sem restrição (ADMIN).
  */
 @Slf4j
 @Service
@@ -69,8 +69,11 @@ public class CallCenterDetailReportService {
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
-    public Page<CallReportRow> searchCalls(CallReportFilter filter, Pageable pageable) {
+    public Page<CallReportRow> searchCalls(CallReportFilter filter, Pageable pageable, Set<Integer> businessUnitIds) {
         Specification<CcInteraction> spec = buildInteractionSpecification(filter);
+        if (businessUnitIds != null) {
+            spec = spec.and(CcInteractionSpecifications.restrictedToBusinessUnits(businessUnitIds));
+        }
         Page<CcInteraction> interactions = interactionRepository.findAll(spec, pageable);
         // Um único cache de grafo por página (não por linha) — várias interações da mesma página
         // costumam compartilhar a mesma versão de fluxo publicada, então reparsear o JSON do
@@ -80,12 +83,15 @@ public class CallCenterDetailReportService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ChatReportRow> searchChats(ChatReportFilter filter, Pageable pageable) {
+    public Page<ChatReportRow> searchChats(ChatReportFilter filter, Pageable pageable, Set<Integer> businessUnitIds) {
         // Volume de chat ainda é baixo nesta fase do projeto (Fase 7a/7b recém-entregues) —
         // filtro em memória sobre a listagem paginada é suficiente; se o volume crescer,
         // migrar para Specification/JpaSpecificationExecutor como o relatório de chamada.
         List<CcChatSession> all = chatSessionRepository.findAll();
-        List<CcChatSession> filtered = all.stream().filter(s -> matchesChatFilter(s, filter)).toList();
+        List<CcChatSession> filtered = all.stream()
+                .filter(s -> matchesChatFilter(s, filter))
+                .filter(s -> matchesBusinessUnitScope(s, businessUnitIds))
+                .toList();
         int from = Math.min((int) pageable.getOffset(), filtered.size());
         int to = Math.min(from + pageable.getPageSize(), filtered.size());
         List<ChatReportRow> pageContent = filtered.subList(from, to).stream().map(this::toRow).toList();
@@ -101,6 +107,15 @@ public class CallCenterDetailReportService {
                 && (session.getAssignedAgent() == null
                         || !filter.agentId().equals(session.getAssignedAgent().getId()))) return false;
         return true;
+    }
+
+    /** businessUnitIds == null = sem restrição (ADMIN). Fail-open pra sessão sem BU atribuída —
+     * mesmo padrão de {@link CcInteractionSpecifications#restrictedToBusinessUnits}. */
+    private boolean matchesBusinessUnitScope(CcChatSession session, Set<Integer> businessUnitIds) {
+        if (businessUnitIds == null || session.getBusinessUnit() == null) {
+            return true;
+        }
+        return businessUnitIds.contains(session.getBusinessUnit().getId());
     }
 
     private ChatReportRow toRow(CcChatSession session) {
