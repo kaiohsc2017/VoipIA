@@ -1,10 +1,13 @@
 package com.asteriskia.domain.insights;
 
+import com.asteriskia.domain.callcenter.recording.CcRecordingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -35,6 +38,7 @@ public class InsightsQueryService {
     private final CallEvaluationRepository evaluationRepository;
     private final CallEvaluationItemRepository evaluationItemRepository;
     private final CallTransferEventRepository transferEventRepository;
+    private final CcRecordingRepository ccRecordingRepository;
 
     public Page<InsightsListItem> search(InsightsFilter filter, Pageable pageable, boolean isAdmin) {
         return search(filter, pageable, isAdmin, "verint");
@@ -43,10 +47,22 @@ public class InsightsQueryService {
     /** source parametrizado (Fase 8 do Call Center) — mesma busca, aplicada às gravações do
      * Call Center (source='callcenter') pela InsightsController correspondente daquele módulo. */
     public Page<InsightsListItem> search(InsightsFilter filter, Pageable pageable, boolean isAdmin, String source) {
+        return search(filter, pageable, isAdmin, source, null);
+    }
+
+    /** {@code businessUnitIds} (fecha parte do gap de BU documentado em CLAUDE.md — Insights do
+     * Call Center não filtrava por BU): {@code null} = sem restrição (ADMIN, ou o caminho Verint
+     * que nunca teve conceito de BU); não-nulo restringe às BUs do usuário (fail-open pra
+     * gravação sem BU atribuída, ver {@link InsightsSpecifications#restrictedToBusinessUnits}). */
+    public Page<InsightsListItem> search(
+            InsightsFilter filter, Pageable pageable, boolean isAdmin, String source, Set<Integer> businessUnitIds) {
         List<Long> restrictedToIds = resolveRestrictedIds(filter, isAdmin);
 
-        Page<CallAudioFile> page = audioFileRepository.findAll(
-                InsightsSpecifications.withFilters(filter, restrictedToIds, source), pageable);
+        Specification<CallAudioFile> spec = InsightsSpecifications.withFilters(filter, restrictedToIds, source);
+        if (businessUnitIds != null) {
+            spec = spec.and(InsightsSpecifications.restrictedToBusinessUnits(businessUnitIds));
+        }
+        Page<CallAudioFile> page = audioFileRepository.findAll(spec, pageable);
 
         List<Long> pageIds = page.getContent().stream().map(CallAudioFile::getId).toList();
         Map<Long, CallInsight> insightsByAudioFileId = insightRepository.findByAudioFileIdIn(pageIds).stream()
@@ -62,8 +78,16 @@ public class InsightsQueryService {
     }
 
     public InsightsDetailResponse detail(Long id, boolean isAdmin) {
+        return detail(id, isAdmin, null);
+    }
+
+    /** {@code businessUnitIds}: ver {@link #search(InsightsFilter, Pageable, boolean, String,
+     * Set)}. Registro fora do escopo vira 404 (nunca 403 — mesma disciplina anti-IDOR já usada em
+     * outros pontos do Call Center: não confirma nem a existência do id para quem não tem acesso). */
+    public InsightsDetailResponse detail(Long id, boolean isAdmin, Set<Integer> businessUnitIds) {
         CallAudioFile audioFile = audioFileRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Chamada não encontrada: id=" + id));
+        assertBusinessUnitAccessible(audioFile, businessUnitIds);
         List<CallTranscriptSegment> segments = segmentRepository.findByAudioFileIdOrderByStartMsAsc(id);
         CallInsight insight = insightRepository.findByAudioFileId(id).orElse(null);
         List<CallInsightFinding> findings = findingRepository.findByAudioFileIdOrderByIdAsc(id);
@@ -91,8 +115,34 @@ public class InsightsQueryService {
     }
 
     public CallAudioFile findAudioFileById(Long id) {
-        return audioFileRepository.findById(id)
+        return findAudioFileById(id, null);
+    }
+
+    /** {@code businessUnitIds}: ver {@link #search(InsightsFilter, Pageable, boolean, String,
+     * Set)}. Usada pelo streaming de áudio do Call Center — nunca deixa um agente/supervisor
+     * restrito a uma BU ouvir a gravação de outra BU só porque adivinhou o id. */
+    public CallAudioFile findAudioFileById(Long id, Set<Integer> businessUnitIds) {
+        CallAudioFile audioFile = audioFileRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Chamada não encontrada: id=" + id));
+        assertBusinessUnitAccessible(audioFile, businessUnitIds);
+        return audioFile;
+    }
+
+    /** {@code null} = sem restrição. Fail-open (mesmo padrão do resto do domínio, ver
+     * {@code CallRecordService.inBusinessUnitScope}): gravação sem {@code ccRecordingId}, sem
+     * {@code CcRecording} correspondente, ou cuja fila não tem BU atribuída fica visível a todos —
+     * a BU é opcional no cadastro de fila, não obrigatória. */
+    private void assertBusinessUnitAccessible(CallAudioFile audioFile, Set<Integer> businessUnitIds) {
+        if (businessUnitIds == null || audioFile.getCcRecordingId() == null) {
+            return;
+        }
+        var recording = ccRecordingRepository.findById(audioFile.getCcRecordingId()).orElse(null);
+        if (recording == null || recording.getBusinessUnit() == null) {
+            return;
+        }
+        if (!businessUnitIds.contains(recording.getBusinessUnit().getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Chamada não encontrada.");
+        }
     }
 
     public InsightsDashboardSummary dashboard() {

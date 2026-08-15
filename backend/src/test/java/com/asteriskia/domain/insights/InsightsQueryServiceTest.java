@@ -35,18 +35,20 @@ class InsightsQueryServiceTest {
     @Mock private CallEvaluationRepository evaluationRepository;
     @Mock private CallEvaluationItemRepository evaluationItemRepository;
     @Mock private CallTransferEventRepository transferEventRepository;
+    @Mock private com.asteriskia.domain.callcenter.recording.CcRecordingRepository ccRecordingRepository;
 
     private InsightsQueryService service;
 
     @BeforeEach
     void setUp() {
         service = new InsightsQueryService(audioFileRepository, segmentRepository, insightRepository,
-                findingRepository, evaluationRepository, evaluationItemRepository, transferEventRepository);
+                findingRepository, evaluationRepository, evaluationItemRepository, transferEventRepository,
+                ccRecordingRepository);
         lenientEmptyPage();
     }
 
     private void lenientEmptyPage() {
-        when(audioFileRepository.findAll(any(Specification.class), any(Pageable.class)))
+        lenient().when(audioFileRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(Page.empty());
     }
 
@@ -130,5 +132,89 @@ class InsightsQueryServiceTest {
         service.search(filter, pageable, false);
 
         verify(audioFileRepository).findAll(any(Specification.class), eq(pageable));
+    }
+
+    // --- Escopo por BU (2026-08-15, gap do Insights do Call Center) ---
+    // Fail-open documentado: gravação sem ccRecordingId, sem CcRecording correspondente, ou cuja
+    // fila não tem BU atribuída fica visível a qualquer usuário restrito por BU.
+
+    private CallAudioFile audioFileWithRecording(Long ccRecordingId) {
+        return CallAudioFile.builder().id(1L).source("callcenter").ccRecordingId(ccRecordingId).build();
+    }
+
+    @Test
+    @DisplayName("findAudioFileById: businessUnitIds nulo (ADMIN) nunca consulta CcRecordingRepository")
+    void findAudioFileById_unrestricted_neverChecksRecording() {
+        when(audioFileRepository.findById(1L)).thenReturn(java.util.Optional.of(audioFileWithRecording(9L)));
+
+        service.findAudioFileById(1L, null);
+
+        verify(ccRecordingRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("findAudioFileById: sem ccRecordingId, fail-open mesmo com businessUnitIds restrito")
+    void findAudioFileById_noCcRecordingId_failsOpen() {
+        when(audioFileRepository.findById(1L)).thenReturn(java.util.Optional.of(audioFileWithRecording(null)));
+
+        var result = service.findAudioFileById(1L, java.util.Set.of(5));
+
+        org.assertj.core.api.Assertions.assertThat(result.getId()).isEqualTo(1L);
+        verify(ccRecordingRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("findAudioFileById: CcRecording sem BU atribuída, fail-open")
+    void findAudioFileById_recordingWithoutBusinessUnit_failsOpen() {
+        when(audioFileRepository.findById(1L)).thenReturn(java.util.Optional.of(audioFileWithRecording(9L)));
+        when(ccRecordingRepository.findById(9L))
+                .thenReturn(java.util.Optional.of(
+                        com.asteriskia.domain.callcenter.recording.CcRecording.builder().id(9L).build()));
+
+        var result = service.findAudioFileById(1L, java.util.Set.of(5));
+
+        org.assertj.core.api.Assertions.assertThat(result.getId()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("findAudioFileById: BU da gravação fora do escopo do usuário vira 404")
+    void findAudioFileById_wrongBusinessUnit_rejected() {
+        when(audioFileRepository.findById(1L)).thenReturn(java.util.Optional.of(audioFileWithRecording(9L)));
+        var otherBu = com.asteriskia.domain.masterdata.BusinessUnit.builder().id(7).build();
+        when(ccRecordingRepository.findById(9L))
+                .thenReturn(java.util.Optional.of(
+                        com.asteriskia.domain.callcenter.recording.CcRecording.builder().id(9L).businessUnit(otherBu).build()));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.findAudioFileById(1L, java.util.Set.of(5)))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasFieldOrPropertyWithValue("statusCode", org.springframework.http.HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("findAudioFileById: BU da gravação dentro do escopo do usuário é permitido")
+    void findAudioFileById_matchingBusinessUnit_allowed() {
+        when(audioFileRepository.findById(1L)).thenReturn(java.util.Optional.of(audioFileWithRecording(9L)));
+        var bu = com.asteriskia.domain.masterdata.BusinessUnit.builder().id(5).build();
+        when(ccRecordingRepository.findById(9L))
+                .thenReturn(java.util.Optional.of(
+                        com.asteriskia.domain.callcenter.recording.CcRecording.builder().id(9L).businessUnit(bu).build()));
+
+        var result = service.findAudioFileById(1L, java.util.Set.of(5));
+
+        org.assertj.core.api.Assertions.assertThat(result.getId()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("detail: registro fora do escopo de BU vira 404 antes de montar a resposta")
+    void detail_wrongBusinessUnit_rejected() {
+        when(audioFileRepository.findById(1L)).thenReturn(java.util.Optional.of(audioFileWithRecording(9L)));
+        var otherBu = com.asteriskia.domain.masterdata.BusinessUnit.builder().id(7).build();
+        when(ccRecordingRepository.findById(9L))
+                .thenReturn(java.util.Optional.of(
+                        com.asteriskia.domain.callcenter.recording.CcRecording.builder().id(9L).businessUnit(otherBu).build()));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.detail(1L, false, java.util.Set.of(5)))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        verify(segmentRepository, never()).findByAudioFileIdOrderByStartMsAsc(any());
     }
 }

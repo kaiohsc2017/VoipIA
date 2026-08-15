@@ -8,6 +8,7 @@ import com.asteriskia.domain.insights.InsightsFilter;
 import com.asteriskia.domain.insights.InsightsListItem;
 import com.asteriskia.domain.insights.InsightsProcessingFilter;
 import com.asteriskia.domain.insights.InsightsQueryService;
+import com.asteriskia.domain.masterdata.BusinessUnitContext;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
@@ -42,16 +43,17 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
  * Center pertencem à operação, não a um supervisor individual) — a permissão de aba
  * ({@code callcenter.insights.*}) já basta.
  *
- * <p>GAP CONHECIDO (achado de revisão de segurança da Fase 8): diferente do resto do
- * Call Center — {@code CallCenterRecordingService.findRecordings} já restringe por
- * {@link com.asteriskia.domain.masterdata.BusinessUnitContext} — este controller não
- * aplica nenhum filtro de BU; {@link InsightsQueryService} só filtra por {@code source}.
- * Um usuário com {@code PERM_READ_callcenter.insights.*} vê transcrição/áudio de todas as
- * BUs, não só a sua. É o mesmo padrão já aceito no módulo Insights (Verint), que também
- * nunca teve escopo de BU — mesmo gap documentado para Alertas Zabbix
- * ({@code AlertService}). Resolver exigiria join de {@code call_audio_files.ccRecordingId}
- * até {@code cc_recordings.businessUnit} em {@link InsightsSpecifications}; fora do escopo
- * desta fatia.
+ * <p><b>Escopo por BU (2026-08-15)</b>: {@code /calls}, {@code /calls/{id}} e
+ * {@code /calls/{id}/audio} — a superfície que expõe conteúdo real (transcrição/áudio) —
+ * agora filtram por {@link BusinessUnitContext}, mesmo padrão de
+ * {@code CallCenterRecordingService.findRecordings}. Fail-open pra gravação sem BU
+ * atribuída (ver {@code InsightsSpecifications.restrictedToBusinessUnits}) — a BU é
+ * opcional no cadastro de fila, não obrigatória. <b>Gap residual aceito, documentado</b>:
+ * {@code /dashboard} (só contagens agregadas, sem conteúdo) e {@code /processing} (só
+ * status/nome de arquivo, sem transcrição) continuam sem escopo de BU — decisão de
+ * priorizar a superfície com PII/conteúdo real primeiro; mesmo gap ainda aberto pra
+ * Alertas Zabbix ({@code AlertService}), que depende de uma decisão de produto sobre como
+ * derivar BU de um host monitorado (não resolvido aqui).
  */
 @Slf4j
 @RestController
@@ -92,16 +94,25 @@ public class CallCenterInsightsController {
                 agentName, "inbound", skill, null, null, null, null, null,
                 null, null, null, null, null,
                 null, null, null, null, null);
-        return ResponseEntity.ok(queryService.search(filter, pageable, isAdmin, SOURCE));
+        return ResponseEntity.ok(queryService.search(filter, pageable, isAdmin, SOURCE, businessUnitScope()));
+    }
+
+    /** {@code null} = sem restrição (ADMIN). Ver {@link InsightsQueryService#search}. */
+    private java.util.Set<Integer> businessUnitScope() {
+        return BusinessUnitContext.isRestricted() ? BusinessUnitContext.currentBusinessUnitIds() : null;
     }
 
     @GetMapping("/calls/{id}")
     public ResponseEntity<InsightsDetailResponse> getCall(@PathVariable Long id) {
-        CallAudioFile rawAudioFile = queryService.findAudioFileById(id);
+        // businessUnitScope() computada uma vez só — achado de revisão (nit de performance, sem
+        // impacto de segurança): evita 2 leituras de SecurityContext + 2 buscas de CcRecording
+        // pra validar o mesmo registro (findAudioFileById + detail cada um confere de novo).
+        var scope = businessUnitScope();
+        CallAudioFile rawAudioFile = queryService.findAudioFileById(id, scope);
         if (!SOURCE.equals(rawAudioFile.getSource())) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
-        InsightsDetailResponse detail = queryService.detail(id, isAdmin());
+        InsightsDetailResponse detail = queryService.detail(id, isAdmin(), scope);
         return ResponseEntity.ok(detail);
     }
 
@@ -136,7 +147,7 @@ public class CallCenterInsightsController {
      */
     @GetMapping("/calls/{id}/audio")
     public ResponseEntity<StreamingResponseBody> getAudio(@PathVariable Long id) {
-        CallAudioFile audioFile = queryService.findAudioFileById(id);
+        CallAudioFile audioFile = queryService.findAudioFileById(id, businessUnitScope());
         if (!SOURCE.equals(audioFile.getSource())
                 || audioFile.getWavPath() == null
                 || audioFile.getWavPath().isBlank()) {

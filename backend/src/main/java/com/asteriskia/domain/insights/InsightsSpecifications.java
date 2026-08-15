@@ -1,8 +1,10 @@
 package com.asteriskia.domain.insights;
 
+import com.asteriskia.domain.callcenter.recording.CcRecording;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * InsightsSpecifications — monta a query dinâmica de CallAudioFile a partir de
@@ -15,6 +17,30 @@ import java.util.List;
 public final class InsightsSpecifications {
 
     private InsightsSpecifications() {}
+
+    /**
+     * Escopo por BU (fecha parte do gap documentado em CLAUDE.md — Insights do Call Center não
+     * filtrava por BU). Só usada por {@code source="callcenter"} — Insights (Verint) nunca teve
+     * conceito de BU e continua deliberadamente de fora. Fail-open (mesmo padrão de
+     * {@code CallRecordSpecifications.restrictedToBusinessUnits}): gravação sem
+     * {@code ccRecordingId} ou cuja {@code CcRecording} não tem BU atribuída fica visível a
+     * todos — a BU é opcional no cadastro de fila, não obrigatória.
+     */
+    public static Specification<CallAudioFile> restrictedToBusinessUnits(Set<Integer> allowedBusinessUnitIds) {
+        return (root, query, cb) -> {
+            // Subquery deliberadamente NÃO correlacionada ao root — seleciona todo id de
+            // CcRecording cuja BU já é permitida/nula, e o filtro real acontece no IN externo
+            // (linha de baixo). Mesmo formato de CallRecordSpecifications.restrictedToBusinessUnits.
+            var subquery = query.subquery(Long.class);
+            var ccRecordingRoot = subquery.from(CcRecording.class);
+            subquery.select(ccRecordingRoot.get("id"));
+            subquery.where(
+                    cb.or(
+                            cb.isNull(ccRecordingRoot.get("businessUnit")),
+                            ccRecordingRoot.get("businessUnit").get("id").in(allowedBusinessUnitIds)));
+            return cb.or(cb.isNull(root.get("ccRecordingId")), root.get("ccRecordingId").in(subquery));
+        };
+    }
 
     /** Sobrecarga original — mantém o comportamento de sempre (source='verint') para os
      * chamadores existentes (tela Insights). */
