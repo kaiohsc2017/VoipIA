@@ -480,8 +480,10 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    Configuração (v1.87), 9c.6 agendamento por Telegram/e-mail (v1.88), 9c.7 escala/aderência do
 >    agente (v1.89) — ver `.claude/plans/callcenter-fases-5-7-9.plan.md` §2 para o detalhe de cada
 >    fatia; **a leva inteira do plano (Fases 5, 7 e 9) está fechada**. Fase 10 (teste de carga
->    SIPp, ver item 1 acima); Fase 14 (screen pop, bloqueada pela Fase 1); Fase 16 (copiloto de
->    IA, depende da 14); Fase 17 ✅ (co-browsing, deployada em 2026-08-14); Fase 18 (IA local,
+>    SIPp, ver item 1 acima); **Fase 14 ✅ concluída em 2026-08-15** (identidade do contato/screen
+>    pop, v1.91 — ver `asteriskia_callcenter_fase14_identidade_screenpop.md`; desbloqueia a Fase
+>    16); Fase 16 (copiloto de IA, depende da 14 — agora liberada); Fase 17 ✅ (co-browsing,
+>    deployada em 2026-08-14); Fase 18 (IA local,
 >    roadmap concluído — sem código pendente, ver item 1 acima).
 > 3. **Maior incerteza aberta do projeto inteiro**: nenhuma chamada real de voz atravessou uma
 >    fila do Call Center ainda — todo o motor ARI/Stasis/AMI foi validado só com mocks/curl;
@@ -490,6 +492,54 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    enforcement real); BU incompleto (Alertas Zabbix e Insights do Call Center/relatório 9c não
 >    filtram por BU); Jira sem credenciais reais; atribuir grupo de acesso customizado a um
 >    usuário pela UI ainda não existe (só ADMIN/USER binário).
+
+### ✅ Fase 14 do plano-mãe do Call Center — identidade do contato e screen pop (2026-08-15) — deployada e validada em produção
+Desbloqueada pela Fase 1/AD (espelho local `ad_users` já com paginação/employeeID corretos).
+Cascata de identificação (D7/D8 do plano): login de rede já autenticado > entrada falada/digitada
+confirmada > ANI, contra `ad_users` — nunca consulta o AD ao vivo. Migration **V85**:
+`cc_interactions.resolved_ad_sam`/`identity_source`, mesmas 2 colunas em `cc_chat_sessions`,
+índices trigram (`pg_trgm`, já em uso desde a V14) para busca aproximada de nome falado contra
+`display_name`, tabela `cc_identity_resolution_log` (custo de IA da transcrição) e frente
+`callcenter_identidade` no Financeiro.
+- `CallCenterIdentityResolver` (pacote novo `domain/callcenter/identity/`): busca exata por login
+  (chat interno via JWT); busca aproximada por nome falado via trigram (`AdUserRepository.
+  findBestFuzzyMatchByDisplayName`, limiar 0.3) com **confirmação falada obrigatória** antes de
+  usar (fail-closed — qualquer coisa além de "sim"/"isso mesmo"/"correto" é negativa); fallback
+  por ANI normalizado com o mesmo `AniNormalizer` já usado na Fase 27 (remove código do país,
+  insere o 9º dígito do celular). Transcrição de áudio curto chama o Gemini direto (síncrono,
+  dentro da ligação — mesmo padrão de header `x-goog-api-key`/log sem `e.getMessage()` já usado
+  pelo `CallCenterNpsTranscriptionScheduler` da Fase 21).
+- Novo nó de fluxo **`coletar_entrada`** (`ColetarEntradaNodeHandler`) — desbloqueia mais um dos 7
+  nós que ficaram pendentes desde a Fase 5b; propriedade `identificarContato` liga a cascata acima
+  durante a coleta de voz.
+- Painel do agente (Desktop) ganha bloco de identidade resolvida (nome/departamento/cargo/
+  gerente/e-mail/telefone, tudo já espelhado localmente) e histórico dos até 10 atendimentos
+  anteriores do mesmo contato (`GET /callcenter/interactions/{id}/contact-history`).
+- **2 achados CRITICAL reais corrigidos antes do deploy** (`ecc:security-reviewer`): (1) o
+  endpoint de histórico de contato aceitava `resolvedAdSam` como parâmetro do próprio chamador,
+  sem validar contra a interação `{id}` — qualquer agente com `PERM_READ_callcenter.desktop`
+  podia enumerar histórico e o bloco completo de identidade (nome/e-mail/telefone/cargo) de
+  **qualquer** contato do AD; corrigido para sempre carregar o sam da interação já persistida,
+  validada contra o agente autenticado (nunca o parâmetro do chamador); (2) o widget de chat
+  público (`/callcenter/chat/public/**`, sem autenticação, `allowedOriginPatterns("*")`) devolvia
+  `identityResolved: true/false` na resposta HTTP quando o cliente informava um `networkLogin` —
+  um oráculo de enumeração de login válido do AD corporativo para qualquer visitante anônimo da
+  internet (o próprio comentário do código já dizia querer evitar isso, mas o código não impunha);
+  corrigido removendo o booleano da resposta pública — a identidade fica só persistida para
+  consumo interno do agente.
+- **1 bug real corrigido** encontrado ao rodar a suíte: `resolveByAni` comparava o ANI só com
+  dígitos crus contra `ad_users.telephone_number`, sem remover "+55"/inserir o 9º dígito — nunca
+  bateria com um telefone real cadastrado no AD; corrigido reusando o `AniNormalizer` (Fase 27)
+  em vez de duplicar a lógica.
+- Suíte completa do backend **892/893 verde** (a única falha é o flake conhecido e não
+  relacionado de `ffmpeg` ausente no container Maven ad hoc). Deployado (migration V85 confirmada
+  em `flyway_schema_history`) e validado em produção via curl: `contact-history` 403 sem token,
+  widget público de chat responde 503 (sem fila configurada — comportamento esperado desde a Fase
+  7b, sem regressão). Release notes `v1.91` registrada.
+- **Gap aceito, documentado no código**: busca trigram por nome falado sem limite de tamanho/rate
+  específico no fluxo de voz (diferente do chat público, que já tem `PublicChatRateLimiter`) —
+  custo leve de CPU por chamada com `identificarContato=true`, aceitável no volume atual desta
+  VPS de dev.
 
 ### ✅ Fase 7e do plano `.claude/plans/callcenter-fases-5-7-9.plan.md` — Telegram (long polling) (2026-08-14) — deployada e validada em produção
 Último item da release 14 (7c blending + 7d anexos + 7e Telegram), fecha o canal de chat com uma
