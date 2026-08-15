@@ -24,10 +24,12 @@ import org.springframework.stereotype.Component;
  * contato) implementou {@code coletar_entrada} (delega a
  * {@code ColetarEntradaNodeHandler} — grava/transcreve via {@code driver.recordResponse} +
  * {@code CallCenterIdentityResolver}; propriedade {@code identificarContato} liga a
- * confirmação falada + persistência em {@code cc_interactions.resolved_ad_sam}). Os 2 restantes
- * ({@code consultar_api}, {@code agente_ia}) continuam {@code false} — ficam para sub-fases
- * futuras (Fase 10/16). {@link FlowGraphValidator} bloqueia a publicação de qualquer fluxo que
- * use um nó ainda não implementado.
+ * confirmação falada + persistência em {@code cc_interactions.resolved_ad_sam}). Fase B do
+ * plano-mãe implementou {@code agente_ia} (delega a {@code AgenteIaNodeHandler} — laço limitado
+ * de pergunta→resposta via {@code CallCenterIaAgentConversationService}, persona cadastrada na
+ * Fase A/{@code CcIaAgent}). Só {@code consultar_api} continua {@code false} — fica para uma
+ * sub-fase futura (Fase 10, SSRF é o risco central). {@link FlowGraphValidator} bloqueia a
+ * publicação de qualquer fluxo que use um nó ainda não implementado.
  *
  * <p>Fase 24 (chat) prova a premissa de motor agnóstico de canal: {@code menu_opcoes},
  * {@code tocar_audio}, {@code enviar_fila}, {@code encerrar}, {@code condicao},
@@ -43,7 +45,7 @@ public class FlowGraphNodeCatalog {
             Set.of(
                     "inicio", "tocar_audio", "menu_opcoes", "condicao", "definir_variavel", "enviar_fila",
                     "pesquisa_satisfacao", "pausar_gravacao", "coletar_texto", "consultar_base",
-                    "horario_funcionamento", "transferir_ramal", "coletar_entrada", "encerrar");
+                    "horario_funcionamento", "transferir_ramal", "coletar_entrada", "agente_ia", "encerrar");
 
     private static final List<FlowGraphNodeType> NODE_TYPES =
             List.of(
