@@ -766,4 +766,11 @@ export const RELEASES: ReleaseEntry[] = [
       'Relatórios do Call Center ganham agendamento: crie um envio periódico (diário/semanal/mensal) do relatório de chamada ou chat por Telegram ou e-mail — nova aba "Agendamentos".',
     ],
   },
+  {
+    version: 'v1.89',
+    date: '2026-08-14',
+    changes: [
+      'O relatório de agente de voz ganha escala e aderência: cadastre o turno esperado de cada agente por dia da semana e acompanhe, dia a dia, quanto tempo o agente realmente ficou logado dentro do turno.',
+    ],
+  },
 ];

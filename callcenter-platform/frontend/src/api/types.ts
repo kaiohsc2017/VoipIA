@@ -1024,6 +1024,22 @@ export interface ChatPeriodMetrics {
   avgConcurrentChats: number | null;
 }
 
+export interface CcAgentSchedule {
+  id: number;
+  agent: CcAgent;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  active: boolean;
+}
+
+export interface AgentAdherenceRow {
+  date: string;
+  scheduledSeconds: number | null;
+  loggedSeconds: number | null;
+  adherencePct: number | null;
+}
+
 export interface CcReportSchedule {
   id: number;
   name: string;

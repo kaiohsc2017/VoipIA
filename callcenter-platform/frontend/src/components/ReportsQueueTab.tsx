@@ -5,7 +5,7 @@ import type {
   CcQueue, CcAgent, FlowView, QueuePeriodMetrics, QueuePeriodComparison,
   AgentPeriodMetrics, AgentPeriodComparison, FlowPeriodMetrics, FlowNodeAbandonmentRow,
   ChatPeriodMetrics, TimelineEventRow, RecallAndDispositionSummary, CcReportSchedule,
-  Page, ReportGranularity,
+  CcAgentSchedule, AgentAdherenceRow, Page, ReportGranularity,
 } from '../api/types';
 import { CallDetailReport, ChatDetailReport } from './DetailReportTab';
 import { QualityReportTab } from './QualityReportTab';
@@ -315,11 +315,45 @@ function AgentReport({ reprocessTick }: { reprocessTick: number }) {
   const [comparison, setComparison] = useState<AgentPeriodComparison | null>(null);
   const [comparing, setComparing] = useState(false);
 
+  const [agentSchedules, setAgentSchedules] = useState<CcAgentSchedule[]>([]);
+  const [adherenceRows, setAdherenceRows] = useState<AgentAdherenceRow[]>([]);
+  const [newDayOfWeek, setNewDayOfWeek] = useState(1);
+  const [newStartTime, setNewStartTime] = useState('08:00');
+  const [newEndTime, setNewEndTime] = useState('18:00');
+
   useEffect(() => {
     api.get<CcAgent[]>('/callcenter/agentes')
       .then(({ data }) => setAgents(data))
       .catch(() => setAgents([]));
   }, []);
+
+  const loadAgentSchedules = () => {
+    if (!selectedAgentId) { setAgentSchedules([]); return; }
+    api.get<CcAgentSchedule[]>('/callcenter/reports/agent-schedules', { params: { agentId: selectedAgentId } })
+      .then(({ data }) => setAgentSchedules(data))
+      .catch(() => setAgentSchedules([]));
+  };
+
+  useEffect(() => {
+    loadAgentSchedules();
+    if (!selectedAgentId) { setAdherenceRows([]); return; }
+    api.get<AgentAdherenceRow[]>(`/callcenter/reports/agent-schedules/${selectedAgentId}/adherence`, { params: { from, to } })
+      .then(({ data }) => setAdherenceRows(data))
+      .catch(() => setAdherenceRows([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAgentId, from, to]);
+
+  const createAgentSchedule = () => {
+    if (!selectedAgentId) return;
+    api.post('/callcenter/reports/agent-schedules', {
+      agentId: selectedAgentId, dayOfWeek: newDayOfWeek, startTime: newStartTime, endTime: newEndTime,
+    }).then(loadAgentSchedules).catch(err => setError(getErrorMessage(err, 'Falha ao criar turno')));
+  };
+
+  const removeAgentSchedule = (id: number) => {
+    api.delete(`/callcenter/reports/agent-schedules/${id}`).then(loadAgentSchedules)
+      .catch(err => setError(getErrorMessage(err, 'Falha ao remover turno')));
+  };
 
   useEffect(() => {
     if (!selectedAgentId) {
@@ -438,6 +472,56 @@ function AgentReport({ reprocessTick }: { reprocessTick: number }) {
           </table>
         )}
       </section>
+
+      {selectedAgentId && (
+        <section>
+          <h3>Escala e aderência (Fase 9c.7)</h3>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end', marginBottom: 8 }}>
+            <label>
+              Dia da semana
+              <select value={newDayOfWeek} onChange={e => setNewDayOfWeek(Number(e.target.value))}>
+                <option value={1}>Segunda</option><option value={2}>Terça</option><option value={3}>Quarta</option>
+                <option value={4}>Quinta</option><option value={5}>Sexta</option><option value={6}>Sábado</option>
+                <option value={7}>Domingo</option>
+              </select>
+            </label>
+            <label>Início <input type="time" value={newStartTime} onChange={e => setNewStartTime(e.target.value)} /></label>
+            <label>Fim <input type="time" value={newEndTime} onChange={e => setNewEndTime(e.target.value)} /></label>
+            <button type="button" onClick={createAgentSchedule}>Adicionar turno</button>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12 }}>
+            <thead><tr><th align="left">Dia</th><th align="left">Início</th><th align="left">Fim</th><th></th></tr></thead>
+            <tbody>
+              {agentSchedules.map(s => (
+                <tr key={s.id}>
+                  <td>{['', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'][s.dayOfWeek]}</td>
+                  <td>{s.startTime}</td><td>{s.endTime}</td>
+                  <td><button type="button" onClick={() => removeAgentSchedule(s.id)}>Remover</button></td>
+                </tr>
+              ))}
+              {agentSchedules.length === 0 && (
+                <tr><td colSpan={4} style={{ textAlign: 'center', padding: 8 }}>Sem turnos cadastrados.</td></tr>
+              )}
+            </tbody>
+          </table>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr><th align="left">Data</th><th align="right">Escalado (s)</th><th align="right">Logado (s)</th><th align="right">Aderência</th></tr></thead>
+            <tbody>
+              {adherenceRows.map(r => (
+                <tr key={r.date}>
+                  <td>{r.date}</td>
+                  <td align="right">{r.scheduledSeconds ?? '—'}</td>
+                  <td align="right">{r.loggedSeconds ?? '—'}</td>
+                  <td align="right">{r.adherencePct == null ? 'Sem escala' : `${r.adherencePct}%`}</td>
+                </tr>
+              ))}
+              {adherenceRows.length === 0 && (
+                <tr><td colSpan={4} style={{ textAlign: 'center', padding: 8 }}>Sem dados no período.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+      )}
     </>
   );
 }
