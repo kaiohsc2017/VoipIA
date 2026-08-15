@@ -22,12 +22,26 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code cc_interactions}/{@code cc_agent_states} a partir dos eventos reais de fila/agente do
  * Asterisk (QueueCallerJoin, AgentConnect, AgentComplete, QueueCallerAbandon).
  *
- * <p><b>Não validado contra tráfego real de fila nesta entrega</b> — sem chamada de teste
- * passando por uma fila configurada, não há como confirmar os nomes exatos de campo que este
- * Asterisk emite (podem variar por versão/config). O parsing (@link AmiEventParser}) e a lógica de
- * cada handler têm teste unitário; a conexão/reconexão foi validada (log de conexão bem-sucedida
- * ou de retry), mas o mapeamento evento→estado só pode ser confirmado com uma chamada real
- * atravessando uma fila com agente logado.
+ * <p><b>Validado parcialmente com tráfego real em 2026-08-15</b> (originate real via
+ * {@code channel originate Local/<fila>@ramais-internos}, sem SIPp — decisão do usuário de não
+ * usar SIPp continua valendo, este teste não gera carga, só confirma o caminho funcional):
+ * {@code QueueCallerJoin}/{@code QueueCallerAbandon} confirmados criando/fechando
+ * {@code cc_interactions} de verdade, com os nomes de campo reais deste Asterisk. {@code
+ * AgentConnect} continua não confirmado — nenhum ramal de agente estava registrado (sem
+ * telefone/softphone real) nesta VPS no momento do teste; falta repetir o teste com um agente
+ * realmente atendendo. Esta rodada também encontrou e corrigiu 4 bugs reais que só um teste com
+ * tráfego real revelaria: (1) {@code queue-recording-config} sendo chamado via POST pelo dialplan
+ * quando o endpoint só aceitava GET; (2) delimitador {@code ;} em {@code CUT()} sendo cortado como
+ * comentário pelo parser do {@code extensions.conf}, deixando a opção de não gravar por fila
+ * sempre inoperante; (3) esta própria conexão AMI travando para sempre (sem log de erro) quando o
+ * Asterisk é reiniciado abruptamente, por usar SO_TIMEOUT=0 — corrigido com
+ * {@link #AMI_READ_TIMEOUT_MS}; (4) o mais grave — um restart **gracioso** do Asterisk
+ * ({@code docker compose restart}, SIGTERM) fecha o socket limpo (EOF), e
+ * {@link com.asteriskia.integration.ami.AmiSession#readBlock()} devolvia silenciosamente string
+ * vazia em vez de lançar exceção, fazendo este listener entrar num laço apertado sem espera nenhuma
+ * — 100% de CPU, para sempre, sem nunca reconectar (medido ao vivo: 98,5% de CPU por mais de 2
+ * minutos). Corrigido lançando {@code EOFException} em {@code AmiSession}. Os 4 bugs foram
+ * revalidados com testes reais de restart do Asterisk (gracioso e abrupto), não só automatizados.
  */
 @Slf4j
 @Component
@@ -50,6 +64,15 @@ public class CallCenterAmiEventListener {
     private boolean enabled;
 
     private static final int RECONNECT_DELAY_MS = 5000;
+
+    /** Achado real de 2026-08-15 (primeira validação com tráfego real de fila): a conexão AMI
+     * usava SO_TIMEOUT=0 (bloqueio infinito) — quando o Asterisk é recriado/reiniciado, o socket
+     * TCP antigo fica preso num read() que nunca retorna (sem FIN/RST perceptível pelo lado do
+     * backend), e o listener nunca reconecta sozinho, silenciosamente, sem log de erro nenhum.
+     * Timeout finito faz o read() estourar {@link java.net.SocketTimeoutException} (subtipo de
+     * IOException) periodicamente, reaproveitando o mesmo caminho de reconexão do runLoop — pior
+     * caso, reconecta a cada intervalo mesmo com fila ociosa (login novo é barato). */
+    private static final int AMI_READ_TIMEOUT_MS = 60_000;
 
     private final CcQueueRepository queueRepository;
     private final CcExtensionRepository extensionRepository;
@@ -108,7 +131,7 @@ public class CallCenterAmiEventListener {
     private void connectAndConsume() throws IOException {
         // timeout 0 = SO_TIMEOUT infinito — precisamos bloquear indefinidamente esperando o
         // próximo evento, diferente do uso request/response de AmiOriginateService.
-        try (var ami = AmiSession.connect(host, port, 0)) {
+        try (var ami = AmiSession.connect(host, port, AMI_READ_TIMEOUT_MS)) {
             activeSession = ami;
             ami.send(
                     Map.of(

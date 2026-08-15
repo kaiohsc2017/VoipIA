@@ -456,9 +456,12 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    de desenvolvimento) está muito abaixo do necessário para esse volume. Fase 17
 >    (co-browsing) ✅ deployada em 2026-08-14. Fase 18 (IA local) **não tem código pendente** — é
 >    um estudo/roadmap já integralmente escrito em `modulo-callcenter-omnicanal.plan.md` §18, com
->    decisão explícita de manter-se com API por ora; a Onda 1 (memória/RAG local via `pgvector`,
->    já disponível desde a V69 da Fase 25) só entra depois que a Fase 10 medir custo real de 30
->    dias de operação e produzir a recomendação de hardware — nenhuma das duas ainda aconteceu.
+>    decisão explícita de manter-se com API por ora; das duas pré-condições da Onda 1 (memória/RAG
+>    local via `pgvector`, já disponível desde a V69 da Fase 25), a **recomendação de hardware já
+>    foi produzida em 2026-08-15** (ver seção própria acima). Resta só medir custo real de 30 dias
+>    de operação — isso **não é uma tarefa de código, é uma medição que depende de tempo real de
+>    produção rodando**; não há atalho possível sem tráfego real. Fica formalmente pausada até
+>    completar essa janela — nada a fazer aqui além de esperar e depois medir.
 > 2. **Plano-mãe do Call Center, fases nunca concluídas**: **Fase 1/AD ✅ fechada em 2026-08-15**
 >    (as 3 lacunas do `.claude/plans/callcenter-fase1-ad-lacunas.plan.md` — `employee_id`/
 >    `employeeID` agora espelhado em `ad_users` (migration V84), `fetchAll()` pagina de verdade via
@@ -475,8 +478,18 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    `consultar_api` [✅ 2026-08-15] já desbloqueados — **os 7 nós do catálogo original desta fase
 >    estão todos implementados agora**); Fase 7/Chat — 7c blending ✅, 7d anexos ✅, 7e
 >    Telegram ✅ (todas 2026-08-14, ver `asteriskia_callcenter_fase7e_telegram.md` e o mesmo plano
->    acima) — restam `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` sem fila real, widget nunca validado numa
->    página real, WhatsApp sem credenciais; **Fase 9 ✅ concluída em 2026-08-14** — 9c.1 agregado
+>    acima) — ✅ **fila real do chat público validada em 2026-08-15**: o canal `webchat`
+>    (`cc_chat_channels.id=2`) ganhou `defaultQueueId` apontando para uma fila real (via
+>    `POST /callcenter/filas` + `PUT /callcenter/chat/channels/2`, não SQL cru — mantém o ARA
+>    nativo sincronizado), e o pipeline completo foi validado ponta a ponta via curl contra os
+>    endpoints públicos reais: `POST /chat/public/sessions` (200, antes 503 sem fila), mensagem do
+>    cliente persistida, sessão aparecendo em `GET /chat/queue/{id}` (visão do agente) com
+>    status `waiting`, e encerramento via `POST /chat/{id}/close`. **Gap residual**: o arquivo
+>    `frontend/public-widget/callcenter-chat-widget.js` (o JS embutível em si, rodando num
+>    navegador de verdade) continua sem validação visual — só a API por trás dele foi confirmada
+>    (mesma limitação de sempre: Chrome DevTools MCP indisponível nesta VPS). WhatsApp segue sem
+>    credenciais (dependência externa, fora do nosso controle); **Fase 9 ✅ concluída em
+>    2026-08-14** — 9c.1 agregado
 >    de fluxo/URA (v1.82), 9c.2 agregado de chat FRT/ART/concorrência/contenção do bot (v1.83),
 >    9c.3 timeline omnicanal paginada em banco (v1.84), 9c.4 rechamada 24h/7d + top tabulações
 >    (v1.85), 9c.5 exportação Excel/PDF (v1.86), CFG-email — configuração SMTP em Sistema →
@@ -489,15 +502,73 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    agente, v1.92 — ver `asteriskia_callcenter_fase16_copiloto_ia.md`); Fase 17 ✅ (co-browsing,
 >    deployada em 2026-08-14); Fase 18 (IA local,
 >    roadmap concluído — sem código pendente, ver item 1 acima).
-> 3. **Maior incerteza aberta do projeto inteiro**: nenhuma chamada real de voz atravessou uma
->    fila do Call Center ainda — todo o motor ARI/Stasis/AMI foi validado só com mocks/curl;
->    eventos AMI de canal da Fase 23 nunca confirmados com tráfego real.
+> 3. **Maior incerteza do projeto — validada parcialmente com tráfego real em 2026-08-15.**
+>    Nenhum ramal SIP estava registrado nesta VPS (1001, 1002 e o ramal 4001 do único agente
+>    cadastrado, Kaio, todos "Unavailable" — sem telefone/softphone real conectado), então uma
+>    chamada *totalmente* real (com um agente humano atendendo) não pôde ser feita nesta sessão.
+>    Em vez disso, foi originada uma chamada real (não mock/curl) via
+>    `asterisk -rx "channel originate Local/<fila>@ramais-internos application Wait <n>"` — sem
+>    SIPp (decisão do usuário de descartar SIPp continua valendo; isso não gera carga, só exercita
+>    o caminho funcional uma vez) — que atravessou de verdade o dialplan `_5XXX`, gerou
+>    `QueueCallerJoin`/`QueueCallerAbandon` reais capturados pelo `CallCenterAmiEventListener` e
+>    criou uma `cc_interactions` real no banco. `AgentConnect` (agente atendendo) segue não
+>    confirmado — falta repetir o teste com um telefone/softphone real registrado no ramal do
+>    agente.
+>    **4 bugs reais encontrados e corrigidos só por causa deste teste** (nenhuma revisão estática
+>    os teria pego, porque dependiam do comportamento real do dialplan/rede):
+>    1. **CRITICAL funcional** — `CUT(REC_CONFIG,;,1)` no `extensions.conf.template` usava `;`
+>       como delimitador, mas `;` é o caractere de comentário do formato `extensions.conf` — a
+>       linha era truncada no parse, e `REC_PART`/`REC_FLAG`/`CONSENT_PATH` **sempre** resolviam
+>       vazio desde que a feature existe. Resultado prático: a opção "não gravar" por fila
+>       **nunca funcionou** em produção — toda fila sempre gravava, independente do
+>       `recordingEnabled=false` configurado. Corrigido escapando o delimitador (`\;`), validado
+>       em produção com uma chamada real confirmando `REC_FLAG=false` e `GotoIf(...1?skiprec)`
+>       pulando corretamente o `MixMonitor`.
+>    2. **HIGH funcional** — `CURL(url,extension=${EXTEN})` no dialplan sempre faz **POST**
+>       (comportamento do `func_curl` do Asterisk ao receber um segundo argumento), mas o endpoint
+>       `queue-recording-config` só aceitava GET — toda chamada real recebia 405 silenciosamente
+>       (o dialplan não trata erro de CURL, só segue com `REC_CONFIG` vazio/erro). Corrigido
+>       movendo o parâmetro para a query string da própria URL (`?extension=${EXTEN}`, sem
+>       segundo argumento no CURL).
+>    3. **HIGH operacional** — `CallCenterAmiEventListener` abria a conexão AMI persistente com
+>       `SO_TIMEOUT=0` (bloqueio infinito); ao reiniciar o container do Asterisk durante este
+>       teste, o listener ficou preso num `read()` que nunca retornou — **sem nenhum log de
+>       erro**, e sem reconectar sozinho (a lógica de reconexão existe, mas nunca é acionada
+>       porque a exceção de I/O nunca chega). Na prática: qualquer restart do Asterisk em produção
+>       silenciosamente paralisa toda a ingestão de eventos de fila/agente até alguém reiniciar o
+>       backend manualmente — ninguém saberia, porque não há log. Corrigido com timeout finito
+>       (60s) — timeout vira `SocketTimeoutException` (subtipo de `IOException`), reaproveitando
+>       o mesmo caminho de reconexão automática já existente. Teste de regressão novo
+>       (`AmiSessionTest`) prova o comportamento com um servidor TCP fake em silêncio.
+>    4. **CRITICAL operacional — o mais grave dos quatro, e o único que só apareceu ao testar de
+>       verdade em produção** (o bug 3 acima foi corrigido primeiro e *parecia* resolver o
+>       problema, mas um segundo teste real de restart do Asterisk provou que não): quando o
+>       Asterisk é reiniciado de forma **graciosa** (`docker compose restart`, SIGTERM — diferente
+>       do restart abrupto que expôs o bug 3), o socket é fechado limpo (EOF), e
+>       `AmiSession.readBlock()`/`readUntil()` devolviam silenciosamente uma string vazia em vez
+>       de lançar exceção — o chamador via isso como "bloco em branco" válido, dava `continue` e
+>       chamava `readBlock()` de novo no mesmo socket já morto, entrando num **laço apertado sem
+>       nenhuma espera: 100% de uma CPU inteira, para sempre, sem nunca reconectar**. Medido ao
+>       vivo via `docker stats` (98,5% de CPU, travado por mais de 2 minutos sem nenhum log).
+>       Corrigido lançando `EOFException` (subtipo de `IOException`) quando o EOF é atingido antes
+>       do bloco/sentinela fechar, nos dois métodos — propaga pro mesmo caminho de reconexão.
+>       Revalidado ao vivo: `docker compose restart asterisk` → log real
+>       `"conexão perdida (Conexão AMI encerrada pelo peer (EOF) antes do bloco fechar.)"` →
+>       reconecta sozinho em ~5s após o Asterisk voltar, CPU do backend em 0,57% (normal). Teste de
+>       regressão novo prova o EOF gracioso especificamente (distinto do teste do bug 3, que cobre
+>       o socket silencioso/preso).
+>    Os 4 bugs foram corrigidos e revalidados com testes reais (não só automatizados) de restart
+>    do Asterisk antes de considerar esta validação concluída. Fica documentado no javadoc de
+>    `CallCenterAmiEventListener`/`AmiSession`.
 > 4. **Débitos transversais (fora do Call Center)**: CSP **✅ migrado para enforcement real em
->    2026-08-15** (ver seção "Débito de segurança" mais abaixo); BU incompleto — **Insights do
->    Call Center (`/calls`, detalhe, áudio) ✅ fechado em 2026-08-15** (dashboard/relatório 9c
->    seguem sem escopo de BU, gap residual aceito — só contagens agregadas, sem conteúdo real);
->    Alertas Zabbix segue sem escopo (depende de decisão de produto sobre como derivar BU de um
->    host monitorado). Jira sem credenciais reais.
+>    2026-08-15** (ver seção "Débito de segurança" mais abaixo). BU — **✅ fechado por completo em
+>    2026-08-15**: Insights do Call Center (`/calls`, detalhe, áudio — commits `a859bfd`/`7ee536b`),
+>    `/dashboard` (4 queries de agregado) e o relatório 9c (`/calls`, `/chats`, exportação/
+>    agendamento) todos filtram por `BusinessUnitContext` agora (ver seção "Controle de acesso por
+>    BU" mais abaixo para o detalhe completo, inclusive o gap MEDIUM residual do agendamento por
+>    Telegram/e-mail). Alertas Zabbix **nunca terá** segmentação por BU — decisão de produto
+>    definitiva do usuário (2026-08-15), não é mais um gap. Jira sem credenciais reais (dependência
+>    externa, fica para quando o usuário trouxer as credenciais).
 >    **Catálogo de nós do Flow Builder do Call
 >    Center 100% implementado desde 2026-08-15** — os 3 últimos nós saíram do estado bloqueado
 >    nesta entrega: `agente_ia` (Fase A — CRUD de persona/prompt/modelo, migration V87,
@@ -507,10 +578,9 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    (`ConsultarApiNodeHandler` — URL nunca livre no fluxo, só referência a chave do `.env`
 >    validada por allowlist, escrita restrita a `PERM_WRITE_telecom.settings`/`ROLE_ADMIN`; guard
 >    de host privado/loopback como defesa em profundidade). `FlowGraphValidator` continua
->    bloqueando a publicação de qualquer nó novo que seja adicionado sem handler. Fila real do
->    chat público (Telegram/Webchat) segue sem
->    `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` configurado —
->    nenhuma fila real cadastrada nesta VPS de dev.
+>    bloqueando a publicação de qualquer nó novo que seja adicionado sem handler. **Fila real do
+>    chat público ✅ configurada e validada em 2026-08-15** (ver item 1 acima) — só falta validação
+>    visual do widget JS num navegador real e credenciais do WhatsApp.
 
 ### 📐 Recomendação de hardware — 250 agentes simultâneos (2026-08-15)
 Produzida em substituição ao teste de carga SIPp (descartado, ver item 1 da lista de pendências
@@ -1471,18 +1541,19 @@ em https://claude.ai/code/artifact/b04225b4-fef1-4c3c-95f1-9951de5389c9.
 - `SuporteController` cria issues reais no Jira via function calling da IA (tool `abrir_protocolo_suporte`)
 - Swagger/OpenAPI foi removido do projeto (dependência springdoc retirada do pom.xml)
 
-### 🟡 Controle de acesso por BU (2026-07-05) — cadastros/Chamadas/Conectividade cobertos, Alertas Zabbix não
+### 🟡 Controle de acesso por BU (2026-07-05) — cadastros/Chamadas/Conectividade cobertos; Alertas Zabbix decidido **sem** BU
 Usuário ganhou BU obrigatória (`user_business_units`) e o JWT carrega a claim `bu`
 (`BusinessUnitContext`, authorities `BU_<id>`) — ADMIN sempre vê tudo. Escopo aplicado em:
 Cadastros (Cliente/Operação/BU — itens sem BU ficam visíveis a todos, já que a BU é opcional
 nesses cadastros), Chamadas (`CallRecordService`, via `uras.business_unit_id`) e Conectividade
 (`number-tests`/`test-results`, via `NumberTest.businessUnit`, já obrigatória).
-- **Gap conhecido, não coberto**: Alertas Zabbix (`AlertCall`) não tem nenhum caminho de derivar a
-  BU de um incidente/host monitorado — o disparo de ligação (`AlertService.triggerAlert`) nem
-  filtra por operação hoje, só percorre os contatos de plantão por prioridade. `AlertContact` tem
-  `operationId` opcional, mas não foi conectado ao filtro de BU nesta entrega. Resolver direito
-  exigiria decisão de produto sobre como um host Zabbix se relaciona a uma BU/Operação — fora do
-  escopo desta entrega.
+- **Decisão de produto definitiva (2026-08-15): Alertas Zabbix nunca terá segmentação por BU.**
+  Confirmado pelo usuário — todo alerta recebido do Zabbix é tratado como um universo único,
+  sem distinção de operação/BU, para sempre (não é um gap a fechar depois, é o comportamento
+  definido). `AlertCall`/`AlertService.triggerAlert` continuam sem filtrar por operação, só
+  percorrendo os contatos de plantão por prioridade — isso deixa de ser um item de pendência.
+  `AlertContact.operationId` (opcional, nunca conectado ao filtro) pode ser removido numa limpeza
+  futura de baixa prioridade, mas não bloqueia nada.
 - Usuários pré-existentes (antes da migration V26) foram migrados com `access_indeterminate=true`
   e vinculados a todas as BUs ativas, para não perder acesso retroativamente.
 - ✅ **Insights do Call Center — gap de BU fechado em 2026-08-15** (commit `a859bfd`):
@@ -1494,11 +1565,33 @@ nesses cadastros), Chamadas (`CallRecordService`, via `uras.business_unit_id`) e
   padrão de `CallRecordService`); registro fora do escopo sempre 404 (nunca 403). Insights
   (Verint) permanece deliberadamente sem escopo de BU (decisão de produto já tomada, sem mudança).
   `/processing` (status/nome de arquivo) ganhou o mesmo filtro logo em seguida (commit `7ee536b`,
-  extensão trivial via a mesma Specification). **Gap residual aceito**: `/dashboard` (só contagens
-  agregadas, 6 queries JPQL de agregado) segue sem filtro de BU — nenhuma exposição de
-  conteúdo/PII, custo de reescrita desproporcional ao risco. Alertas Zabbix (`AlertService`) segue
-  sem escopo de BU — depende de decisão de produto sobre como derivar BU de um host monitorado,
-  ainda não tomada.
+  extensão trivial via a mesma Specification).
+- ✅ **`/dashboard` do Insights do Call Center — gap de BU fechado em 2026-08-15**: as 4 queries
+  JPQL de agregado (`CallInsightRepository.countByCriticidade/countByCategoria`,
+  `CallInsightFindingRepository.countByTipo`, `CallEvaluationRepository.averageNotaByAgent/
+  countFailed`) e `CallAudioFileRepository.countBySourceAndBusinessUnit` (total geral) ganharam
+  parâmetro `businessUnitIds` (nullable) com o mesmo fail-open embutido na própria query
+  (`:businessUnitIds IS NULL OR caf.ccRecordingId IS NULL OR caf.ccRecordingId IN (subquery)`) —
+  `InsightsQueryService.dashboard(source, businessUnitIds)`.
+- ✅ **Relatório 9c (`/calls`, `/chats` e exportação Excel/PDF/agendamento) — gap de BU fechado em
+  2026-08-15**: `CallCenterDetailReportService.searchCalls` filtra via novo
+  `CcInteractionSpecifications.restrictedToBusinessUnits` (predicado direto — `cc_interactions`
+  já tem `business_unit_id`, sem subquery); `searchChats` aplica o mesmo fail-open no filtro em
+  memória (`cc_chat_sessions.business_unit_id`). `CallCenterReportsController` resolve o escopo
+  nos 6 pontos (calls, chats, calls/export.xlsx, calls/export.pdf, chats/export.xlsx,
+  chats/export.pdf). **Gap residual aceito, documentado no código (MEDIUM, achado do
+  `ecc:security-reviewer`)**: `CallCenterReportScheduleService` (relatório agendado por
+  Telegram/e-mail) roda em background sem `SecurityContext`/`BusinessUnitContext` — passa
+  `businessUnitIds=null` explicitamente, o mesmo comportamento sem filtro que já existia antes
+  desta correção (não é uma regressão nova). Risco real registrado pela revisão: como
+  `POST /api/v1/callcenter/reports/schedules` exige só `PERM_WRITE_callcenter.reports` (não
+  `ROLE_ADMIN`), um usuário restrito a uma única BU pode criar um agendamento recorrente que
+  entrega dados de **todas** as BUs por Telegram/e-mail — uma via lateral que contorna o escopo
+  que a consulta interativa acabou de ganhar. Fechar direito exige persistir a BU de quem criou o
+  agendamento (ou exigir `ROLE_ADMIN` pra criar schedule) — fora do escopo desta fatia, mas
+  registrado como acompanhamento de curto prazo, não como aceito indefinidamente.
+- ✅ **Alertas Zabbix — decisão de produto definitiva (2026-08-15): nunca terá segmentação por
+  BU.** Não é mais um gap a fechar (ver seção "Controle de acesso por BU" acima para o detalhe).
 
 ### ✅ Fase 8 do módulo Call Center — Insights (pipeline de IA) (2026-08-07) — deployada e validada em produção
 Reaproveita integralmente o pipeline de Insights (Verint) — STT/diarização/análise de

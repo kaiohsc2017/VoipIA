@@ -113,4 +113,17 @@ class CallCenterAmiEventListenerTest {
 
         verify(interactionRepository, never()).save(any());
     }
+
+    /** Guarda de regressão do achado real de 2026-08-15: SO_TIMEOUT=0 (bloqueio infinito) na
+     * conexão AMI trava o listener para sempre quando o Asterisk reinicia, sem log de erro nenhum
+     * — reconecta só se o timeout for finito (ver AmiSessionTest para o comportamento do socket em
+     * si). Este teste só impede alguém de reintroduzir 0 por engano nesta constante. */
+    @Test
+    void amiReadTimeout_isFinite_neverInfiniteBlocking() throws Exception {
+        var field = CallCenterAmiEventListener.class.getDeclaredField("AMI_READ_TIMEOUT_MS");
+        field.setAccessible(true);
+        int timeout = field.getInt(null);
+
+        assertThat(timeout).isPositive();
+    }
 }

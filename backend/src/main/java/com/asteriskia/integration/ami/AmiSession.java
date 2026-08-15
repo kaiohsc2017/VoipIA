@@ -1,6 +1,7 @@
 package com.asteriskia.integration.ami;
 
 import java.io.BufferedReader;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -68,7 +69,22 @@ public class AmiSession implements AutoCloseable {
         writer.flush();
     }
 
-    /** Lê linhas até encontrar a linha em branco que fecha o bloco AMI. */
+    /** Lê linhas até encontrar a linha em branco que fecha o bloco AMI.
+     *
+     * <p>Achado real de 2026-08-15 (validação com tráfego real de fila, mais grave que o problema
+     * de SO_TIMEOUT=0 corrigido antes neste mesmo dia): quando o peer fecha a conexão de forma
+     * graciosa (ex.: {@code docker compose restart asterisk}, que envia SIGTERM e deixa o processo
+     * do Asterisk fechar seus sockets normalmente — diferente de um restart abrupto que deixaria a
+     * conexão "presa"), {@code reader.readLine()} retorna {@code null} imediatamente (EOF), sem
+     * nunca bloquear e sem nunca lançar exceção. O código antigo tratava isso como "bloco vazio" e
+     * devolvia string vazia — o chamador ({@code CallCenterAmiEventListener.connectAndConsume})
+     * então via um bloco em branco, dava {@code continue} e chamava {@code readBlock()} de novo no
+     * mesmo socket já fechado, entrando num laço apertado sem nenhuma espera: 100% de uma CPU
+     * inteira, para sempre, sem nunca reconectar — pior que o caso de SO_TIMEOUT, porque nem
+     * timeout ajuda aqui (não há bloqueio algum a estourar). Corrigido lançando {@link EOFException}
+     * quando o EOF é atingido antes da linha em branco — isso propaga como {@link IOException} pro
+     * mesmo caminho de reconexão que já existia, tanto para EOF na primeira linha quanto no meio de
+     * um bloco parcial (nenhum dos dois é um bloco AMI válido). */
     public String readBlock() throws IOException {
         StringBuilder sb = new StringBuilder();
         String line;
@@ -76,11 +92,18 @@ public class AmiSession implements AutoCloseable {
             if (line.isEmpty()) break;
             sb.append(line).append("\n");
         }
+        if (line == null) {
+            throw new EOFException("Conexão AMI encerrada pelo peer (EOF) antes do bloco fechar.");
+        }
         return sb.toString();
     }
 
     /**
      * Lê linhas até que uma delas satisfaça a sentinela (inclusive), sem exigir linha em branco.
+     *
+     * <p>Mesma correção de EOF de {@link #readBlock()} (achado real de 2026-08-15) — sem ela, um
+     * EOF antes da sentinela devolveria silenciosamente uma resposta truncada em vez de sinalizar
+     * a conexão quebrada.
      */
     public String readUntil(Predicate<String> sentinel) throws IOException {
         StringBuilder sb = new StringBuilder();
@@ -88,6 +111,9 @@ public class AmiSession implements AutoCloseable {
         while ((line = reader.readLine()) != null) {
             sb.append(line).append("\n");
             if (sentinel.test(line)) break;
+        }
+        if (line == null) {
+            throw new EOFException("Conexão AMI encerrada pelo peer (EOF) antes da sentinela.");
         }
         return sb.toString();
     }
