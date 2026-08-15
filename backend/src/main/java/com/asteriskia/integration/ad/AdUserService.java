@@ -45,6 +45,7 @@ public class AdUserService {
         user.setManagerSam(attrs.managerSam());
         user.setEmail(attrs.email());
         user.setTelephoneNumber(attrs.telephoneNumber());
+        user.setEmployeeId(attrs.employeeId());
         user.setLastSyncedAt(LocalDateTime.now());
         return adUserRepo.save(user);
     }

@@ -51,6 +51,10 @@ public class AdUser {
     @Column(name = "telephone_number", length = 64)
     private String telephoneNumber;
 
+    /** Matrícula do AD (atributo employeeID) — correlaciona cc_agents à identidade AD (Fase 14). */
+    @Column(name = "employee_id", length = 64)
+    private String employeeId;
+
     @Column(name = "last_synced_at")
     private LocalDateTime lastSyncedAt;
 

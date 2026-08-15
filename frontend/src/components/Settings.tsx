@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import api from '../api/client';
 import { AISettingsPanel } from './AISettingsPanel';
 import { AsteriskFilePanel } from './AsteriskFilePanel';
+import { AdSyncTab } from './AdSyncTab';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -120,7 +121,7 @@ const SECTIONS: Section[] = [
     id: 'ad',
     icon: '🔐',
     title: 'Active Directory (Call Center)',
-    description: 'Login por AD com espelho local dos atributos do usuário — módulo Call Center, Fase 1. Sincronização e mapeamento de grupos AD ficam numa tela dedicada em breve.',
+    description: 'Login por AD com espelho local dos atributos do usuário — módulo Call Center, Fase 1.',
     testable: true,
     testKeys: ['AD_LDAP_HOST', 'AD_LDAP_BASE_DN', 'AD_LDAP_BIND_DN', 'AD_LDAP_BIND_PASSWORD'],
     requiredKeys: ['AD_LDAP_HOST', 'AD_LDAP_BASE_DN', 'AD_LDAP_BIND_DN', 'AD_LDAP_BIND_PASSWORD'],
@@ -684,6 +685,8 @@ export default function Settings() {
                             );
                           })}
                         </div>
+
+                        {section.id === 'ad' && <AdSyncTab />}
 
                         {/* Rodapé da seção: testar + salvar + aplicar */}
                         <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16 }}>

@@ -1,11 +1,15 @@
 package com.asteriskia.integration.ad;
 
 import com.asteriskia.domain.config.ConfigService;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import javax.naming.directory.SearchControls;
 import javax.naming.directory.Attributes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ldap.control.PagedResultsCookie;
+import org.springframework.ldap.control.PagedResultsDirContextProcessor;
 import org.springframework.ldap.core.AttributesMapper;
 import org.springframework.ldap.core.LdapTemplate;
 import org.springframework.ldap.query.LdapQueryBuilder;
@@ -81,19 +85,20 @@ public class LdapClient {
     /**
      * Busca completa — usada pelo {@link AdSyncScheduler} para espelhar todos os usuários.
      *
-     * <p><b>Limitação conhecida (Fase 1):</b> sem {@code PagedResultsControl} — a maioria dos AD
-     * limita a 1000 entradas por busca (MaxPageSize); acima disso o resultado vem truncado ou falha.
-     * Aceitável para o volume-alvo desta fase; paginação real fica para quando o volume real de
-     * usuários no AD for conhecido.
+     * <p>Pagina de verdade via {@link PagedResultsDirContextProcessor} (Spring LDAP, já
+     * transitivo do {@code spring-boot-starter-data-ldap} — sem dependência nova) — encadeia o
+     * cookie entre páginas até o servidor sinalizar que não há mais páginas. Fecha a lacuna da
+     * Fase 1 (D1 do plano .claude/plans/callcenter-fase10-seguranca-endurecimento.plan.md): antes
+     * o AD truncava silenciosamente acima do MaxPageSize (tipicamente 1000), deixando um usuário
+     * desabilitado fora da página nunca visto pelo sync — risco real de acesso retido.
      */
-    // Fase 10 (D1): sem PagedResultsControl, o AD trunca silenciosamente a resposta no seu
-    // limite padrão de política (MaxPageSize, tipicamente 1000) — um resultado exatamente nesse
-    // teto é sinal forte de truncamento (não implementamos paginação nesta fatia, D1 do plano
-    // .claude/plans/callcenter-fase10-seguranca-endurecimento.plan.md; isso é uma pendência
-    // funcional registrada em CLAUDE.md, não uma correção de segurança). Um usuário desabilitado
-    // no AD que caia fora da página devolvida nunca é visto pelo sync — risco real de acesso
-    // retido, daí o aviso explícito em vez de silêncio total.
-    private static final int SUSPECTED_TRUNCATION_THRESHOLD = 1000;
+    private static final int PAGE_SIZE = 500;
+    private static final String FETCH_ALL_FILTER = "(&(objectClass=user)(sAMAccountName=*))";
+
+    // Teto defensivo: 200 páginas de 500 = 100.000 usuários, bem acima de qualquer AD real deste
+    // projeto. Sem isso, um DC mal-comportado que sempre devolvesse um cookie não-nulo prenderia
+    // a thread do AdSyncScheduler num loop infinito (achado da revisão de código desta fase).
+    private static final int MAX_PAGES = 200;
 
     public List<LdapUserAttributes> fetchAll() {
         AdLdapConfig cfg = currentConfig();
@@ -101,21 +106,30 @@ public class LdapClient {
             return List.of();
         }
         LdapTemplate template = templateFactory.create(cfg);
-        var query =
-                LdapQueryBuilder.query()
-                        .where("objectClass")
-                        .is("user")
-                        .and("sAMAccountName")
-                        .isPresent();
-        List<LdapUserAttributes> result = template.search(query, ATTRIBUTES_MAPPER);
-        if (result.size() >= SUSPECTED_TRUNCATION_THRESHOLD) {
-            log.warn(
-                    "AD fetchAll retornou {} usuários — possível truncamento silencioso pelo limite de página do "
-                            + "servidor (sem PagedResultsControl implementado); usuários fora da página podem não ser "
-                            + "sincronizados, incluindo desabilitações.",
-                    result.size());
-        }
-        return result;
+        SearchControls controls = new SearchControls();
+        controls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+
+        List<LdapUserAttributes> result = new ArrayList<>();
+        PagedResultsCookie cookie = null;
+        int pages = 0;
+        do {
+            PagedResultsDirContextProcessor processor = new PagedResultsDirContextProcessor(PAGE_SIZE, cookie);
+            List<LdapUserAttributes> page =
+                    template.search("", FETCH_ALL_FILTER, controls, ATTRIBUTES_MAPPER, processor);
+            result.addAll(page);
+            cookie = processor.getCookie();
+            pages++;
+            if (pages >= MAX_PAGES && cookie != null && cookie.getCookie() != null) {
+                log.warn(
+                        "AD fetchAll interrompido após {} páginas ({} usuários) — teto defensivo atingido; "
+                                + "o servidor ainda sinalizava mais páginas.",
+                        pages,
+                        result.size());
+                break;
+            }
+        } while (cookie != null && cookie.getCookie() != null);
+
+        return List.copyOf(result);
     }
 
     /** Testa uma conexão com parâmetros arbitrários (do body da requisição, não persistidos). */
@@ -136,7 +150,8 @@ public class LdapClient {
                 attrValues(attrs, "memberOf"),
                 extractRdnValue(attrValue(attrs, "manager")),
                 attrValue(attrs, "mail"),
-                attrValue(attrs, "telephoneNumber"));
+                attrValue(attrs, "telephoneNumber"),
+                attrValue(attrs, "employeeID"));
     }
 
     private static String attrValue(Attributes attrs, String name) throws javax.naming.NamingException {

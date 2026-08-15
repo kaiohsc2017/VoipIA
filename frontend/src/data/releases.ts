@@ -773,4 +773,12 @@ export const RELEASES: ReleaseEntry[] = [
       'O relatório de agente de voz ganha escala e aderência: cadastre o turno esperado de cada agente por dia da semana e acompanhe, dia a dia, quanto tempo o agente realmente ficou logado dentro do turno.',
     ],
   },
+  {
+    version: 'v1.90',
+    date: '2026-08-15',
+    changes: [
+      'Active Directory: a matrícula (employeeID) do usuário passa a ser sincronizada para o espelho local, e a sincronização completa não trunca mais em ADs com mais de 1000 usuários (paginação real).',
+      'Nova tela em Configurações → Active Directory: status da última sincronização, botão "Sincronizar agora", consulta de usuário no espelho local e CRUD de mapeamento de grupo AD → grupo de acesso.',
+    ],
+  },
 ];

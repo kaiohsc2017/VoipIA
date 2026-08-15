@@ -12,4 +12,5 @@ public record LdapUserAttributes(
         List<String> memberOf,
         String managerSam,
         String email,
-        String telephoneNumber) {}
+        String telephoneNumber,
+        String employeeId) {}

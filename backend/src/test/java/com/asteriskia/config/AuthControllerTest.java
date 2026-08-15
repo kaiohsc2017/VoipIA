@@ -204,7 +204,7 @@ class AuthControllerTest {
         LdapUserAttributes attrs =
                 new LdapUserAttributes(
                         "novo.ad", "Novo Usuário AD", "TI", "Matriz", "Analista",
-                        List.of("CN=Suporte,OU=Grupos,DC=empresa,DC=local"), null, "novo@empresa.com", null);
+                        List.of("CN=Suporte,OU=Grupos,DC=empresa,DC=local"), null, "novo@empresa.com", null, null);
 
         when(userRepo.findByUsernameAndIsActiveTrue("novo.ad")).thenReturn(Optional.empty());
         when(ldapClient.currentConfig()).thenReturn(AD_ENABLED);
@@ -251,7 +251,7 @@ class AuthControllerTest {
                         .extension(9030)
                         .build();
         LdapUserAttributes attrs =
-                new LdapUserAttributes("admin.local", "Admin Local", null, null, null, List.of(), null, null, null);
+                new LdapUserAttributes("admin.local", "Admin Local", null, null, null, List.of(), null, null, null, null);
 
         when(userRepo.findByUsernameAndIsActiveTrue("admin.local")).thenReturn(Optional.empty());
         when(ldapClient.currentConfig()).thenReturn(AD_ENABLED);
@@ -282,7 +282,7 @@ class AuthControllerTest {
                         .role("USER")
                         .build();
         LdapUserAttributes attrs =
-                new LdapUserAttributes("ja.vinculado", "Já Vinculado", null, null, null, List.of(), null, null, null);
+                new LdapUserAttributes("ja.vinculado", "Já Vinculado", null, null, null, List.of(), null, null, null, null);
 
         when(userRepo.findByUsernameAndIsActiveTrue("ja.vinculado")).thenReturn(Optional.empty());
         when(ldapClient.currentConfig()).thenReturn(AD_ENABLED);
@@ -311,7 +311,7 @@ class AuthControllerTest {
         AppUser desativado =
                 AppUser.builder().username("des.ad").isActive(false).extension(9020).build();
         LdapUserAttributes attrs =
-                new LdapUserAttributes("des.ad", "Desativado", null, null, null, List.of(), null, null, null);
+                new LdapUserAttributes("des.ad", "Desativado", null, null, null, List.of(), null, null, null, null);
 
         when(userRepo.findByUsernameAndIsActiveTrue("des.ad")).thenReturn(Optional.empty());
         when(ldapClient.currentConfig()).thenReturn(AD_ENABLED);

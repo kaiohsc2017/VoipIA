@@ -61,10 +61,10 @@ public class AdSyncController {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "Grupo AD já mapeado: " + req.adGroupName()));
         }
-        AccessGroup group =
-                accessGroupRepo
-                        .findById(req.accessGroupId())
-                        .orElseThrow(() -> new IllegalArgumentException("Grupo de acesso não existe"));
+        AccessGroup group = accessGroupRepo.findById(req.accessGroupId()).orElse(null);
+        if (group == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Grupo de acesso não existe"));
+        }
         AdGroupMapping saved =
                 groupMappingRepo.save(
                         AdGroupMapping.builder()

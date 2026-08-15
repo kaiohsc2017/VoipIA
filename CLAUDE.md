@@ -457,8 +457,13 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 >    decisão explícita de manter-se com API por ora; a Onda 1 (memória/RAG local via `pgvector`,
 >    já disponível desde a V69 da Fase 25) só entra depois que a Fase 10 medir custo real de 30
 >    dias de operação e produzir a recomendação de hardware — nenhuma das duas ainda aconteceu.
-> 2. **Plano-mãe do Call Center, fases nunca concluídas**: Fase 1/AD (dados reais do DC, paginação
->    do `fetchAll()`, `employee_id` não espelhado); **Fase 5 ✅ concluída em 2026-08-14** (5d
+> 2. **Plano-mãe do Call Center, fases nunca concluídas**: **Fase 1/AD ✅ fechada em 2026-08-15**
+>    (as 3 lacunas do `.claude/plans/callcenter-fase1-ad-lacunas.plan.md` — `employee_id`/
+>    `employeeID` agora espelhado em `ad_users` (migration V84), `fetchAll()` pagina de verdade via
+>    `PagedResultsDirContextProcessor` (não trunca mais acima de 1000 usuários), e tela nova em
+>    Configurações → Active Directory (`AdSyncTab.tsx`) com status/sync manual/consulta de
+>    usuário/CRUD de mapeamento de grupo — libera a Fase 14/screen pop para começar); **Fase 5 ✅
+>    concluída em 2026-08-14** (5d
 >    simulador v1.74, 5e.1 horário/feriados v1.75, 5e.2 transbordo+`transferir_ramal` v1.76, 5f.1
 >    skill v1.77, 5f.2 tela de traço v1.78 — ver
 >    `.claude/plans/callcenter-fases-5-7-9.plan.md` §2 para o detalhe de cada fatia; dos 7 nós do

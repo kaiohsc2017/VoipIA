@@ -91,34 +91,89 @@ class LdapClientTest {
     }
 
     @Test
-    void fetchAll_abaixoDoLimite_naoLogaAviso() {
+    void fetchAll_umaPagina_retornaTodosOsUsuarios() {
         stubEnabledConfig();
         when(templateFactory.create(any())).thenReturn(ldapTemplate);
-        when(ldapTemplate.search(any(LdapQuery.class), any(org.springframework.ldap.core.AttributesMapper.class)))
-                .thenReturn(List.of(mock(LdapUserAttributes.class), mock(LdapUserAttributes.class)));
+        when(ldapTemplate.search(
+                        any(String.class),
+                        any(String.class),
+                        any(javax.naming.directory.SearchControls.class),
+                        any(org.springframework.ldap.core.AttributesMapper.class),
+                        any(org.springframework.ldap.control.PagedResultsDirContextProcessor.class)))
+                .thenAnswer(
+                        inv -> {
+                            org.springframework.ldap.control.PagedResultsDirContextProcessor processor =
+                                    inv.getArgument(4);
+                            setCookie(processor, null);
+                            return List.of(mock(LdapUserAttributes.class), mock(LdapUserAttributes.class));
+                        });
 
         var result = ldapClient.fetchAll();
 
         assertThat(result).hasSize(2);
-        assertThat(logAppender.list).noneMatch(e -> e.getFormattedMessage().contains("truncamento"));
+        verify(ldapTemplate, times(1))
+                .search(
+                        any(String.class),
+                        any(String.class),
+                        any(javax.naming.directory.SearchControls.class),
+                        any(org.springframework.ldap.core.AttributesMapper.class),
+                        any(org.springframework.ldap.control.PagedResultsDirContextProcessor.class));
     }
 
     @Test
-    void fetchAll_atingeLimiteSuspeito_logaAvisoDeTruncamento() {
-        // Fase 10 (D1): resultado exatamente no teto de página padrão do AD (1000) é sinal forte
-        // de truncamento silencioso — usuário desabilitado fora da página nunca seria visto pelo
-        // sync. Sem PagedResultsControl implementado (fora de escopo desta fatia), o mínimo é
-        // avisar em vez de silêncio total.
+    void fetchAll_multiplasPaginas_concatenaTodasSemTruncar() {
+        // Antes da paginação real, um resultado exatamente no teto de página do AD (ex: 1000)
+        // era sinal de truncamento silencioso — um usuário desabilitado fora da página nunca
+        // era visto pelo sync. Com PagedResultsDirContextProcessor, o cookie não-nulo da 1ª
+        // página força uma 2ª chamada, provando que nada é descartado.
         stubEnabledConfig();
         when(templateFactory.create(any())).thenReturn(ldapTemplate);
-        var mockUsers = java.util.stream.Stream.generate(() -> mock(LdapUserAttributes.class)).limit(1000).toList();
-        when(ldapTemplate.search(any(LdapQuery.class), any(org.springframework.ldap.core.AttributesMapper.class)))
-                .thenReturn(mockUsers);
+        var page1 = java.util.stream.Stream.generate(() -> mock(LdapUserAttributes.class)).limit(500).toList();
+        var page2 = java.util.stream.Stream.generate(() -> mock(LdapUserAttributes.class)).limit(200).toList();
+        var callCount = new int[] {0};
+        when(ldapTemplate.search(
+                        any(String.class),
+                        any(String.class),
+                        any(javax.naming.directory.SearchControls.class),
+                        any(org.springframework.ldap.core.AttributesMapper.class),
+                        any(org.springframework.ldap.control.PagedResultsDirContextProcessor.class)))
+                .thenAnswer(
+                        inv -> {
+                            org.springframework.ldap.control.PagedResultsDirContextProcessor processor =
+                                    inv.getArgument(4);
+                            callCount[0]++;
+                            if (callCount[0] == 1) {
+                                setCookie(processor, new byte[] {1, 2, 3});
+                                return page1;
+                            }
+                            setCookie(processor, null);
+                            return page2;
+                        });
 
         var result = ldapClient.fetchAll();
 
-        assertThat(result).hasSize(1000);
-        assertThat(logAppender.list).anyMatch(e -> e.getFormattedMessage().contains("truncamento"));
+        assertThat(result).hasSize(700);
+        verify(ldapTemplate, times(2))
+                .search(
+                        any(String.class),
+                        any(String.class),
+                        any(javax.naming.directory.SearchControls.class),
+                        any(org.springframework.ldap.core.AttributesMapper.class),
+                        any(org.springframework.ldap.control.PagedResultsDirContextProcessor.class));
+    }
+
+    /** Injeta o cookie no processor via reflection — a API do Spring LDAP só expõe getCookie(). */
+    private static void setCookie(
+            org.springframework.ldap.control.PagedResultsDirContextProcessor processor, byte[] cookieBytes)
+            throws Exception {
+        var field =
+                org.springframework.ldap.control.PagedResultsDirContextProcessor.class.getDeclaredField("cookie");
+        field.setAccessible(true);
+        field.set(
+                processor,
+                cookieBytes == null
+                        ? null
+                        : new org.springframework.ldap.control.PagedResultsCookie(cookieBytes));
     }
 
     private void stubEnabledConfig() {

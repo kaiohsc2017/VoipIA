@@ -49,7 +49,8 @@ class AdUserServiceTest {
     void upsertMirror_usuarioNovo_criaRegistro() {
         LdapUserAttributes attrs =
                 new LdapUserAttributes(
-                        "novo.ad", "Novo", "TI", "Matriz", "Analista", List.of("g1"), "chefe", "novo@x.com", "123");
+                        "novo.ad", "Novo", "TI", "Matriz", "Analista", List.of("g1"), "chefe", "novo@x.com", "123",
+                        "emp001");
         when(adUserRepo.findBySamAccountName("novo.ad")).thenReturn(Optional.empty());
         when(adUserRepo.save(any(AdUser.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -58,6 +59,7 @@ class AdUserServiceTest {
         assertThat(saved.getSamAccountName()).isEqualTo("novo.ad");
         assertThat(saved.getDisplayName()).isEqualTo("Novo");
         assertThat(saved.getMemberOf()).isEqualTo("g1");
+        assertThat(saved.getEmployeeId()).isEqualTo("emp001");
     }
 
     @Test
@@ -65,7 +67,7 @@ class AdUserServiceTest {
         AdUser existente = AdUser.builder().id(1L).samAccountName("existe.ad").build();
         LdapUserAttributes attrs =
                 new LdapUserAttributes(
-                        "existe.ad", "Atualizado", null, null, null, List.of(), null, null, null);
+                        "existe.ad", "Atualizado", null, null, null, List.of(), null, null, null, null);
         when(adUserRepo.findBySamAccountName("existe.ad")).thenReturn(Optional.of(existente));
         when(adUserRepo.save(any(AdUser.class))).thenAnswer(inv -> inv.getArgument(0));
 
