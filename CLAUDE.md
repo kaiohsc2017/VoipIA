@@ -252,9 +252,8 @@ Plataforma de Agentes (abrindo `/agents/docs.html`) foi removido — o acesso ag
   UI) para esconder nav/botões por recurso. ADMIN (`role` legada) sempre enxerga tudo, mesmo com
   token antigo sem `perm`. `Sidebar.tsx`/`App.tsx` das três SPAs usam esse par em vez do binário
   `adminOnly`.
-- **Pendência conhecida**: `Users.tsx` ainda atribui `role` ADMIN|USER na criação/edição (o
-  `UserController` resolve pro grupo "Administradores"/"Usuários" internamente) — atribuir um
-  grupo customizado a um usuário pela UI ainda não existe, é a próxima iteração natural.
+- ✅ **Atribuir grupo de acesso customizado a um usuário pela UI** — implementado (commit
+  `e3c73bb`, ver seção própria mais abaixo). Nota anterior desatualizada.
 
 ---
 
