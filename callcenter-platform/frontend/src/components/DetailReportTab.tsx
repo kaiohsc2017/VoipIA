@@ -13,6 +13,21 @@ function fmtDateTime(value: string | null) {
   return value ? new Date(value).toLocaleString('pt-BR') : '—';
 }
 
+/** Baixa um export binário (Excel/PDF, Fase 9c.5) autenticado via `api` (o axios já injeta o
+ * Bearer token) — não dá pra usar um <a href> simples porque o endpoint exige JWT. O blob é
+ * revogado logo após o clique simulado, sem manter referência viva. */
+async function downloadExport(path: string, params: Record<string, unknown>, filename: string) {
+  const { data } = await api.get<Blob>(path, { params, responseType: 'blob' });
+  const url = window.URL.createObjectURL(data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 function fmtSeconds(value: number | null) {
   return value == null ? '—' : `${value}s`;
 }
@@ -48,22 +63,24 @@ export function CallDetailReport() {
     api.get<CcAgent[]>('/callcenter/agentes').then(({ data }) => setAgents(data)).catch(() => setAgents([]));
   }, []);
 
+  const callExportParams = () => ({
+    from, to,
+    queueId: queueId || undefined,
+    agentId: agentId || undefined,
+    npsMin: npsMin || undefined,
+    npsMax: npsMax || undefined,
+    waitMinSeconds: waitMinSeconds || undefined,
+    waitMaxSeconds: waitMaxSeconds || undefined,
+    chosenOptionDigit: chosenOptionDigit || undefined,
+    transcriptText: transcriptText || undefined,
+  });
+
   const search = (p = 0) => {
     const seq = ++searchSeq.current;
     setLoading(true);
     setError('');
     api.get<PageResponse<CallReportRow>>('/callcenter/reports/calls', {
-      params: {
-        from, to, page: p, size: 20,
-        queueId: queueId || undefined,
-        agentId: agentId || undefined,
-        npsMin: npsMin || undefined,
-        npsMax: npsMax || undefined,
-        waitMinSeconds: waitMinSeconds || undefined,
-        waitMaxSeconds: waitMaxSeconds || undefined,
-        chosenOptionDigit: chosenOptionDigit || undefined,
-        transcriptText: transcriptText || undefined,
-      },
+      params: { ...callExportParams(), page: p, size: 20 },
     })
       .then(({ data }) => {
         if (seq !== searchSeq.current) return;
@@ -106,6 +123,12 @@ export function CallDetailReport() {
         <label>Opção escolhida <input type="text" value={chosenOptionDigit} onChange={e => setChosenOptionDigit(e.target.value)} style={{ width: 60 }} /></label>
         <label>Trecho na transcrição <input type="text" value={transcriptText} onChange={e => setTranscriptText(e.target.value)} /></label>
         <button type="button" onClick={() => search(0)} disabled={loading}>{loading ? 'Buscando…' : 'Buscar'}</button>
+        <button type="button" onClick={() => downloadExport('/callcenter/reports/calls/export.xlsx', callExportParams(), 'relatorio-chamadas.xlsx')}>
+          Exportar Excel
+        </button>
+        <button type="button" onClick={() => downloadExport('/callcenter/reports/calls/export.pdf', callExportParams(), 'relatorio-chamadas.pdf')}>
+          Exportar PDF
+        </button>
       </section>
 
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 12 }}>
@@ -181,12 +204,14 @@ export function ChatDetailReport() {
     api.get<CcAgent[]>('/callcenter/agentes').then(({ data }) => setAgents(data)).catch(() => setAgents([]));
   }, []);
 
+  const chatExportParams = () => ({ from, to, queueId: queueId || undefined, agentId: agentId || undefined });
+
   const search = (p = 0) => {
     const seq = ++searchSeq.current;
     setLoading(true);
     setError('');
     api.get<PageResponse<ChatReportRow>>('/callcenter/reports/chats', {
-      params: { from, to, page: p, size: 20, queueId: queueId || undefined, agentId: agentId || undefined },
+      params: { ...chatExportParams(), page: p, size: 20 },
     })
       .then(({ data }) => {
         if (seq !== searchSeq.current) return;
@@ -223,6 +248,12 @@ export function ChatDetailReport() {
           </select>
         </label>
         <button type="button" onClick={() => search(0)} disabled={loading}>{loading ? 'Buscando…' : 'Buscar'}</button>
+        <button type="button" onClick={() => downloadExport('/callcenter/reports/chats/export.xlsx', chatExportParams(), 'relatorio-chats.xlsx')}>
+          Exportar Excel
+        </button>
+        <button type="button" onClick={() => downloadExport('/callcenter/reports/chats/export.pdf', chatExportParams(), 'relatorio-chats.pdf')}>
+          Exportar PDF
+        </button>
       </section>
 
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 12 }}>

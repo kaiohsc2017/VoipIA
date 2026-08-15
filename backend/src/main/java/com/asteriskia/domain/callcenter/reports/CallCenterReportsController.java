@@ -42,6 +42,7 @@ public class CallCenterReportsController {
     private final CallCenterDetailReportService detailReportService;
     private final CallCenterTimelineService timelineService;
     private final CallCenterRecallService recallService;
+    private final CallCenterReportExportService exportService;
 
     public record ReprocessRequest(@NotNull LocalDate from, @NotNull LocalDate to) {}
 
@@ -200,6 +201,84 @@ public class CallCenterReportsController {
                 LocalDateTime.of(from, LocalTime.MIN), LocalDateTime.of(to, LocalTime.MAX), queueId, agentId);
         PageRequest pageable = PageRequest.of(page, clampPageSize(size), Sort.by(Sort.Direction.DESC, "startedAt"));
         return ResponseEntity.ok(detailReportService.searchChats(filter, pageable));
+    }
+
+    /** Exportação Excel/PDF do relatório de chamada (Fase 9c.5) — mesmos filtros de {@link #calls}. */
+    @GetMapping("/calls/export.xlsx")
+    public ResponseEntity<byte[]> exportCallsExcel(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long queueId,
+            @RequestParam(required = false) Long agentId,
+            @RequestParam(required = false) Direction direction,
+            @RequestParam(required = false) BigDecimal npsMin,
+            @RequestParam(required = false) BigDecimal npsMax,
+            @RequestParam(required = false) Long waitMinSeconds,
+            @RequestParam(required = false) Long waitMaxSeconds,
+            @RequestParam(required = false) String chosenOptionDigit,
+            @RequestParam(required = false) String transcriptText) {
+        CallReportFilter filter = buildCallFilter(from, to, queueId, agentId, direction, npsMin, npsMax,
+                waitMinSeconds, waitMaxSeconds, chosenOptionDigit, transcriptText);
+        return fileResponse(exportService.exportCallsExcel(filter), "relatorio-chamadas.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    @GetMapping("/calls/export.pdf")
+    public ResponseEntity<byte[]> exportCallsPdf(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long queueId,
+            @RequestParam(required = false) Long agentId,
+            @RequestParam(required = false) Direction direction,
+            @RequestParam(required = false) BigDecimal npsMin,
+            @RequestParam(required = false) BigDecimal npsMax,
+            @RequestParam(required = false) Long waitMinSeconds,
+            @RequestParam(required = false) Long waitMaxSeconds,
+            @RequestParam(required = false) String chosenOptionDigit,
+            @RequestParam(required = false) String transcriptText) {
+        CallReportFilter filter = buildCallFilter(from, to, queueId, agentId, direction, npsMin, npsMax,
+                waitMinSeconds, waitMaxSeconds, chosenOptionDigit, transcriptText);
+        return fileResponse(exportService.exportCallsPdf(filter), "relatorio-chamadas.pdf", "application/pdf");
+    }
+
+    /** Exportação Excel/PDF do relatório de chat (Fase 9c.5) — mesmos filtros de {@link #chats}. */
+    @GetMapping("/chats/export.xlsx")
+    public ResponseEntity<byte[]> exportChatsExcel(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long queueId,
+            @RequestParam(required = false) Long agentId) {
+        ChatReportFilter filter = new ChatReportFilter(
+                LocalDateTime.of(from, LocalTime.MIN), LocalDateTime.of(to, LocalTime.MAX), queueId, agentId);
+        return fileResponse(exportService.exportChatsExcel(filter), "relatorio-chats.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    @GetMapping("/chats/export.pdf")
+    public ResponseEntity<byte[]> exportChatsPdf(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long queueId,
+            @RequestParam(required = false) Long agentId) {
+        ChatReportFilter filter = new ChatReportFilter(
+                LocalDateTime.of(from, LocalTime.MIN), LocalDateTime.of(to, LocalTime.MAX), queueId, agentId);
+        return fileResponse(exportService.exportChatsPdf(filter), "relatorio-chats.pdf", "application/pdf");
+    }
+
+    private CallReportFilter buildCallFilter(LocalDate from, LocalDate to, Long queueId, Long agentId,
+            Direction direction, BigDecimal npsMin, BigDecimal npsMax, Long waitMinSeconds, Long waitMaxSeconds,
+            String chosenOptionDigit, String transcriptText) {
+        return new CallReportFilter(
+                LocalDateTime.of(from, LocalTime.MIN), LocalDateTime.of(to, LocalTime.MAX),
+                queueId, agentId, direction, npsMin, npsMax, waitMinSeconds, waitMaxSeconds,
+                chosenOptionDigit, transcriptText);
+    }
+
+    private ResponseEntity<byte[]> fileResponse(byte[] content, String filename, String contentType) {
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(org.springframework.http.MediaType.parseMediaType(contentType))
+                .body(content);
     }
 
     /** Cada linha do relatório de chamada dispara várias consultas de enriquecimento (áudio,

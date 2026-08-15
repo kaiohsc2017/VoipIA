@@ -745,4 +745,11 @@ export const RELEASES: ReleaseEntry[] = [
       'O relatório de fila de voz ganha um painel de rechamada e tabulações: quantos clientes ligaram de novo em 24h/7d (mesmo que tenham caído em outra fila) e quais foram as tabulações mais usadas no período.',
     ],
   },
+  {
+    version: 'v1.86',
+    date: '2026-08-14',
+    changes: [
+      'Os relatórios analíticos de chamada e chat do Call Center ganham exportação em Excel e PDF, respeitando os mesmos filtros já aplicados na busca.',
+    ],
+  },
 ];
