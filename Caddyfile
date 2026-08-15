@@ -27,18 +27,22 @@ app.voiphash.com.br {
 		X-Frame-Options "SAMEORIGIN"
 		Referrer-Policy "strict-origin-when-cross-origin"
 
-		# Achado de segurança (débito aceito, ver CLAUDE.md): CSP estava
-		# deliberadamente ausente. Modo Report-Only primeiro — só reporta
-		# violações no console do browser, NUNCA bloqueia nada, então é seguro
-		# ativar sem o teste manual completo do softphone (mas ainda assim
-		# recomendado observar o console durante uma chamada de teste antes
-		# de eventualmente migrar pra Content-Security-Policy real/enforcing).
-		# script-src/style-src precisam de 'unsafe-inline' porque o frontend
-		# de Agentes (agents-platform/frontend/index.html) é React 18 UMD sem
-		# build step, com <script> inline puro — endurecer isso exigiria
-		# nonce por requisição (Caddy não gera nonce nativamente sem plugin)
-		# ou migrar esse frontend pra um build step de verdade.
-		Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+		# CSP enforcing (2026-08-15) — migrado de Report-Only depois de validar
+		# em produção, via Chrome headless (workaround documentado no projeto
+		# pro Chrome DevTools MCP falhar nesta VPS), as 4 SPAs (Telecom,
+		# Agentes, Insights, Call Center incluindo o Flow Builder) sem NENHUMA
+		# violação de console relacionada a script-src — o frontend de Agentes
+		# foi migrado de React 18 UMD pra Vite com build step em 2026-07-19,
+		# então o motivo original do 'unsafe-inline' em script-src não existe
+		# mais; as 4 SPAs só carregam <script type="module" src="..."> externo,
+		# sem eval/new Function no código próprio. style-src continua com
+		# 'unsafe-inline' (React seta style="" inline em vários componentes) +
+		# host do Google Fonts (as 4 SPAs importam a fonte Inter via
+		# @import url(...) em index.css, não em <link>, por isso não aparecia
+		# num grep de HTML). connect-src/media-src NÃO mudaram nesta migração
+		# (softphone WebRTC não foi testado de novo com chamada real — só
+		# herda a mesma política já validada há tempo em Report-Only).
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' wss:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
 	}
 
 	# ── Agentes — API (FastAPI) ───────────────────────────────────────────────
