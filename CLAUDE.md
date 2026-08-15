@@ -492,8 +492,12 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > 4. **Débitos transversais (fora do Call Center)**: CSP em `Report-Only` (nunca migrado pra
 >    enforcement real); BU incompleto (Alertas Zabbix e Insights do Call Center/relatório 9c não
 >    filtram por BU); Jira sem credenciais reais. Nó `agente_ia` do catálogo de fluxo do Call
->    Center segue `implementado=false`, sem escopo definido em nenhuma fase aberta. Fila real do
->    chat público (Telegram/Webchat) segue sem `CALLCENTER_CHAT_PUBLIC_QUEUE_ID` configurado —
+>    Center — **Fase A (CRUD de persona/prompt/modelo) ✅ deployada em 2026-08-15**, migration V87
+>    (`cc_ia_agents`/`cc_ia_agent_turns`, este último ainda sem consumidor); segue
+>    `implementado=false` no catálogo — a **Fase B (execução real: chamar o Gemini de verdade
+>    durante a ligação/chat) continua sem escopo definido em nenhuma fase aberta**.
+>    Fila real do chat público (Telegram/Webchat) segue sem `CALLCENTER_CHAT_PUBLIC_QUEUE_ID`
+>    configurado —
 >    nenhuma fila real cadastrada nesta VPS de dev.
 
 ### ✅ Atribuir grupo de acesso customizado a um usuário pela UI (2026-08-15) — deployada e validada em produção
