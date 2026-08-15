@@ -295,6 +295,10 @@ public class SecurityConfig {
                         // Base de conhecimento (RAG do chat) — Fase 25.
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/kb/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.kb")
+                        // Configurações de Agente de IA (nó agente_ia do Flow Builder) — resource
+                        // próprio, nunca callcenter.fluxos (ver ResourceCatalog).
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/ia-agents/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.ia_agentes")
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da
@@ -398,6 +402,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.chat")
                         .requestMatchers("/api/v1/callcenter/kb/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.kb")
+                        .requestMatchers("/api/v1/callcenter/ia-agents/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.ia_agentes")
                         .requestMatchers("/api/v1/callcenter/quality-reports/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.reports")
 

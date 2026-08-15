@@ -13,6 +13,22 @@ interface NodePropertiesPanelProps {
   onDelete: (nodeId: string) => void;
 }
 
+interface DynamicOption { value: string; label: string; }
+
+/** Cache em memória por endpoint (módulo, não estado) — evita refazer o GET a cada nó
+ * `agente_ia` aberto no editor durante a mesma sessão da SPA. */
+const dynamicOptionsCache = new Map<string, DynamicOption[]>();
+
+/** Normaliza a resposta de um endpoint de cadastro (ex.: GET /callcenter/ia-agents devolve
+ * {id,name}[]) para o par value/label que o select genérico espera. */
+function normalizeDynamicOptions(data: unknown): DynamicOption[] {
+  if (!Array.isArray(data)) return [];
+  return data.map((item: { id?: unknown; name?: unknown }) => ({
+    value: String(item.id ?? ''),
+    label: String(item.name ?? item.id ?? ''),
+  }));
+}
+
 /**
  * NodePropertiesPanel — renderiza os campos do nó selecionado de forma genérica, a partir do
  * `properties` que o catálogo (backend) descreve para aquele tipo. Fase 5c somou dois tipos ao
@@ -23,14 +39,28 @@ export function NodePropertiesPanel({ node, catalog, onChange, onDelete }: NodeP
   const [audios, setAudios] = useState<CcAudioFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  // Só serve pra forçar um re-render quando o cache de options dinâmicas muda (o Map em si não
+  // é estado React) — o valor nunca é lido.
+  const [, setDynamicOptionsVersion] = useState(0);
 
   const entry = catalog.find(c => c.type === node?.data.nodeType);
   const needsAudioLibrary = (entry?.properties ?? []).some(p => p.type === 'audio');
+  const dynamicEndpoint = (entry?.properties ?? []).find(p => p.type === 'select' && p.optionsEndpoint)?.optionsEndpoint;
 
   useEffect(() => {
     if (!needsAudioLibrary) return;
     api.get<CcAudioFile[]>('/callcenter/audios').then(({ data }) => setAudios(data)).catch(() => setAudios([]));
   }, [needsAudioLibrary]);
+
+  useEffect(() => {
+    if (!dynamicEndpoint || dynamicOptionsCache.has(dynamicEndpoint)) return;
+    api.get(dynamicEndpoint)
+      .then(({ data }) => {
+        dynamicOptionsCache.set(dynamicEndpoint, normalizeDynamicOptions(data));
+        setDynamicOptionsVersion(v => v + 1);
+      })
+      .catch(() => dynamicOptionsCache.set(dynamicEndpoint, []));
+  }, [dynamicEndpoint]);
 
   if (!node) {
     return (
@@ -87,16 +117,20 @@ export function NodePropertiesPanel({ node, catalog, onChange, onDelete }: NodeP
           );
         }
 
-        if (p.type === 'select' && p.options && p.options.length > 0) {
+        if (p.type === 'select' && ((p.options && p.options.length > 0) || p.optionsEndpoint)) {
+          const options = p.optionsEndpoint ? (dynamicOptionsCache.get(p.optionsEndpoint) ?? []) : (p.options ?? []);
           return (
             <div className="form-group" key={p.name}>
               <label className="form-label" htmlFor={inputId}>{p.label}{p.required && ' *'}</label>
               <select id={inputId} className="form-input" value={String(value ?? '')} onChange={e => setProperty(p.name, e.target.value)}>
                 <option value="">Selecione…</option>
-                {p.options.map(opt => (
+                {options.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
+              {p.optionsEndpoint && options.length === 0 && (
+                <p className="flow-palette-hint">Nenhuma opção cadastrada ainda.</p>
+              )}
             </div>
           );
         }

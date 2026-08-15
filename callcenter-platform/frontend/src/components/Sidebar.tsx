@@ -3,13 +3,13 @@ import { useState } from 'react';
 import {
   Users, ListOrdered, Tags, Disc, LogOut, LayoutDashboard, MonitorPlay, Workflow,
   PhoneCall, BarChart3, ListChecks, ClipboardList, FileText, MessageSquare, TrendingUp, Settings, Smile,
-  BookOpen,
+  BookOpen, Bot,
 } from 'lucide-react';
 import type { AuthSession } from '../hooks/useAuthSession';
 
 type Tab = 'agentes' | 'filas' | 'skills' | 'gravacoes' | 'desktop' | 'supervisao' | 'fluxos'
   | 'insightsChamadas' | 'insightsDashboard' | 'insightsProcessamento' | 'insightsScorecards' | 'insightsReports'
-  | 'chat' | 'reports' | 'pesquisas' | 'configuracoes' | 'kb';
+  | 'chat' | 'reports' | 'pesquisas' | 'configuracoes' | 'kb' | 'iaAgentes';
 
 interface SidebarProps {
   currentTab: Tab;
@@ -41,6 +41,7 @@ const NAV_ITEMS: { tab: Tab; icon: ComponentType<{ size?: number; strokeWidth?: 
   { tab: 'reports', icon: TrendingUp, label: 'Relatórios', resource: 'callcenter.reports' },
   { tab: 'pesquisas', icon: Smile, label: 'Pesquisas (NPS)', resource: 'callcenter.config' },
   { tab: 'kb', icon: BookOpen, label: 'Base de Conhecimento', resource: 'callcenter.kb' },
+  { tab: 'iaAgentes', icon: Bot, label: 'Agentes de IA', resource: 'callcenter.ia_agentes' },
   { tab: 'configuracoes', icon: Settings, label: 'Configurações', resource: 'callcenter.config' },
 ];
 

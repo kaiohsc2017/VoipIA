@@ -138,7 +138,12 @@ public final class ResourceCatalog {
             // administrativos das sub-fases 17c/17d nascerem sem precisar de outra migration de
             // RBAC — nasce só com ADMIN (sem tela própria nem matcher em SecurityConfig ainda,
             // não reusa callcenter.gravacoes de propósito, ver o plano §6).
-            "callcenter.cobrowsing"
+            "callcenter.cobrowsing",
+            // callcenter.ia_agentes (nó agente_ia do Flow Builder, Fase A): gestão da persona/
+            // prompt/modelo do agente de IA. Resource próprio — nunca reusa callcenter.fluxos
+            // (quem desenha fluxo não deveria necessariamente poder reescrever a persona que fala
+            // com o cliente em nome da empresa) nem callcenter.kb (é conteúdo, não comportamento).
+            "callcenter.ia_agentes"
     );
 
     public static List<String> all() {

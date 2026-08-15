@@ -604,6 +604,10 @@ export interface FlowGraphNodeProperty {
   type: string;
   options?: FlowGraphNodePropertyOption[];
   required?: boolean;
+  /** Fase A do nó agente_ia: caminho relativo à API do Call Center para popular um select
+   * dinamicamente a partir de um cadastro (ex.: "/callcenter/ia-agents"), quando `options`
+   * estático não se aplica. */
+  optionsEndpoint?: string | null;
 }
 
 export interface FlowGraphNodeType {
@@ -1388,4 +1392,38 @@ export interface AgentProductivityReport {
   achadosGraves: AgentProductivityFinding[];
   pontosFortes: string[];
   pontosMelhoria: string[];
+}
+
+// ---- Agentes de IA (nó "agente_ia" do Flow Builder — Fase A) ----
+export interface IaAgent {
+  id: number;
+  name: string;
+  description: string | null;
+  systemPrompt: string;
+  greeting: string | null;
+  model: string;
+  temperature: number;
+  topK: number | null;
+  matchThreshold: number | null;
+  kbTags: string | null;
+  maxTurns: number;
+  maxCostUsd: number;
+  fallbackQueueId: number | null;
+  fallbackQueueName: string | null;
+  active: boolean;
+}
+
+export interface IaAgentRequest {
+  name: string;
+  description: string | null;
+  systemPrompt: string;
+  greeting: string | null;
+  model: string;
+  temperature: number;
+  topK: number | null;
+  matchThreshold: number | null;
+  kbTags: string | null;
+  maxTurns: number;
+  maxCostUsd: number;
+  fallbackQueueId: number | null;
 }

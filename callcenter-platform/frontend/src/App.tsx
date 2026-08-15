@@ -18,6 +18,7 @@ import { ReportsQueueTab } from './components/ReportsQueueTab';
 import { ConfiguracoesTab } from './components/ConfiguracoesTab';
 import { PesquisasTab } from './components/PesquisasTab';
 import { KbTab } from './components/KbTab';
+import { IaAgentsTab } from './components/IaAgentsTab';
 import { revokeSession } from './api/client';
 import { authSessionFromToken } from './hooks/useAuthSession';
 import { useShellBridge } from './hooks/useShellBridge';
@@ -44,6 +45,7 @@ const TAB_RESOURCE = {
   reports: 'callcenter.reports',
   pesquisas: 'callcenter.config',
   kb: 'callcenter.kb',
+  iaAgentes: 'callcenter.ia_agentes',
   configuracoes: 'callcenter.config',
 } as const;
 
@@ -138,6 +140,7 @@ export default function App() {
     { id: 'reports' },
     { id: 'pesquisas' },
     { id: 'kb' },
+    { id: 'iaAgentes' },
     { id: 'configuracoes' },
   ];
   const visibleTabs = TABS.filter(t => session.hasRead(TAB_RESOURCE[t.id]));
@@ -195,6 +198,7 @@ export default function App() {
             {currentTab === 'reports' && <ReportsQueueTab isAdmin={session.role === 'ADMIN'} />}
             {currentTab === 'pesquisas' && <PesquisasTab canWrite={session.hasWrite('callcenter.config')} />}
             {currentTab === 'kb' && <KbTab canWrite={session.hasWrite('callcenter.kb')} />}
+            {currentTab === 'iaAgentes' && <IaAgentsTab canWrite={session.hasWrite('callcenter.ia_agentes')} />}
             {currentTab === 'configuracoes' && <ConfiguracoesTab canWrite={session.hasWrite('callcenter.config')} />}
             {!currentTab && (
               <p style={{ color: 'var(--text-muted)' }}>Você não tem permissão de leitura em nenhuma aba do Call Center.</p>

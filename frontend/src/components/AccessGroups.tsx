@@ -59,6 +59,7 @@ const RESOURCE_CATALOG: { key: string; label: string; system: 'Telecom' | 'Agent
   { key: 'callcenter.config',    label: 'Configurações (pausas/tabulações)', system: 'Call Center' },
   { key: 'callcenter.kb',        label: 'Base de Conhecimento',   system: 'Call Center' },
   { key: 'callcenter.cobrowsing', label: 'Co-browsing (chat)',    system: 'Call Center' },
+  { key: 'callcenter.ia_agentes', label: 'Agentes de IA',         system: 'Call Center' },
 ];
 
 type PermMap = Record<string, { canRead: boolean; canWrite: boolean }>;

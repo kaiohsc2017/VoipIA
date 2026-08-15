@@ -110,7 +110,14 @@ public class FlowGraphNodeCatalog {
                             "agente_ia",
                             "Agente de IA",
                             "both",
-                            List.of(prop("configuracaoIaId", "Configuração de IA", "select"))),
+                            List.of(
+                                    new FlowGraphNodeType.NodeProperty(
+                                            "configuracaoIaId",
+                                            "Configuração de IA",
+                                            "select",
+                                            List.of(),
+                                            true,
+                                            "/callcenter/ia-agents"))),
                     node(
                             "pausar_gravacao",
                             "Pausar/retomar gravação",
