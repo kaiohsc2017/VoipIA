@@ -51,7 +51,7 @@ public class AuthController {
     @Value("${app.auth.admin-password:changeme}")
     private String adminPassword;
 
-    private static final String REFRESH_COOKIE = "asteriskia_refresh_token";
+    private static final String REFRESH_COOKIE = "voipia_refresh_token";
 
     /**
      * Cookie httpOnly com o refresh token — nunca acessível via JavaScript (mitiga exfiltração via

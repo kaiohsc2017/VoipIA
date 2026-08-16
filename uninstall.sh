@@ -206,7 +206,7 @@ log_step "6. Regras de firewall (UFW)"
 if [ "$REMOVE_FW" = true ]; then
     log_warn "Removendo regras de UFW específicas do VoipIA (--remove-firewall-rules)"
     for rule in "80/tcp" "443/tcp" "443/udp" "5060/udp" "5060/tcp" "8088/tcp" \
-                "15000:15500/udp" "3478/udp" "3478/tcp" "5349/tcp" "5349/udp" \
+                "16000:16500/udp" "3478/udp" "3478/tcp" "5349/tcp" "5349/udp" \
                 "49152:49652/udp"; do
         run "ufw delete allow $rule"
     done

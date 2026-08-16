@@ -142,7 +142,7 @@ services:
     ports:
       - "5061:5060/udp"              # SIP UDP (tronco + softphones)
       - "5061:5060/tcp"              # SIP TCP
-      - "15501-16001:15000-15500/udp" # RTP — fluxo de mídia
+      - "16000-16500:16000-16500/udp" # RTP — fluxo de mídia
     networks:
       voipia-net:
           ipv4_address: 172.16.8.12

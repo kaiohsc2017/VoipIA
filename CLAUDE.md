@@ -31,7 +31,7 @@ Você é um Engenheiro Sênior de Software e DevOps com profundo conhecimento em
 | VPS | `app.voiphash.com.br` — Ubuntu 24.04 LTS |
 | IP público | `129.121.51.29` |
 | Repositório no VPS | `/opt/VoipIA` |
-| Remote Git | `github.com/kaiohsc2017/VoipIA` (`origin`) — espelhado em Azure DevOps (`azure`), ver [git-workflow.md](.claude/rules/common/git-workflow.md) |
+| Remote Git | `github.com/kaiohsc2017/VoipIA` (`origin`), ver [git-workflow.md](.claude/rules/common/git-workflow.md) |
 | Branch principal | `main` |
 | `.env` real | `/opt/VoipIA/env/.env` |
 | `.env` symlink | `/opt/VoipIA/.env` → aponta para o real |
@@ -68,9 +68,6 @@ Rede Docker: `voipia-net` — bridge `172.16.7.0/24`
 git add <arquivos>
 git commit -m "descrição clara"
 git push origin main
-git push azure main:desenvolvimento   # espelho obrigatório no Azure DevOps (grp-atg-bu-ti-corporativa) — SEMPRE
-                                       # para a branch desenvolvimento, NUNCA para main do Azure (main do Azure
-                                       # fica congelada — decisão de 2026-08-13, nunca reescrever/forçar nela)
 
 # Rebuildar serviço específico (mais rápido)
 docker compose up -d --build <nome-do-serviço>
@@ -267,7 +264,7 @@ VoipIA/
 │   └── config/
 │       ├── pjsip.conf.template # Template com ${SIP_PUBLIC_IP} substituído no boot
 │       ├── extensions.conf     # Dialplan: contextos recepcao-tronco, ramais-internos
-│       ├── rtp.conf            # Porta RTP: 15000-15500
+│       ├── rtp.conf            # Porta RTP: 16000-16500
 │       └── http.conf           # HTTP/WS na porta 8088 (WebRTC)
 ├── ai-agent/
 │   ├── Dockerfile
@@ -437,7 +434,7 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > a cadeia completa `softphone 9001 → ramal 1000 → AudioSocket → ai-agent:9092 → STT/LLM/TTS →
 > RTP de volta` deixou de ser uma pendência crítica. Se voltar a apresentar problema, os pontos
 > de verificação de sempre continuam válidos: `SIP_PUBLIC_IP` injetado no `pjsip.conf`,
-> `external_media_address`/`external_signaling_address` não vazios, portas RTP `15000-15500/udp`
+> `external_media_address`/`external_signaling_address` não vazios, portas RTP `16000-16500/udp`
 > abertas, ai-agent healthy na porta 9092, logs do ai-agent durante a chamada de teste.
 
 > **Lista de pendências reais em aberto para o projeto (atualizada em 2026-08-14)** — ver
@@ -627,7 +624,7 @@ tipicamente `1 vCPU`/`1Gi` por serviço) revisados para refletir a RAM real disp
 atuais foram calibrados pra uma VPS de 2 vCPU/3.8Gi de desenvolvimento, não para produção.
 
 **Pontos de atenção específicos**:
-- Portas RTP `15000-15500/udp` (250 no total) já cobrem 250 chamadas simultâneas sem ajuste —
+- Portas RTP `16000-16500/udp` (500 no total) já cobrem 250 chamadas simultâneas sem ajuste —
   **confirmar isso antes de qualquer outra coisa** se o volume real chegar perto do limite.
 - `max_connections` do Postgres e o tamanho do pool HikariCP do backend precisam crescer juntos
   (250 agentes com polling multiplicam conexões); considerar PgBouncer se o pool direto não for
@@ -1521,7 +1518,7 @@ em https://claude.ai/code/artifact/b04225b4-fef1-4c3c-95f1-9951de5389c9.
   frontend); 401 handler do agents-platform que nunca recarregava (corrigido junto do fix de HIGH
   do `_apiFetch`); senha AMI hardcoded como fallback removida (`StatsController`/
   `AsteriskConfigController`); faixa de porta RTP divergente entre `Dockerfile`/config
-  real/`CLAUDE.md` (corrigida pra `15000-15500/udp`, que já era o valor real usado); bug garantido
+  real/`CLAUDE.md` (corrigida pra `16000-16500/udp`, que já era o valor real usado); bug garantido
   de `TypeError` em `ai-agent/src/providers/gemini.py` se a ferramenta de function-calling fosse
   ativada (schema e assinatura de `_execute_tool` divergiam do real, unificado reusando
   `gemini_service.py`); ReDoS em `SecurityController.testRegex` (timeout de 2s via thread

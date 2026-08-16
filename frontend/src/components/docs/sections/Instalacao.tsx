@@ -38,7 +38,7 @@ export default function Instalacao() {
             HTTP-01 durante o primeiro boot do Caddy.
           </CardSm>
           <CardSm title="Portas obrigatórias">
-            22 (SSH), 80/443 (HTTP/HTTPS + QUIC), 5060 (SIP), 8088 (WebRTC WS), 15000-15500 (RTP),
+            22 (SSH), 80/443 (HTTP/HTTPS + QUIC), 5060 (SIP), 8088 (WebRTC WS), 16000-16500 (RTP),
             3478/5349 (TURN/TURNS) e 49152-49652 (relay TURN). Ambos os scripts abrem essas portas
             automaticamente no firewall nativo do sistema.
           </CardSm>

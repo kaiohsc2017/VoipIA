@@ -135,7 +135,7 @@
     <tr><td>443</td><td>TCP/UDP</td><td>HTTPS / QUIC (Caddy)</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
     <tr><td>5060</td><td>UDP/TCP</td><td>SIP (registro de softphones)</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
     <tr><td>8088</td><td>TCP</td><td>WebSocket Asterisk (WebRTC)</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
-    <tr><td>15000–15500</td><td>UDP</td><td>RTP media (áudio das chamadas)</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
+    <tr><td>16000–16500</td><td>UDP</td><td>RTP media (áudio das chamadas)</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
     <tr><td>3478</td><td>UDP/TCP</td><td>TURN (coturn) — controle</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
     <tr><td>5349</td><td>UDP/TCP</td><td>TURNS (coturn, TLS)</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
     <tr><td>49152–49652</td><td>UDP</td><td>TURN — relay de mídia</td><td><span class="badge badge-ok">Obrigatório</span></td></tr>
@@ -372,7 +372,7 @@ ufw allow ssh
 ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 443/udp
 ufw allow 5060/udp && ufw allow 5060/tcp
 ufw allow 8088/tcp
-ufw allow 15000:15500/udp
+ufw allow 16000:16500/udp
 ufw allow 3478/udp && ufw allow 3478/tcp
 ufw allow 5349/tcp && ufw allow 5349/udp
 ufw allow 49152:49652/udp
@@ -380,7 +380,7 @@ ufw --force enable</span></pre>
   </div>
   <div class="callout warn">
     <div class="callout-icon">⚠️</div>
-    <p>Se o servidor está atrás de um firewall de cloud (AWS Security Groups, Oracle NSG), abra as mesmas portas também no nível do cloud provider — especialmente <strong>15000-15500/UDP</strong> (RTP) e <strong>49152-49652/UDP</strong> (relay TURN).</p>
+    <p>Se o servidor está atrás de um firewall de cloud (AWS Security Groups, Oracle NSG), abra as mesmas portas também no nível do cloud provider — especialmente <strong>16000-16500/UDP</strong> (RTP) e <strong>49152-49652/UDP</strong> (relay TURN).</p>
   </div>
 </div>
 
@@ -460,7 +460,7 @@ docker exec voipia-asterisk asterisk -rx "dialplan reload"</span></pre>
     <li>Perguntas da URA configuradas no Módulo 1 → Fluxo URA</li>
     <li>Teste de chamada 9001 → 1000 com boas-vindas audível</li>
     <li>Chamada completa com Jira criado e dashboard atualizado</li>
-    <li>Portas 15000-15500/UDP (RTP) abertas no firewall e cloud provider</li>
+    <li>Portas 16000-16500/UDP (RTP) abertas no firewall e cloud provider</li>
     <li>Portas do TURN abertas: 3478 (tcp/udp), 5349 (tcp/udp), 49152-49652/UDP</li>
     <li>TURN_CREDENTIAL e VITE_TURN_CREDENTIAL configurados e idênticos</li>
     <li>Fail2ban ativo para proteção contra SIP scanners</li>

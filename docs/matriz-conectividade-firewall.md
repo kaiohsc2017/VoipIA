@@ -17,7 +17,7 @@
 |---|---|---|---|---|---|
 | Internet (qualquer IP) | 80/tcp, 443/tcp, 443/udp (QUIC/HTTP3) | `voipia-caddy` (172.16.7.10) | `app.voiphash.com.br`, `claw.voiphash.com.br`, `api.voiphash.com.br`, `manager.voiphash.com.br` | Sim — é a porta de entrada de toda a aplicação web (Telecom, Agentes, Insights, Call Center, softphone WebRTC) | `docker-compose.yml:628-631`, `Caddyfile` |
 | Operadora de telefonia (tronco SIP) | 5060/udp, 5060/tcp (SIP) | `voipia-asterisk` (172.16.7.12) | IP fixo `186.233.141.64` (peer autenticado por IP, sem usuário/senha) | Sim — é o tronco de entrada/saída de chamadas de voz reais | `docker-compose.yml:139-140`, `asterisk/config/pjsip.conf.template:48`, `.env.example:28-29` |
-| Operadora de telefonia + qualquer softphone SIP registrado | 15000-15500/udp (RTP — mídia de voz) | `voipia-asterisk` (172.16.7.12) | mesmo peer acima + clientes SIP internos | Sim — sem isso não há áudio nas chamadas | `docker-compose.yml:146`, CLAUDE.md (faixa RTP) |
+| Operadora de telefonia + qualquer softphone SIP registrado | 16000-16500/udp (RTP — mídia de voz) | `voipia-asterisk` (172.16.7.12) | mesmo peer acima + clientes SIP internos | Sim — sem isso não há áudio nas chamadas | `docker-compose.yml:146`, CLAUDE.md (faixa RTP) |
 | Navegador do cliente final (softphone WebRTC via `wss://` atrás do Caddy) | 443/tcp (já coberto pela linha do Caddy acima) + relay de mídia via coturn (ver seção TURN abaixo) | `voipia-caddy` → `voipia-asterisk:8088` | `app.voiphash.com.br` | Sim, para o ramal 9001/9002/4xxx (softphone WebRTC) | `Caddyfile` (`@asterisk-ws`), CLAUDE.md |
 | Qualquer cliente WebRTC atrás de NAT simétrico (relay TURN) | 3478/udp+tcp (STUN/TURN), 5349/udp+tcp (TURN sobre TLS), **49152-49652/udp** (relay de mídia) | `voipia-coturn` (`network_mode: host`) | IP público da VPS | Condicional — só é usado quando STUN puro não resolve o NAT do cliente | `coturn/turnserver.conf:8-9,31-32`, `docker-compose.yml:477-505` |
 | Postgres (uso interno/manutenção do próprio time, NÃO expor à internet) | 5432/tcp — hoje vinculado só a `127.0.0.1` no host | `voipia-postgres` (172.16.7.11) | — (loopback apenas) | Não é tráfego externo — listado só para constar que **não** deve ser liberado no firewall externo | `docker-compose.yml:65` |
@@ -57,7 +57,7 @@ consomem a mesma porta 80/443 e o mesmo certificado.
 | Docker Hub | `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com` | 443/tcp | `docker compose build`/`pull` das imagens base: `ubuntu:22.04`, `python:3.12-slim`, `node:22-alpine`, `nginx:1.27-alpine`, `debian:bookworm-slim`, `maven:3.9-eclipse-temurin-21`, `tomcat:11.0-jre21`, `coturn/coturn:4.6.2` |
 | Repositórios de pacotes | `pypi.org`/`files.pythonhosted.org` (pip), `registry.npmjs.org` (npm), `repo.maven.apache.org`/Maven Central (mvn), `archive.ubuntu.com`/`deb.debian.org` (apt) | 443/tcp (e 80/tcp para alguns mirrors apt) | Durante `docker compose build` (instalação de dependências dentro dos Dockerfiles) |
 | GitHub | `github.com`, `api.github.com` | 443/tcp (HTTPS) ou 22/tcp (SSH, se usado) | `git push origin main` (repositório principal) — `git remote -v`: `origin → https://github.com/kaiohsc2017/VoipIA.git` |
-| Azure DevOps | `dev.azure.com` | 443/tcp (HTTPS) | `git push azure main:desenvolvimento` (espelho obrigatório) — `git remote -v`: `azure → https://.../dev.azure.com/.../VoipIA/_git/VoipIA` |
+
 
 ---
 

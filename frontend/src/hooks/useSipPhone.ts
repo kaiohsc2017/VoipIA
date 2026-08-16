@@ -43,7 +43,7 @@ async function resolveCredentials(): Promise<ResolvedCredentials | null> {
     // 404 sem vínculo de agente de call center — cai pro ramal legado (softphone 9xxx), não é erro.
   }
 
-  const token = localStorage.getItem('asteriskia_token');
+  const token = localStorage.getItem('voipia_token');
   if (!token) return null;
   const claimExtension = decodeTokenPayload(token).extension;
   const legacyPassword = import.meta.env.VITE_SIP_PASSWORD;

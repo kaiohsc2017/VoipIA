@@ -26,5 +26,5 @@ export function authSessionFromToken(token: string | null): AuthSession {
 
 /** Lê o token de sessão do localStorage e deriva role/permissões — uso em telas que só leem. */
 export function useAuthSession(): AuthSession {
-  return authSessionFromToken(localStorage.getItem('asteriskia_token'));
+  return authSessionFromToken(localStorage.getItem('voipia_token'));
 }

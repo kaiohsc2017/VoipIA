@@ -25,8 +25,8 @@ export default function Login({ onLogin }: LoginProps) {
 
   // Guarda a sessão e entra no app — ou, se for o primeiro login, oferece MFA antes.
   const finishLogin = (token: string, firstLoginCompleted?: boolean) => {
-    localStorage.setItem('asteriskia_token', token);
-    localStorage.setItem('asteriskia_user', form.username);
+    localStorage.setItem('voipia_token', token);
+    localStorage.setItem('voipia_user', form.username);
     if (!firstLoginCompleted) {
       setMfaStep('offer');
       return;
@@ -91,7 +91,7 @@ export default function Login({ onLogin }: LoginProps) {
   // --- Oferta de MFA (primeiro login) ---
   const skipMfaOffer = async () => {
     try { await api.post('/auth/totp/first-login-complete'); } catch { /* não bloqueia o login por isso */ }
-    onLogin(localStorage.getItem('asteriskia_token')!, form.username);
+    onLogin(localStorage.getItem('voipia_token')!, form.username);
   };
 
   const startMfaSetup = async () => {
@@ -115,7 +115,7 @@ export default function Login({ onLogin }: LoginProps) {
     setMfaMsg('');
     try {
       await api.post('/auth/totp/enable', { code });
-      onLogin(localStorage.getItem('asteriskia_token')!, form.username);
+      onLogin(localStorage.getItem('voipia_token')!, form.username);
     } catch {
       setMfaMsg('Código inválido. Verifique o app autenticador e tente novamente.');
     } finally {

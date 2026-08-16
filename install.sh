@@ -397,7 +397,7 @@ ufw allow 443/udp > /dev/null 2>&1      # HTTP/3 QUIC
 ufw allow 5060/udp > /dev/null 2>&1     # SIP UDP
 ufw allow 5060/tcp > /dev/null 2>&1     # SIP TCP
 ufw allow 8088/tcp > /dev/null 2>&1     # WebRTC WS (Asterisk)
-ufw allow 15000:15500/udp > /dev/null 2>&1  # RTP media
+ufw allow 16000:16500/udp > /dev/null 2>&1  # RTP media
 ufw allow 3478/udp > /dev/null 2>&1     # TURN (coturn) — controle
 ufw allow 3478/tcp > /dev/null 2>&1     # TURN (coturn) — controle
 ufw allow 5349/tcp > /dev/null 2>&1     # TURNS (TLS)

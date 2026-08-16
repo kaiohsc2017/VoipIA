@@ -134,7 +134,7 @@ export default function CallCenterSegurancaOperacao() {
             por serviço).
           </p>
           <p>
-            Pontos de atenção: o range RTP <code>15000-15500/udp</code> já cobre as 250 portas
+            Pontos de atenção: o range RTP <code>16000-16500/udp</code> já cobre as 250 portas
             necessárias, sem ajuste; <code>max_connections</code> do PostgreSQL e o pool HikariCP
             do backend precisam crescer junto (considerar PgBouncer); contratar 1 Gbps cheio, não
             só o mínimo calculado, por causa de gravações sendo baixadas em paralelo por

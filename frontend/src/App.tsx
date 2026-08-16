@@ -185,10 +185,10 @@ const CALLCENTER_TAB_TO_PAGE: Record<string, Page> = {
 };
 
 export default function App() {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('asteriskia_token'));
-  const [username, setUsername] = useState<string>(() => localStorage.getItem('asteriskia_user') ?? '');
-  const [role, setRole] = useState<'ADMIN' | 'USER'>(() => authSessionFromToken(localStorage.getItem('asteriskia_token')).role);
-  const [perms, setPerms] = useState<Record<string, string>>(() => authSessionFromToken(localStorage.getItem('asteriskia_token')).perms);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('voipia_token'));
+  const [username, setUsername] = useState<string>(() => localStorage.getItem('voipia_user') ?? '');
+  const [role, setRole] = useState<'ADMIN' | 'USER'>(() => authSessionFromToken(localStorage.getItem('voipia_token')).role);
+  const [perms, setPerms] = useState<Record<string, string>>(() => authSessionFromToken(localStorage.getItem('voipia_token')).perms);
   const pageFromHash = (): Page => {
     const hash = window.location.hash.replace('#', '').trim() as Page;
     const valid: Page[] = [
@@ -199,7 +199,7 @@ export default function App() {
     // Acesso direto via hash (digitado/favoritado) a uma página sem permissão de
     // leitura: volta pro dashboard. O botão de nav já fica escondido (ver
     // Sidebar.tsx), isso cobre quem navega direto pela URL.
-    const session = authSessionFromToken(localStorage.getItem('asteriskia_token'));
+    const session = authSessionFromToken(localStorage.getItem('voipia_token'));
     // Grupos de acesso não têm resource_key próprio — o backend (AccessGroupController)
     // exige ROLE_ADMIN puro (evita o ovo-e-galinha de um grupo customizado
     // precisar de si mesmo pra existir), então a checagem aqui é direto por role.
@@ -223,8 +223,8 @@ export default function App() {
   // Escuta evento de logout forçado (token expirado / 401)
   useEffect(() => {
     const handleLogout = () => handleSignOut();
-    window.addEventListener('asteriskia:logout', handleLogout);
-    return () => window.removeEventListener('asteriskia:logout', handleLogout);
+    window.addEventListener('voipia:logout', handleLogout);
+    return () => window.removeEventListener('voipia:logout', handleLogout);
   }, []);
 
   // Sincroniza page com o hash da URL (botões voltar/avançar do browser)
@@ -254,8 +254,8 @@ export default function App() {
   };
 
   const handleSignOut = () => {
-    localStorage.removeItem('asteriskia_token');
-    localStorage.removeItem('asteriskia_user');
+    localStorage.removeItem('voipia_token');
+    localStorage.removeItem('voipia_user');
     revokeSession(); // revoga o refresh token no backend + limpa o cookie httpOnly
     setToken(null);
     setUsername('');

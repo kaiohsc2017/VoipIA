@@ -22,7 +22,7 @@ const api = axios.create({
 
 // ---- Request interceptor: injeta JWT ----
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('asteriskia_token');
+  const token = localStorage.getItem('voipia_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -48,8 +48,11 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const isAuthEndpoint = originalRequest?.url?.includes('/auth/login') ||
+                           originalRequest?.url?.includes('/auth/refresh') ||
+                           originalRequest?.url?.includes('/auth/totp');
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       if (isRefreshing) {
         return new Promise(function(resolve, reject) {
           failedQueue.push({resolve, reject});
@@ -67,7 +70,7 @@ api.interceptors.response.use(
       try {
         // Sem body: o refresh token vai no cookie httpOnly (withCredentials).
         const { data } = await axios.post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true });
-        localStorage.setItem('asteriskia_token', data.token);
+        localStorage.setItem('voipia_token', data.token);
 
         processQueue(null, data.token);
         originalRequest.headers.Authorization = `Bearer ${data.token}`;
@@ -116,10 +119,10 @@ export function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 function logout() {
-  localStorage.removeItem('asteriskia_token');
-  localStorage.removeItem('asteriskia_user');
+  localStorage.removeItem('voipia_token');
+  localStorage.removeItem('voipia_user');
   revokeSession();
-  window.dispatchEvent(new Event('asteriskia:logout'));
+  window.dispatchEvent(new Event('voipia:logout'));
 }
 
 /**
