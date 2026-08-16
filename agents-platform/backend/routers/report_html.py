@@ -97,6 +97,6 @@ def render_execution_report_html(data: dict) -> str:
 </div>
 
 <p style="font-size:11px;color:#aaa;text-align:center;margin-top:8px">
-  AsteriskIA Agentes · Gerado em {started}
+  VoipIA Agentes · Gerado em {started}
 </p>
 </body></html>"""

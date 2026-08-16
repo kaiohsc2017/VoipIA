@@ -23,7 +23,7 @@ from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger("asteriskia.insights.embedding_server")
 
-app = FastAPI(title="AsteriskIA Insights — Embedding Server")
+app = FastAPI(title="VoipIA Insights — Embedding Server")
 
 # Modelo carregado uma única vez, no nível de módulo (não lazy): é aceitável
 # aqui porque (1) o modelo é pequeno (~118M parâmetros,

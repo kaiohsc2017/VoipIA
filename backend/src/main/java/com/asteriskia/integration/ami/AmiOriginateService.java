@@ -68,7 +68,7 @@ public class AmiOriginateService {
         action.put("Context", "asteriskia-alert");
         action.put("Exten", "s");
         action.put("Priority", "1");
-        action.put("CallerID", "AsteriskIA <0800>");
+        action.put("CallerID", "VoipIA <0800>");
         action.put("Timeout", "30000");
         action.put("Async", "true");
         // Prefixo "alert-" no UUID permite que o agente Python identifique

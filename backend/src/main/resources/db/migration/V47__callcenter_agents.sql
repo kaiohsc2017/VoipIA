@@ -1,4 +1,4 @@
--- V47 — Agentes e ramais do Call Center (Fase 2). Metadado próprio do AsteriskIA, distinto das
+-- V47 — Agentes e ramais do Call Center (Fase 2). Metadado próprio do VoipIA, distinto das
 -- tabelas ARA (V46): aqui vive o que o Asterisk não sabe (BU, vínculo com app_users, senha gerada
 -- pra exibição sob demanda, motivos de pausa). O provisionamento (domain/callcenter) escreve nas
 -- duas — aqui e em ps_endpoints/ps_auths/ps_aors.

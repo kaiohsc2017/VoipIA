@@ -7,7 +7,7 @@ pode ser rodado de novo com segurança (ex: se uma chamada falhar por erro
 transitório do provedor de IA).
 
 Uso (dentro do container ai-agent, que já tem as dependências e o INTERNAL_API_KEY):
-  docker exec asteriskia-ai-agent python -m src.scripts.backfill_subject_tags
+  docker exec voipia-ai-agent python -m src.scripts.backfill_subject_tags
 """
 
 import asyncio

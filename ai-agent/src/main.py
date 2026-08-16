@@ -210,7 +210,7 @@ async def main() -> None:
     )
 
     addr = server.sockets[0].getsockname()
-    logger.info(f"=== AsteriskIA Agente de IA iniciado em {addr} ===")
+    logger.info(f"=== VoipIA Agente de IA iniciado em {addr} ===")
 
     _spawn_background_task(_cache_refresh_loop())  # warm-up + refresh em background
 

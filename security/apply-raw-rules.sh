@@ -1,11 +1,11 @@
 #!/bin/bash
-# AsteriskIA — Aplica regras nftables raw PREROUTING para isolamento de containers.
+# VoipIA — Aplica regras nftables raw PREROUTING para isolamento de containers.
 # Chamado pelo systemd após o Docker subir.
-# Detecta a bridge atual da rede asteriskia_asteriskia-net dinamicamente.
+# Detecta a bridge atual da rede asteriskia_voipia-net dinamicamente.
 
 set -e
 
-NETWORK_NAME="asteriskia_asteriskia-net"
+NETWORK_NAME="asteriskia_voipia-net"
 LOG_PREFIX="[asteriskia-raw-rules]"
 
 echo "$LOG_PREFIX Detectando bridge de $NETWORK_NAME..."

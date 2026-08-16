@@ -89,7 +89,7 @@ async def send_webhook(url: str, payload: dict) -> bool:
             # _is_safe_public_url — webhook de notificação não precisa seguir redirect.
             async with session.post(
                 url, json=payload,
-                headers={"Content-Type": "application/json", "User-Agent": "AsteriskIA-Agents/2.0"},
+                headers={"Content-Type": "application/json", "User-Agent": "VoipIA-Agents/2.0"},
                 timeout=aiohttp.ClientTimeout(total=15),
                 allow_redirects=False
             ) as r:

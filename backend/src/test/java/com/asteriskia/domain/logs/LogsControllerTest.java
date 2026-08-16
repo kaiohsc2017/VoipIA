@@ -93,7 +93,7 @@ class LogsControllerTest {
 
         verify(restTemplate)
                 .exchange(
-                        contains("/logs/asteriskia-backend"),
+                        contains("/logs/voipia-backend"),
                         eq(HttpMethod.GET),
                         any(HttpEntity.class),
                         eq(Map.class));

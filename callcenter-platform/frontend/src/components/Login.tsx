@@ -129,7 +129,7 @@ export default function Login({ onLogin }: LoginProps) {
         {/* Logo */}
         <div className="login-logo">
           <div className="login-logo-icon">A★</div>
-          <span className="login-logo-text">AsteriskIA</span>
+          <span className="login-logo-text">VoipIA</span>
         </div>
 
         {mfaStep === 'offer' ? (
@@ -287,7 +287,7 @@ export default function Login({ onLogin }: LoginProps) {
         )}
 
         <p style={{ textAlign: 'center', marginTop: 24, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          Sistema AsteriskIA — Asterisk + IA
+          Sistema VoipIA — Asterisk + IA
         </p>
       </div>
     </div>

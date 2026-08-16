@@ -315,7 +315,7 @@ export default function Dashboard() {
             {wsStatus === 'live' ? '⬤ LIVE' : wsStatus === 'connecting' ? '⬤ Conectando…' : '⬤ Offline'}
           </span>
         </div>
-        <p>Visão geral do sistema AsteriskIA em tempo real</p>
+        <p>Visão geral do sistema VoipIA em tempo real</p>
       </div>
 
       <div className="page-body">

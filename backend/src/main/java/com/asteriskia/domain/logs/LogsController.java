@@ -31,13 +31,13 @@ public class LogsController {
     // Containers reais do stack atual (deve casar com _ALLOWED_SERVICES do docker-helper).
     private static final List<String> ALL_SERVICES =
             List.of(
-                    "asteriskia-backend",
-                    "asteriskia-asterisk",
-                    "asteriskia-ai-agent",
-                    "asteriskia-frontend",
-                    "asteriskia-postgres",
-                    "asteriskia-agents-api",
-                    "asteriskia-caddy");
+                    "voipia-backend",
+                    "voipia-asterisk",
+                    "voipia-ai-agent",
+                    "voipia-frontend",
+                    "voipia-postgres",
+                    "voipia-agents-api",
+                    "voipia-caddy");
 
     // ── Docker snapshot ───────────────────────────────────────────────────────
 
@@ -190,7 +190,7 @@ public class LogsController {
             String since = from.isBlank() ? null : from + "T00:00:00";
             String until = to.isBlank() ? null : to + "T23:59:59";
             StringBuilder sb =
-                    new StringBuilder("# AsteriskIA — Docker Logs\n# " + Instant.now() + "\n\n");
+                    new StringBuilder("# VoipIA — Docker Logs\n# " + Instant.now() + "\n\n");
             for (String svc : svcs) {
                 sb.append("=== ").append(svc).append(" ===\n");
                 dockerHelperClient
@@ -288,7 +288,7 @@ public class LogsController {
                             .withZone(ZoneId.systemDefault())
                             .format(Instant.now());
             StringBuilder sb =
-                    new StringBuilder("# AsteriskIA — Asterisk Log\n# " + Instant.now() + "\n\n");
+                    new StringBuilder("# VoipIA — Asterisk Log\n# " + Instant.now() + "\n\n");
             raw.forEach(l -> sb.append(l).append("\n"));
             auditService.log(request, "LOGS_DOWNLOAD", "Asterisk log", true);
             return ResponseEntity.ok()

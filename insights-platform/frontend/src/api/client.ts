@@ -1,5 +1,5 @@
 /**
- * client.ts — Axios client configurado para a API AsteriskIA.
+ * client.ts — Axios client configurado para a API VoipIA.
  *
  * - baseURL: variável de ambiente VITE_API_URL (padrão: http://localhost:8080/api/v1)
  * - Interceptor de request: injeta Bearer token do localStorage

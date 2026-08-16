@@ -1,5 +1,5 @@
 ; =============================================================
-; res_pgsql.conf — AsteriskIA
+; res_pgsql.conf — VoipIA
 ; Conexão do módulo res_config_pgsql (ARA — Asterisk Realtime
 ; Architecture) ao PostgreSQL compartilhado do stack. Usado para
 ; validar o PoC de configuração dinâmica do módulo Call Center

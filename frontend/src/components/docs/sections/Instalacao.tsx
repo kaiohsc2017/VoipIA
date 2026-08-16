@@ -9,7 +9,7 @@ export default function Instalacao() {
     <>
       <Section id="instalacao-visao-geral" title="Requisitos e Visão Geral">
         <p>
-          O AsteriskIA é instalado por um script único que provisiona todo o stack — Docker, banco,
+          O VoipIA é instalado por um script único que provisiona todo o stack — Docker, banco,
           Asterisk, backend, frontend, IA, TURN/coturn, firewall e o watcher de lockdown SIP — a
           partir de uma VPS limpa. Existem duas variantes, uma por família de sistema operacional:
         </p>
@@ -55,13 +55,13 @@ export default function Instalacao() {
       <Section id="instalacao-ubuntu" title="Instalação — Ubuntu 22.04 / 24.04">
         <CodeBlock label="Instalação em uma linha">
           <Cmt>{'# como root, numa VPS Ubuntu limpa\n'}</Cmt>
-          {'curl -fsSL https://raw.githubusercontent.com/kaiohsc2017/AsteriskIA/main/install.sh | bash'}
+          {'curl -fsSL https://raw.githubusercontent.com/kaiohsc2017/VoipIA/main/install.sh | bash'}
         </CodeBlock>
 
         <p>Ou, clonando o repositório primeiro (recomendado para revisar o script antes de rodar):</p>
         <CodeBlock>
-          {'git clone https://github.com/kaiohsc2017/AsteriskIA.git /opt/AsteriskIA\n'}
-          {'cd /opt/AsteriskIA && bash install.sh'}
+          {'git clone https://github.com/kaiohsc2017/VoipIA.git /opt/VoipIA\n'}
+          {'cd /opt/VoipIA && bash install.sh'}
         </CodeBlock>
 
         <SubSection title="O que o script faz, em ordem">
@@ -76,7 +76,7 @@ export default function Instalacao() {
             </Step>
             <Step num={3} title="Repositório e diretórios">
               Clona (ou atualiza, com <code>git pull</code>) o repositório em{' '}
-              <code>/opt/AsteriskIA</code>. Cria <code>env/</code> com permissão <code>700</code> —
+              <code>/opt/VoipIA</code>. Cria <code>env/</code> com permissão <code>700</code> —
               só root lê o <code>.env</code> com os segredos.
             </Step>
             <Step num={4} title="Geração do .env">
@@ -87,7 +87,7 @@ export default function Instalacao() {
             </Step>
             <Step num={5} title="Firewall (ufw) e lockdown SIP">
               Zera e reconfigura o <code>ufw</code> com as portas obrigatórias, instala o serviço
-              systemd <code>asteriskia-lockdown</code> (watcher que reage a tentativas de acesso
+              systemd <code>voipia-lockdown</code> (watcher que reage a tentativas de acesso
               indevido às portas SIP) e aplica as regras nftables raw que isolam os IPs internos dos
               containers (<code>security/apply-raw-rules.sh</code>).
             </Step>
@@ -112,7 +112,7 @@ export default function Instalacao() {
         </Callout>
 
         <SubSection title="Atualizar uma instalação existente">
-          <CodeBlock>{'cd /opt/AsteriskIA && bash install.sh --update'}</CodeBlock>
+          <CodeBlock>{'cd /opt/VoipIA && bash install.sh --update'}</CodeBlock>
           <p>
             Faz <code>git pull</code>, rebuild completo (<code>--no-cache</code>) e recarrega o
             Caddyfile via socket Unix — sem precisar derrubar o stack manualmente.
@@ -127,8 +127,8 @@ export default function Instalacao() {
         </p>
 
         <CodeBlock label="Instalação">
-          {'git clone https://github.com/kaiohsc2017/AsteriskIA.git /opt/AsteriskIA\n'}
-          {'cd /opt/AsteriskIA && bash install-oracle9.sh'}
+          {'git clone https://github.com/kaiohsc2017/VoipIA.git /opt/VoipIA\n'}
+          {'cd /opt/VoipIA && bash install-oracle9.sh'}
         </CodeBlock>
 
         <SubSection title="Diferenças em relação ao install.sh">
@@ -172,7 +172,7 @@ export default function Instalacao() {
         </SubSection>
 
         <SubSection title="Atualizar uma instalação existente">
-          <CodeBlock>{'cd /opt/AsteriskIA && bash install-oracle9.sh --update'}</CodeBlock>
+          <CodeBlock>{'cd /opt/VoipIA && bash install-oracle9.sh --update'}</CodeBlock>
         </SubSection>
       </Section>
 
@@ -190,7 +190,7 @@ export default function Instalacao() {
             alertas por ligação.
           </Step>
           <Step num={3} title="Confirmar o IP público no .env">
-            <code>grep SIP_PUBLIC_IP /opt/AsteriskIA/env/.env</code> — precisa bater com o IP público
+            <code>grep SIP_PUBLIC_IP /opt/VoipIA/env/.env</code> — precisa bater com o IP público
             real da VPS, senão o RTP/WebRTC não funciona por trás de NAT.
           </Step>
           <Step num={4} title="Testar a chamada interna">

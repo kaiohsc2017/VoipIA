@@ -62,7 +62,7 @@ async def _send_all_alerts(agent: dict, level: str, message: str,
 
     if agent.get("notify_email") and agent.get("notify_email_to"):
         ok = await send_email(to=agent["notify_email_to"],
-            subject=f"[AsteriskIA] {agent['name']} — {level.upper()}",
+            subject=f"[VoipIA] {agent['name']} — {level.upper()}",
             body=f"<p><b>{agent['name']}</b></p><p>{message}</p>")
         await _save("email", ok)
 

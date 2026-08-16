@@ -1,5 +1,5 @@
 /**
- * types.ts — TypeScript types para a API AsteriskIA
+ * types.ts — TypeScript types para a API VoipIA
  */
 
 // ---- Auth ----

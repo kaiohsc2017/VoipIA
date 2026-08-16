@@ -161,7 +161,7 @@ export default function AgentesInfra() {
         <p>
           Configure o provedor de LLM utilizado pelos agentes quando{' '}
           <code>use_ai_on_failure: true</code>. As configurações são salvas no arquivo{' '}
-          <code>/opt/AsteriskIA/env/.env.agents</code> sem necessidade de reiniciar o container.
+          <code>/opt/VoipIA/env/.env.agents</code> sem necessidade de reiniciar o container.
         </p>
 
         <Card>

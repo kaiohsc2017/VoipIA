@@ -1,5 +1,5 @@
 /**
- * types.ts — subset de tipos TypeScript da API AsteriskIA usado pela SPA de Insights.
+ * types.ts — subset de tipos TypeScript da API VoipIA usado pela SPA de Insights.
  * Espelha frontend/src/api/types.ts — mantido em sincronia manual (mesmo padrão
  * de duplicação já aceito entre backend/frontend do RBAC granular).
  */

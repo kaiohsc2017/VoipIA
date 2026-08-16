@@ -1,6 +1,6 @@
 ---
 name: diagnosing-bugs
-description: Disciplina de diagnóstico para bugs difíceis e regressões de performance no AsteriskIA (VoIP/SIP, ai-agent Python, backend Java, frontend React). Use quando o usuário disser "diagnostica"/"debuga isso", ou relatar algo quebrado/travando/lento/com erro.
+description: Disciplina de diagnóstico para bugs difíceis e regressões de performance no VoipIA (VoIP/SIP, ai-agent Python, backend Java, frontend React). Use quando o usuário disser "diagnostica"/"debuga isso", ou relatar algo quebrado/travando/lento/com erro.
 ---
 
 # Diagnosticando Bugs
@@ -20,14 +20,14 @@ lendo código não resolve.
 
 Invista esforço desproporcional aqui. **Seja agressivo, seja criativo, não desista.**
 
-### Formas de construir um loop (nesta ordem aproximada, adaptado ao stack do AsteriskIA)
+### Formas de construir um loop (nesta ordem aproximada, adaptado ao stack do VoipIA)
 
 1. **Teste falhando** no seam mais próximo do bug:
    - Backend Java: `./mvnw -q -o test -Dtest=NomeDoTeste`
    - Python (ai-agent / agents-platform): teste unitário no serviço afetado
    - Frontend: teste de componente (Vitest/RTL) quando existir
 2. **curl / script HTTP** contra o container rodando (`docker compose ps` para achar a porta certa), ex.: `curl -sf http://localhost:8080/api/v1/...`
-3. **CLI/AMI direto no Asterisk**: `docker exec asteriskia-asterisk asterisk -rx "..."` comparando saída esperada vs. real (endpoints, dialplan, pjsip).
+3. **CLI/AMI direto no Asterisk**: `docker exec voipia-asterisk asterisk -rx "..."` comparando saída esperada vs. real (endpoints, dialplan, pjsip).
 4. **Logs em tempo real durante uma chamada de teste**: `docker compose logs -f ai-agent` / `asterisk` durante uma ligação real via softphone 9001 — esse é o loop clássico para bugs de áudio/WebRTC/AudioSocket.
 5. **Replay de payload capturado**: salvar um evento real (payload do Jira, alerta do Zabbix, frame AudioSocket) em disco e reprocessar isolado, sem depender de uma ligação real.
 6. **Harness descartável**: subir só o serviço afetado com dependências mockadas (ex.: `ai-agent` sozinho, com um `WebClient`/`backend_client` fake) para exercitar o caminho do bug com uma única chamada de função.

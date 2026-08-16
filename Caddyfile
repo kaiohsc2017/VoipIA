@@ -1,5 +1,5 @@
 # =============================================================================
-# Caddyfile — AsteriskIA
+# Caddyfile — VoipIA
 # Proxy reverso HTTPS com TLS automático (Let's Encrypt).
 #
 # Rotas:
@@ -12,7 +12,7 @@
 {
 	# API de administração — socket Unix em vez de TCP: um bind TCP em
 	# 0.0.0.0:2019 fica alcançável por QUALQUER container da bridge
-	# asteriskia-net (a publicação "127.0.0.1:2019:2019" só restringe o
+	# voipia-net (a publicação "127.0.0.1:2019:2019" só restringe o
 	# acesso vindo do host, não de outros containers). Socket Unix não é
 	# alcançável via rede — só por quem tem o arquivo montado (host e o
 	# próprio container do Caddy).
@@ -52,7 +52,7 @@ app.voiphash.com.br {
 	}
 	handle @agents-api {
 		uri strip_prefix /agents
-		reverse_proxy asteriskia-agents-api:8000
+		reverse_proxy voipia-agents-api:8000
 	}
 
 	# ── Agentes — WebSocket (logs em tempo real) ──────────────────────────────
@@ -63,7 +63,7 @@ app.voiphash.com.br {
 	}
 	handle @agents-ws {
 		uri strip_prefix /agents
-		reverse_proxy asteriskia-agents-api:8000
+		reverse_proxy voipia-agents-api:8000
 	}
 
 	# ── Agentes — Frontend (React SPA servida pelo nginx do frontend) ─────────
@@ -74,7 +74,7 @@ app.voiphash.com.br {
 		path /agents*
 	}
 	handle @agents-ui {
-		reverse_proxy asteriskia-frontend:80
+		reverse_proxy voipia-frontend:80
 	}
 
 	# ── Insights — Frontend (React SPA servida pelo nginx do frontend) ────────
@@ -86,7 +86,7 @@ app.voiphash.com.br {
 		path /insights*
 	}
 	handle @insights-ui {
-		reverse_proxy asteriskia-frontend:80
+		reverse_proxy voipia-frontend:80
 	}
 
 	# ── Call Center — Frontend (React SPA servida pelo nginx do frontend) ────
@@ -98,7 +98,7 @@ app.voiphash.com.br {
 		path /callcenter*
 	}
 	handle @callcenter-ui {
-		reverse_proxy asteriskia-frontend:80
+		reverse_proxy voipia-frontend:80
 	}
 
 	# ── Documentação estática ─────────────────────────────────────────────────
@@ -120,7 +120,7 @@ app.voiphash.com.br {
 		path /api/*
 	}
 	handle @api {
-		reverse_proxy asteriskia-backend:8080
+		reverse_proxy voipia-backend:8080
 	}
 
 	# ── Telecom — WebSocket STOMP (dashboard em tempo real) ───────────────────
@@ -130,7 +130,7 @@ app.voiphash.com.br {
 		path /ws/*
 	}
 	handle @ws {
-		reverse_proxy asteriskia-backend:8080
+		reverse_proxy voipia-backend:8080
 	}
 
 	# ── Telecom — WebSocket Asterisk (softphone WebRTC) ───────────────────────
@@ -142,12 +142,12 @@ app.voiphash.com.br {
 	}
 	handle @asterisk-ws {
 		rewrite * /ws
-		reverse_proxy asteriskia-asterisk:8088
+		reverse_proxy voipia-asterisk:8088
 	}
 
 	# ── Telecom — Frontend React (catch-all) ──────────────────────────────────
 	handle {
-		reverse_proxy asteriskia-frontend:80
+		reverse_proxy voipia-frontend:80
 	}
 }
 

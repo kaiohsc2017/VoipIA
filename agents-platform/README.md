@@ -1,6 +1,6 @@
-# AsteriskIA Agentes
+# VoipIA Agentes
 
-Plataforma de agentes autônomos integrada ao AsteriskIA Telecom.
+Plataforma de agentes autônomos integrada ao VoipIA Telecom.
 
 ## Acesso
 
@@ -10,18 +10,18 @@ https://app.voiphash.com.br/agents/
 
 ## Stack
 
-A plataforma de agentes compartilha a infraestrutura do AsteriskIA Telecom —
+A plataforma de agentes compartilha a infraestrutura do VoipIA Telecom —
 banco de dados e frontend são unificados.
 
 | Camada    | Tecnologia              | Container / Servidor              |
 |-----------|-------------------------|-----------------------------------|
-| Frontend  | React 18 (UMD)          | `asteriskia-frontend` (nginx, rota `/agents/`) |
-| Backend   | FastAPI + Python 3.12   | `asteriskia-agents-api`           |
-| Banco     | PostgreSQL 16           | `asteriskia-postgres` (banco unificado) |
+| Frontend  | React 18 (UMD)          | `voipia-frontend` (nginx, rota `/agents/`) |
+| Backend   | FastAPI + Python 3.12   | `voipia-agents-api`           |
+| Banco     | PostgreSQL 16           | `voipia-postgres` (banco unificado) |
 
 O roteamento `/agents/*` é feito pelo Caddy:
-- `/agents/`        → frontend (`asteriskia-frontend:80`)
-- `/agents/api/*`   → backend (`asteriskia-agents-api:8000`)
+- `/agents/`        → frontend (`voipia-frontend:80`)
+- `/agents/api/*`   → backend (`voipia-agents-api:8000`)
 - `/agents/ws/*`    → WebSocket do backend (logs em tempo real)
 
 ## Tipos de agente
@@ -39,7 +39,7 @@ acionar a IA externa (RAG via pg_trgm).
 
 ## Variáveis de ambiente
 
-O backend de agentes lê as variáveis `AGENTS_*` do `.env` do AsteriskIA Telecom.
+O backend de agentes lê as variáveis `AGENTS_*` do `.env` do VoipIA Telecom.
 As principais:
 
 ```env

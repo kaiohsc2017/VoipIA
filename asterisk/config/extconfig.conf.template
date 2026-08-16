@@ -1,5 +1,5 @@
 ; =============================================================
-; extconfig.conf — AsteriskIA
+; extconfig.conf — VoipIA
 ; Mapeia as famílias Realtime do módulo Call Center (Fase 2) para o
 ; backend res_config_pgsql (ver res_pgsql.conf — seção [general]).
 ; O nome do "database" abaixo (general) é ignorado pelo res_config_pgsql

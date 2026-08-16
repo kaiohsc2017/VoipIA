@@ -23,8 +23,8 @@ for f in /etc/asterisk/*.conf.template; do
     [ -f "$f" ] || continue
     dest="${f%.template}"
     envsubst "$VARS" < "$f" > "$dest"
-    echo "[AsteriskIA] Template processado: $(basename $f) → $(basename $dest)"
+    echo "[VoipIA] Template processado: $(basename $f) → $(basename $dest)"
 done
 
-echo "[AsteriskIA] Iniciando Asterisk..."
+echo "[VoipIA] Iniciando Asterisk..."
 exec "$@"

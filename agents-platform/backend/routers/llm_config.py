@@ -76,7 +76,7 @@ async def llm_test():
     try:
         response = await ask(
             skill="Especialista em infraestrutura Linux",
-            problem="Teste de conectividade do painel AsteriskIA Agentes",
+            problem="Teste de conectividade do painel VoipIA Agentes",
             memory_ctx="",
             check_output="echo 'teste' → ok",
         )

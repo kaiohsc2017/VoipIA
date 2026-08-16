@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# install.sh — AsteriskIA v3.2 · Instalação Automatizada
+# install.sh — VoipIA v3.2 · Instalação Automatizada
 # =============================================================================
 # Compatível com:
 #   • Ubuntu 22.04 LTS
@@ -12,15 +12,15 @@
 # separados em vez de um único script com ramificações por toda parte.
 #
 # Uso:
-#   curl -fsSL https://raw.githubusercontent.com/kaiohsc2017/AsteriskIA/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/kaiohsc2017/VoipIA/main/install.sh | bash
 #   -- ou --
 #   bash install.sh [--update]
 #
 # Variáveis de ambiente opcionais (dimensionamento de hardware — recomendação
 # documentada em CLAUDE.md/tela Documentação, NUNCA validada por teste de carga):
-#   ASTERISKIA_AGENT_COUNT=<n>          quantidade de agentes de Call Center simultâneos
+#   VOIPIA_AGENT_COUNT=<n>          quantidade de agentes de Call Center simultâneos
 #                                       (pula a pergunta interativa; útil em automação)
-#   ASTERISKIA_ACCEPT_HARDWARE_RISK=yes aceita seguir com hardware abaixo do recomendado
+#   VOIPIA_ACCEPT_HARDWARE_RISK=yes aceita seguir com hardware abaixo do recomendado
 #                                       em execução não-interativa (sem isso, aborta)
 #
 # Stack instalado:
@@ -72,8 +72,8 @@ detect_os() {
 }
 
 # ── Variáveis ─────────────────────────────────────────────────────────────────
-REPO_URL="https://github.com/kaiohsc2017/AsteriskIA.git"
-INSTALL_DIR="/opt/AsteriskIA"
+REPO_URL="https://github.com/kaiohsc2017/VoipIA.git"
+INSTALL_DIR="/opt/VoipIA"
 ENV_DIR="$INSTALL_DIR/env"
 ENV_FILE="$ENV_DIR/.env"
 UPDATE_MODE="${1:-}"
@@ -147,14 +147,14 @@ log_info "Referência (250 agentes simultâneos): ~24 vCPU / ~64GB RAM em servid
 log_info "(ou App 16-24vCPU/32GB + Banco dedicado 8vCPU/32GB/NVMe em 2 servidores)."
 log_info "Ver detalhes em CLAUDE.md ou na tela Documentação do sistema."
 
-AGENT_COUNT="${ASTERISKIA_AGENT_COUNT:-}"
+AGENT_COUNT="${VOIPIA_AGENT_COUNT:-}"
 if [ -z "$AGENT_COUNT" ]; then
     if [ -t 0 ]; then
         read -r -p "Quantos agentes de Call Center vão se conectar simultaneamente neste ambiente? [10]: " AGENT_COUNT
         AGENT_COUNT="${AGENT_COUNT:-10}"
     else
         AGENT_COUNT=10
-        log_warn "Execução não-interativa sem ASTERISKIA_AGENT_COUNT definido — assumindo 10 agentes (ambiente pequeno/dev)."
+        log_warn "Execução não-interativa sem VOIPIA_AGENT_COUNT definido — assumindo 10 agentes (ambiente pequeno/dev)."
     fi
 fi
 case "$AGENT_COUNT" in
@@ -181,8 +181,8 @@ if [ "$HARDWARE_ABAIXO" -eq 1 ]; then
         [ "$RISK_ACK" = "ACEITO O RISCO" ] || log_err "Instalação abortada — hardware insuficiente para ${AGENT_COUNT} agentes simultâneos."
         log_warn "Risco aceito pelo operador — prosseguindo com hardware abaixo do recomendado."
     else
-        [ "${ASTERISKIA_ACCEPT_HARDWARE_RISK:-}" = "yes" ] || log_err "Instalação abortada (execução não-interativa): hardware abaixo do recomendado para ${AGENT_COUNT} agentes. Defina ASTERISKIA_ACCEPT_HARDWARE_RISK=yes para prosseguir mesmo assim."
-        log_warn "ASTERISKIA_ACCEPT_HARDWARE_RISK=yes — prosseguindo mesmo com hardware abaixo do recomendado."
+        [ "${VOIPIA_ACCEPT_HARDWARE_RISK:-}" = "yes" ] || log_err "Instalação abortada (execução não-interativa): hardware abaixo do recomendado para ${AGENT_COUNT} agentes. Defina VOIPIA_ACCEPT_HARDWARE_RISK=yes para prosseguir mesmo assim."
+        log_warn "VOIPIA_ACCEPT_HARDWARE_RISK=yes — prosseguindo mesmo com hardware abaixo do recomendado."
     fi
 else
     log_ok "Hardware compatível com o volume de ${AGENT_COUNT} agentes informado."
@@ -226,7 +226,7 @@ log_step "4. Caddy (proxy reverso HTTPS)"
 log_info "Caddy sobe junto com o stack via docker compose (próximo passo)"
 
 # ── Repositório ───────────────────────────────────────────────────────────────
-log_step "5. Repositório AsteriskIA"
+log_step "5. Repositório VoipIA"
 if [ -d "$INSTALL_DIR/.git" ]; then
     log_info "Atualizando repositório existente..."
     cd "$INSTALL_DIR" && git pull origin main
@@ -272,7 +272,7 @@ else
 
     cat > "$ENV_FILE" << EOF
 # =============================================================================
-# AsteriskIA — Variáveis de Ambiente
+# VoipIA — Variáveis de Ambiente
 # Gerado em: $(date '+%Y-%m-%d %H:%M:%S')
 # ATENÇÃO: Nunca versione este arquivo. Já está no .gitignore.
 # =============================================================================
@@ -408,15 +408,15 @@ log_ok "UFW configurado"
 
 # ── Lockdown SIP (systemd watcher no host) ────────────────────────────────────
 log_step "8.1 Serviço de lockdown SIP"
-if [ -f "$INSTALL_DIR/security/asteriskia-lockdown.service" ]; then
-    cp "$INSTALL_DIR/security/asteriskia-lockdown.service" /etc/systemd/system/
+if [ -f "$INSTALL_DIR/security/voipia-lockdown.service" ]; then
+    cp "$INSTALL_DIR/security/voipia-lockdown.service" /etc/systemd/system/
     chmod +x "$INSTALL_DIR/security/lockdown-watcher.sh"
     systemctl daemon-reload
-    systemctl enable --now asteriskia-lockdown 2>/dev/null \
-        && log_ok "Serviço asteriskia-lockdown ativo" \
-        || log_warn "Não foi possível iniciar asteriskia-lockdown — verifique 'systemctl status asteriskia-lockdown'"
+    systemctl enable --now voipia-lockdown 2>/dev/null \
+        && log_ok "Serviço voipia-lockdown ativo" \
+        || log_warn "Não foi possível iniciar voipia-lockdown — verifique 'systemctl status voipia-lockdown'"
 else
-    log_warn "asteriskia-lockdown.service não encontrado — lockdown SIP não instalado"
+    log_warn "voipia-lockdown.service não encontrado — lockdown SIP não instalado"
 fi
 
 # ── Regras nftables (isolamento de containers) ───────────────────────────────
@@ -435,11 +435,11 @@ fi
 # /var/log/asterisk/full — sem isso já chegou a 7G em produção. size 100M,
 # rotate 10, maxage 10 (~1G rotacionado no total, o que vencer primeiro).
 log_step "8.3 Rotação de log do Asterisk (logrotate)"
-if [ -f "$INSTALL_DIR/security/asteriskia-asterisk.logrotate" ]; then
-    cp "$INSTALL_DIR/security/asteriskia-asterisk.logrotate" /etc/logrotate.d/asteriskia-asterisk
-    log_ok "logrotate configurado (/etc/logrotate.d/asteriskia-asterisk)"
+if [ -f "$INSTALL_DIR/security/voipia-asterisk.logrotate" ]; then
+    cp "$INSTALL_DIR/security/voipia-asterisk.logrotate" /etc/logrotate.d/voipia-asterisk
+    log_ok "logrotate configurado (/etc/logrotate.d/voipia-asterisk)"
 else
-    log_warn "asteriskia-asterisk.logrotate não encontrado — rotação do log do Asterisk não configurada"
+    log_warn "voipia-asterisk.logrotate não encontrado — rotação do log do Asterisk não configurada"
 fi
 
 # ── Build e subida ────────────────────────────────────────────────────────────
@@ -640,7 +640,7 @@ build_with_ai
 # ── Verificação do Caddy ───────────────────────────────────────────────────────
 # O Caddy faz parte do compose — sobe junto e carrega o Caddyfile automaticamente.
 log_step "10. Verificação do Caddy (HTTPS)"
-if docker inspect --format='{{.State.Status}}' asteriskia-caddy 2>/dev/null | grep -q running; then
+if docker inspect --format='{{.State.Status}}' voipia-caddy 2>/dev/null | grep -q running; then
     log_ok "Caddy rodando — HTTPS ativo em https://app.voiphash.com.br"
 else
     log_warn "Caddy ainda não respondeu. Verifique: docker compose logs caddy"
@@ -684,16 +684,16 @@ check_container() {
     fi
 }
 
-check_container "asteriskia-postgres"
+check_container "voipia-postgres"
 check_container "asteriskia-docker-helper"
-check_container "asteriskia-backend"
-check_container "asteriskia-frontend"
-check_container "asteriskia-asterisk"
-check_container "asteriskia-ai-agent"
-check_container "asteriskia-agents-api"
-check_container "asteriskia-coturn"
-check_container "asteriskia-security"
-check_container "asteriskia-caddy"
+check_container "voipia-backend"
+check_container "voipia-frontend"
+check_container "voipia-asterisk"
+check_container "voipia-ai-agent"
+check_container "voipia-agents-api"
+check_container "voipia-coturn"
+check_container "voipia-security"
+check_container "voipia-caddy"
 
 if curl -sf --max-time 10 "https://app.voiphash.com.br/api/health" > /dev/null 2>&1; then
     log_ok "Backend API respondendo via HTTPS"
@@ -705,7 +705,7 @@ fi
 log_step "12. Configurando ramal SIP físico (9002)"
 log_info "Aguardando Asterisk carregar..."
 sleep 5
-docker exec asteriskia-asterisk asterisk -rx "module reload res_pjsip.so" 2>/dev/null && \
+docker exec voipia-asterisk asterisk -rx "module reload res_pjsip.so" 2>/dev/null && \
     log_ok "PJSIP recarregado" || log_warn "PJSIP reload falhou (normal se ainda inicializando)"
 
 # ── Resumo ────────────────────────────────────────────────────────────────────
@@ -747,4 +747,4 @@ echo ""
 echo -e "   ${RED}4.${NC} Teste a chamada interna:"
 echo -e "      No softphone: disque ${CYAN}1000${NC} → deve ouvir boas-vindas da URA"
 echo ""
-echo -e "${BOLD}Suporte:${NC} github.com/kaiohsc2017/AsteriskIA"
+echo -e "${BOLD}Suporte:${NC} github.com/kaiohsc2017/VoipIA"

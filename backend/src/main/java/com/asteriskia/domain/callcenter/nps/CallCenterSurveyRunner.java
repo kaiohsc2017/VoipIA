@@ -42,7 +42,7 @@ public class CallCenterSurveyRunner {
 
     // Mesma property já usada por CallCenterRecordingService (Fase 20) — a gravação de voz da
     // NPS é a mesma classe de dado (áudio de cliente) e segue a mesma raiz de mídia do projeto.
-    @Value("${app.callcenter.recording-path:/opt/AsteriskIA/media/gravacao}")
+    @Value("${app.callcenter.recording-path:/opt/VoipIA/media/gravacao}")
     private String recordingBasePath;
 
     private final CcSurveyQuestionRepository questionRepository;

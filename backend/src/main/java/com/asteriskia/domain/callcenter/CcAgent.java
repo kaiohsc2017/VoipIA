@@ -22,7 +22,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 /**
  * CcAgent — Agente do Call Center (Fase 2 do plano de módulo Call Center Omnicanal). Metadado
- * próprio do AsteriskIA; o ramal físico correspondente vive em {@link CcExtension} e nas tabelas
+ * próprio do VoipIA; o ramal físico correspondente vive em {@link CcExtension} e nas tabelas
  * ARA (ps_endpoints/ps_auths/ps_aors, provisionadas por {@link CallCenterAgentService}).
  */
 @Entity

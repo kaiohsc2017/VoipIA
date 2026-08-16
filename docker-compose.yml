@@ -1,5 +1,5 @@
 # =============================================================================
-# AsteriskIA — Docker Compose
+# VoipIA — Docker Compose
 # Stack completo: banco, PBX, IA, backend, frontend, agentes e proxy.
 #
 # Uso:
@@ -9,14 +9,14 @@
 # =============================================================================
 
 networks:
-  asteriskia-net:
+  voipia-net:
     driver: bridge
     ipam:
       config:
         - subnet: 172.16.7.0/24
           # IPs reservados — NÃO atribuir a containers:
           #   172.16.7.1  – .9   → gateway + reserva de infraestrutura
-          #   172.16.7.10          → asteriskia-caddy (proxy — IP fixo reservado)
+          #   172.16.7.10          → voipia-caddy (proxy — IP fixo reservado)
           #   172.16.7.250 – .254  → reserva de infraestrutura
           # Containers: 172.16.7.11 – 172.16.7.249
 
@@ -24,7 +24,7 @@ volumes:
   postgres_data:          # Dados persistentes do PostgreSQL
   asterisk_recordings:    # Gravações de chamadas (WAV)
   asterisk_ari_recordings: # Spool de gravação ARI (Fase 21 — resposta falada/comentário de NPS);
-                            # transiente — o backend move o arquivo pra /opt/AsteriskIA/media/gravacao/nps
+                            # transiente — o backend move o arquivo pra /opt/VoipIA/media/gravacao/nps
                             # e apaga o original daqui logo após RecordingFinished.
   asterisk_log:           # Logs do Asterisk (consumidos pelo fail2ban)
   fail2ban_socket:        # Socket do fail2ban (compartilhado com o backend)
@@ -45,7 +45,7 @@ services:
     # idêntico (Debian em vez de Alpine, mas o diretório de dados do Postgres é compatível entre
     # as duas), habilita CREATE EXTENSION vector para a base de conhecimento vetorial do chat.
     image: pgvector/pgvector:pg16
-    container_name: asteriskia-postgres
+    container_name: voipia-postgres
     restart: unless-stopped
     # Achado de segurança (débito aceito): nenhum serviço tinha resource limits —
     # um container comprometido ou com bug de memória podia consumir todo o host.
@@ -68,7 +68,7 @@ services:
       # exposto à internet e só protegido por regra incidental do fail2ban/lockdown.
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     networks:
-      asteriskia-net:
+      voipia-net:
           ipv4_address: 172.16.7.11
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -84,7 +84,7 @@ services:
     build:
       context: ./asterisk
       dockerfile: Dockerfile
-    container_name: asteriskia-asterisk
+    container_name: voipia-asterisk
     restart: unless-stopped
     # Resource limit (ver comentário completo no serviço postgres) — folga maior
     # aqui por ser processamento de áudio em tempo real (RTP/codecs).
@@ -110,7 +110,7 @@ services:
       SIP_DOMAIN:             ${SIP_DOMAIN:-localhost}
       # CRÍTICO: deve conter o IP público do VPS para NAT correto do RTP.
       # Se ficar vazio após restart, execute:
-      #   docker exec asteriskia-asterisk sed -i \
+      #   docker exec voipia-asterisk sed -i \
       #     's/external_media_address = $/external_media_address = SEU_IP/' \
       #     /etc/asterisk/pjsip.conf
       SIP_PUBLIC_IP:          ${SIP_PUBLIC_IP}
@@ -132,13 +132,13 @@ services:
       # Gravações do módulo Call Center (Fase 0/3) — apartado de asterisk_recordings,
       # que é exclusivo do fluxo de IA (Módulo 1/3). Bind mount direto (não volume
       # nomeado) para ficar acessível fora do Docker, igual /opt/audio do Insights.
-      # Fase 20 (Call Center Parte III): /opt/gravacoes/audio → /opt/AsteriskIA/media/gravacao
+      # Fase 20 (Call Center Parte III): /opt/gravacoes/audio → /opt/VoipIA/media/gravacao
       # (padronização de mídia sob a raiz do repo — media/ é git-ignorado, ver .gitignore).
-      - /opt/AsteriskIA/media/gravacao:/opt/AsteriskIA/media/gravacao
+      - /opt/VoipIA/media/gravacao:/opt/VoipIA/media/gravacao
       # Fase 5c (Call Center Parte III): biblioteca de áudios do Flow Builder — o backend
       # transcodifica e grava aqui (rw, ver volume no serviço backend); o Asterisk só lê,
       # resolvendo "sound:asteriskia/<file_name>" (convenção de sounds dir custom).
-      - /opt/AsteriskIA/media/anuncios:/var/lib/asterisk/sounds/asteriskia:ro
+      - /opt/VoipIA/media/anuncios:/var/lib/asterisk/sounds/asteriskia:ro
     ports:
       - "5060:5060/udp"              # SIP UDP (tronco + softphones)
       - "5060:5060/tcp"              # SIP TCP
@@ -149,7 +149,7 @@ services:
       # à internet sem necessidade.
       - "15000-15500:15000-15500/udp" # RTP — fluxo de mídia
     networks:
-      asteriskia-net:
+      voipia-net:
           ipv4_address: 172.16.7.12
     healthcheck:
       test: ["CMD", "asterisk", "-rx", "core show uptime"]
@@ -166,7 +166,7 @@ services:
     build:
       context: ./ai-agent
       dockerfile: Dockerfile
-    container_name: asteriskia-ai-agent
+    container_name: voipia-ai-agent
     restart: unless-stopped
     deploy:
       resources:
@@ -193,9 +193,9 @@ services:
     volumes:
       - ura_audio_cache:/cache/ura
       - asterisk_recordings:/var/spool/asterisk/monitor
-      - /opt/AsteriskIA/env:/opt/asteriskia/env:ro
+      - /opt/VoipIA/env:/opt/asteriskia/env:ro
     networks:
-      asteriskia-net:
+      voipia-net:
           ipv4_address: 172.16.7.13
     healthcheck:
       # Verifica se o servidor TCP AudioSocket está aceitando conexões na porta 9092
@@ -239,24 +239,24 @@ services:
       INTERNAL_API_KEY:             ${INTERNAL_API_KEY}
       DOTENV_PATH:                  /opt/asteriskia/env/.env
       INSIGHTS_AUDIO_DIR:           ${INSIGHTS_AUDIO_DIR:-/opt/audio}
-      # Fase 20 (Call Center Parte III): /opt/audio_upload → /opt/AsteriskIA/media/sobdemanda.
-      INSIGHTS_UPLOAD_AUDIO_DIR:    ${INSIGHTS_UPLOAD_AUDIO_DIR:-/opt/AsteriskIA/media/sobdemanda}
+      # Fase 20 (Call Center Parte III): /opt/audio_upload → /opt/VoipIA/media/sobdemanda.
+      INSIGHTS_UPLOAD_AUDIO_DIR:    ${INSIGHTS_UPLOAD_AUDIO_DIR:-/opt/VoipIA/media/sobdemanda}
       INSIGHTS_POLL_INTERVAL_SECONDS: ${INSIGHTS_POLL_INTERVAL_SECONDS:-60}
       INSIGHTS_MAX_CONCURRENCY:     ${INSIGHTS_MAX_CONCURRENCY:-2}
     volumes:
       - /opt/audio:/opt/audio:ro
       # Portal do supervisor (Fase 3 do Quality Management, V40) — pasta separada de
       # /opt/audio (não subpasta), só leitura: o backend é quem grava os uploads.
-      # Fase 20: /opt/audio_upload → /opt/AsteriskIA/media/sobdemanda.
-      - /opt/AsteriskIA/media/sobdemanda:/opt/AsteriskIA/media/sobdemanda:ro
+      # Fase 20: /opt/audio_upload → /opt/VoipIA/media/sobdemanda.
+      - /opt/VoipIA/media/sobdemanda:/opt/VoipIA/media/sobdemanda:ro
       # Gravações do Call Center (Fase 8) — só leitura: o backend (Asterisk MixMonitor)
       # é quem grava; este serviço só lê o .wav pelo caminho já resolvido pelo Java
       # (CallAudioFile.wavPath), sem descoberta própria de arquivo neste diretório.
-      # Fase 20 (Call Center Parte III): /opt/gravacoes/audio → /opt/AsteriskIA/media/gravacao.
-      - /opt/AsteriskIA/media/gravacao:/opt/AsteriskIA/media/gravacao:ro
-      - /opt/AsteriskIA/env:/opt/asteriskia/env:ro
+      # Fase 20 (Call Center Parte III): /opt/gravacoes/audio → /opt/VoipIA/media/gravacao.
+      - /opt/VoipIA/media/gravacao:/opt/VoipIA/media/gravacao:ro
+      - /opt/VoipIA/env:/opt/asteriskia/env:ro
     networks:
-      asteriskia-net:
+      voipia-net:
           ipv4_address: 172.16.7.18
     healthcheck:
       # Sem porta própria (loop de polling, não servidor) — confirma que o
@@ -290,9 +290,9 @@ services:
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /opt/AsteriskIA:/opt/AsteriskIA:ro
+      - /opt/VoipIA:/opt/VoipIA:ro
     networks:
-      asteriskia-net:
+      voipia-net:
           ipv4_address: 172.16.7.17
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health', timeout=4)"]
@@ -309,7 +309,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: asteriskia-backend
+    container_name: voipia-backend
     restart: unless-stopped
     deploy:
       resources:
@@ -359,14 +359,14 @@ services:
       INSIGHTS_AUDIO_PATH:        ${INSIGHTS_AUDIO_DIR:-/opt/audio}
       # Portal do supervisor (Fase 3 do Quality Management, V40) — InsightsUploadService
       # grava os arquivos enviados aqui; hoje o backend não montava RW nenhum áudio.
-      # Fase 20 (Call Center Parte III): /opt/audio_upload → /opt/AsteriskIA/media/sobdemanda
+      # Fase 20 (Call Center Parte III): /opt/audio_upload → /opt/VoipIA/media/sobdemanda
       # (é o upload de "análise sob demanda" pedido em add.txt — mesma feature, novo caminho).
-      INSIGHTS_UPLOAD_AUDIO_PATH: ${INSIGHTS_UPLOAD_AUDIO_DIR:-/opt/AsteriskIA/media/sobdemanda}
+      INSIGHTS_UPLOAD_AUDIO_PATH: ${INSIGHTS_UPLOAD_AUDIO_DIR:-/opt/VoipIA/media/sobdemanda}
       # Call Center (voz) — gravação/retenção/alerta de disco (Fase 3); o job de
       # expurgo precisa deletar o arquivo físico, por isso o mount abaixo é RW.
-      # Fase 20: /opt/gravacoes/{audio,chat} → /opt/AsteriskIA/media/{gravacao,chat}.
-      CALLCENTER_RECORDING_PATH:  ${CALLCENTER_RECORDING_PATH:-/opt/AsteriskIA/media/gravacao}
-      CALLCENTER_CHAT_TRANSCRIPT_PATH: ${CALLCENTER_CHAT_TRANSCRIPT_PATH:-/opt/AsteriskIA/media/chat}
+      # Fase 20: /opt/gravacoes/{audio,chat} → /opt/VoipIA/media/{gravacao,chat}.
+      CALLCENTER_RECORDING_PATH:  ${CALLCENTER_RECORDING_PATH:-/opt/VoipIA/media/gravacao}
+      CALLCENTER_CHAT_TRANSCRIPT_PATH: ${CALLCENTER_CHAT_TRANSCRIPT_PATH:-/opt/VoipIA/media/chat}
       # Fase 24: a fila do canal de chat interno virou configuração de banco (CcChatChannel.
       # defaultQueue) — CALLCENTER_CHAT_PUBLIC_QUEUE_ID foi removida. Origens de CORS liberadas
       # pro widget de chat interno (D8 — rede corporativa, nunca internet aberta); vazio nesta
@@ -374,14 +374,14 @@ services:
       CALLCENTER_CHAT_ALLOWED_ORIGINS: ${CALLCENTER_CHAT_ALLOWED_ORIGINS:-}
       # Biblioteca de áudios do Flow Builder (Fase 5c) — o backend transcodifica com ffmpeg
       # e grava aqui; o Asterisk só lê (mount ro, ver serviço asterisk).
-      CALLCENTER_AUDIO_LIBRARY_PATH: ${CALLCENTER_AUDIO_LIBRARY_PATH:-/opt/AsteriskIA/media/anuncios}
+      CALLCENTER_AUDIO_LIBRARY_PATH: ${CALLCENTER_AUDIO_LIBRARY_PATH:-/opt/VoipIA/media/anuncios}
     volumes:
       - asterisk_recordings:/var/spool/asterisk/monitor
-      - /opt/AsteriskIA/env:/opt/asteriskia/env
-      - /opt/AsteriskIA/asterisk/config:/etc/asterisk
+      - /opt/VoipIA/env:/opt/asteriskia/env
+      - /opt/VoipIA/asterisk/config:/etc/asterisk
       - fail2ban_socket:/var/run/fail2ban
-      - security_cmds:/var/run/asteriskia-security
-      - /opt/AsteriskIA/security/config:/opt/asteriskia/security/config
+      - security_cmds:/var/run/voipia-security
+      - /opt/VoipIA/security/config:/opt/asteriskia/security/config
       # fail2ban-client (usado por FailToBanClient) lê seu PRÓPRIO
       # /etc/fail2ban/jail.d local pra saber quais jails existem antes de
       # falar com o daemon via socket — sem isso ele só enxerga o jail.d
@@ -397,25 +397,25 @@ services:
       # áudio do stack (fora do Call Center); pasta separada de /opt/audio (nunca subpasta),
       # elimina por construção o risco de o watcher do Verint (scan não-recursivo) cruzar os
       # dois fluxos mesmo que um ajuste futuro torne o scan recursivo.
-      # Fase 20: /opt/audio_upload → /opt/AsteriskIA/media/sobdemanda.
-      - /opt/AsteriskIA/media/sobdemanda:/opt/AsteriskIA/media/sobdemanda:rw
+      # Fase 20: /opt/audio_upload → /opt/VoipIA/media/sobdemanda.
+      - /opt/VoipIA/media/sobdemanda:/opt/VoipIA/media/sobdemanda:rw
       # Call Center (voz) — gravação/retenção/alerta de disco (Fase 3). RW: o job de
       # expurgo (CallCenterRecordingRetentionService) deleta o arquivo físico expirado;
       # mesmo volume já montado (RW) no serviço asterisk, que é quem grava via MixMonitor.
-      # Fase 20: /opt/gravacoes/audio → /opt/AsteriskIA/media/gravacao.
-      - /opt/AsteriskIA/media/gravacao:/opt/AsteriskIA/media/gravacao:rw
+      # Fase 20: /opt/gravacoes/audio → /opt/VoipIA/media/gravacao.
+      - /opt/VoipIA/media/gravacao:/opt/VoipIA/media/gravacao:rw
       # Call Center (chat) — transcript exportado ao encerrar a sessão (Fase 11.3). Sem este
       # mount o backend grava na camada de escrita efêmera do container e o arquivo é perdido
       # a cada rebuild/restart — achado de revisão de segurança antes do deploy.
-      # Fase 20: /opt/gravacoes/chat → /opt/AsteriskIA/media/chat.
-      - /opt/AsteriskIA/media/chat:/opt/AsteriskIA/media/chat:rw
+      # Fase 20: /opt/gravacoes/chat → /opt/VoipIA/media/chat.
+      - /opt/VoipIA/media/chat:/opt/VoipIA/media/chat:rw
       # Biblioteca de áudios do Flow Builder (Fase 5c). RW: CallCenterAudioService grava o
       # arquivo já transcodificado (PCM 8kHz/16-bit mono) aqui; o Asterisk só lê (mount ro
       # no serviço asterisk, resolvendo sound:asteriskia/<file_name>).
-      - /opt/AsteriskIA/media/anuncios:/opt/AsteriskIA/media/anuncios:rw
+      - /opt/VoipIA/media/anuncios:/opt/VoipIA/media/anuncios:rw
       # Spool transiente da gravação ARI de pesquisa de satisfação (Fase 21) — mesmo volume do
       # serviço asterisk (que grava via Stasis record); o backend move o arquivo pronto pra
-      # /opt/AsteriskIA/media/gravacao/nps e apaga o original daqui.
+      # /opt/VoipIA/media/gravacao/nps e apaga o original daqui.
       - asterisk_ari_recordings:/var/spool/asterisk/recording:rw
       # Achado de segurança: montava o diretório security/ INTEIRO em RW,
       # incluindo entrypoint.sh/lockdown-watcher.sh — um RCE no backend
@@ -423,9 +423,9 @@ services:
       # (NET_ADMIN + network_mode: host). Restrito a só o estado que o
       # SecurityController lê/escreve (lockdown.flag, whitelist.txt,
       # manual-bans.csv) — nenhum script do container security os lê.
-      - /opt/AsteriskIA/security/state:/opt/asteriskia/security
+      - /opt/VoipIA/security/state:/opt/asteriskia/security
     networks:
-      asteriskia-net:
+      voipia-net:
           ipv4_address: 172.16.7.14
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
@@ -455,7 +455,7 @@ services:
         VITE_TURN_URL:        ${VITE_TURN_URL:-}
         VITE_TURN_USER:       ${VITE_TURN_USER:-asteriskia}
         VITE_TURN_CREDENTIAL: ${VITE_TURN_CREDENTIAL:-}
-    container_name: asteriskia-frontend
+    container_name: voipia-frontend
     restart: unless-stopped
     deploy:
       resources:
@@ -482,7 +482,7 @@ services:
       backend:
         condition: service_healthy
     networks:
-      asteriskia-net:
+      voipia-net:
           ipv4_address: 172.16.7.15
 
   # ---------------------------------------------------------------------------
@@ -500,7 +500,7 @@ services:
   # ---------------------------------------------------------------------------
   coturn:
     image: coturn/coturn:4.6.2
-    container_name: asteriskia-coturn
+    container_name: voipia-coturn
     restart: unless-stopped
     network_mode: host
     user: root
@@ -549,7 +549,7 @@ services:
     build:
       context: ./security
       dockerfile: Dockerfile
-    container_name: asteriskia-security
+    container_name: voipia-security
     restart: unless-stopped
     network_mode: host
     deploy:
@@ -573,7 +573,7 @@ services:
       # (iptables-multiport, iptables-allports). Montar um dir vazio aqui
       # apagaria essas actions e quebraria os bans.
       - fail2ban_socket:/var/run/fail2ban
-      - security_cmds:/var/run/asteriskia-security
+      - security_cmds:/var/run/voipia-security
       - /etc/ufw:/etc/ufw
       - /run/ufw.lock:/run/ufw.lock
     healthcheck:
@@ -591,7 +591,7 @@ services:
     build:
       context: ./agents-platform/backend
       dockerfile: Dockerfile
-    container_name: asteriskia-agents-api
+    container_name: voipia-agents-api
     restart: unless-stopped
     deploy:
       resources:
@@ -626,9 +626,9 @@ services:
       BACKEND_ALLOWED_ORIGINS:    ${BACKEND_ALLOWED_ORIGINS}
     volumes:
       - agents_knowledge:/app/knowledge_docs
-      - /opt/AsteriskIA/env:/opt/AsteriskIA/env
+      - /opt/VoipIA/env:/opt/VoipIA/env
     networks:
-      asteriskia-net:
+      voipia-net:
           ipv4_address: 172.16.7.16
     healthcheck:
       # Usa o endpoint público de health do FastAPI (curl não existe na imagem slim)
@@ -645,7 +645,7 @@ services:
   # ---------------------------------------------------------------------------
   caddy:
     image: caddy:2-alpine
-    container_name: asteriskia-caddy
+    container_name: voipia-caddy
     restart: unless-stopped
     deploy:
       resources:
@@ -683,5 +683,5 @@ services:
       - caddy_config:/config                 # Cache interno do Caddy
       - ./caddy-admin:/run/caddy-admin       # Socket Unix da admin API (acesso do host para reload)
     networks:
-      asteriskia-net:
+      voipia-net:
           ipv4_address: 172.16.7.10

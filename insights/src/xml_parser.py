@@ -3,7 +3,7 @@ xml_parser.py — Parser do XML de metadados de chamada gerado pelo sistema de
 gravação corporativo Verint (xmlns:x="http://www.verint.com/xmlns/recording20080320").
 
 Módulo apartado do domínio Asterisk deste sistema — este schema não tem
-nenhuma relação com o dialplan/CDR do AsteriskIA.
+nenhuma relação com o dialplan/CDR do VoipIA.
 
 Extrai os campos mapeados para colunas próprias de call_audio_files; tudo o
 mais fica disponível em `xml_raw` (dict completo via xmltodict) como

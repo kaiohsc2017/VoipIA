@@ -40,7 +40,7 @@ public class CallCenterCobrowsingService {
     private final CcCobrowseSessionRepository cobrowseSessionRepository;
     private final ObjectMapper objectMapper;
 
-    @Value("${app.callcenter.chat-transcript-path:/opt/AsteriskIA/media/chat}")
+    @Value("${app.callcenter.chat-transcript-path:/opt/VoipIA/media/chat}")
     private String basePath;
 
     @Transactional(readOnly = true)

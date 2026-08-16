@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * UserController — CRUD de usuários do sistema AsteriskIA.
+ * UserController — CRUD de usuários do sistema VoipIA.
  *
  * <p>POST /api/v1/users → cria usuário + atribui próximo ramal disponível (a partir de 9001) GET
  * /api/v1/users → lista todos os usuários GET /api/v1/users/{id} → busca por ID PUT

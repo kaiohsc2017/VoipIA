@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # =============================================================================
-# uninstall.sh — Remove o AsteriskIA por completo do servidor
+# uninstall.sh — Remove o VoipIA por completo do servidor
 # =============================================================================
 # Uso: quando o cliente desiste do sistema — mais rápido e seguro do que
 # formatar o servidor inteiro, especialmente se ele tiver outros serviços
-# rodando (este script NUNCA mexe em nada que não seja do AsteriskIA).
+# rodando (este script NUNCA mexe em nada que não seja do VoipIA).
 #
 # Remove:
 #   - Containers, rede e volumes Docker do projeto (inclui banco de dados,
 #     gravações de chamadas, base de conhecimento — TUDO é perdido)
 #   - Imagens Docker construídas pelo projeto (asteriskia-*)
-#   - O diretório /opt/AsteriskIA inteiro (código, .env, credenciais)
-#   - O serviço systemd asteriskia-lockdown
+#   - O diretório /opt/VoipIA inteiro (código, .env, credenciais)
+#   - O serviço systemd voipia-lockdown
 #   - Regras nftables de isolamento/lockdown criadas por este projeto
 #
 # NÃO remove (podem ser usados por outros serviços neste servidor):
@@ -19,7 +19,7 @@
 #   - Regras de UFW (portas podem ser compartilhadas) — a menos que
 #     --remove-firewall-rules seja passado explicitamente
 #   - Imagens base compartilhadas (postgres, nginx, caddy, coturn)
-#   - Qualquer outro container/serviço não relacionado ao AsteriskIA
+#   - Qualquer outro container/serviço não relacionado ao VoipIA
 #
 # Uso:
 #   sudo bash uninstall.sh                       → interativo, com backup
@@ -27,12 +27,12 @@
 #   sudo bash uninstall.sh --no-backup           → pula o backup final (dump do banco + .env)
 #   sudo bash uninstall.sh --force               → pula a confirmação interativa (automação)
 #   sudo bash uninstall.sh --remove-firewall-rules → também remove as regras de UFW do
-#                                                     AsteriskIA (só use se o VPS for dedicado)
+#                                                     VoipIA (só use se o VPS for dedicado)
 # =============================================================================
 set -uo pipefail
 # Sem -e: remoção é best-effort — uma etapa falhar não deve impedir as demais.
 
-INSTALL_DIR="/opt/AsteriskIA"
+INSTALL_DIR="/opt/VoipIA"
 BACKUP_DIR="/root/asteriskia-uninstall-backup-$(date +%Y%m%d-%H%M%S)"
 
 DRY_RUN=false
@@ -83,7 +83,7 @@ cat << 'BANNER'
  / ___ |(__  ) /_/  __/ /  / (__  ) ,<  _/ /   / ___/
 /_/  |_/____/\__/\___/_/  /_/____/_/|_|/___/   /_/
 
-  DESINSTALADOR — remove o AsteriskIA deste servidor
+  DESINSTALADOR — remove o VoipIA deste servidor
 BANNER
 echo -e "${NC}"
 
@@ -93,18 +93,18 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 log_step "O que será removido"
-echo -e "  • Containers, rede e volumes Docker do AsteriskIA (dados de chamadas, gravações,"
+echo -e "  • Containers, rede e volumes Docker do VoipIA (dados de chamadas, gravações,"
 echo -e "    banco de dados, base de conhecimento — tudo incluído)"
-echo -e "  • Imagens Docker construídas pelo projeto (ex: ${CYAN}asteriskia-backend${NC}) — imagens base"
+echo -e "  • Imagens Docker construídas pelo projeto (ex: ${CYAN}voipia-backend${NC}) — imagens base"
 echo -e "    compartilhadas (postgres, nginx, caddy, coturn) ${BOLD}não${NC} são removidas"
 echo -e "  • O diretório ${CYAN}${INSTALL_DIR}${NC} inteiro (código, .env, credenciais)"
-echo -e "  • O serviço systemd ${CYAN}asteriskia-lockdown${NC}"
+echo -e "  • O serviço systemd ${CYAN}voipia-lockdown${NC}"
 echo -e "  • Regras nftables de isolamento/lockdown criadas por este projeto"
 echo ""
 echo -e "${BOLD}O que ${RED}NÃO${NC}${BOLD} será removido${NC} (podem ser usados por outros serviços neste servidor):"
 echo -e "  • Docker Engine em si"
 echo -e "  • Regras de UFW (80/443/5060/8088/RTP/TURN) — use ${CYAN}--remove-firewall-rules${NC} se quiser removê-las também"
-echo -e "  • Qualquer outro container/serviço não relacionado ao AsteriskIA"
+echo -e "  • Qualquer outro container/serviço não relacionado ao VoipIA"
 echo ""
 
 if [ "$NO_BACKUP" = false ] && [ "$DRY_RUN" = false ]; then
@@ -131,15 +131,15 @@ elif [ "$DRY_RUN" = true ]; then
     echo -e "  ${YELLOW}[dry-run]${NC} criaria backup em $BACKUP_DIR (dump do Postgres + .env)"
 else
     mkdir -p "$BACKUP_DIR"
-    if docker inspect asteriskia-postgres &>/dev/null; then
+    if docker inspect voipia-postgres &>/dev/null; then
         log_info "Gerando dump do PostgreSQL..."
-        if docker exec asteriskia-postgres pg_dumpall -U asteriskia 2>/dev/null | gzip > "$BACKUP_DIR/postgres_dump.sql.gz"; then
+        if docker exec voipia-postgres pg_dumpall -U asteriskia 2>/dev/null | gzip > "$BACKUP_DIR/postgres_dump.sql.gz"; then
             log_ok "Dump salvo: $BACKUP_DIR/postgres_dump.sql.gz"
         else
             log_warn "Não foi possível gerar o dump do Postgres (container parado ou credenciais indisponíveis)"
         fi
     else
-        log_warn "Container asteriskia-postgres não encontrado — sem dump de banco"
+        log_warn "Container voipia-postgres não encontrado — sem dump de banco"
     fi
     if [ -f "$INSTALL_DIR/env/.env" ]; then
         cp "$INSTALL_DIR/env/.env" "$BACKUP_DIR/.env.bak"
@@ -175,18 +175,18 @@ fi
 
 # ── 4. Serviço systemd de lockdown ────────────────────────────────────────────
 log_step "4. Removendo serviço de lockdown SIP"
-if systemctl list-unit-files 2>/dev/null | grep -q asteriskia-lockdown; then
-    run "systemctl disable --now asteriskia-lockdown"
-    run "rm -f /etc/systemd/system/asteriskia-lockdown.service"
+if systemctl list-unit-files 2>/dev/null | grep -q voipia-lockdown; then
+    run "systemctl disable --now voipia-lockdown"
+    run "rm -f /etc/systemd/system/voipia-lockdown.service"
     run "systemctl daemon-reload"
 else
-    log_info "Serviço asteriskia-lockdown não está instalado"
+    log_info "Serviço voipia-lockdown não está instalado"
 fi
 
 # ── 5. Regras nftables criadas pelo projeto ───────────────────────────────────
 log_step "5. Limpando regras nftables"
 if command -v nft &>/dev/null; then
-    # Isolamento de containers (raw PREROUTING) — chain dedicada ao AsteriskIA
+    # Isolamento de containers (raw PREROUTING) — chain dedicada ao VoipIA
     # (security/apply-raw-rules.sh), sempre segura de esvaziar.
     run "nft flush chain ip raw PREROUTING 2>/dev/null"
     # Lockdown SIP (DOCKER-USER) — só toca se o lockdown estava ativo, e com a
@@ -204,7 +204,7 @@ fi
 # ── 6. Regras de firewall (UFW) — opcional ────────────────────────────────────
 log_step "6. Regras de firewall (UFW)"
 if [ "$REMOVE_FW" = true ]; then
-    log_warn "Removendo regras de UFW específicas do AsteriskIA (--remove-firewall-rules)"
+    log_warn "Removendo regras de UFW específicas do VoipIA (--remove-firewall-rules)"
     for rule in "80/tcp" "443/tcp" "443/udp" "5060/udp" "5060/tcp" "8088/tcp" \
                 "15000:15500/udp" "3478/udp" "3478/tcp" "5349/tcp" "5349/udp" \
                 "49152:49652/udp"; do
@@ -212,7 +212,7 @@ if [ "$REMOVE_FW" = true ]; then
     done
 else
     log_info "Regras de UFW preservadas — podem ser usadas por outros serviços deste servidor."
-    log_info "Pra remover manualmente depois: ufw delete allow 5060/udp (repita pras demais portas do AsteriskIA)"
+    log_info "Pra remover manualmente depois: ufw delete allow 5060/udp (repita pras demais portas do VoipIA)"
 fi
 
 # ── 7. Diretório da instalação ────────────────────────────────────────────────
@@ -225,8 +225,8 @@ log_step "Concluído"
 if [ "$DRY_RUN" = true ]; then
     log_info "Modo --dry-run: nada foi removido de verdade. Rode sem --dry-run para executar."
 else
-    log_ok "AsteriskIA removido do servidor."
+    log_ok "VoipIA removido do servidor."
     [ "$NO_BACKUP" = false ] && log_ok "Backup final disponível em: $BACKUP_DIR"
-    [ "$REMOVE_FW" = false ] && log_info "Regras de UFW do AsteriskIA continuam ativas — remova manualmente se necessário."
+    [ "$REMOVE_FW" = false ] && log_info "Regras de UFW do VoipIA continuam ativas — remova manualmente se necessário."
     log_info "Docker Engine não foi removido (pode ser usado por outros serviços deste servidor)."
 fi

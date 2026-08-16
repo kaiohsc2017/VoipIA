@@ -1,23 +1,23 @@
 # =============================================================================
-# asteriskia-lockdown.service — Watcher de lockdown SIP (roda no HOST)
+# voipia-lockdown.service — Watcher de lockdown SIP (roda no HOST)
 #
 # Executa o lockdown-watcher.sh, que:
 #   - aplica comandos nftables enfileirados pelo backend (.cmd)
 #   - reaplica o lockdown persistente após restart do Docker
 #
 # Instalação:
-#   sudo cp security/asteriskia-lockdown.service /etc/systemd/system/
+#   sudo cp security/voipia-lockdown.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
-#   sudo systemctl enable --now asteriskia-lockdown
+#   sudo systemctl enable --now voipia-lockdown
 # =============================================================================
 [Unit]
-Description=AsteriskIA SIP Lockdown Watcher
+Description=VoipIA SIP Lockdown Watcher
 After=docker.service network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/opt/AsteriskIA/security/lockdown-watcher.sh
+ExecStart=/opt/VoipIA/security/lockdown-watcher.sh
 Restart=always
 RestartSec=5
 # Precisa de privilégio para manipular nftables na chain DOCKER-USER

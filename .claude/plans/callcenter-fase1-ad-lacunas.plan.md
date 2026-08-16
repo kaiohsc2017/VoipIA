@@ -124,7 +124,7 @@ usuário, que hoje bloqueiam o restante do plano-mãe (Fase 14/screen pop depend
 
 ```bash
 # Backend
-docker exec asteriskia-backend true 2>/dev/null || true  # apenas para referência de ambiente
+docker exec voipia-backend true 2>/dev/null || true  # apenas para referência de ambiente
 mvn -o test   # dentro do container Maven com cache offline, mesmo padrão já usado nas fases recentes
 
 # Frontend
@@ -133,7 +133,7 @@ cd frontend && npx tsc --noEmit && npm run build
 # Deploy
 docker compose up -d --build backend frontend
 # confirmar migration V84 em flyway_schema_history
-docker exec asteriskia-postgres psql -U asteriskia -d asteriskia -c \
+docker exec voipia-postgres psql -U asteriskia -d asteriskia -c \
   "SELECT version FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 3;"
 
 # Validação funcional via curl com JWT ADMIN forjado inline (nunca persistido em arquivo)

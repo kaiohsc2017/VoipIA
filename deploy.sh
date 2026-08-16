@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# deploy.sh — Deploy AsteriskIA na VPS
+# deploy.sh — Deploy VoipIA na VPS
 # Puxa o código mais recente e reinicia apenas os containers afetados.
 #
 # Uso:
@@ -9,14 +9,14 @@
 # =============================================================================
 set -euo pipefail
 
-APP_DIR="/opt/AsteriskIA"
+APP_DIR="/opt/VoipIA"
 FORCE_BUILD="${1:-}"
 
 log()  { echo -e "\n\033[1;34m[$(date '+%H:%M:%S')]\033[0m $*"; }
 ok()   { echo -e "\033[0;32m✔\033[0m $*"; }
 fail() { echo -e "\033[0;31m✖\033[0m $*"; exit 1; }
 
-log "Deploy AsteriskIA — $(date '+%d/%m/%Y %H:%M:%S')"
+log "Deploy VoipIA — $(date '+%d/%m/%Y %H:%M:%S')"
 
 # ── 1. Atualiza o código ──────────────────────────────────────────────────────
 log "1/3 · Atualizando repositório..."

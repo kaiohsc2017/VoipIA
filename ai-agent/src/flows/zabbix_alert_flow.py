@@ -73,7 +73,7 @@ class ZabbixAlertFlow:
             f"Host afetado: {host}. "
             f"Detalhe do incidente: {incident_summary}. "
             f"Por favor, verifique imediatamente o sistema de monitoramento. "
-            f"Esta mensagem foi enviada automaticamente pelo sistema AsteriskIA."
+            f"Esta mensagem foi enviada automaticamente pelo sistema VoipIA."
         )
 
         # 3. TTS: sintetiza e envia o alerta por voz

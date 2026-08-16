@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AsteriskIA v3.1 — Deploy · Ubuntu 22/24 LTS</title>
+<title>VoipIA v3.1 — Deploy · Ubuntu 22/24 LTS</title>
 <style>
   :root{--ubuntu:#E95420;--ubuntu-dark:#77216F;--ubuntu-light:#fff3ef;--primary:#6c47ff;--ok:#16a34a;--ok-light:#dcfce7;--err:#dc2626;--err-light:#fee2e2;--warn:#d97706;--warn-light:#fef3c7;--info:#0369a1;--info-light:#e0f2fe;--bg:#f8f9fc;--card:#ffffff;--border:#e2e8f0;--text:#1a2340;--text2:#64748b;--text3:#94a3b8;--sidebar-bg:#2c001e;--code-bg:#0f1117;--code-text:#e2e8f0}
   *{box-sizing:border-box;margin:0;padding:0}
@@ -73,7 +73,7 @@
 <body>
 <nav class="sidebar">
   <div class="sidebar-logo">
-    <h1>AsteriskIA — Deploy</h1>
+    <h1>VoipIA — Deploy</h1>
     <div class="os">Ubuntu 22.04 / 24.04 LTS</div>
     <div class="ver">v3.1 &middot; Guia completo</div>
   </div>
@@ -103,7 +103,7 @@
 
 <div class="hero">
   <div class="hero-os">Ubuntu 22.04 / 24.04 LTS</div>
-  <h1>AsteriskIA v3.1 — Guia de Implantação</h1>
+  <h1>VoipIA v3.1 — Guia de Implantação</h1>
   <p>Stack VoIP + IA completo: Asterisk 21 LTS (G.729+G.711), Spring Boot 3.3, React 18, Python asyncio, PostgreSQL 16 e Multi-provider AI com fallback automático (Gemini, Anthropic, OpenAI, ElevenLabs, Grok, Perplexity, Ollama).</p>
   <div class="hero-meta">
     <div class="hero-badge">OS<span>Ubuntu 22 / 24</span></div>
@@ -193,8 +193,8 @@ docker run --rm hello-world</span>
   <h2><span class="step-badge">04</span> Clonar Repositório</h2>
   <div class="code-block">
     <div class="code-header"><span class="code-label">bash</span></div>
-    <pre><span class="cmd">git clone https://github.com/kaiohsc2017/AsteriskIA.git /opt/AsteriskIA
-cd /opt/AsteriskIA</span></pre>
+    <pre><span class="cmd">git clone https://github.com/kaiohsc2017/VoipIA.git /opt/VoipIA
+cd /opt/VoipIA</span></pre>
   </div>
 </div>
 
@@ -202,9 +202,9 @@ cd /opt/AsteriskIA</span></pre>
   <h2><span class="step-badge">05</span> Configurar .env</h2>
   <div class="code-block">
     <div class="code-header"><span class="code-label">bash</span></div>
-    <pre><span class="cmd">mkdir -p /opt/AsteriskIA/env
-cp /opt/AsteriskIA/.env.example /opt/AsteriskIA/env/.env
-nano /opt/AsteriskIA/env/.env</span></pre>
+    <pre><span class="cmd">mkdir -p /opt/VoipIA/env
+cp /opt/VoipIA/.env.example /opt/VoipIA/env/.env
+nano /opt/VoipIA/env/.env</span></pre>
   </div>
   <table class="tbl">
     <tr><th>Variável</th><th>Descrição</th><th>Exemplo</th></tr>
@@ -235,18 +235,18 @@ nano /opt/AsteriskIA/env/.env</span></pre>
     <p>O primeiro build <strong>compila o Asterisk 21 do fonte com G.729 + G.711</strong>. Aguarde 15–25 minutos. Use <code>tmux</code> para não perder a sessão SSH.</p>
   </div>
   <div class="code-block">
-    <div class="code-header"><span class="code-label">bash · /opt/AsteriskIA</span></div>
+    <div class="code-header"><span class="code-label">bash · /opt/VoipIA</span></div>
     <pre><span class="cmd">docker compose build --no-cache 2>&amp;1 | tail -10
 docker compose up -d
 docker compose ps</span>
-<span class="out">asteriskia-caddy        Up
-asteriskia-postgres     Up (healthy)
-asteriskia-backend      Up (healthy)
-asteriskia-frontend     Up
-asteriskia-asterisk     Up (healthy)
-asteriskia-ai-agent     Up
-asteriskia-agents-api   Up
-asteriskia-security     Up (healthy)</span></pre>
+<span class="out">voipia-caddy        Up
+voipia-postgres     Up (healthy)
+voipia-backend      Up (healthy)
+voipia-frontend     Up
+voipia-asterisk     Up (healthy)
+voipia-ai-agent     Up
+voipia-agents-api   Up
+voipia-security     Up (healthy)</span></pre>
   </div>
 </div>
 
@@ -255,15 +255,15 @@ asteriskia-security     Up (healthy)</span></pre>
   <div class="code-block">
     <div class="code-header"><span class="code-label">bash</span></div>
     <pre><span class="cmt"># Caddy sobe junto com o compose — verificar se obteve TLS</span>
-<span class="cmd">docker logs asteriskia-caddy --tail=10</span>
+<span class="cmd">docker logs voipia-caddy --tail=10</span>
 <span class="out">{"level":"info","msg":"served key authentication","identifier":"app.voiphash.com.br"}
 {"level":"info","msg":"authorization finalized","identifier":"app.voiphash.com.br","authz_status":"valid"}</span>
 
 <span class="cmt"># Recarregar Caddyfile sem downtime (após editar o arquivo)</span>
 <span class="cmt"># Admin API via socket Unix (não TCP:2019 — evita expor a API pra outros containers da rede)</span>
-<span class="cmd">curl --unix-socket /opt/AsteriskIA/caddy-admin/admin.sock http://localhost/load \
+<span class="cmd">curl --unix-socket /opt/VoipIA/caddy-admin/admin.sock http://localhost/load \
   -H "Content-Type: text/caddyfile" \
-  --data-binary @/opt/AsteriskIA/Caddyfile</span></pre>
+  --data-binary @/opt/VoipIA/Caddyfile</span></pre>
   </div>
 </div>
 
@@ -276,19 +276,19 @@ asteriskia-security     Up (healthy)</span></pre>
 <span class="out">{"status":"UP"}</span>
 
 <span class="cmt"># SIP_PUBLIC_IP — CRÍTICO</span>
-<span class="cmd">docker exec asteriskia-asterisk grep "external_media_address" /etc/asterisk/pjsip.conf</span>
+<span class="cmd">docker exec voipia-asterisk grep "external_media_address" /etc/asterisk/pjsip.conf</span>
 <span class="out">external_media_address = 129.121.51.29</span>
 <span class="cmt"># Se vazio, injeta manualmente:</span>
-<span class="cmd">docker exec asteriskia-asterisk sed -i \
+<span class="cmd">docker exec voipia-asterisk sed -i \
   's/external_media_address = $/external_media_address = SEU_IP/' \
   /etc/asterisk/pjsip.conf
-docker exec asteriskia-asterisk asterisk -rx "module reload res_pjsip.so"</span>
+docker exec voipia-asterisk asterisk -rx "module reload res_pjsip.so"</span>
 
 <span class="cmt"># Codecs compilados</span>
-<span class="cmd">docker exec asteriskia-asterisk asterisk -rx "core show codecs" | grep -i "g729\|alaw\|ulaw"</span>
+<span class="cmd">docker exec voipia-asterisk asterisk -rx "core show codecs" | grep -i "g729\|alaw\|ulaw"</span>
 
 <span class="cmt"># Migrations Flyway</span>
-<span class="cmd">docker exec asteriskia-postgres psql -U asteriskia -d asteriskia \
+<span class="cmd">docker exec voipia-postgres psql -U asteriskia -d asteriskia \
   -c "SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 5;"</span></pre>
   </div>
 </div>
@@ -389,7 +389,7 @@ ufw --force enable</span></pre>
   <h3>Chamada conecta mas sem áudio</h3>
   <div class="code-block"><div class="code-header"><span class="code-label">bash</span></div>
     <pre><span class="cmt"># 1. Verifica SIP_PUBLIC_IP (causa mais comum)</span>
-<span class="cmd">docker exec asteriskia-asterisk grep "external_media_address" /etc/asterisk/pjsip.conf</span>
+<span class="cmd">docker exec voipia-asterisk grep "external_media_address" /etc/asterisk/pjsip.conf</span>
 <span class="cmt"># Se vazio: injeta o IP e faz module reload res_pjsip.so</span>
 
 <span class="cmt"># 2. Portas RTP abertas no host</span>
@@ -398,7 +398,7 @@ ufw --force enable</span></pre>
 
   <h3>URA não fala / erro 404 STT</h3>
   <div class="code-block"><div class="code-header"><span class="code-label">bash</span></div>
-    <pre><span class="cmd">docker logs -f asteriskia-ai-agent 2>&amp;1 | tail -30</span>
+    <pre><span class="cmd">docker logs -f voipia-ai-agent 2>&amp;1 | tail -30</span>
 <span class="cmt"># 404 gemini-2.0-flash → descontinuado. Trocar para gemini-2.5-flash no painel.</span>
 <span class="cmt"># 400 TTS INVALID_ARGUMENT → modelo TTS deve terminar em -tts</span>
 <span class="cmt"># STT transcrevendo ruído → _POST_SPEAK_BUFFER_SECS muito pequeno (deve ser 2.0)</span></pre>
@@ -406,14 +406,14 @@ ufw --force enable</span></pre>
 
   <h3>Gravação não aparece no dashboard</h3>
   <div class="code-block"><div class="code-header"><span class="code-label">bash</span></div>
-    <pre><span class="cmd">docker exec asteriskia-asterisk ls /var/spool/asterisk/monitor/*.wav 2>/dev/null | head -5
-docker exec asteriskia-backend ls /var/spool/asterisk/monitor/*.wav 2>/dev/null | head -5</span>
+    <pre><span class="cmd">docker exec voipia-asterisk ls /var/spool/asterisk/monitor/*.wav 2>/dev/null | head -5
+docker exec voipia-backend ls /var/spool/asterisk/monitor/*.wav 2>/dev/null | head -5</span>
 <span class="cmt"># Ambos devem listar os mesmos arquivos (volume compartilhado)</span></pre>
   </div>
 
   <h3>Flyway migration falhou</h3>
   <div class="code-block"><div class="code-header"><span class="code-label">bash</span></div>
-    <pre><span class="cmd">docker exec asteriskia-postgres psql -U asteriskia -d asteriskia \
+    <pre><span class="cmd">docker exec voipia-postgres psql -U asteriskia -d asteriskia \
   -c "DELETE FROM flyway_schema_history WHERE success=false;"
 docker compose restart backend</span></pre>
   </div>
@@ -422,22 +422,22 @@ docker compose restart backend</span></pre>
 <div class="section anchor" id="manutencao">
   <h2><span class="step-badge">REF</span> Manutenção</h2>
   <div class="code-block"><div class="code-header"><span class="code-label">Atualizar sistema</span></div>
-    <pre><span class="cmd">bash /opt/AsteriskIA/install.sh --update</span></pre>
+    <pre><span class="cmd">bash /opt/VoipIA/install.sh --update</span></pre>
   </div>
   <div class="code-block"><div class="code-header"><span class="code-label">Recarregar dialplan (sem restart)</span></div>
-    <pre><span class="cmd">docker cp asterisk/config/extensions.conf asteriskia-asterisk:/etc/asterisk/extensions.conf
-docker exec asteriskia-asterisk asterisk -rx "dialplan reload"</span></pre>
+    <pre><span class="cmd">docker cp asterisk/config/extensions.conf voipia-asterisk:/etc/asterisk/extensions.conf
+docker exec voipia-asterisk asterisk -rx "dialplan reload"</span></pre>
   </div>
   <div class="code-block"><div class="code-header"><span class="code-label">Recarregar PJSIP (sem restart)</span></div>
-    <pre><span class="cmd">docker exec asteriskia-asterisk asterisk -rx "module reload res_pjsip.so"</span></pre>
+    <pre><span class="cmd">docker exec voipia-asterisk asterisk -rx "module reload res_pjsip.so"</span></pre>
   </div>
   <div class="code-block"><div class="code-header"><span class="code-label">Recarregar Caddyfile (socket Unix, não TCP:2019)</span></div>
-    <pre><span class="cmd">curl --unix-socket /opt/AsteriskIA/caddy-admin/admin.sock http://localhost/load \
+    <pre><span class="cmd">curl --unix-socket /opt/VoipIA/caddy-admin/admin.sock http://localhost/load \
   -H "Content-Type: text/caddyfile" \
-  --data-binary @/opt/AsteriskIA/Caddyfile</span></pre>
+  --data-binary @/opt/VoipIA/Caddyfile</span></pre>
   </div>
   <div class="code-block"><div class="code-header"><span class="code-label">Backup do banco</span></div>
-    <pre><span class="cmd">docker exec asteriskia-postgres pg_dump -U asteriskia asteriskia \
+    <pre><span class="cmd">docker exec voipia-postgres pg_dump -U asteriskia asteriskia \
   | gzip > /opt/backups/asteriskia_$(date +%Y%m%d_%H%M).sql.gz</span></pre>
   </div>
 </div>
@@ -469,8 +469,8 @@ docker exec asteriskia-asterisk asterisk -rx "dialplan reload"</span></pre>
 </div>
 
 <div class="footer">
-  AsteriskIA v3.1 &middot; Ubuntu 22.04 / 24.04 LTS &middot; Asterisk 21 LTS + Spring Boot 3.3 + React 18 + Python asyncio + PostgreSQL 16 + AI Multi-Provider<br>
-  github.com/kaiohsc2017/AsteriskIA
+  VoipIA v3.1 &middot; Ubuntu 22.04 / 24.04 LTS &middot; Asterisk 21 LTS + Spring Boot 3.3 + React 18 + Python asyncio + PostgreSQL 16 + AI Multi-Provider<br>
+  github.com/kaiohsc2017/VoipIA
 </div>
 </main>
 </body>

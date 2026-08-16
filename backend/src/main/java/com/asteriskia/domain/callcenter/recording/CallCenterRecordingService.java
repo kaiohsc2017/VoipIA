@@ -39,7 +39,7 @@ public class CallCenterRecordingService {
     private final CcInteractionRepository interactionRepository;
     private final InsightsIngestionService insightsIngestionService;
 
-    @Value("${app.callcenter.recording-path:/opt/AsteriskIA/media/gravacao}")
+    @Value("${app.callcenter.recording-path:/opt/VoipIA/media/gravacao}")
     private String recordingBasePath;
 
     /**

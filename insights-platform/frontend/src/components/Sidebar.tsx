@@ -46,7 +46,7 @@ export default function Sidebar({ currentTab, onNavigate, username, session, onL
       <div className="sidebar-logo" onClick={onToggleCollapse} style={{ cursor: 'pointer' }}>
         <div className="logo-mark">
           <div className="logo-icon">A★</div>
-          <span className="logo-text">AsteriskIA</span>
+          <span className="logo-text">VoipIA</span>
         </div>
         <div className="logo-version">Insights</div>
       </div>

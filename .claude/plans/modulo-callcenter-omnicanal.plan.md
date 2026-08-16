@@ -1,7 +1,7 @@
 # Plano: Módulo Call Center Omnicanal (Voz + Chat)
 
 **Origem**: pedido livre do usuário (2026-08-06), **ampliado em 2026-08-08** (`pla.txt` — 10 pedidos novos)
-**Complexidade**: **Extra-Large** — é um produto, não uma feature. Maior entrega já feita no AsteriskIA.
+**Complexidade**: **Extra-Large** — é um produto, não uma feature. Maior entrega já feita no VoipIA.
 **Última reorganização**: 2026-08-08 — Parte II (Fases 11-15) incorporada, §8 reescrita como
 tabela de status, histórico verboso movido para §16.
 
@@ -224,7 +224,7 @@ risco de enumeração do diretório corporativo que motivava a pergunta original
 1. O chat **pode confirmar ao cliente** se o login é válido ou não (era o ponto proibido antes).
 2. O "widget público" da Fase 7b deixa de ser público: passa a ser **widget interno**. O token
    anônimo (`scope=chat_customer`) e o rate limiting continuam válidos e úteis (defesa em
-   profundidade, e o cliente ainda não é um usuário logado do AsteriskIA), mas deixam de ser a
+   profundidade, e o cliente ainda não é um usuário logado do VoipIA), mas deixam de ser a
    última linha de defesa contra a internet aberta.
 3. A revisão de segurança dedicada ao "WebSocket de chat exposto à internet" (Fase 10, §3.3)
    muda de severidade: continua na lista, rebaixada de **Alto** para **Médio**.
@@ -324,7 +324,7 @@ dentro do próprio container. Não há volume compartilhado de sons entre os doi
 
 ### 5.1 Regra obrigatória — toda interação com IA aparece no Financeiro
 
-**Definida pelo usuário em 2026-08-08. Vale para todo o AsteriskIA, não só para o Call Center.**
+**Definida pelo usuário em 2026-08-08. Vale para todo o VoipIA, não só para o Call Center.**
 
 > Nenhuma tela ou funcionalidade nova que chame um modelo de IA entra em produção sem estar
 > visível no módulo Financeiro, com custo por interação.
@@ -514,13 +514,13 @@ chat sendo gravado sem mascaramento de CPF/cartão/telefone).
 
 **Achado real de deploy, fora do escopo original desta fase mas bloqueante para ela**: ao
 rebuildar o `backend`, uma mudança de Dockerfile já pendente antes desta sessão (de-rootização do
-container, `USER backend` uid 1501/gid 1500 `asteriskia-app`) entrou em vigor e o backend passou a
+container, `USER backend` uid 1501/gid 1500 `voipia-app`) entrou em vigor e o backend passou a
 rodar como não-root. Os dois diretórios novos (`/opt/gravacoes/audio`, `/opt/gravacoes/chat`),
 criados pelo bind mount do Docker como `root:root 755`, ficaram ilegíveis/inescreveíveis pelo
 backend — o Asterisk (root) grava normalmente, mas o backend não conseguia ler/expurgar o próprio
 arquivo gravado nem exportar o transcript. Corrigido com o **mesmo padrão já usado em
-`/opt/AsteriskIA/env`**: `chown root:asteriskia-app` + `chmod 2770` (setgid — todo arquivo criado
-dentro, mesmo por um processo root, herda o grupo `asteriskia-app`, dando ao backend acesso via
+`/opt/VoipIA/env`**: `chown root:voipia-app` + `chmod 2770` (setgid — todo arquivo criado
+dentro, mesmo por um processo root, herda o grupo `voipia-app`, dando ao backend acesso via
 grupo). `scripts/migrar-gravacoes.sh` foi estendido para aplicar essa permissão nos dois
 diretórios de forma idempotente, incondicional (mesmo sem nada para migrar) — reprodutível no
 servidor dedicado de produção.

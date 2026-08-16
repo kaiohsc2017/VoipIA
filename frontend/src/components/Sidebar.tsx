@@ -191,7 +191,7 @@ export default function Sidebar({ currentPage, onNavigate, username, role, perms
       <div className="sidebar-logo" onClick={onToggleCollapse} style={{ cursor: 'pointer' }}>
         <div className="logo-mark">
           <div className="logo-icon">A★</div>
-          <span className="logo-text">AsteriskIA</span>
+          <span className="logo-text">VoipIA</span>
         </div>
         <div className="logo-version">{CURRENT_VERSION} — Painel de Controle</div>
       </div>

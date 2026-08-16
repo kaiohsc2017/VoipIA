@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 agente-google.py
-Agente especialista AsteriskIA com memória persistente via PostgreSQL.
+Agente especialista VoipIA com memória persistente via PostgreSQL.
 Variante Google Gemini — usa a SDK google-genai diretamente.
 
 Refatoração V2:
@@ -27,11 +27,11 @@ except ImportError:
 # ─── Config ───────────────────────────────────────────────────────────────────
 
 # Carrega variáveis de ambiente de forma segura
-load_dotenv(Path("/opt/AsteriskIA/env/.env"))
-load_dotenv(Path("/opt/AsteriskIA/.env"))
+load_dotenv(Path("/opt/VoipIA/env/.env"))
+load_dotenv(Path("/opt/VoipIA/.env"))
 load_dotenv() # Fallback local
 
-PROJECT_DIR = Path(os.environ.get("ASTERISKIA_DIR", "/opt/AsteriskIA"))
+PROJECT_DIR = Path(os.environ.get("VOIPIA_DIR", "/opt/VoipIA"))
 MODEL       = os.environ.get("GEMINI_MODEL_LLM", "gemini-2.5-flash")
 MEMORY_TOP  = 6
 SESSION_ID  = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -363,14 +363,14 @@ class Memory:
 
 # ─── Sistema de prompts ───────────────────────────────────────────────────────
 
-BASE_SYSTEM = f"""Você é o Especialista Sênior do projeto AsteriskIA com 3 papéis simultâneos:
+BASE_SYSTEM = f"""Você é o Especialista Sênior do projeto VoipIA com 3 papéis simultâneos:
 1. Desenvolvedor Sênior (Spring Boot 3, Java 21, Python asyncio, React 18)
 2. Arquiteto DevOps (Docker Compose, Caddy, CI/CD, observabilidade)
 3. Engenheiro Sênior Linux (Asterisk 21, redes, firewall, performance)
 
 Stack: Spring Boot 3.3.5 · Java 21 · PostgreSQL 16 · React 18 · Python asyncio · Docker Compose · Asterisk 21 · Caddy
-Projeto: {PROJECT_DIR}  |  Repo: https://github.com/kaiohsc2017/AsteriskIA
-Containers: asterisk, ai-agent, backend, frontend, postgres, caddy, grafana, prometheus, scheduler, asteriskia-security
+Projeto: {PROJECT_DIR}  |  Repo: https://github.com/kaiohsc2017/VoipIA
+Containers: asterisk, ai-agent, backend, frontend, postgres, caddy, grafana, prometheus, scheduler, voipia-security
 WebRTC: Caddy → Asterisk:8088 (WSS)  |  AudioSocket: porta 9092 (só rede Docker interna)
 
 REGRAS DE EXECUÇÃO:
@@ -502,7 +502,7 @@ def banner(mem: Memory):
         )
     print(f"""
 {C.NAVY}{C.B}╔══════════════════════════════════════════════════════════╗
-║     AsteriskIA · Especialista Sênior · Memória Ativa     ║
+║     VoipIA · Especialista Sênior · Memória Ativa     ║
 ╚══════════════════════════════════════════════════════════╝{C.R}
 {C.GRAY}  Projeto : {PROJECT_DIR}
   Modelo  : {MODEL}
@@ -561,7 +561,7 @@ def main():
         types.FunctionDeclaration(
             name="bash",
             description=(
-                "Executa comando bash no VPS de produção do AsteriskIA. "
+                "Executa comando bash no VPS de produção do VoipIA. "
                 "Leitura: execute direto. Modificação: requires_confirmation=true."
             ),
             parameters={"type": "object", "properties": {

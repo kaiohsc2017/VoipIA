@@ -8,7 +8,7 @@ export default function TelecomModulos() {
     <>
       <Section id="telecom-visao-geral" title="Visão Geral do Sistema">
         <p>
-          O AsteriskIA é uma plataforma de telefonia (Asterisk 21 LTS + PJSIP + WebRTC) integrada a
+          O VoipIA é uma plataforma de telefonia (Asterisk 21 LTS + PJSIP + WebRTC) integrada a
           IA generativa (Google Gemini) para atendimento automatizado por voz, testes periódicos de
           conectividade e monitoramento de alertas de infraestrutura. É composto por dois sistemas
           que compartilham o mesmo login e o mesmo banco PostgreSQL: o <strong>Telecom</strong>{' '}
@@ -37,16 +37,16 @@ export default function TelecomModulos() {
             <FieldTable
               headers={['Container', 'Função']}
               rows={[
-                [<FieldName>asteriskia-caddy</FieldName>, 'Proxy reverso HTTPS — TLS automático (Let\'s Encrypt), entrada de todo tráfego externo'],
-                [<FieldName>asteriskia-postgres</FieldName>, 'Banco unificado PostgreSQL 16 (Telecom + Agentes)'],
-                [<FieldName>asteriskia-asterisk</FieldName>, 'PBX — Asterisk 21 LTS'],
-                [<FieldName>asteriskia-ai-agent</FieldName>, 'Servidor AudioSocket Python assíncrono — STT/LLM/TTS via Gemini'],
-                [<FieldName>asteriskia-backend</FieldName>, 'Spring Boot 3.3 — API REST + WebSocket STOMP do Telecom'],
-                [<FieldName>asteriskia-frontend</FieldName>, 'React 18 + Nginx — serve Telecom e Agentes'],
-                [<FieldName>asteriskia-agents-api</FieldName>, 'FastAPI — Plataforma de Agentes'],
+                [<FieldName>voipia-caddy</FieldName>, 'Proxy reverso HTTPS — TLS automático (Let\'s Encrypt), entrada de todo tráfego externo'],
+                [<FieldName>voipia-postgres</FieldName>, 'Banco unificado PostgreSQL 16 (Telecom + Agentes)'],
+                [<FieldName>voipia-asterisk</FieldName>, 'PBX — Asterisk 21 LTS'],
+                [<FieldName>voipia-ai-agent</FieldName>, 'Servidor AudioSocket Python assíncrono — STT/LLM/TTS via Gemini'],
+                [<FieldName>voipia-backend</FieldName>, 'Spring Boot 3.3 — API REST + WebSocket STOMP do Telecom'],
+                [<FieldName>voipia-frontend</FieldName>, 'React 18 + Nginx — serve Telecom e Agentes'],
+                [<FieldName>voipia-agents-api</FieldName>, 'FastAPI — Plataforma de Agentes'],
                 [<FieldName>asteriskia-docker-helper</FieldName>, 'Único container com acesso ao docker.sock — API interna estreita, sem porta publicada'],
-                [<FieldName>asteriskia-coturn</FieldName>, 'Relay TURN/TURNS para WebRTC quando STUN não basta (ex: NAT simétrico) — network_mode: host'],
-                [<FieldName>asteriskia-security</FieldName>, 'Fail2ban + nftables — lockdown SIP e bans automáticos, network_mode: host'],
+                [<FieldName>voipia-coturn</FieldName>, 'Relay TURN/TURNS para WebRTC quando STUN não basta (ex: NAT simétrico) — network_mode: host'],
+                [<FieldName>voipia-security</FieldName>, 'Fail2ban + nftables — lockdown SIP e bans automáticos, network_mode: host'],
               ]}
             />
           </Card>

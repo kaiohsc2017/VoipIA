@@ -141,7 +141,7 @@ a tratar aqui, todas as linhas ficam clicáveis.
 - **Validar (local, sem deploy):**
   ```bash
   cd insights-platform/frontend && npx tsc --noEmit && npm run build
-  cd /opt/AsteriskIA/frontend && npx tsc --noEmit
+  cd /opt/VoipIA/frontend && npx tsc --noEmit
   docker run --rm -v "$(pwd)/../backend":/build -w /build maven:3.9-eclipse-temurin-21 mvn -q compile
   ```
 - Deploy (só com confirmação separada antes de mexer em produção):

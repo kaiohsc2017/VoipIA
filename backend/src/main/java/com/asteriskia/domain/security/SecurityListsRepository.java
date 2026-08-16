@@ -113,6 +113,6 @@ public class SecurityListsRepository {
         Path p = Path.of(whitelistFile());
         Files.createDirectories(p.getParent());
         SecurityFileUtils.writeAtomic(
-                p, "# AsteriskIA — Lista branca\n" + String.join("\n", ips) + "\n");
+                p, "# VoipIA — Lista branca\n" + String.join("\n", ips) + "\n");
     }
 }

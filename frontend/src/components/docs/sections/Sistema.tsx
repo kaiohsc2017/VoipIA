@@ -156,8 +156,8 @@ export default function Sistema() {
 
       <Section id="sistema-variaveis-env" title="Variáveis de Ambiente">
         <p>
-          Defina no arquivo <code>/opt/AsteriskIA/.env</code> (container agents-backend) e{' '}
-          <code>/opt/AsteriskIA/env/.env.agents</code> (configuração de IA, editável pelo painel).
+          Defina no arquivo <code>/opt/VoipIA/.env</code> (container agents-backend) e{' '}
+          <code>/opt/VoipIA/env/.env.agents</code> (configuração de IA, editável pelo painel).
         </p>
 
         <SubSection title="Banco de dados">

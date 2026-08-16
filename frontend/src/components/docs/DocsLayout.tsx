@@ -83,7 +83,7 @@ export default function DocsLayout({ children }: DocsLayoutProps) {
         {children}
 
         <div className="docs-footer">
-          <strong>AsteriskIA</strong> · Documentação Oficial<br />
+          <strong>VoipIA</strong> · Documentação Oficial<br />
           Telecom + Plataforma de Agentes · <code>https://app.voiphash.com.br</code>
         </div>
       </div>

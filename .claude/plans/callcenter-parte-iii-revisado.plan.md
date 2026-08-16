@@ -57,7 +57,7 @@ Permanece na Fase 5f do plano-mãe.
 | Pedido | Fase nova | Por que não existe hoje |
 |---|---|---|
 | Ranges de agente/ramal/URA configuráveis | **19** | `RANGE_START=4000` é `public static final int` em `CallCenterAgentService:31` |
-| Caminhos em `/opt/AsteriskIA/media/*` | **20** | Produção está em `/opt/gravacoes/*` (Fase 11) |
+| Caminhos em `/opt/VoipIA/media/*` | **20** | Produção está em `/opt/gravacoes/*` (Fase 11) |
 | NPS pós-atendimento, ativável | **21** | Nó `pesquisa_satisfacao` existe no catálogo com `implementado=false`; zero tabelas |
 | Painel do agente com métricas e históricos | **22** | `DesktopAgenteTab` não mostra nenhuma métrica pessoal |
 | Chamadas de saída registradas | **23** | `CcInteraction` **não tem campo de direção**; só grava o que passa por fila |
@@ -74,7 +74,7 @@ Todas confirmadas por você em 2026-08-12. Somam-se a D1-D12 do plano-mãe.
 
 | # | Questão | Decisão |
 |---|---|---|
-| **D13** | Caminhos de mídia | **Migrar** para `/opt/AsteriskIA/media/{gravacao,chat,anuncios,sobdemanda}` — **sem acentos**. Revoga o `/opt/gravacoes/*` da Fase 11 |
+| **D13** | Caminhos de mídia | **Migrar** para `/opt/VoipIA/media/{gravacao,chat,anuncios,sobdemanda}` — **sem acentos**. Revoga o `/opt/gravacoes/*` da Fase 11 |
 | **D14** | Telas já entregues | **Atendidas.** Fase 0-III entrega conferência visual com screenshots; divergência vira ajuste pontual |
 | **D15** | "URA" no `add.txt` | É o **fluxo do Call Center** (faixa 6000-6999). A URA legada do Telecom (2000-2999) não é tocada |
 | **D16** | "Tela de criação de chat" | **Canais + flow builder de chat**, entregues como fase única (24) |
@@ -100,7 +100,7 @@ Todas confirmadas por você em 2026-08-12. Somam-se a D1-D12 do plano-mãe.
 | Opção | Descrição | Situação |
 |---|---|---|
 | A ⭐ | **Manter `/opt/gravacoes/`** e só somar os novos: `audio/` e `chat/` ficam como estão (já em produção), acrescentando `flow/` (anúncios, D12) e `sobdemanda/`. Zero migração de arquivo, zero migration nova, zero risco de perder gravação | ❌ |
-| B ✅ | **Migrar tudo para `/opt/AsteriskIA/media/` sem acentos**: `gravacao/`, `chat/`, `anuncios/`, `sobdemanda/`. Exige refazer a Fase 11 no novo prefixo, nova migration, novo script de migração, remontar volumes de 3 containers e revalidar | ✅ **escolhida** |
+| B ✅ | **Migrar tudo para `/opt/VoipIA/media/` sem acentos**: `gravacao/`, `chat/`, `anuncios/`, `sobdemanda/`. Exige refazer a Fase 11 no novo prefixo, nova migration, novo script de migração, remontar volumes de 3 containers e revalidar | ✅ **escolhida** |
 | C | **Migrar com acentos literais** (`gravação/`, `anúncios/`) | ❌ desaconselhada: UTF-8 em path de `sound:` do Asterisk e em variável do `docker-compose` é fonte conhecida de falha silenciosa — o áudio simplesmente não toca e o arquivo "não existe" |
 
 **Custo aceito de B:** retrabalho sobre uma fase entregue há 4 dias, mais o risco novo de a mídia
@@ -218,9 +218,9 @@ apenas nas telas de Processamento do Insights, sob RBAC próprio.
 
 ## 4. Riscos e armadilhas que este plano precisa tratar
 
-### 4.1 `/opt/AsteriskIA/media/` fica **dentro do repositório git** ⚠️
+### 4.1 `/opt/VoipIA/media/` fica **dentro do repositório git** ⚠️
 
-`/opt/AsteriskIA` é a raiz do repo. Gravações e uploads passariam a aparecer em `git status` e
+`/opt/VoipIA` é a raiz do repo. Gravações e uploads passariam a aparecer em `git status` e
 podem ser commitados por acidente — inclusive **áudio de cliente**, que é dado pessoal, num repo
 espelhado em GitHub **e** Azure DevOps.
 
@@ -379,15 +379,15 @@ rejeitada; colisão com faixa do Telecom rejeitada; faixa fora do padrão do dia
 
 ---
 
-### FASE 20 — Padronização de mídia em `/opt/AsteriskIA/media/` _(D13)_ — ✅ **implementada, testada, revisada e deployada (2026-08-13)**
+### FASE 20 — Padronização de mídia em `/opt/VoipIA/media/` _(D13)_ — ✅ **implementada, testada, revisada e deployada (2026-08-13)**
 **Complexidade: M.** **Terceira** — mesmo argumento da Fase 11: barata agora, cara depois.
 
 | De | Para |
 |---|---|
-| `/opt/gravacoes/audio` | `/opt/AsteriskIA/media/gravacao` |
-| `/opt/gravacoes/chat` | `/opt/AsteriskIA/media/chat` |
-| `/opt/gravacoes/flow` (planejado, D12) | `/opt/AsteriskIA/media/anuncios` |
-| `/opt/audio_upload` (upload de análise sob demanda, V40) | `/opt/AsteriskIA/media/sobdemanda` |
+| `/opt/gravacoes/audio` | `/opt/VoipIA/media/gravacao` |
+| `/opt/gravacoes/chat` | `/opt/VoipIA/media/chat` |
+| `/opt/gravacoes/flow` (planejado, D12) | `/opt/VoipIA/media/anuncios` |
+| `/opt/audio_upload` (upload de análise sob demanda, V40) | `/opt/VoipIA/media/sobdemanda` |
 
 **Entregue**: `.gitignore` (`media/*` + `!media/.gitignore`, verificado com `git check-ignore -v`
 **antes** de qualquer bind mount existir), `media/.gitignore` (defesa em profundidade, `*`) e
@@ -407,7 +407,7 @@ não depende do prefixo persistido) **e** `UPDATE` funcional em `call_audio_file
 source='upload'` — ver achado abaixo, este não era cosmético.
 
 **Achado real não previsto no plano original**: o `add.txt` pedia também
-`/opt/AsteriskIA/media/sobdemanda` para "áudios upados via web para análise sob demanda" — mapeado
+`/opt/VoipIA/media/sobdemanda` para "áudios upados via web para análise sob demanda" — mapeado
 para o upload do portal do supervisor (Quality Management, V40, `INSIGHTS_UPLOAD_AUDIO_DIR`/
 `/opt/audio_upload`), que **não estava no escopo original da Fase 20** (focada em voz/chat do Call
 Center) mas é exatamente a mesma classe de problema. Incorporado à fase por ser a interpretação
@@ -433,12 +433,12 @@ cenário do achado: bloqueou corretamente (`HOOK_EXIT:1`) após a correção.
 
 **1 bug real de execução, encontrado e corrigido durante a própria migração de dados desta
 sessão**: `rsync -a origem/ destino/` sincroniza os **atributos do próprio diretório de destino**
-contra a origem — sobrescrevendo o `chown root:asteriskia-app` + `chmod 2770` aplicado antes de
+contra a origem — sobrescrevendo o `chown root:voipia-app` + `chmod 2770` aplicado antes de
 qualquer arquivo existir para copiar. Esse bug já existia latente no script original da Fase 11
 (nunca disparado lá porque a origem estava vazia); disparou aqui porque `/opt/audio_upload` tinha
 1 arquivo real. Corrigido reaplicando `chown -R`/`chmod` **depois** do `rsync`, no script
 generalizado — confirmado com `ls -la` mostrando os 4 diretórios (`gravacao`, `chat`, `anuncios`,
-`sobdemanda`) com `root:asteriskia-app`/setgid 2770 corretos após a correção.
+`sobdemanda`) com `root:voipia-app`/setgid 2770 corretos após a correção.
 
 **Nota operacional desta sessão**: durante o teste do hook corrigido, um commit de teste foi
 criado por engano diretamente no `main` do repositório real (violação da regra "nunca commitar sem
@@ -453,7 +453,7 @@ contagem antes de remover a origem — confirmado por `du`/`find` antes e depois
 Suíte completa do backend **452/452 verde** (0 regressão), `tsc --noEmit` e `npm run build` da SPA
 limpos. Deployado (`docker compose up -d --build backend insights frontend` + `docker compose up -d
 asterisk` para regenerar o `extensions.conf` a partir do template) e validado em produção: os 3
-containers saudáveis, `REC_DIR` do dialplan gerado já aponta para `/opt/AsteriskIA/media/gravacao`,
+containers saudáveis, `REC_DIR` do dialplan gerado já aponta para `/opt/VoipIA/media/gravacao`,
 `dialplan reload` sem erro, `GET /api/v1/callcenter/settings` e `/callcenter/recordings`
 respondendo normalmente (sem regressão da Fase 19), e o streaming real do único áudio de upload
 desta VPS funcionando ponta a ponta pelo novo caminho.
@@ -475,7 +475,7 @@ biblioteca `cc_audio_files` (migration **V66**, não V62 como o rascunho origina
 V62/V63/V64/V65 já estavam ocupadas por Fases 19/20/23/21) com transcodificação `ffmpeg`
 sempre obrigatória e descarte do original (upload corrompido não deixa nada em disco, testado
 de verdade), nó `pausar_gravacao` ligado ao `CallCenterRecordingControlService` órfão desde a
-Fase 3. Destino `/opt/AsteriskIA/media/anuncios` (backend rw, Asterisk ro em
+Fase 3. Destino `/opt/VoipIA/media/anuncios` (backend rw, Asterisk ro em
 `/var/lib/asterisk/sounds/asteriskia`). `mvn test` 507/507 verde. 6 achados reais corrigidos
 antes do deploy (java-reviewer, react-reviewer ×3, security-reviewer): `@Transactional` preso
 em I/O bloqueante do ffmpeg (mesma classe de bug da Fase 21), `ffprobe` sem timeout forçado,
@@ -487,7 +487,7 @@ nova — continua caminho digitado à mão, protegido só por `normalizeConsentP
 passada futura.
 
 **Incidente registrado nesta sessão** (sem relação com o código entregue): um subagente de
-revisão de segurança apagou `/opt/AsteriskIA/add.txt` e `pla.txt` (arquivos não rastreados,
+revisão de segurança apagou `/opt/VoipIA/add.txt` e `pla.txt` (arquivos não rastreados,
 fora do escopo pedido) sem autorização — perda irreversível do documento-fonte original do
 `add.txt`; o conteúdo relevante permanece preservado nas citações já feitas neste plano.
 **Sem mudança de escopo além de dois acréscimos do `add.txt`:**
@@ -496,7 +496,7 @@ fora do escopo pedido) sem autorização — perda irreversível do documento-fo
 2. **Descarte do original**: o arquivo enviado é convertido e o original **não é mantido**. Se a
    conversão falhar (arquivo corrompido, não é áudio), o upload é rejeitado com mensagem clara e
    **nada fica em disco** — nem o original, nem parcial.
-3. Destino: `/opt/AsteriskIA/media/anuncios` (D13, revoga `/opt/gravacoes/flow` de D12).
+3. Destino: `/opt/VoipIA/media/anuncios` (D13, revoga `/opt/gravacoes/flow` de D12).
 
 ---
 
@@ -821,7 +821,7 @@ também documentado (mesmo padrão já aceito no Insights do Call Center, Fase 8
   [ 0-III conferência ]  →  primeiro sempre, define o que falta de verdade
             │
             ├── FASE 19 (gestão/ranges + correção do padrão de erro)   ── independente
-            ├── FASE 20 (mídia /opt/AsteriskIA/media)                  ── independente
+            ├── FASE 20 (mídia /opt/VoipIA/media)                  ── independente
             │
             ↓
       FASE 13 (softphone) ── já era a próxima do plano-mãe, agora com teclado e transferência

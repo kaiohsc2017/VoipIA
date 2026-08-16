@@ -7,8 +7,8 @@ export default function Introducao() {
     <>
       <Section id="agentes-visao-geral" title="Visão Geral">
         <p>
-          O AsteriskIA Agentes é uma plataforma de monitoramento autônomo integrada ao ecossistema
-          AsteriskIA Telecom. Cada <strong>Agente</strong> é uma entidade configurável que executa
+          O VoipIA Agentes é uma plataforma de monitoramento autônomo integrada ao ecossistema
+          VoipIA Telecom. Cada <strong>Agente</strong> é uma entidade configurável que executa
           verificações periódicas em servidores, URLs ou bancos de dados, registra os resultados,
           notifica a equipe em caso de falha e pode até tentar corrigir o problema automaticamente.
         </p>
@@ -44,10 +44,10 @@ export default function Introducao() {
       <Section id="agentes-arquitetura" title="Arquitetura">
         <p>
           A Plataforma de Agentes não tem mais containers dedicados de frontend ou banco — hoje ela
-          é só um backend FastAPI, integrado ao AsteriskIA Telecom pela mesma rede Docker (
-          <code>asteriskia-net</code>) e pelo <strong>banco PostgreSQL unificado</strong> (mesma
+          é só um backend FastAPI, integrado ao VoipIA Telecom pela mesma rede Docker (
+          <code>voipia-net</code>) e pelo <strong>banco PostgreSQL unificado</strong> (mesma
           instância e mesmo banco <code>asteriskia</code> do Telecom, só tabelas diferentes). O
-          frontend é servido pelo mesmo Nginx do Telecom (<code>asteriskia-frontend</code>), que
+          frontend é servido pelo mesmo Nginx do Telecom (<code>voipia-frontend</code>), que
           expõe o build React UMD dos Agentes em <code>/agents/</code>.
         </p>
 
@@ -55,9 +55,9 @@ export default function Introducao() {
           <FieldTable
             headers={['Container', 'Imagem', 'Porta', 'Responsabilidade']}
             rows={[
-              [<FieldName>asteriskia-agents-api</FieldName>, <FieldType>Python 3.12</FieldType>, 'interno:8000', 'Backend FastAPI — API REST, scheduler, executors, WebSocket'],
-              [<FieldName>asteriskia-frontend</FieldName>, <FieldType>nginx:alpine</FieldType>, 'interno:80', <>Serve o React 18 do Telecom em <code>/</code> e o React UMD dos Agentes em <code>/agents/</code> — mesmo container</>],
-              [<FieldName>asteriskia-postgres</FieldName>, <FieldType>postgres:16-alpine</FieldType>, '127.0.0.1:5433', <>Banco <strong>unificado</strong> — mesma instância e banco (<code>asteriskia</code>) do Telecom</>],
+              [<FieldName>voipia-agents-api</FieldName>, <FieldType>Python 3.12</FieldType>, 'interno:8000', 'Backend FastAPI — API REST, scheduler, executors, WebSocket'],
+              [<FieldName>voipia-frontend</FieldName>, <FieldType>nginx:alpine</FieldType>, 'interno:80', <>Serve o React 18 do Telecom em <code>/</code> e o React UMD dos Agentes em <code>/agents/</code> — mesmo container</>],
+              [<FieldName>voipia-postgres</FieldName>, <FieldType>postgres:16-alpine</FieldType>, '127.0.0.1:5433', <>Banco <strong>unificado</strong> — mesma instância e banco (<code>asteriskia</code>) do Telecom</>],
             ]}
           />
         </Card>
@@ -92,7 +92,7 @@ export default function Introducao() {
 
       <Section id="agentes-acesso" title="Acesso e Login">
         <p>
-          O acesso usa os mesmos usuários do AsteriskIA Telecom — não há cadastro separado. A
+          O acesso usa os mesmos usuários do VoipIA Telecom — não há cadastro separado. A
           autenticação utiliza JWT HS256 com a mesma chave secreta (<code>BACKEND_JWT_SECRET</code>)
           do Spring Boot.
         </p>

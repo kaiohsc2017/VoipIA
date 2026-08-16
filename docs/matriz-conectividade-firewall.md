@@ -1,4 +1,4 @@
-# Matriz de Conectividade — AsteriskIA (app.voiphash.com.br / VPS 129.121.51.29)
+# Matriz de Conectividade — VoipIA (app.voiphash.com.br / VPS 129.121.51.29)
 
 > Documento para solicitação de liberação de firewall à equipe de Cyber Security.
 > Levantado por inspeção direta do código-fonte em 2026-08-13 (branch `main`). Cada linha cita o
@@ -15,16 +15,16 @@
 
 | Origem | Porta/Protocolo | Destino (container) | Domínio(s) | Obrigatório? | Onde no código |
 |---|---|---|---|---|---|
-| Internet (qualquer IP) | 80/tcp, 443/tcp, 443/udp (QUIC/HTTP3) | `asteriskia-caddy` (172.16.7.10) | `app.voiphash.com.br`, `claw.voiphash.com.br`, `api.voiphash.com.br`, `manager.voiphash.com.br` | Sim — é a porta de entrada de toda a aplicação web (Telecom, Agentes, Insights, Call Center, softphone WebRTC) | `docker-compose.yml:628-631`, `Caddyfile` |
-| Operadora de telefonia (tronco SIP) | 5060/udp, 5060/tcp (SIP) | `asteriskia-asterisk` (172.16.7.12) | IP fixo `186.233.141.64` (peer autenticado por IP, sem usuário/senha) | Sim — é o tronco de entrada/saída de chamadas de voz reais | `docker-compose.yml:139-140`, `asterisk/config/pjsip.conf.template:48`, `.env.example:28-29` |
-| Operadora de telefonia + qualquer softphone SIP registrado | 15000-15500/udp (RTP — mídia de voz) | `asteriskia-asterisk` (172.16.7.12) | mesmo peer acima + clientes SIP internos | Sim — sem isso não há áudio nas chamadas | `docker-compose.yml:146`, CLAUDE.md (faixa RTP) |
-| Navegador do cliente final (softphone WebRTC via `wss://` atrás do Caddy) | 443/tcp (já coberto pela linha do Caddy acima) + relay de mídia via coturn (ver seção TURN abaixo) | `asteriskia-caddy` → `asteriskia-asterisk:8088` | `app.voiphash.com.br` | Sim, para o ramal 9001/9002/4xxx (softphone WebRTC) | `Caddyfile` (`@asterisk-ws`), CLAUDE.md |
-| Qualquer cliente WebRTC atrás de NAT simétrico (relay TURN) | 3478/udp+tcp (STUN/TURN), 5349/udp+tcp (TURN sobre TLS), **49152-49652/udp** (relay de mídia) | `asteriskia-coturn` (`network_mode: host`) | IP público da VPS | Condicional — só é usado quando STUN puro não resolve o NAT do cliente | `coturn/turnserver.conf:8-9,31-32`, `docker-compose.yml:477-505` |
-| Postgres (uso interno/manutenção do próprio time, NÃO expor à internet) | 5432/tcp — hoje vinculado só a `127.0.0.1` no host | `asteriskia-postgres` (172.16.7.11) | — (loopback apenas) | Não é tráfego externo — listado só para constar que **não** deve ser liberado no firewall externo | `docker-compose.yml:65` |
+| Internet (qualquer IP) | 80/tcp, 443/tcp, 443/udp (QUIC/HTTP3) | `voipia-caddy` (172.16.7.10) | `app.voiphash.com.br`, `claw.voiphash.com.br`, `api.voiphash.com.br`, `manager.voiphash.com.br` | Sim — é a porta de entrada de toda a aplicação web (Telecom, Agentes, Insights, Call Center, softphone WebRTC) | `docker-compose.yml:628-631`, `Caddyfile` |
+| Operadora de telefonia (tronco SIP) | 5060/udp, 5060/tcp (SIP) | `voipia-asterisk` (172.16.7.12) | IP fixo `186.233.141.64` (peer autenticado por IP, sem usuário/senha) | Sim — é o tronco de entrada/saída de chamadas de voz reais | `docker-compose.yml:139-140`, `asterisk/config/pjsip.conf.template:48`, `.env.example:28-29` |
+| Operadora de telefonia + qualquer softphone SIP registrado | 15000-15500/udp (RTP — mídia de voz) | `voipia-asterisk` (172.16.7.12) | mesmo peer acima + clientes SIP internos | Sim — sem isso não há áudio nas chamadas | `docker-compose.yml:146`, CLAUDE.md (faixa RTP) |
+| Navegador do cliente final (softphone WebRTC via `wss://` atrás do Caddy) | 443/tcp (já coberto pela linha do Caddy acima) + relay de mídia via coturn (ver seção TURN abaixo) | `voipia-caddy` → `voipia-asterisk:8088` | `app.voiphash.com.br` | Sim, para o ramal 9001/9002/4xxx (softphone WebRTC) | `Caddyfile` (`@asterisk-ws`), CLAUDE.md |
+| Qualquer cliente WebRTC atrás de NAT simétrico (relay TURN) | 3478/udp+tcp (STUN/TURN), 5349/udp+tcp (TURN sobre TLS), **49152-49652/udp** (relay de mídia) | `voipia-coturn` (`network_mode: host`) | IP público da VPS | Condicional — só é usado quando STUN puro não resolve o NAT do cliente | `coturn/turnserver.conf:8-9,31-32`, `docker-compose.yml:477-505` |
+| Postgres (uso interno/manutenção do próprio time, NÃO expor à internet) | 5432/tcp — hoje vinculado só a `127.0.0.1` no host | `voipia-postgres` (172.16.7.11) | — (loopback apenas) | Não é tráfego externo — listado só para constar que **não** deve ser liberado no firewall externo | `docker-compose.yml:65` |
 
 **Nota sobre `api.voiphash.com.br` e `manager.voiphash.com.br`**: são dois outros sistemas
 (ASC SAC HSM / `ascsac-web` e ReportECH / `echweb-*`) que compartilham o mesmo Caddy/IP público
-desta VPS, mas não fazem parte do domínio funcional do AsteriskIA em si — incluídos aqui porque
+desta VPS, mas não fazem parte do domínio funcional do VoipIA em si — incluídos aqui porque
 consomem a mesma porta 80/443 e o mesmo certificado.
 
 ---
@@ -46,7 +46,7 @@ consomem a mesma porta 80/443 e o mesmo certificado.
 | Telegram Bot API | `api.telegram.org` | 443/tcp (HTTPS) | `backend` Java (`TelegramBotService.java:24,83`), `agents-platform-backend` (`notifier.py:19`) | Condicional — usado para alertas de gasto de IA, notificações do Agentes e do NPS; requer `TELEGRAM_BOT_TOKEN` | `backend/.../telegram/TelegramBotService.java:24`, `agents-platform/backend/notifier.py:9-19`, `.env.example:107-108` |
 | Active Directory / LDAP corporativo | host definido em `AD_LDAP_HOST` (variável não documentada em `.env.example` — feature mais recente) | 636/tcp (LDAPS, padrão) ou 389/tcp se `AD_LDAP_USE_SSL=false` | `backend` Java (`LdapClient`, `AdLdapConfig`) | Condicional — só ativo com `AD_LDAP_ENABLED=true`; hoje não documentado no `.env.example`, **confirmar com a equipe se já está em uso** | `backend/src/main/java/com/asteriskia/integration/ad/LdapClient.java:34-40`, `AdLdapConfig.java:19` |
 | STUN — Google (descoberta de IP público para ICE/WebRTC) | `stun.l.google.com` | 19302/udp | Navegador do **cliente final** (não é a VPS quem conecta — o browser do usuário do softphone conecta direto no STUN do Google; citado aqui porque é parte do fluxo de rede da aplicação) | Sim, para o softphone WebRTC funcionar sem TURN na maioria dos casos | `.env.example:72-73` (`VITE_STUN_URL`) |
-| Let's Encrypt (emissão/renovação automática de certificado TLS) | `acme-v02.api.letsencrypt.org` | 443/tcp (ACME, validação HTTP-01 já cobre a 80/tcp de entrada) | `asteriskia-caddy` | Sim — sem isso o certificado TLS expira e o HTTPS cai | `Caddyfile` (cabeçalho do arquivo) |
+| Let's Encrypt (emissão/renovação automática de certificado TLS) | `acme-v02.api.letsencrypt.org` | 443/tcp (ACME, validação HTTP-01 já cobre a 80/tcp de entrada) | `voipia-caddy` | Sim — sem isso o certificado TLS expira e o HTTPS cai | `Caddyfile` (cabeçalho do arquivo) |
 
 ---
 
@@ -56,14 +56,14 @@ consomem a mesma porta 80/443 e o mesmo certificado.
 |---|---|---|---|
 | Docker Hub | `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com` | 443/tcp | `docker compose build`/`pull` das imagens base: `ubuntu:22.04`, `python:3.12-slim`, `node:22-alpine`, `nginx:1.27-alpine`, `debian:bookworm-slim`, `maven:3.9-eclipse-temurin-21`, `tomcat:11.0-jre21`, `coturn/coturn:4.6.2` |
 | Repositórios de pacotes | `pypi.org`/`files.pythonhosted.org` (pip), `registry.npmjs.org` (npm), `repo.maven.apache.org`/Maven Central (mvn), `archive.ubuntu.com`/`deb.debian.org` (apt) | 443/tcp (e 80/tcp para alguns mirrors apt) | Durante `docker compose build` (instalação de dependências dentro dos Dockerfiles) |
-| GitHub | `github.com`, `api.github.com` | 443/tcp (HTTPS) ou 22/tcp (SSH, se usado) | `git push origin main` (repositório principal) — `git remote -v`: `origin → https://github.com/kaiohsc2017/AsteriskIA.git` |
-| Azure DevOps | `dev.azure.com` | 443/tcp (HTTPS) | `git push azure main:desenvolvimento` (espelho obrigatório) — `git remote -v`: `azure → https://.../dev.azure.com/.../AsteriskIA/_git/AsteriskIA` |
+| GitHub | `github.com`, `api.github.com` | 443/tcp (HTTPS) ou 22/tcp (SSH, se usado) | `git push origin main` (repositório principal) — `git remote -v`: `origin → https://github.com/kaiohsc2017/VoipIA.git` |
+| Azure DevOps | `dev.azure.com` | 443/tcp (HTTPS) | `git push azure main:desenvolvimento` (espelho obrigatório) — `git remote -v`: `azure → https://.../dev.azure.com/.../VoipIA/_git/VoipIA` |
 
 ---
 
 ## 4. Portas que NÃO cruzam a borda da VPS (não entram no pedido de firewall)
 
-Só para deixar explícito o que é 100% interno à rede Docker `asteriskia-net` (172.16.7.0/24) e
+Só para deixar explícito o que é 100% interno à rede Docker `voipia-net` (172.16.7.0/24) e
 nunca precisa de liberação externa: comunicação `backend↔postgres`, `ai-agent↔asterisk` (AudioSocket
 porta 9092), `backend↔agents-api`, `backend↔docker-helper`, `Caddy admin API` (socket Unix, não TCP).
 
@@ -96,5 +96,5 @@ porta 9092), `backend↔agents-api`, `backend↔docker-helper`, `Caddy admin API
    firewall; se a equipe quiser travar isso a uma lista fechada, é decisão de produto, não hoje
    implementada (mitigação atual é só bloqueio de IP privado/loopback).
 8. Caso alguma dessas conexões falhe após a liberação, volte a este arquivo (`docs/matriz-conectividade-firewall.md`)
-   e à memória de sessão (`asteriskia_matriz_conectividade_firewall`) antes de refazer o levantamento —
+   e à memória de sessão (`voipia_matriz_conectividade_firewall`) antes de refazer o levantamento —
    ambos citam arquivo:linha exatos para revalidar rapidamente contra o código atual.

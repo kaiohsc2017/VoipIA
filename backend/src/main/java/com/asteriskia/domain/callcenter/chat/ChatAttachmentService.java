@@ -57,7 +57,7 @@ public class ChatAttachmentService {
     private final CcChatAttachmentExtensionRepository extensionRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
-    @Value("${app.callcenter.chat-attachment-path:/opt/AsteriskIA/media/chat/anexos}")
+    @Value("${app.callcenter.chat-attachment-path:/opt/VoipIA/media/chat/anexos}")
     private String basePath;
 
     @Transactional

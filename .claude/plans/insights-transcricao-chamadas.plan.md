@@ -52,7 +52,7 @@ locutor (cliente vs. atendente), player de áudio, transcrição sincronizada e 
 | Áudio autenticado (front) | `AuthedAudio.tsx` já resolve "tocar áudio protegido por JWT" (usado em ModuloURA/ModuloAlertas) — reusar no player |
 | Dashboard (front) | `CostsDashboardTab.tsx` é o modelo a espelhar para o dashboard de tendências |
 | requirements ai-agent | google-genai, httpx, numpy, webrtcvad-wheels, python-dotenv (librosa precisará ser adicionado no novo serviço) |
-| Rede Docker | `asteriskia-net` 172.16.7.0/24; containers .11–.16 usados, .17=docker-helper. **Próximo IP livre: 172.16.7.18** |
+| Rede Docker | `voipia-net` 172.16.7.0/24; containers .11–.16 usados, .17=docker-helper. **Próximo IP livre: 172.16.7.18** |
 | `ffmpeg` no Dockerfile | `ai-agent/Dockerfile` já instala `ffmpeg` + `libsndfile1` via apt — mesmo padrão a espelhar no novo serviço |
 
 ### Achados da Fase 0 (amostra real inspecionada em `/opt/audio`, 2026-07-17)
@@ -65,9 +65,9 @@ abaixo), ignorando tudo o mais — nunca varrer o diretório assumindo que só h
 **Os XMLs NÃO são gerados pelo Asterisk** — são de um sistema corporativo de gravação **Verint**
 (`xmlns:x="http://www.verint.com/xmlns/recording20080320"`, elemento raiz `x:recording`).
 **Confirmado pelo usuário (2026-07-17): os arquivos de áudio/XML não têm nenhuma referência ao
-AsteriskIA — é um módulo novo e apartado do PBX/telecom deste sistema**, que deve seguir os mesmos
+VoipIA — é um módulo novo e apartado do PBX/telecom deste sistema**, que deve seguir os mesmos
 padrões de desenvolvimento (RBAC, estrutura de código, deploy, code review) já estabelecidos no
-projeto, mas sem cruzar dados com `call_records`/URA/ramais do AsteriskIA. Ou seja: a tela Insights
+projeto, mas sem cruzar dados com `call_records`/URA/ramais do VoipIA. Ou seja: a tela Insights
 é uma feature de análise de call center corporativo *hospedada* dentro do Telecom (mesma Sidebar,
 mesmo backend, mesmo padrão de auth), mas semanticamente independente do domínio de telefonia
 Asterisk já existente.
@@ -158,7 +158,7 @@ Frontend React — tela "Insights" (busca + player + transcrição + cards de in
 
 ### Fase 1 — Banco (migration V35) — Status: ✅ CONCLUÍDA (2026-07-17)
 - **Arquivo criado**: `backend/src/main/resources/db/migration/V35__call_insights.sql`
-- Sintaxe validada rodando dentro de `--single-transaction` no Postgres real (`asteriskia-postgres`)
+- Sintaxe validada rodando dentro de `--single-transaction` no Postgres real (`voipia-postgres`)
   e conferido que nenhuma tabela ficou persistida (0 linhas em `pg_tables` pro padrão `call_%`) —
   Flyway ainda vai aplicar de fato só no próximo `docker compose up -d --build backend`.
 - Ajustes de nomenclatura em relação ao desenho original: `call_ref` (não `call_uuid`/`file_hash`)
@@ -321,7 +321,7 @@ Frontend React — tela "Insights" (busca + player + transcrição + cards de in
 | Prosódia é aproximada | Média | Rotular "indicativo"; exibir junto do tom semântico (LLM); nunca critério único |
 | Backlog inicial grande (diretório já tem histórico) | Média | Status por arquivo + processamento incremental; nunca reprocessar tudo |
 | Path traversal no stream de áudio | Média | Validar path contra whitelist `/opt/audio`; nunca concatenar input do usuário |
-| ~~Volume real pode ser de um call center corporativo maior (Verint), não só AsteriskIA~~ | — | **Confirmado pelo usuário**: é módulo novo e apartado do AsteriskIA/Asterisk, sem cruzamento de dados — não bloqueia arquitetura, só reforça que `call_audio_files` não deve ter FK para `call_records`/`uras` |
+| ~~Volume real pode ser de um call center corporativo maior (Verint), não só VoipIA~~ | — | **Confirmado pelo usuário**: é módulo novo e apartado do VoipIA/Asterisk, sem cruzamento de dados — não bloqueia arquitetura, só reforça que `call_audio_files` não deve ter FK para `call_records`/`uras` |
 
 ### Fase 6 — Deploy real na VPS + bug encontrado e corrigido (2026-07-17)
 - **Build real**: `docker compose build insights backend frontend` — tudo buildou limpo (frontend

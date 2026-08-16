@@ -1,5 +1,5 @@
 /**
- * types.ts — subset de tipos TypeScript da API AsteriskIA usado pela SPA de Call Center.
+ * types.ts — subset de tipos TypeScript da API VoipIA usado pela SPA de Call Center.
  * Espelha os DTOs/entidades do backend (com.asteriskia.domain.callcenter) — mantido em
  * sincronia manual (mesmo padrão de duplicação já aceito entre backend/frontend do RBAC
  * granular e entre as SPAs Vite independentes).

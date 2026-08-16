@@ -1,6 +1,6 @@
 ---
 name: code-review-two-axis
-description: Revisão das mudanças desde um ponto fixo (commit, branch, tag) em dois eixos independentes — Standards (segue os padrões documentados do AsteriskIA?) e Spec (implementa fielmente o que foi pedido?). Roda os dois em subagentes paralelos e reporta lado a lado. Use quando o usuário pedir para revisar uma branch, um PR, mudanças em andamento, ou "revisa desde X".
+description: Revisão das mudanças desde um ponto fixo (commit, branch, tag) em dois eixos independentes — Standards (segue os padrões documentados do VoipIA?) e Spec (implementa fielmente o que foi pedido?). Roda os dois em subagentes paralelos e reporta lado a lado. Use quando o usuário pedir para revisar uma branch, um PR, mudanças em andamento, ou "revisa desde X".
 ---
 
 # Code Review em Dois Eixos
@@ -24,7 +24,7 @@ Confirme antes de seguir que o ref resolve (`git rev-parse <ponto-fixo>`) e que 
 
 ### 2. Identificar a fonte do spec
 
-O AsteriskIA não usa issue tracker externo — o spec normalmente está na própria conversa. Procure, nesta ordem:
+O VoipIA não usa issue tracker externo — o spec normalmente está na própria conversa. Procure, nesta ordem:
 
 1. Um caminho ou trecho que o usuário passou como argumento (ex.: "revisa contra o que combinamos sobre RBAC").
 2. O contexto da conversa atual — o que foi pedido/discutido antes desta mudança.

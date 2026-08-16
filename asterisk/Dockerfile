@@ -1,5 +1,5 @@
 # =============================================================
-# AsteriskIA — Build customizado com app_audiosocket + res_srtp
+# VoipIA — Build customizado com app_audiosocket + res_srtp
 # Ubuntu 22.04 + Asterisk 21
 # =============================================================
 

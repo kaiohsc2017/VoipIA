@@ -1,5 +1,5 @@
-# AsteriskIA — rotação do log /var/log/asterisk/full (consumido pelo fail2ban
-# no container asteriskia-security, montado read-only). Gerenciado fora do
+# VoipIA — rotação do log /var/log/asterisk/full (consumido pelo fail2ban
+# no container voipia-security, montado read-only). Gerenciado fora do
 # container porque o volume Docker é acessado diretamente pelo caminho no host.
 #
 # Regras: no máximo 100M por arquivo ativo, no máximo 10 rotações mantidas
@@ -14,6 +14,6 @@
     dateext
     dateformat -%Y%m%d-%s
     postrotate
-        /usr/bin/docker exec asteriskia-asterisk asterisk -rx "logger rotate" > /dev/null 2>&1 || true
+        /usr/bin/docker exec voipia-asterisk asterisk -rx "logger rotate" > /dev/null 2>&1 || true
     endscript
 }

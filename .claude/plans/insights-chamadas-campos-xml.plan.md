@@ -434,7 +434,7 @@ Uma chamada pode ter 0..N transferências — modelado como tabela filha (mesmo 
 ## Validation
 ```bash
 # Python
-cd /opt/AsteriskIA && python -m pytest insights/ && python -m py_compile insights/src/*.py
+cd /opt/VoipIA && python -m pytest insights/ && python -m py_compile insights/src/*.py
 # Backend
 cd backend && mvn -q compile && mvn -q test -Dtest='Insights*'
 # Frontend

@@ -1,5 +1,5 @@
 ; =============================================================
-; sorcery.conf — AsteriskIA
+; sorcery.conf — VoipIA
 ; Mapeia os tipos de objeto do res_pjsip (endpoint/auth/aor) para o
 ; backend Realtime (res_config_pgsql) — módulo Call Center, Fase 2.
 ; A partir daqui, criar/editar um ramal de agente é um INSERT/UPDATE

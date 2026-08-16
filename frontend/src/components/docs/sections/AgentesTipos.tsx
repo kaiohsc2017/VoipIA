@@ -92,7 +92,7 @@ export default function AgentesTipos() {
             {'{\n  '}<Key>"checks"</Key>{': [\n    {\n      '}
             <Key>"url"</Key>{':           '}<Str>"https://app.voiphash.com.br"</Str>{',\n      '}
             <Key>"expect_status"</Key>{': '}<Num>200</Num>{',\n      '}
-            <Key>"expect_contains"</Key>{': '}<Str>"AsteriskIA"</Str>{',\n      '}
+            <Key>"expect_contains"</Key>{': '}<Str>"VoipIA"</Str>{',\n      '}
             <Key>"timeout"</Key>{':        '}<Num>10</Num>{'\n    },\n    {\n      '}
             <Key>"url"</Key>{':               '}<Str>"https://app.voiphash.com.br/api/health"</Str>{',\n      '}
             <Key>"expect_status"</Key>{':   '}<Num>200</Num>{',\n      '}

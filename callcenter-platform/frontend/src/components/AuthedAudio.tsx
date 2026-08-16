@@ -6,7 +6,7 @@ import api from '../api/client';
  * <audio src="/api/..."> direta não funciona porque o endpoint exige autenticação e o
  * navegador não anexa o header Authorization nesse caso. Adaptado do padrão de
  * frontend/src/components/AuthedAudio.tsx (Telecom) — duplicação intencional entre as
- * SPAs Vite independentes do AsteriskIA (mesmo padrão já aceito em client.ts).
+ * SPAs Vite independentes do VoipIA (mesmo padrão já aceito em client.ts).
  */
 export function AuthedAudio({ path, style, autoPlay, onError }: {
   path: string;

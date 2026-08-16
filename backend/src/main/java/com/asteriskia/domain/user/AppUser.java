@@ -12,7 +12,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * AppUser — Usuário do sistema AsteriskIA.
+ * AppUser — Usuário do sistema VoipIA.
  * Cada usuário possui um ramal SIP WebRTC único (a partir de 9001).
  */
 @Entity

@@ -274,7 +274,7 @@ public class JiraIntegrationService {
         issueFields.put("summary", buildSummary(fields));
 
         // Descrição em Atlassian Document Format (ADF) — exigido pela API v3
-        String descText = fields.getOrDefault("description", "Chamado aberto via URA AsteriskIA.");
+        String descText = fields.getOrDefault("description", "Chamado aberto via URA VoipIA.");
         issueFields.put("description", buildAdf(descText));
 
         // Prioridade (mapeada de português para os valores aceitos pelo Jira)
@@ -304,7 +304,7 @@ public class JiraIntegrationService {
 
     private String buildSummary(Map<String, String> fields) {
         String cliente = fields.getOrDefault("customfield_nome_cliente", "");
-        return cliente.isBlank() ? "Chamado URA — AsteriskIA" : "Chamado URA — " + cliente;
+        return cliente.isBlank() ? "Chamado URA — VoipIA" : "Chamado URA — " + cliente;
     }
 
     /**

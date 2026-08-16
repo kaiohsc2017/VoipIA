@@ -54,7 +54,7 @@ public class TelegramBotService {
 
                 🕐 *Data/Hora:* %s
 
-                _Mensagem automática — AsteriskIA_
+                _Mensagem automática — VoipIA_
                 """,
                         severityEmoji,
                         severity,

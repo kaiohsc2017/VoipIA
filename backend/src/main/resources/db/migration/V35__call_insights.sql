@@ -3,7 +3,7 @@
 -- Módulo novo e apartado do domínio de telefonia Asterisk já existente (call_records/uras):
 -- as chamadas aqui vêm de um sistema de gravação corporativo Verint (arquivos .wav + .xml em
 -- /opt/audio, processados pelo serviço asteriskia-insights), sem nenhuma referência ao PBX
--- AsteriskIA. Por isso não há FK para call_records/uras — call_ref é a chave de correlação
+-- VoipIA. Por isso não há FK para call_records/uras — call_ref é a chave de correlação
 -- própria do Verint (prefixo numérico do nome do arquivo = atributo x:ref do XML).
 
 -- ─── call_audio_files — 1 linha por gravação (.wav + .xml) descoberta em /opt/audio ───
@@ -35,7 +35,7 @@ CREATE TABLE call_audio_files (
     llm_model        VARCHAR(100)
 );
 
-COMMENT ON TABLE  call_audio_files IS 'Uma linha por gravação (.wav+.xml) descoberta em /opt/audio pelo asteriskia-insights — módulo apartado do AsteriskIA/Asterisk, sem FK para call_records/uras';
+COMMENT ON TABLE  call_audio_files IS 'Uma linha por gravação (.wav+.xml) descoberta em /opt/audio pelo asteriskia-insights — módulo apartado do VoipIA/Asterisk, sem FK para call_records/uras';
 COMMENT ON COLUMN call_audio_files.call_ref IS 'Chave de correlação real .wav<->.xml: prefixo numérico do nome do arquivo (ex: 256001003459910), igual ao atributo x:ref do XML Verint — NÃO é o nome completo do arquivo, que tem um UUID de sufixo diferente em cada um dos dois arquivos';
 COMMENT ON COLUMN call_audio_files.agent_id_verint IS 'agent_id como reportado pelo XML Verint — identidade própria do sistema de gravação, não referencia a tabela users deste sistema';
 COMMENT ON COLUMN call_audio_files.direction IS 'inbound = cliente ligou; outbound = atendente ligou — usado como âncora heurística na diarização por locutor (áudio é mono, sem canal separado)';

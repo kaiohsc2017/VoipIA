@@ -1,5 +1,5 @@
 /**
- * client.ts — Axios client configurado para a API AsteriskIA.
+ * client.ts — Axios client configurado para a API VoipIA.
  *
  * - baseURL: variável de ambiente VITE_API_URL (padrão: http://localhost:8080/api/v1)
  * - Interceptor de request: injeta Bearer token do localStorage
@@ -9,7 +9,7 @@
  *   é obrigatório para o navegador enviar/receber esse cookie.
  *
  * Mesmo padrão de insights-platform/frontend/src/api/client.ts (duplicação
- * intencional entre as SPAs Vite independentes do AsteriskIA).
+ * intencional entre as SPAs Vite independentes do VoipIA).
  */
 
 import axios from 'axios';

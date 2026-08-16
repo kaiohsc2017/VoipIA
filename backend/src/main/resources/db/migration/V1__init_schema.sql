@@ -1,6 +1,6 @@
 -- =============================================================
 -- V1__init_schema.sql
--- Schema inicial do AsteriskIA.
+-- Schema inicial do VoipIA.
 -- Executado automaticamente pelo PostgreSQL na primeira
 -- inicialização do container (via docker-entrypoint-initdb.d).
 -- =============================================================

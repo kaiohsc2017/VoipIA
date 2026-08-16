@@ -1,6 +1,6 @@
 #!/bin/bash
-# AsteriskIA — Lockdown Watcher (roda no HOST via systemd)
-CMD_DIR="/var/run/asteriskia-security"
+# VoipIA — Lockdown Watcher (roda no HOST via systemd)
+CMD_DIR="/var/run/voipia-security"
 mkdir -p "$CMD_DIR"
 echo "[lockdown-watcher] Iniciado"
 

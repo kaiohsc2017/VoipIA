@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
 /**
- * AppUserRepository — Repositório JPA para usuários do sistema AsteriskIA.
+ * AppUserRepository — Repositório JPA para usuários do sistema VoipIA.
  * Precisa ser público para injeção no AuthController (package config).
  */
 @Repository

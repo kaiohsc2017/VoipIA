@@ -1,9 +1,9 @@
 ---
 name: secure-dev-loop
-description: Orquestra o ciclo fechado de desenvolvimento seguro no AsteriskIA — planejamento com threat model leve, implementação, revisão de código+segurança em paralelo, verificação e registro de aprendizado em memória. Não traz checklists novos: aponta para as rules e agentes que o projeto já tem (.claude/rules/common/*.md, agentes ecc:*, sistema de memória). Use quando o usuário pedir para "planejar e implementar com segurança", "revisar isso com foco em segurança", ou "fechar o ciclo" de uma feature/fix antes de commitar.
+description: Orquestra o ciclo fechado de desenvolvimento seguro no VoipIA — planejamento com threat model leve, implementação, revisão de código+segurança em paralelo, verificação e registro de aprendizado em memória. Não traz checklists novos: aponta para as rules e agentes que o projeto já tem (.claude/rules/common/*.md, agentes ecc:*, sistema de memória). Use quando o usuário pedir para "planejar e implementar com segurança", "revisar isso com foco em segurança", ou "fechar o ciclo" de uma feature/fix antes de commitar.
 ---
 
-# Secure Dev Loop (versão local, AsteriskIA)
+# Secure Dev Loop (versão local, VoipIA)
 
 Esta skill **não substitui** `.claude/rules/common/development-workflow.md`, `code-review.md`, `security.md` e `testing.md` — ela só garante que as fases sejam seguidas em ordem, com os agentes certos para o stack real deste projeto (Java/Spring, Python asyncio, React/TS, Docker/infra), e que o ciclo termine com aprendizado gravado em memória. Nada aqui é importado de pacote externo — decisão deliberada, ver memória `asteriskia_no_persist_forged_tokens` e a conversa que originou esta skill: instalar `SKILL.md` de terceiros não verificados num ambiente com segredos reais (Jira, Gemini, JWT, `docker.sock`) é superfície de prompt injection/supply-chain sem necessidade, já que o ganho real (loop fechado) já é alcançável orquestrando o que existe.
 
@@ -16,7 +16,7 @@ Antes de planejar, identifique:
 
 ## Fase 1 — Planejamento (brainstorm + plano bite-sized)
 
-Para qualquer coisa não trivial, use a skill `ecc:plan` (ou `Agent` com `ecc:planner`/`ecc:architect` para decisão arquitetural). Force estas perguntas específicas do domínio AsteriskIA antes de aceitar o plano, quando aplicável:
+Para qualquer coisa não trivial, use a skill `ecc:plan` (ou `Agent` com `ecc:planner`/`ecc:architect` para decisão arquitetural). Force estas perguntas específicas do domínio VoipIA antes de aceitar o plano, quando aplicável:
 
 - Se toca autenticação/RBAC: qual `resource_key` protege isso? Precisa entrar em `ResourceCatalog.java` + `Sidebar.tsx`/`AccessGroups.tsx` (os pontos de sincronia já documentados no `CLAUDE.md`)?
 - Se toca integração externa (Jira/Zabbix/Gemini/Telegram): há risco de SSRF/vazamento de credencial em mensagem de erro? (padrão já corrigido antes, ver `asteriskia_security_remediation`)
@@ -55,7 +55,7 @@ Se algo não pôde ser validado (ex.: sem browser disponível para UI, sem acess
 
 ## Fase 5 — Aprendizado (obrigatória, sempre)
 
-Não crie pasta `learnings/` separada — este projeto já tem sistema de memória (`/root/.claude/projects/-opt-AsteriskIA/memory/`). Ao final do ciclo:
+Não crie pasta `learnings/` separada — este projeto já tem sistema de memória (`/root/.claude/projects/-opt-VoipIA/memory/`). Ao final do ciclo:
 
 1. Pergunte-se: apareceu algum bug real, padrão de correção, ou decisão de segurança não óbvia nesta sessão?
 2. Se sim e for reutilizável entre sessões, grave como memória `feedback` (regra de processo) ou `project` (decisão/fato desta entrega) — nunca como `user` ou duplicando o que `CLAUDE.md`/rules já documentam.

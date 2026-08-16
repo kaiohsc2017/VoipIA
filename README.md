@@ -1,4 +1,4 @@
-# AsteriskIA
+# VoipIA
 
 Sistema de telefonia inteligente integrando **Asterisk 21 LTS + IA (Google Gemini)** em Docker, com três módulos funcionais, plataforma de agentes de automação e dashboard em tempo real.
 
@@ -45,8 +45,8 @@ curl -fsSL https://app.voiphash.com.br/install.sh | bash
 Ou manualmente:
 
 ```bash
-git clone https://github.com/kaiohsc2017/AsteriskIA.git /opt/AsteriskIA
-cd /opt/AsteriskIA
+git clone https://github.com/kaiohsc2017/VoipIA.git /opt/VoipIA
+cd /opt/VoipIA
 cp .env.example .env
 # Edite o .env com suas credenciais
 docker compose up -d --build
@@ -68,21 +68,21 @@ docker compose up -d --build
 
 | IP | Container | Serviço |
 |----|-----------|---------|
-| `172.16.7.10` | `asteriskia-caddy` | Proxy reverso HTTPS |
-| `172.16.7.11` | `asteriskia-postgres` | PostgreSQL 16 |
-| `172.16.7.12` | `asteriskia-asterisk` | Asterisk 21 LTS |
-| `172.16.7.13` | `asteriskia-ai-agent` | Agente IA (AudioSocket) |
-| `172.16.7.14` | `asteriskia-backend` | Spring Boot API |
-| `172.16.7.15` | `asteriskia-frontend` | React + Nginx |
-| `172.16.7.16` | `asteriskia-agents-api` | FastAPI Agentes |
-| host | `asteriskia-security` | Fail2ban + nftables |
+| `172.16.7.10` | `voipia-caddy` | Proxy reverso HTTPS |
+| `172.16.7.11` | `voipia-postgres` | PostgreSQL 16 |
+| `172.16.7.12` | `voipia-asterisk` | Asterisk 21 LTS |
+| `172.16.7.13` | `voipia-ai-agent` | Agente IA (AudioSocket) |
+| `172.16.7.14` | `voipia-backend` | Spring Boot API |
+| `172.16.7.15` | `voipia-frontend` | React + Nginx |
+| `172.16.7.16` | `voipia-agents-api` | FastAPI Agentes |
+| host | `voipia-security` | Fail2ban + nftables |
 
 ---
 
 ## Estrutura do Repositório
 
 ```
-AsteriskIA/
+VoipIA/
 ├── asterisk/           # Asterisk 21 — Dockerfile + configs (pjsip, extensions, rtp)
 ├── ai-agent/           # Agente IA Python — AudioSocket server (STT → LLM → TTS)
 ├── backend/            # Spring Boot — API REST + WebSocket + Flyway migrations
@@ -105,7 +105,7 @@ AsteriskIA/
 
 ### `asteriskia-agent.py` — Agente CLI com memória PostgreSQL
 
-Agente conversacional especialista no projeto AsteriskIA, com memória persistente via RAG (PostgreSQL + pg_trgm). Útil para diagnóstico, troubleshooting e desenvolvimento direto no VPS.
+Agente conversacional especialista no projeto VoipIA, com memória persistente via RAG (PostgreSQL + pg_trgm). Útil para diagnóstico, troubleshooting e desenvolvimento direto no VPS.
 
 **Pré-requisitos:**
 ```bash
@@ -178,13 +178,13 @@ docker compose ps
 docker compose logs -f <serviço>
 
 # Verificar SIP_PUBLIC_IP injetado no Asterisk
-docker exec asteriskia-asterisk grep "external_media_address" /etc/asterisk/pjsip.conf
+docker exec voipia-asterisk grep "external_media_address" /etc/asterisk/pjsip.conf
 
 # Recarregar PJSIP sem reiniciar
-docker exec asteriskia-asterisk asterisk -rx "module reload res_pjsip.so"
+docker exec voipia-asterisk asterisk -rx "module reload res_pjsip.so"
 
 # Status do lockdown SIP
-systemctl status asteriskia-lockdown
+systemctl status voipia-lockdown
 
 # Checar regras nftables
 nft list chain ip filter DOCKER-USER 2>/dev/null
@@ -192,7 +192,7 @@ nft list chain ip filter DOCKER-USER 2>/dev/null
 # Recarregar Caddyfile (sem downtime)
 curl -X POST "http://localhost:2019/load" \
   -H "Content-Type: text/caddyfile" \
-  --data-binary @/opt/AsteriskIA/Caddyfile
+  --data-binary @/opt/VoipIA/Caddyfile
 ```
 
 ---

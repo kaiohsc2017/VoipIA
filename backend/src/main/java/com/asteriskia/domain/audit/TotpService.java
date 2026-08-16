@@ -44,7 +44,7 @@ public class TotpService {
      */
     public String buildOtpAuthUrl(String username, String secret) {
         return String.format(
-                "otpauth://totp/AsteriskIA:%s?secret=%s&issuer=AsteriskIA&algorithm=SHA1&digits=6&period=30",
+                "otpauth://totp/VoipIA:%s?secret=%s&issuer=VoipIA&algorithm=SHA1&digits=6&period=30",
                 encode(username), encode(secret));
     }
 

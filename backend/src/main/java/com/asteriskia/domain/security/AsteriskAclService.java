@@ -29,7 +29,7 @@ public class AsteriskAclService {
     private String asteriskConfigDir;
 
     // Diretório compartilhado com o container security (que tem NET_ADMIN + iptables)
-    private static final String SECURITY_CMD_DIR = "/var/run/asteriskia-security";
+    private static final String SECURITY_CMD_DIR = "/var/run/voipia-security";
 
     // ── Lockdown — status ────────────────────────────────────────────────────
 
@@ -168,7 +168,7 @@ public class AsteriskAclService {
     public void applyLockdownAcl(List<String> whitelist) throws IOException {
         Path aclPath = Path.of(asteriskConfigDir, "acl.conf");
         StringBuilder sb = new StringBuilder();
-        sb.append("; AsteriskIA — ACL gerada automaticamente pelo modo lockdown\n");
+        sb.append("; VoipIA — ACL gerada automaticamente pelo modo lockdown\n");
         sb.append("; MODO LOCKDOWN ATIVO — apenas whitelist pode conectar\n");
         sb.append("[whitelist-only]\n");
         sb.append("type=acl\n");
@@ -185,7 +185,7 @@ public class AsteriskAclService {
         Path aclPath = Path.of(asteriskConfigDir, "acl.conf");
         SecurityFileUtils.writeAtomic(
                 aclPath,
-                "; AsteriskIA — ACL — modo normal (fail2ban ativo)\n" + "[blacklist]\ntype=acl\n");
+                "; VoipIA — ACL — modo normal (fail2ban ativo)\n" + "[blacklist]\ntype=acl\n");
         reloadAsteriskAcl();
     }
 

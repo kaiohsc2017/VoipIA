@@ -3,7 +3,7 @@
 **Status: ✅ APROVADO pelo usuário em 2026-08-15 — pode iniciar a implementação (Fase 1) sem
 perguntar de novo.** Mockup validado: https://claude.ai/code/artifact/6e414ca0-5f7f-480c-9953-41fa4628ceec
 
-**Origem**: pedido do usuário + 3 screenshots do modelo desejado em `/opt/AsteriskIA/area/`
+**Origem**: pedido do usuário + 3 screenshots do modelo desejado em `/opt/VoipIA/area/`
 (`Area1.png`, `Area2.png`, `area3.png` — interface Genesys Cloud).
 **Complexidade**: Média-Grande (backend incremental + reestruturação do frontend)
 **Migration nova**: nenhuma nas Fases 1 e 2 (só na Fase 3, opcional)
@@ -202,10 +202,10 @@ desktop. Recomendo decidir depois de validar as Fases 1-2 em uso real.
 
 ```bash
 # Backend
-docker run --rm -v /opt/AsteriskIA/backend:/app -v ~/.m2:/root/.m2 -w /app maven:3.9-eclipse-temurin-21 mvn -o test
+docker run --rm -v /opt/VoipIA/backend:/app -v ~/.m2:/root/.m2 -w /app maven:3.9-eclipse-temurin-21 mvn -o test
 
 # Frontend
-cd /opt/AsteriskIA/callcenter-platform/frontend && npx tsc --noEmit && npm run build
+cd /opt/VoipIA/callcenter-platform/frontend && npx tsc --noEmit && npm run build
 
 # Produção (após deploy)
 docker compose up -d --build backend frontend

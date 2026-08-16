@@ -78,7 +78,7 @@ block() {
 }
 
 # Flags globais conhecidas do git que podem aparecer ANTES do subcomando
-# (ex.: "git -C /opt/AsteriskIA branch -D x") — sem isso, um simples "-C <path>"
+# (ex.: "git -C /opt/VoipIA branch -D x") — sem isso, um simples "-C <path>"
 # bypassa a checagem por quebrar a adjacência "git <subcomando>".
 GITPFX='git(\s+(-C\s+\S+|-c\s+\S+|--git-dir=\S+|--work-tree=\S+|-P|--no-pager|--no-replace-objects))*'
 
@@ -98,15 +98,15 @@ echo "$FLAT" | grep -qE "$GITPFX\s+branch\s+.*-D\b" && \
 echo "$FLAT" | grep -qE "$GITPFX\s+(checkout|restore)\s+(--\s+)?\.(\s|\$)" && \
   block "descarta TODAS as alterações não commitadas no working tree"
 
-# --- Regras específicas de produção do AsteriskIA ------------------------
+# --- Regras específicas de produção do VoipIA ------------------------
 # "Nunca fazer docker compose down sem docker compose up imediato" (CLAUDE.md).
 if echo "$FLAT" | grep -qE '(^|[;&|]|\s)docker\s+compose\s+down\b'; then
   echo "$FLAT" | grep -qE '\bdocker\s+compose\s+up\b' || \
     block "docker compose down sem 'up' na mesma chamada derruba o Caddy e tira o sistema do ar (regra do CLAUDE.md)"
 fi
 
-# "Nunca remover o symlink /opt/AsteriskIA/.env" e nunca apagar env/.env sem backup.
-echo "$FLAT" | grep -qE '(^|[;&|]|\s)(rm|unlink)\b.*(/opt/AsteriskIA/\.env\b|/opt/AsteriskIA/env/\.env\b|/opt/AsteriskIA/env\b)' && \
+# "Nunca remover o symlink /opt/VoipIA/.env" e nunca apagar env/.env sem backup.
+echo "$FLAT" | grep -qE '(^|[;&|]|\s)(rm|unlink)\b.*(/opt/VoipIA/\.env\b|/opt/VoipIA/env/\.env\b|/opt/VoipIA/env\b)' && \
   block "remove o .env real, o symlink ou o diretório env/ — regra inegociável do CLAUDE.md (sempre fazer backup antes e nunca remover o symlink)"
 
 exit 0

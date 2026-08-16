@@ -95,7 +95,7 @@ public class CcChatSession {
     private LocalDateTime closedAt;
 
     /**
-     * Caminho do transcript (.json/.txt) exportado em /opt/AsteriskIA/media/chat ao encerrar a sessão
+     * Caminho do transcript (.json/.txt) exportado em /opt/VoipIA/media/chat ao encerrar a sessão
      * (Fase 11 do plano omnicanal) — {@code null} até a exportação assíncrona concluir.
      */
     @Column(name = "transcript_path", length = 255)

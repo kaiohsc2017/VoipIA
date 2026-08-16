@@ -137,7 +137,7 @@ export function useSipPhone(): SipPhoneApi {
         display_name: `Ramal ${creds.extension}`,
         register: true,
         register_expires: 90,
-        user_agent: 'AsteriskIA-Softphone/1.0',
+        user_agent: 'VoipIA-Softphone/1.0',
         session_timers: false,
         connection_recovery_min_interval: 2,
         connection_recovery_max_interval: 10,

@@ -5,7 +5,7 @@ Antes (F-CRIT-10), o backend Java montava o docker.sock diretamente e rodava
 `docker compose`/`docker logs`/`docker exec` via ProcessBuilder — qualquer RCE
 no container do backend virava root no host. Este serviço concentra esse
 acesso: só ele monta o socket, não publica porta no host (só alcançável pela
-rede interna asteriskia-net) e exige o header X-Internal-Key (mesmo
+rede interna voipia-net) e exige o header X-Internal-Key (mesmo
 INTERNAL_API_KEY já usado entre backend e ai-agent).
 
 Não expõe exec genérico — cada endpoint permite exatamente a operação que os
@@ -17,20 +17,20 @@ import os
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
-app = FastAPI(title="AsteriskIA Docker Helper", version="1.0.0")
+app = FastAPI(title="VoipIA Docker Helper", version="1.0.0")
 
 _INTERNAL_KEY = os.environ["INTERNAL_API_KEY"]
-_COMPOSE_DIR  = "/opt/AsteriskIA"
-_ENV_FILE     = "/opt/AsteriskIA/env/.env"
-_ASTERISK_CONTAINER = "asteriskia-asterisk"
+_COMPOSE_DIR  = "/opt/VoipIA"
+_ENV_FILE     = "/opt/VoipIA/env/.env"
+_ASTERISK_CONTAINER = "voipia-asterisk"
 _ASTERISK_LOG_FILE  = "/var/log/asterisk/full"
 
 # Allowlist de containers do stack — nunca repassa o valor do cliente direto
 # ao subprocess sem checar contra esta lista.
 _ALLOWED_SERVICES = {
-    "asteriskia-backend", "asteriskia-asterisk", "asteriskia-ai-agent",
-    "asteriskia-frontend", "asteriskia-postgres", "asteriskia-agents-api",
-    "asteriskia-caddy", "asteriskia-security",
+    "voipia-backend", "voipia-asterisk", "voipia-ai-agent",
+    "voipia-frontend", "voipia-postgres", "voipia-agents-api",
+    "voipia-caddy", "voipia-security",
 }
 
 # Allowlist das chaves de serviço do docker-compose.yml (nomes usados em

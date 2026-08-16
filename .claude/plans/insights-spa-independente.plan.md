@@ -100,10 +100,10 @@
 
 ## Validação final
 ```bash
-cd /opt/AsteriskIA
+cd /opt/VoipIA
 ls backend/src/main/resources/db/migration/ | sort -V | tail -1     # confirmar nº da migration
 cd insights-platform/frontend && npm ci && npm run build && npx tsc --noEmit
-cd /opt/AsteriskIA/frontend && npx tsc --noEmit
+cd /opt/VoipIA/frontend && npx tsc --noEmit
 docker compose build frontend backend
 docker compose up -d --build backend frontend caddy
 docker compose ps

@@ -22,7 +22,7 @@ class WebMonitorExecutor:
     {
       "checks": [
         {"url": "https://app.example.com", "expect_status": 200,
-         "expect_contains": "AsteriskIA", "timeout": 10},
+         "expect_contains": "VoipIA", "timeout": 10},
         {"url": "https://api.example.com/health",
          "expect_json_key": "status", "expect_json_value": "ok"}
       ],

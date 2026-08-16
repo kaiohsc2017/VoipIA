@@ -165,10 +165,10 @@ disparar mesmo se o mesmo filtro for clicado duas vezes seguidas) e repassa como
 
 ```bash
 # Backend
-cd /opt/AsteriskIA/backend && mvn -q -DskipTests compile
+cd /opt/VoipIA/backend && mvn -q -DskipTests compile
 
 # Frontend
-cd /opt/AsteriskIA/frontend && npx tsc --noEmit
+cd /opt/VoipIA/frontend && npx tsc --noEmit
 
 # Smoke test dos novos filtros (após deploy)
 curl -s "https://app.voiphash.com.br/api/v1/insights/calls?criticidade=urgente&size=5" -H "Authorization: Bearer <token>"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # pre-commit-media-guard.sh — Fase 20 do plano Call Center Parte III.
 #
-# /opt/AsteriskIA/media/ (gravação de chamada, transcript de chat, biblioteca de anúncios, upload
+# /opt/VoipIA/media/ (gravação de chamada, transcript de chat, biblioteca de anúncios, upload
 # de análise sob demanda) vive sob a raiz do repositório desde a Fase 20 — é dado de cliente/PII,
 # nunca pode ser comitado. O .gitignore (media/*) já cobre o caso comum, mas este hook é a segunda
 # camada: recusa o commit se algum caminho sob media/ (fora do próprio .gitignore) entrar staged,

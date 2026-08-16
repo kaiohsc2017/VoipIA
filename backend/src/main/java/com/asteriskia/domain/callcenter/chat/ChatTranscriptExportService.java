@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * ChatTranscriptExportService — exporta o transcript de uma sessão de chat encerrada para
- * {@code /opt/AsteriskIA/media/chat/YYYY/MM/DD/<sessionId>.json} + {@code .txt} (Fase 11 do plano
+ * {@code /opt/VoipIA/media/chat/YYYY/MM/DD/<sessionId>.json} + {@code .txt} (Fase 11 do plano
  * omnicanal — D6, transcript textual; caminho padronizado na Fase 20 do plano Parte III; o
  * co-browsing gravado é a Fase 17, separada).
  *
@@ -45,7 +45,7 @@ public class ChatTranscriptExportService {
     private final CcChatMessageRepository messageRepository;
     private final ObjectMapper objectMapper;
 
-    @Value("${app.callcenter.chat-transcript-path:/opt/AsteriskIA/media/chat}")
+    @Value("${app.callcenter.chat-transcript-path:/opt/VoipIA/media/chat}")
     private String transcriptBasePath;
 
     @Async

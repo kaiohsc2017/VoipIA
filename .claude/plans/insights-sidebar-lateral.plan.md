@@ -65,7 +65,7 @@ ajustável depois se o usuário preferir a versão estática dos Agentes.
     `App.tsx:14-20` (note que `costs` e `costsDashboard` compartilham `insights.costs`, já assim
     hoje).
   - Filtro RBAC: `NAV_ITEMS.filter(item => session.hasRead(item.resource))`.
-  - Logo: `AsteriskIA` + subtítulo `Insights` (sem número de versão — a SPA de Insights não
+  - Logo: `VoipIA` + subtítulo `Insights` (sem número de versão — a SPA de Insights não
     importa `releases.ts` do Telecom, não inventar essa dependência cruzada).
   - Footer: avatar (inicial do username), nome, `session.role === 'ADMIN' ? 'Administrador' :
     'Usuário'`, botão "Sair" chamando `onLogout`.
@@ -119,7 +119,7 @@ ajustável depois se o usuário preferir a versão estática dos Agentes.
 - **Validar (local, sem deploy ainda):**
   ```bash
   cd insights-platform/frontend && npm install && npx tsc --noEmit && npm run build
-  cd /opt/AsteriskIA/frontend && npx tsc --noEmit
+  cd /opt/VoipIA/frontend && npx tsc --noEmit
   ```
 - Deploy (só depois de validado localmente, com confirmação antes de mexer em produção):
   ```bash

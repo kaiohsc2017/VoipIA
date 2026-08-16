@@ -6,13 +6,13 @@
 #   ./install-agente-google-remote.sh
 #
 # Pré-requisitos: docker instalado, script agente-google.py já copiado
-# para o mesmo diretório deste instalador (scp -r tools/ vps-nova:/opt/AsteriskIA/tools/).
+# para o mesmo diretório deste instalador (scp -r tools/ vps-nova:/opt/VoipIA/tools/).
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_PY="$SCRIPT_DIR/agente-google.py"
-INSTALL_DIR="${ASTERISKIA_AGENT_DIR:-/opt/asteriskia-agent}"
+INSTALL_DIR="${VOIPIA_AGENT_DIR:-/opt/asteriskia-agent}"
 DB_CONTAINER="asteriskia-agent-memory"
 DB_VOLUME="asteriskia-agent-memory-data"
 DB_PASS_FILE="$INSTALL_DIR/.db_password"
@@ -77,7 +77,7 @@ fi
 echo "▶ Criando comando global 'asteriskia-agent'…"
 cat > /usr/local/bin/asteriskia-agent <<EOF
 #!/bin/bash
-export ASTERISKIA_DIR="$INSTALL_DIR"
+export VOIPIA_DIR="$INSTALL_DIR"
 cd "$INSTALL_DIR"
 python3 agente-google.py "\$@"
 EOF

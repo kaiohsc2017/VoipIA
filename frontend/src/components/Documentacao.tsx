@@ -16,7 +16,7 @@ import AgentesAutomacao from './docs/sections/AgentesAutomacao';
 import AgentesInfra from './docs/sections/AgentesInfra';
 import Sistema from './docs/sections/Sistema';
 
-// Documentação oficial do AsteriskIA — migrada de
+// Documentação oficial do VoipIA — migrada de
 // agents-platform/frontend/docs.html (manual da Plataforma de Agentes) e
 // expandida com as seções do Telecom (URA, Conectividade, Alertas, RBAC).
 export default function Documentacao() {

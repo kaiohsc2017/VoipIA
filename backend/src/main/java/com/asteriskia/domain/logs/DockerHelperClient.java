@@ -61,7 +61,7 @@ public class DockerHelperClient {
         }
     }
 
-    /** Chama o docker-helper (GET /asterisk/log) — antigo docker exec asteriskia-asterisk tail. */
+    /** Chama o docker-helper (GET /asterisk/log) — antigo docker exec voipia-asterisk tail. */
     @SuppressWarnings("unchecked")
     public List<String> tailAsteriskLog(int lines) {
         String url =

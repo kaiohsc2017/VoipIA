@@ -1,7 +1,7 @@
 """
-llm.py — Abstração de provedores LLM para o AsteriskIA Agentes
+llm.py — Abstração de provedores LLM para o VoipIA Agentes
 
-Configuração via arquivo dedicado /opt/AsteriskIA/env/.env.agents
+Configuração via arquivo dedicado /opt/VoipIA/env/.env.agents
 (caminho configurável via AGENTS_ENV_FILE).
 
 O arquivo .env.agents é lido em tempo de execução a cada chamada ao LLM,
@@ -30,7 +30,7 @@ logger = logging.getLogger("asteriskia.llm")
 
 ENV_FILE = Path(os.environ.get(
     "AGENTS_ENV_FILE",
-    "/opt/AsteriskIA/env/.env.agents"
+    "/opt/VoipIA/env/.env.agents"
 ))
 
 ENV_KEYS = [
@@ -136,7 +136,7 @@ def write_env_file(values: dict) -> None:
     """Escreve o .env.agents com os novos valores."""
     ENV_FILE.parent.mkdir(parents=True, exist_ok=True)
     lines = [
-        "# AsteriskIA Agentes — Configuração de IA",
+        "# VoipIA Agentes — Configuração de IA",
         "# Editado pelo painel web — não edite manualmente enquanto o sistema estiver rodando",
         "",
     ]

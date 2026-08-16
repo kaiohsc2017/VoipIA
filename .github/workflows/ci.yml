@@ -1,4 +1,4 @@
-name: CI — AsteriskIA
+name: CI — VoipIA
 
 on:
   push:
@@ -84,7 +84,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: backend-war
-          path: backend/target/asteriskia-backend.war
+          path: backend/target/voipia-backend.war
           retention-days: 7
 
   # ============================================================

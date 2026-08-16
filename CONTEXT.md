@@ -1,4 +1,4 @@
-# CONTEXT.md — AsteriskIA
+# CONTEXT.md — VoipIA
 
 Glossário da linguagem de domínio do projeto. Objetivo: eliminar ambiguidade em
 termos que já causaram confusão real (RBAC granular, escopo por BU, multi-URA).

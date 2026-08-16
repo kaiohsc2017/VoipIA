@@ -1,6 +1,6 @@
 """
 agents-platform/backend/main.py
-FastAPI backend — AsteriskIA Agentes
+FastAPI backend — VoipIA Agentes
 """
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -81,7 +81,7 @@ async def lifespan(app: FastAPI):
 _ENABLE_DOCS = os.getenv("AGENTS_ENABLE_DOCS", "false").lower() == "true"
 
 app = FastAPI(
-    title="AsteriskIA Agents Platform", version="2.0.0", lifespan=lifespan,
+    title="VoipIA Agents Platform", version="2.0.0", lifespan=lifespan,
     docs_url="/docs" if _ENABLE_DOCS else None,
     redoc_url="/redoc" if _ENABLE_DOCS else None,
     openapi_url="/openapi.json" if _ENABLE_DOCS else None,

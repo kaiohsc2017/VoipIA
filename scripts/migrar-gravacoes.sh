@@ -1,6 +1,6 @@
 #!/bin/bash
 # Migra os arquivos físicos de mídia do Call Center/Insights para o padrão único sob a raiz do
-# repositório: /opt/AsteriskIA/media/{gravacao,chat,anuncios,sobdemanda} — Fase 20 do plano Call
+# repositório: /opt/VoipIA/media/{gravacao,chat,anuncios,sobdemanda} — Fase 20 do plano Call
 # Center Parte III. Generaliza o script da Fase 11 (que só cobria voz/chat de
 # /opt/telecom/gravacao → /opt/gravacoes/audio) para qualquer par origem/destino, porque agora há
 # 3 migrações reais (gravação de voz, transcript de chat, upload de análise sob demanda) mais um
@@ -18,21 +18,21 @@
 set -euo pipefail
 
 # Achado real do deploy da Fase 11 nesta VPS (2026-08-08): o container backend passou a rodar
-# como usuário não-root (uid 1501, grupo asteriskia-app/gid 1500 — de-rootização em andamento,
+# como usuário não-root (uid 1501, grupo voipia-app/gid 1500 — de-rootização em andamento,
 # ver backend/Dockerfile) e não conseguia escrever num diretório novo criado por bind mount
 # (root:root 755 por padrão do Docker). O Asterisk continua root e grava normalmente, mas sem o
 # grupo compartilhado o backend não conseguia ler/expurgar o próprio arquivo gravado por ele —
 # nem gravar o transcript de chat. setgid (2770) garante que todo arquivo novo criado dentro
-# herde o grupo asteriskia-app, independente do processo que o criou (root ou uid 1501) — mesmo
-# padrão já usado em /opt/AsteriskIA/env. Roda incondicionalmente, mesmo sem nada pra migrar.
+# herde o grupo voipia-app, independente do processo que o criou (root ou uid 1501) — mesmo
+# padrão já usado em /opt/VoipIA/env. Roda incondicionalmente, mesmo sem nada pra migrar.
 ensure_shared_group_permission() {
   local dir="$1"
   mkdir -p "$dir"
-  if getent group asteriskia-app >/dev/null 2>&1; then
-    chown root:asteriskia-app "$dir"
+  if getent group voipia-app >/dev/null 2>&1; then
+    chown root:voipia-app "$dir"
     chmod 2770 "$dir"
   else
-    echo "AVISO: grupo 'asteriskia-app' não existe neste host — pulei o ajuste de permissão de $dir." >&2
+    echo "AVISO: grupo 'voipia-app' não existe neste host — pulei o ajuste de permissão de $dir." >&2
     echo "Confirme manualmente que quem grava e quem lê/apaga/exporta têm acesso." >&2
   fi
 }
@@ -73,8 +73,8 @@ migrate_dir() {
   # depois do rsync, no diretório e em tudo que ele trouxe (arquivos/subpastas copiados não
   # herdam setgid retroativamente, só o que for criado dali em diante).
   ensure_shared_group_permission "$destino"
-  if getent group asteriskia-app >/dev/null 2>&1; then
-    chown -R root:asteriskia-app "$destino"
+  if getent group voipia-app >/dev/null 2>&1; then
+    chown -R root:voipia-app "$destino"
     find "$destino" -type d -exec chmod 2770 {} +
     find "$destino" -type f -exec chmod 660 {} +
   fi
@@ -95,20 +95,20 @@ migrate_dir() {
   echo "Migração de '$origem' para '$destino' concluída: $contagem_destino arquivo(s)."
 }
 
-echo "=== Gravação de voz (/opt/gravacoes/audio → /opt/AsteriskIA/media/gravacao) ==="
-migrate_dir "/opt/gravacoes/audio" "/opt/AsteriskIA/media/gravacao" "*.wav"
+echo "=== Gravação de voz (/opt/gravacoes/audio → /opt/VoipIA/media/gravacao) ==="
+migrate_dir "/opt/gravacoes/audio" "/opt/VoipIA/media/gravacao" "*.wav"
 
 echo
-echo "=== Transcript de chat (/opt/gravacoes/chat → /opt/AsteriskIA/media/chat) ==="
-migrate_dir "/opt/gravacoes/chat" "/opt/AsteriskIA/media/chat"
+echo "=== Transcript de chat (/opt/gravacoes/chat → /opt/VoipIA/media/chat) ==="
+migrate_dir "/opt/gravacoes/chat" "/opt/VoipIA/media/chat"
 
 echo
-echo "=== Upload de análise sob demanda (/opt/audio_upload → /opt/AsteriskIA/media/sobdemanda) ==="
-migrate_dir "/opt/audio_upload" "/opt/AsteriskIA/media/sobdemanda"
+echo "=== Upload de análise sob demanda (/opt/audio_upload → /opt/VoipIA/media/sobdemanda) ==="
+migrate_dir "/opt/audio_upload" "/opt/VoipIA/media/sobdemanda"
 
 echo
 echo "=== Biblioteca de anúncios do flow builder (novo, sem origem — Fase 5c) ==="
-ensure_shared_group_permission "/opt/AsteriskIA/media/anuncios"
+ensure_shared_group_permission "/opt/VoipIA/media/anuncios"
 
 echo
 echo "Próximo passo: aplicar a migration V63 (docker compose up -d --build backend) para"

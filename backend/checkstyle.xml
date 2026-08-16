@@ -4,7 +4,7 @@
         "https://checkstyle.org/dtds/configuration_1_3.dtd">
 
 <!--
-    Ruleset próprio do AsteriskIA — não usa google_checks/sun_checks porque
+    Ruleset próprio do VoipIA — não usa google_checks/sun_checks porque
     nenhum dos dois bate com a convenção real deste projeto (indentação de
     4 espaços, linhas de até ~120 colunas). Cobre só problemas que importam:
     imports não usados, blocos vazios, espaços em branco no fim da linha e

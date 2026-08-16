@@ -12,12 +12,12 @@
     </parent>
 
     <groupId>com.asteriskia</groupId>
-    <artifactId>asteriskia-backend</artifactId>
+    <artifactId>voipia-backend</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>war</packaging>
 
-    <name>AsteriskIA Backend</name>
-    <description>API REST do sistema AsteriskIA</description>
+    <name>VoipIA Backend</name>
+    <description>API REST do sistema VoipIA</description>
 
     <properties>
         <java.version>21</java.version>
@@ -149,7 +149,7 @@
     </dependencies>
 
     <build>
-        <finalName>asteriskia-backend</finalName>
+        <finalName>voipia-backend</finalName>
         <plugins>
 
             <plugin>

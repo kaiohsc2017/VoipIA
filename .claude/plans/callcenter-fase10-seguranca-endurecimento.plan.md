@@ -119,7 +119,7 @@ especificação) e **complexidade**.
 | 3.2.5 | `AriEventListener.buildEventsUri` | `subscribeAll=false` (bom). Verificar que `app` não é injetável e que o `ws://` derivado do `base-url` não cai em `ws://` sem TLS atravessando rede não confiável (hoje é rede Docker interna — registrar como aceito) | Revisão | P |
 | 3.2.6 | `AriEventListener.onStasisStart` | Uma thread daemon **por chamada**, sem pool nem teto: N chamadas simultâneas = N threads. É o vetor de DoS mais direto do motor (mesma classe do MEDIUM já corrigido na Fase 24, que trocou thread solta por `ExecutorService` limitado). **Correção: pool limitado + rejeição com fallback para fila** | Trabalho novo (pequeno) | M |
 | 3.2.7 | `AriEventListener.redactCaller` | Redige `channel.caller` no log do primeiro `StasisStart`. Verificar se `channel.connected`/`caller_rdnis` também carregam número (PII) e ficam no log | Revisão | P |
-| 3.2.8 | `AriClient` sem TLS/verificação | ARI trafega credencial Basic em HTTP na rede `asteriskia-net`. Registrar como resíduo aceito (mesmo nível de `POSTGRES_PASSWORD` em `environment:`) — **não** introduzir TLS interno nesta fatia | Decisão registrada | — |
+| 3.2.8 | `AriClient` sem TLS/verificação | ARI trafega credencial Basic em HTTP na rede `voipia-net`. Registrar como resíduo aceito (mesmo nível de `POSTGRES_PASSWORD` em `environment:`) — **não** introduzir TLS interno nesta fatia | Decisão registrada | — |
 | 3.2.9 | `AriPlaybackTracker` / `AriRecordingTracker` | Chave vinda de evento externo (`playback.id`, `recording.name`): mapa cresce sem expurgo se o evento de conclusão nunca chegar? Vazamento de memória por chamada abandonada | Revisão | M |
 
 ### 4.3 Chat — polling, widget e superfície "pública" (Fases 7a/7b/24/25)
@@ -329,7 +329,7 @@ reload` → validar via curl).
   rodando na mesma máquina (`echweb-*`, `ascsac-*`, confirmados via `docker stats`), não um
   ambiente de teste isolado.
 - `docker stats` antes/depois do teste: nenhuma mudança relevante nos containers do Call Center
-  (`asteriskia-asterisk` 34-38MiB/1GiB, estável).
+  (`voipia-asterisk` 34-38MiB/1GiB, estável).
 
 **Tentativa real, com escopo reduzido para não incorrer em custo/risco desnecessário**: em vez de
 simular uma chamada de voz completa (que atravessaria `AudioSocket → ai-agent → Gemini`, gerando

@@ -14,7 +14,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * AsteriskLogClient — busca as últimas linhas do log do Asterisk via docker-helper, extraído de
- * SecurityController (fase 11 da refatoração). Antigo {@code docker exec asteriskia-asterisk tail}
+ * SecurityController (fase 11 da refatoração). Antigo {@code docker exec voipia-asterisk tail}
  * — o docker-helper é o único container com acesso ao docker.sock (F-CRIT-10).
  */
 @Component

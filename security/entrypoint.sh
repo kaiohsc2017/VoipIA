@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 
-echo "[security] Iniciando AsteriskIA Security Container..."
+echo "[security] Iniciando VoipIA Security Container..."
 
-# Débito de segurança corrigido: GID compartilhado 1500 (grupo "asteriskia-app" no
+# Débito de segurança corrigido: GID compartilhado 1500 (grupo "voipia-app" no
 # host) via setgid nos diretórios — backend (não-root, mesmo GID) acessa o socket do
 # fail2ban e a fila de comandos sem precisar de 777 nem de root. Setgid garante que
 # QUALQUER processo (mesmo root, como o próprio fail2ban-server/watcher aqui) que criar
@@ -15,7 +15,7 @@ mkdir -p /var/run/fail2ban
 chown root:1500 /var/run/fail2ban
 chmod 2770 /var/run/fail2ban
 
-CMD_DIR="/var/run/asteriskia-security"
+CMD_DIR="/var/run/voipia-security"
 mkdir -p "$CMD_DIR"
 chown root:1500 "$CMD_DIR"
 chmod 2770 "$CMD_DIR"

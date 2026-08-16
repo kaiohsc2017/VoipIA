@@ -1,4 +1,4 @@
-# Roadmap de Refatoração AsteriskIA — Fase 1 (Auditoria)
+# Roadmap de Refatoração VoipIA — Fase 1 (Auditoria)
 
 > Gerado em 2026-07-13 por auditoria arquitetural (4 agentes paralelos, um por módulo).
 > **Este arquivo é o artefato vivo do plano.** Marque `[x]` conforme executar. Não apagar até 100% concluído.
@@ -167,7 +167,7 @@ Gerado em 2026-07-14 por 5 pesquisas paralelas (uma por item), leitura completa 
 7. `domain.ura` (UraQuestionController — 1 DTO com factory method)
 8. Lote final "resto": `domain.config` + `domain.alert` + `domain.pedido` (1 DTO cada)
 
-**Testes de aceitação:** `mvnw compile` limpo a cada lote (via `docker run --rm -v /opt/AsteriskIA:/app -v $HOME/.m2:/root/.m2 -w /app/backend maven:3.9-eclipse-temurin-21 mvn -q -o compile`); checkstyle+spotless limpos; smoke test com JWT forjado em pelo menos 1 endpoint por controller tocado (login, criar URA question, criar grupo de acesso, atualizar status de alerta, etc) para confirmar que o (de)serialization JSON continua idêntico.
+**Testes de aceitação:** `mvnw compile` limpo a cada lote (via `docker run --rm -v /opt/VoipIA:/app -v $HOME/.m2:/root/.m2 -w /app/backend maven:3.9-eclipse-temurin-21 mvn -q -o compile`); checkstyle+spotless limpos; smoke test com JWT forjado em pelo menos 1 endpoint por controller tocado (login, criar URA question, criar grupo de acesso, atualizar status de alerta, etc) para confirmar que o (de)serialization JSON continua idêntico.
 
 **Riscos:** baixo em quase todos — extração mecânica, sem mudança de lógica. Único ponto de atenção real: preservar a visibilidade exata do construtor de `ConnectivitySummaryDTO` (package-private) e os imports de factory methods (`UraQuestionResponse.from`, `UserResponse.from`).
 

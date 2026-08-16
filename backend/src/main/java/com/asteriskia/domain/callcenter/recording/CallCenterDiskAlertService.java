@@ -27,7 +27,7 @@ public class CallCenterDiskAlertService {
     private final CallCenterDiskAlertConfigRepository configRepository;
     private final TelegramBotService telegramBotService;
 
-    @Value("${app.callcenter.recording-path:/opt/AsteriskIA/media/gravacao}")
+    @Value("${app.callcenter.recording-path:/opt/VoipIA/media/gravacao}")
     private String recordingBasePath;
 
     @Transactional(readOnly = true)

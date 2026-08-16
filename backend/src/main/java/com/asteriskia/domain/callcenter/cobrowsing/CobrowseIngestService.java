@@ -69,7 +69,7 @@ public class CobrowseIngestService {
     private final CcChatSessionRepository chatSessionRepository;
     private final ObjectMapper objectMapper;
 
-    @Value("${app.callcenter.chat-transcript-path:/opt/AsteriskIA/media/chat}")
+    @Value("${app.callcenter.chat-transcript-path:/opt/VoipIA/media/chat}")
     private String basePath;
 
     // Um lock por sessão de chat — nunca removido do mapa (mesmo trade-off já aceito em

@@ -1,4 +1,4 @@
-# AsteriskIA — Contexto para o Claude Code
+# VoipIA — Contexto para o Claude Code
 
 ## Perfil de atuação
 
@@ -30,11 +30,11 @@ Você é um Engenheiro Sênior de Software e DevOps com profundo conhecimento em
 |------|-------|
 | VPS | `app.voiphash.com.br` — Ubuntu 24.04 LTS |
 | IP público | `129.121.51.29` |
-| Repositório no VPS | `/opt/AsteriskIA` |
-| Remote Git | `github.com/kaiohsc2017/AsteriskIA` (`origin`) — espelhado em Azure DevOps (`azure`), ver [git-workflow.md](.claude/rules/common/git-workflow.md) |
+| Repositório no VPS | `/opt/VoipIA` |
+| Remote Git | `github.com/kaiohsc2017/VoipIA` (`origin`) — espelhado em Azure DevOps (`azure`), ver [git-workflow.md](.claude/rules/common/git-workflow.md) |
 | Branch principal | `main` |
-| `.env` real | `/opt/AsteriskIA/env/.env` |
-| `.env` symlink | `/opt/AsteriskIA/.env` → aponta para o real |
+| `.env` real | `/opt/VoipIA/env/.env` |
+| `.env` symlink | `/opt/VoipIA/.env` → aponta para o real |
 | TLS | Caddy 2 — Let's Encrypt automático |
 | Domínios | `app.voiphash.com.br`, `claw.voiphash.com.br` |
 
@@ -42,20 +42,20 @@ Você é um Engenheiro Sênior de Software e DevOps com profundo conhecimento em
 
 ## Stack de containers
 
-Rede Docker: `asteriskia-net` — bridge `172.16.7.0/24`
+Rede Docker: `voipia-net` — bridge `172.16.7.0/24`
 
 | IP | Container | Imagem / Build | Função |
 |----|-----------|----------------|--------|
-| `172.16.7.10` | `asteriskia-caddy` | `caddy:2-alpine` | Proxy reverso HTTPS — entrada de todo tráfego externo |
-| `172.16.7.11` | `asteriskia-postgres` | `postgres:16-alpine` | Banco unificado (Telecom + Agentes) |
-| `172.16.7.12` | `asteriskia-asterisk` | build `./asterisk` | PBX — Asterisk 21 LTS |
-| `172.16.7.13` | `asteriskia-ai-agent` | build `./ai-agent` | Servidor AudioSocket Python — STT/LLM/TTS via Gemini |
+| `172.16.7.10` | `voipia-caddy` | `caddy:2-alpine` | Proxy reverso HTTPS — entrada de todo tráfego externo |
+| `172.16.7.11` | `voipia-postgres` | `postgres:16-alpine` | Banco unificado (Telecom + Agentes) |
+| `172.16.7.12` | `voipia-asterisk` | build `./asterisk` | PBX — Asterisk 21 LTS |
+| `172.16.7.13` | `voipia-ai-agent` | build `./ai-agent` | Servidor AudioSocket Python — STT/LLM/TTS via Gemini |
 | `172.16.7.18` | `asteriskia-insights` | build `./insights` | Serviço Python (loop de polling, sem porta própria) — transcreve/analisa via Gemini as gravações do call center corporativo Verint em `/opt/audio` (módulo apartado do domínio Asterisk, tela "Insights") |
-| `172.16.7.14` | `asteriskia-backend` | build `./backend` | Spring Boot 3.3 — API REST + WebSocket STOMP |
-| `172.16.7.15` | `asteriskia-frontend` | build `./frontend` | React 18 + Nginx — serve Telecom e Agentes |
-| `172.16.7.16` | `asteriskia-agents-api` | build `./agents-platform/backend` | FastAPI — plataforma de agentes autônomos |
+| `172.16.7.14` | `voipia-backend` | build `./backend` | Spring Boot 3.3 — API REST + WebSocket STOMP |
+| `172.16.7.15` | `voipia-frontend` | build `./frontend` | React 18 + Nginx — serve Telecom e Agentes |
+| `172.16.7.16` | `voipia-agents-api` | build `./agents-platform/backend` | FastAPI — plataforma de agentes autônomos |
 | `172.16.7.17` | `asteriskia-docker-helper` | build `./docker-helper` | Único container com acesso ao `docker.sock` (F-CRIT-10) — API interna estreita para `docker compose up`/`docker logs`/`docker exec` (asterisk), sem porta publicada no host, atrás de `X-Internal-Key` |
-| host | `asteriskia-security` | build `./security` | Fail2ban + nftables — `network_mode: host` |
+| host | `voipia-security` | build `./security` | Fail2ban + nftables — `network_mode: host` |
 
 **IPs reservados:** `.1–.9` (gateway/infra) e `.250–.254` (infra)
 
@@ -94,7 +94,7 @@ docker compose up -d --build frontend
 
 ## Banco de dados
 
-- **Instância:** PostgreSQL 16 em `asteriskia-postgres:5432`
+- **Instância:** PostgreSQL 16 em `voipia-postgres:5432`
 - **Banco unificado:** `asteriskia` (Telecom + Agentes na mesma instância)
 - **Migrations Telecom:** Flyway — classpath `backend/src/main/resources/db/migration/` — V1 a V21
   aplicadas em produção; **V22 (grupos de acesso) commitada, aguardando deploy do backend**
@@ -113,21 +113,21 @@ psql -h localhost -p 5433 -U asteriskia -d asteriskia
 ```
 Externo (HTTPS)
   └── Caddy (172.16.7.10)
-        ├── /agents/api/*   → strip /agents → asteriskia-agents-api:8000
-        ├── /agents/ws/*    → strip /agents → asteriskia-agents-api:8000 (WS)
-        ├── /agents*        → asteriskia-frontend:80 (NÃO strip — nginx tem location /agents/)
-        ├── /insights*      → asteriskia-frontend:80 (NÃO strip — nginx tem location /insights/)
+        ├── /agents/api/*   → strip /agents → voipia-agents-api:8000
+        ├── /agents/ws/*    → strip /agents → voipia-agents-api:8000 (WS)
+        ├── /agents*        → voipia-frontend:80 (NÃO strip — nginx tem location /agents/)
+        ├── /insights*      → voipia-frontend:80 (NÃO strip — nginx tem location /insights/)
         ├── /docs/*         → /srv/docs (file_server direto no Caddy)
-        ├── /api/*          → asteriskia-backend:8080
-        ├── /ws/*           → asteriskia-backend:8080 (STOMP)
-        ├── /asterisk-ws*   → rewrite /ws → asteriskia-asterisk:8088 (WebRTC)
-        └── /*              → asteriskia-frontend:80 (catch-all Telecom)
+        ├── /api/*          → voipia-backend:8080
+        ├── /ws/*           → voipia-backend:8080 (STOMP)
+        ├── /asterisk-ws*   → rewrite /ws → voipia-asterisk:8088 (WebRTC)
+        └── /*              → voipia-frontend:80 (catch-all Telecom)
 ```
 
 O Nginx interno serve:
 - `/` → `/usr/share/nginx/html/` (build React Telecom)
 - `/agents/` → `/usr/share/nginx/html/agents/` (React UMD Agentes)
-- `/agents/api/` → proxy para `asteriskia-agents-api:8000` (fallback interno)
+- `/agents/api/` → proxy para `voipia-agents-api:8000` (fallback interno)
 - `/insights/` → `/usr/share/nginx/html/insights/` (SPA própria — build Vite, `insights-platform/frontend/`)
   — sem proxy `/insights/api`: a SPA consome `/api/v1/insights/**` direto no backend Java (mesma
   origem), já coberto pela `location /api/`; diferente de Agentes, que tem FastAPI dedicado.
@@ -191,7 +191,7 @@ Ligação entra → Asterisk dialplan → AudioSocket(UUID, ai-agent:9092)
 
 Senhas SIP saíram do `pjsip.conf.template` (versionado) e são injetadas via `envsubst` no boot
 (`asterisk/docker-entrypoint.sh`) — nunca hardcodar um valor real de senha nesta documentação.
-Consulte o valor atual com: `grep '^RAMAL_9001_PASSWORD=' /opt/AsteriskIA/env/.env`
+Consulte o valor atual com: `grep '^RAMAL_9001_PASSWORD=' /opt/VoipIA/env/.env`
 
 **Tronco SIP:** peer IP-based com `186.233.141.64` — sem usuário/senha, fechado por IP
 
@@ -260,7 +260,7 @@ Plataforma de Agentes (abrindo `/agents/docs.html`) foi removido — o acesso ag
 ## Estrutura do repositório
 
 ```
-AsteriskIA/
+VoipIA/
 ├── asterisk/
 │   ├── Dockerfile              # Build Asterisk 21 com app_audiosocket
 │   ├── docker-entrypoint.sh    # Injeta SIP_PUBLIC_IP no pjsip.conf no boot
@@ -334,7 +334,7 @@ AsteriskIA/
 │   ├── Dockerfile
 │   ├── entrypoint.sh
 │   ├── lockdown-watcher.sh      # Watcher de comandos nftables (roda no host via systemd)
-│   ├── asteriskia-lockdown.service  # Unit systemd instalado pelo install.sh
+│   ├── voipia-lockdown.service  # Unit systemd instalado pelo install.sh
 │   └── config/
 │       ├── jail.d/              # asterisk.conf — 3 jails (auth, scanner, flood)
 │       └── filter.d/            # Filtros regex para os jails
@@ -379,42 +379,42 @@ AsteriskIA/
 
 ```bash
 # Verificar se SIP_PUBLIC_IP está correto no Asterisk (CRÍTICO para WebRTC)
-docker exec asteriskia-asterisk grep "external_media_address" /etc/asterisk/pjsip.conf
+docker exec voipia-asterisk grep "external_media_address" /etc/asterisk/pjsip.conf
 
 # Corrigir SIP_PUBLIC_IP manualmente (se vazio após restart)
-docker exec asteriskia-asterisk sed -i \
+docker exec voipia-asterisk sed -i \
   's/external_media_address = $/external_media_address = 129.121.51.29/' \
   /etc/asterisk/pjsip.conf
-docker exec asteriskia-asterisk asterisk -rx "module reload res_pjsip.so"
+docker exec voipia-asterisk asterisk -rx "module reload res_pjsip.so"
 
 # Recarregar dialplan sem restart
-docker exec asteriskia-asterisk asterisk -rx "dialplan reload"
+docker exec voipia-asterisk asterisk -rx "dialplan reload"
 
 # Status dos endpoints SIP
-docker exec asteriskia-asterisk asterisk -rx "pjsip show endpoints"
+docker exec voipia-asterisk asterisk -rx "pjsip show endpoints"
 
 # Recarregar Caddyfile sem downtime (admin API via socket Unix — não é mais TCP:2019)
-curl --unix-socket /opt/AsteriskIA/caddy-admin/admin.sock http://localhost/load \
+curl --unix-socket /opt/VoipIA/caddy-admin/admin.sock http://localhost/load \
   -H "Content-Type: text/caddyfile" \
-  --data-binary @/opt/AsteriskIA/Caddyfile
+  --data-binary @/opt/VoipIA/Caddyfile
 
 # Status do lockdown SIP no host
-systemctl status asteriskia-lockdown
+systemctl status voipia-lockdown
 nft list chain ip filter DOCKER-USER 2>/dev/null
 
 # Verificar healthcheck de um container
-docker inspect --format='{{.State.Health.Status}}' asteriskia-agents-api
+docker inspect --format='{{.State.Health.Status}}' voipia-agents-api
 
 # Rede: verificar IPs atribuídos
-docker network inspect asteriskia_asteriskia-net \
+docker network inspect asteriskia_voipia-net \
   --format '{{range .Containers}}{{.Name}}: {{.IPv4Address}}{{"\n"}}{{end}}'
 
 # Acessar banco diretamente
-docker exec -it asteriskia-postgres psql -U asteriskia -d asteriskia
+docker exec -it voipia-postgres psql -U asteriskia -d asteriskia
 
 # Verificar o docker-helper (único container com docker.sock — F-CRIT-10)
 docker inspect --format='{{.State.Health.Status}}' asteriskia-docker-helper
-curl -sf --unix-socket /opt/AsteriskIA/caddy-admin/admin.sock http://localhost/config/ >/dev/null && echo ok
+curl -sf --unix-socket /opt/VoipIA/caddy-admin/admin.sock http://localhost/config/ >/dev/null && echo ok
 
 # Forjar um JWT de teste (ADMIN ou USER) para testar RBAC sem criar usuário real —
 # mesmo BACKEND_JWT_SECRET do .env, mesma lógica de padding do JwtService.java
@@ -893,8 +893,8 @@ mesmo sem volume real — decisão dele, registrada no plano.
 Fecha de vez o débito de segurança F-HIGH da auditoria de 2026-07-02 registrado mais abaixo neste
 arquivo ("Débito de segurança — 2 de 3 fechados") — os 3 containers que ainda rodavam como root
 agora têm UID próprio (1501 backend / 1502 ai-agent / 1503 agents-backend) no grupo compartilhado
-`asteriskia-app` (GID 1500), necessário porque os três precisam ler/escrever os mesmos caminhos do
-host: `/opt/AsteriskIA/env`, `/opt/AsteriskIA/asterisk/config`, `fail2ban_socket`/`security_cmds`
+`voipia-app` (GID 1500), necessário porque os três precisam ler/escrever os mesmos caminhos do
+host: `/opt/VoipIA/env`, `/opt/VoipIA/asterisk/config`, `fail2ban_socket`/`security_cmds`
 (volumes nomeados), `media/*`, `asterisk_recordings`/`asterisk_ari_recordings`.
 - Essa era uma de **3 frentes de trabalho soltas e não commitadas** deixadas por uma sessão
   anterior (código do Dockerfile já parecia pronto, mas a preparação do host estava incompleta).
@@ -906,7 +906,7 @@ host: `/opt/AsteriskIA/env`, `/opt/AsteriskIA/asterisk/config`, `fail2ban_socket
   não-root; (3) `security/config/jail.d`/`filter.d` (diretórios **e** arquivos) `root:root` —
   o mais grave: o backend nem conseguia **ler** `jail.d/asterisk.conf` (modo 640, grupo `root`),
   e a escrita (`JailConfigRepository`, via escrita atômica com `.tmp`+rename) também exige escrita
-  no diretório, não só no arquivo. Todos corrigidos com `chgrp asteriskia-app` + `chmod 2775`/`664`.
+  no diretório, não só no arquivo. Todos corrigidos com `chgrp voipia-app` + `chmod 2775`/`664`.
 - Validado em produção: containers `healthy`, `docker inspect --format '{{.Config.User}}'`
   confirma `backend`/`aiagent`/`agentsapi` (não root), zero "permission denied"/EACCES nos logs,
   leitura funcional confirmada via API (`GET /api/v1/security/jails` e
@@ -1111,7 +1111,7 @@ gravação real via ARI (inédita no projeto) e a chamada direta do backend Java
 - **Capacidade de gravação ARI nova** (`AriClient.record`, `AriRecordingTracker` espelhando
   `AriPlaybackTracker`, evento `RecordingFinished`) — grava no spool do próprio Asterisk
   (`/var/spool/asterisk/recording`, volume novo `asterisk_ari_recordings` compartilhado com o
-  backend) e o backend move o arquivo pronto para `/opt/AsteriskIA/media/gravacao/nps` (mesma
+  backend) e o backend move o arquivo pronto para `/opt/VoipIA/media/gravacao/nps` (mesma
   raiz de mídia permanente da Fase 20), apagando o original do spool.
 - **Nota desnormalizada + alerta em tempo real**: `cc_interactions.nps_score` é recalculada a
   cada resposta com nota (`CallCenterSurveyRunner.recomputeInteractionNpsScore`) — dispara
@@ -1243,10 +1243,10 @@ sessão de navegador (D10-A do plano).
   `POST /rotate-secret` 403 sem token; rate limit confirmado (10 requisições passam, a 11ª retorna
   429). Validação visual no navegador não foi feita (sem acesso a browser nesta sessão).
 
-### ✅ Fase 20 do plano Call Center Parte III — padronização de mídia em /opt/AsteriskIA/media/ (2026-08-13) — deployada e validada em produção
+### ✅ Fase 20 do plano Call Center Parte III — padronização de mídia em /opt/VoipIA/media/ (2026-08-13) — deployada e validada em produção
 Move a mídia de produção do Call Center e do Insights (gravação de voz, transcript de chat, upload
 de "análise sob demanda") de caminhos fora do repo (`/opt/gravacoes/*`, `/opt/audio_upload`) para
-`/opt/AsteriskIA/media/{gravacao,chat,anuncios,sobdemanda}`, sob a raiz do repositório.
+`/opt/VoipIA/media/{gravacao,chat,anuncios,sobdemanda}`, sob a raiz do repositório.
 - **Risco central tratado primeiro**: mídia sob a raiz do repo é dado de cliente/PII, e o repo é
   espelhado em GitHub e Azure DevOps — `media/` nunca pode ser comitado. `.gitignore` (`media/*` +
   `!media/.gitignore`) verificado com `git check-ignore -v` **antes** de qualquer bind mount
@@ -1256,7 +1256,7 @@ de "análise sob demanda") de caminhos fora do repo (`/opt/gravacoes/*`, `/opt/a
   `--diff-filter=ACM`, que exclui renomeação (`git mv <arquivo-já-rastreado> media/...` passava
   sem bloqueio, sem precisar de `-f`) — corrigido para `ACMR`, validado em repositório git isolado
   reproduzindo o cenário exato do achado.
-- **`add.txt` também pedia `/opt/AsteriskIA/media/sobdemanda`** para uploads de análise sob
+- **`add.txt` também pedia `/opt/VoipIA/media/sobdemanda`** para uploads de análise sob
   demanda — mapeado para o portal do supervisor (Quality Management, V40,
   `INSIGHTS_UPLOAD_AUDIO_DIR`, antes `/opt/audio_upload`), incorporado à fase por ser a mesma
   classe de problema.
@@ -1268,7 +1268,7 @@ de "análise sob demanda") de caminhos fora do repo (`/opt/gravacoes/*`, `/opt/a
   mover os arquivos físicos. Migration **V63** cobre isso, escopado só a `source='upload'`.
 - **1 bug real de execução, encontrado ao migrar o único arquivo real desta VPS**:
   `rsync -a origem/ destino/` sincroniza os atributos do próprio diretório de destino contra a
-  origem, sobrescrevendo o `chown root:asteriskia-app` + `chmod 2770` (setgid) aplicado antes da
+  origem, sobrescrevendo o `chown root:voipia-app` + `chmod 2770` (setgid) aplicado antes da
   cópia — bug latente desde a Fase 11 (nunca disparado lá porque a origem estava vazia).
   `scripts/migrar-gravacoes.sh` (generalizado para N pares origem/destino) corrigido reaplicando a
   permissão depois do `rsync`.
@@ -1854,7 +1854,7 @@ fatia 9c futura.
     porta 80) — validado com tráfego real em produção.
   - ✅ **`backend`/`ai-agent`/`agents-backend` não-root desde 2026-08-14** (ver Fase de hardening
     Docker GID 1500 mais acima) — o bloqueio anterior (bind mounts compartilhados com containers
-    rodando como root) foi resolvido com um GID compartilhado (`asteriskia-app`, 1500) e
+    rodando como root) foi resolvido com um GID compartilhado (`voipia-app`, 1500) e
     setgid+chgrp nos caminhos do host (`env/`, `asterisk/config`, `security/config/jail.d`+
     `filter.d`, volumes nomeados de gravação) — validado em produção, sem erro de permissão.
   - ⏳ `chmod 777` na fila `security_cmds` (`security/entrypoint.sh`) — **este já foi resolvido
@@ -1900,8 +1900,8 @@ fatia 9c futura.
 ## Regras inegociáveis em produção
 
 1. **Nunca** fazer `docker compose down` sem `docker compose up` imediato — o Caddy cai e o sistema fica fora do ar
-2. **Nunca** editar `/opt/AsteriskIA/env/.env` sem backup: `cp /opt/AsteriskIA/env/.env /opt/AsteriskIA/env/.env.bak`
-3. **Nunca** remover o symlink `/opt/AsteriskIA/.env` — o compose lê de lá
+2. **Nunca** editar `/opt/VoipIA/env/.env` sem backup: `cp /opt/VoipIA/env/.env /opt/VoipIA/env/.env.bak`
+3. **Nunca** remover o symlink `/opt/VoipIA/.env` — o compose lê de lá
 4. **Sempre** testar via `curl` antes de considerar concluído
 5. **Sempre** verificar `docker compose ps` após qualquer `up`
 6. Migrations Flyway são **irreversíveis** em produção — revise o SQL antes de criar um novo `V*.sql`
