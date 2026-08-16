@@ -666,10 +666,10 @@ services:
         condition: service_healthy
       asterisk:
         condition: service_healthy
-#   ports:
-#     - "80:80"      # HTTP
-#     - "443:443"    # HTTPS
-#     - "443:443/udp" # HTTP/3 (QUIC)
+    ports:
+      - "80:80"      # HTTP
+      - "443:443"    # HTTPS
+      - "443:443/udp" # HTTP/3 (QUIC)
       # Admin API NÃO é mais publicada como porta TCP — ver Caddyfile (socket Unix).
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro  # Configuração do proxy

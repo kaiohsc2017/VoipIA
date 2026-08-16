@@ -19,7 +19,7 @@
 	admin unix//run/caddy-admin/admin.sock
 }
 
-app.voiphash.com.br {
+app.voiphash.com.br, voipia.voiphash.com.br {
 	# ── Headers de segurança — aplicados a todas as respostas deste site ──────
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
