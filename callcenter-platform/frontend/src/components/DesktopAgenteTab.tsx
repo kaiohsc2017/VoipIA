@@ -1,28 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
-import { PhoneCall, Coffee, Circle, Mic, MicOff, PhoneOff, ThumbsUp, ThumbsDown, Sparkles } from 'lucide-react';
+import { PhoneCall, Mic, MicOff, PhoneOff, Sparkles } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
 import type {
   AgentStateView, CcPauseReason, CcDisposition, InteractionView,
-  DesktopSummaryView, DesktopCallHistoryItem, DesktopPauseItem,
-  ContactHistoryItem, ContactProfileView,
+  DesktopSummaryView, DesktopCallHistoryItem,
+  ContactHistoryItem, ContactProfileView, DesktopTrendPoint,
+  DesktopScheduleView, DesktopQualityView, DesktopRankingView,
 } from '../api/types';
 import { useSipPhone } from '../hooks/useSipPhone';
 import type { ShellCallAction, ShellCallState } from '../hooks/useShellBridge';
-import { AuthedAudio } from './AuthedAudio';
+import { PresenceBar } from './desktop/PresenceBar';
+import { KpiStrip } from './desktop/KpiStrip';
+import { InteractionsTable } from './desktop/InteractionsTable';
+import { ProductivityPanel } from './desktop/ProductivityPanel';
+import { SchedulePanel } from './desktop/SchedulePanel';
+import { QualityPanel } from './desktop/QualityPanel';
+import { RankingPanel } from './desktop/RankingPanel';
 
 interface DesktopAgenteTabProps {
   isEmbedded: boolean;
   callState: ShellCallState | null;
   sendCallAction: (action: ShellCallAction) => void;
 }
-
-const STATE_LABEL: Record<string, string> = {
-  DISPONIVEL: 'Disponível',
-  EM_ATENDIMENTO: 'Em atendimento',
-  ACW: 'Pós-atendimento (ACW)',
-  PAUSA: 'Em pausa',
-  OFFLINE: 'Offline',
-};
 
 const POLL_INTERVAL_MS = 5000;
 const PROFILE_POLL_INTERVAL_MS = 6000;
@@ -40,29 +39,7 @@ function riskLevel(risco: number | undefined): 'baixo' | 'medio' | 'alto' {
   return 'baixo';
 }
 
-const TRANSCRIPTION_LABEL: Record<string, string> = {
-  SEM_GRAVACAO: 'Sem gravação',
-  EM_PROCESSAMENTO: 'Em processamento',
-  DISPONIVEL: 'Transcrição disponível',
-};
-
-function formatDuration(totalSeconds: number | null | undefined): string {
-  if (totalSeconds == null) return '—';
-  const m = Math.floor(totalSeconds / 60);
-  const s = Math.floor(totalSeconds % 60);
-  return `${m}min ${String(s).padStart(2, '0')}s`;
-}
-
-/**
- * DesktopAgenteTab — estados do agente, interação em curso e tabulação (Fase 4). Screen pop de
- * identidade do contato (Fase 14) e painel do copiloto de IA — histórico unificado voz+chat
- * (Fase 16.1) e perfil/ações sugeridas por IA (Fase 16.2/16.3) — aparecem só quando a interação
- * tem um contato identificado; sem identidade resolvida, o atendimento segue normal sem eles.
- */
 export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: DesktopAgenteTabProps) {
-  // D10-A: embutido no shell, o único UA SIP é o Softphone.tsx do Telecom — este painel só
-  // reflete o estado recebido via bridge e envia comandos. Fora do shell (SPA aberta direto em
-  // /callcenter/), instancia o próprio useSipPhone — nunca os dois ao mesmo tempo.
   const standalonePhone = useSipPhone(!isEmbedded);
   const [dialValue, setDialValue] = useState('');
 
@@ -91,28 +68,18 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
   const [interaction, setInteraction] = useState<InteractionView | null>(null);
   const [pauseReasons, setPauseReasons] = useState<CcPauseReason[]>([]);
   const [dispositions, setDispositions] = useState<CcDisposition[]>([]);
-  const [selectedPauseReason, setSelectedPauseReason] = useState<number | ''>('');
   const [selectedDisposition, setSelectedDisposition] = useState<number | ''>('');
   const [error, setError] = useState('');
 
-  // Fase 16 (copiloto de IA) — histórico unificado e perfil de IA do contato identificado
-  // (Fase 14) na interação em curso. Só busca quando há um contato resolvido — sem isso, os
-  // dois endpoints devolvem vazio/UNAVAILABLE por design (nunca aceitam sam do frontend).
   const [contactHistory, setContactHistory] = useState<ContactHistoryItem[]>([]);
   const [profile, setProfile] = useState<ContactProfileView | null>(null);
-  const [feedbackSent, setFeedbackSent] = useState<Record<number, boolean>>({});
 
-  // interaction é repolado a cada POLL_INTERVAL_MS (loadState acima) e o backend sempre devolve
-  // um objeto novo, mesmo quando nada mudou — depender de interaction?.identity (objeto) faria
-  // este efeito reiniciar a cada 5s, resetando o painel e refazendo os fetches sem necessidade.
-  // samAccountName é estável entre polls do MESMO contato, então é a dependência certa.
   const identitySam = interaction?.identity?.samAccountName;
   const profileStatusRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     setContactHistory([]);
     setProfile(null);
-    setFeedbackSent({});
     profileStatusRef.current = undefined;
     if (!interaction?.id || !identitySam) return;
     let cancelled = false;
@@ -120,7 +87,7 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
 
     api.get<ContactHistoryItem[]>(`/callcenter/interactions/${interactionId}/contact-history-unified`)
       .then(({ data }) => { if (!cancelled) setContactHistory(data); })
-      .catch(() => { /* histórico é complementar — falha aqui não impede o atendimento */ });
+      .catch(() => { });
 
     const loadProfile = () => {
       api.get<ContactProfileView>(`/callcenter/interactions/${interactionId}/contact-profile`)
@@ -129,15 +96,10 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
           profileStatusRef.current = data.status;
           setProfile(data);
         })
-        .catch(() => { /* perfil é complementar — falha aqui nunca bloqueia o atendimento */ });
+        .catch(() => { });
     };
     loadProfile();
     const profileTimer = setInterval(() => {
-      // Só continua o polling enquanto ainda não há um perfil pronto — status=READY para de
-      // ser reconsultado em intervalo curto (o backend regera sozinho em segundo plano quando
-      // o cache expira; o agente não precisa de polling contínuo pra isso). Lê de uma ref (não
-      // de dentro de um updater de setState) para nunca disparar um efeito colateral de rede a
-      // partir de um callback que o React pode invocar mais de uma vez.
       if (profileStatusRef.current !== 'READY') {
         loadProfile();
       }
@@ -146,41 +108,47 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
     return () => { cancelled = true; clearInterval(profileTimer); };
   }, [interaction?.id, identitySam]);
 
-  const sendProfileFeedback = (actionIndex: number, useful: boolean) => {
-    if (!interaction?.id || !profile?.profileId) return;
-    api.post(`/callcenter/interactions/${interaction.id}/contact-profile/feedback`, {
-      profileId: profile.profileId, actionIndex, useful,
-    })
-      .then(() => setFeedbackSent(prev => ({ ...prev, [actionIndex]: true })))
-      .catch(() => { /* feedback é opcional — falha silenciosa não vale um alerta pro agente */ });
-  };
-
-  const [metricsTab, setMetricsTab] = useState<'resumo' | 'historico' | 'pausas'>('resumo');
+  const [activeTab, setActiveTab] = useState<'overview' | 'interacoes' | 'produtividade' | 'escala' | 'qualidade' | 'ranking'>('overview');
   const [summary, setSummary] = useState<DesktopSummaryView | null>(null);
   const [history, setHistory] = useState<DesktopCallHistoryItem[]>([]);
-  const [pauses, setPauses] = useState<DesktopPauseItem[]>([]);
-  const [expandedCallId, setExpandedCallId] = useState<number | null>(null);
-  const [metricsError, setMetricsError] = useState('');
+  const [trends, setTrends] = useState<DesktopTrendPoint[]>([]);
+  const [schedule, setSchedule] = useState<DesktopScheduleView | null>(null);
+  const [quality, setQuality] = useState<DesktopQualityView | null>(null);
+  const [ranking, setRanking] = useState<DesktopRankingView | null>(null);
+  const [tabLoading, setTabLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    setMetricsError('');
-    const onError = (err: unknown) => {
-      if (cancelled) return;
-      setMetricsError(getErrorMessage(err, 'Erro ao carregar dados do painel.'));
-    };
-    if (metricsTab === 'resumo') {
+    setTabLoading(true);
+
+    if (activeTab === 'overview') {
       api.get<DesktopSummaryView>('/callcenter/desktop/me/resumo')
-        .then(({ data }) => { if (!cancelled) setSummary(data); }).catch(onError);
-    } else if (metricsTab === 'historico') {
+        .then(({ data }) => { if (!cancelled) setSummary(data); })
+        .finally(() => { if (!cancelled) setTabLoading(false); });
+    } else if (activeTab === 'interacoes') {
       api.get<DesktopCallHistoryItem[]>('/callcenter/desktop/me/historico')
-        .then(({ data }) => { if (!cancelled) setHistory(data); }).catch(onError);
-    } else {
-      api.get<DesktopPauseItem[]>('/callcenter/desktop/me/pausas')
-        .then(({ data }) => { if (!cancelled) setPauses(data); }).catch(onError);
+        .then(({ data }) => { if (!cancelled) setHistory(data); })
+        .finally(() => { if (!cancelled) setTabLoading(false); });
+    } else if (activeTab === 'produtividade') {
+      api.get<DesktopTrendPoint[]>('/callcenter/desktop/me/tendencia?dias=7')
+        .then(({ data }) => { if (!cancelled) setTrends(data); })
+        .finally(() => { if (!cancelled) setTabLoading(false); });
+    } else if (activeTab === 'escala') {
+      api.get<DesktopScheduleView>('/callcenter/desktop/me/escala')
+        .then(({ data }) => { if (!cancelled) setSchedule(data); })
+        .finally(() => { if (!cancelled) setTabLoading(false); });
+    } else if (activeTab === 'qualidade') {
+      api.get<DesktopQualityView>('/callcenter/desktop/me/qualidade')
+        .then(({ data }) => { if (!cancelled) setQuality(data); })
+        .finally(() => { if (!cancelled) setTabLoading(false); });
+    } else if (activeTab === 'ranking') {
+      api.get<DesktopRankingView>('/callcenter/desktop/me/ranking')
+        .then(({ data }) => { if (!cancelled) setRanking(data); })
+        .finally(() => { if (!cancelled) setTabLoading(false); });
     }
+
     return () => { cancelled = true; };
-  }, [metricsTab]);
+  }, [activeTab]);
 
   const loadState = () => {
     api.get<AgentStateView>('/callcenter/agent-state/me')
@@ -197,10 +165,9 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
     api.get<CcDisposition[]>('/callcenter/interactions/dispositions').then(({ data }) => setDispositions(data)).catch(() => setDispositions([]));
     const id = setInterval(loadState, POLL_INTERVAL_MS);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const setAgentState = (newState: string, pauseReasonId?: number) => {
+  const setAgentState = (newState: string, pauseReasonId?: number | null) => {
     setError('');
     api.post('/callcenter/agent-state/me', { state: newState, pauseReasonId: pauseReasonId ?? null })
       .then(() => loadState())
@@ -217,312 +184,202 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
 
   const current = state?.state ?? 'OFFLINE';
   const isAcw = current === 'ACW';
-  const isEmAtendimento = current === 'EM_ATENDIMENTO';
+
+  const handleFilterHistory = (de?: string, ate?: string) => {
+    let url = '/callcenter/desktop/me/historico';
+    if (de && ate) {
+      url += `?de=${de}&ate=${ate}`;
+    }
+    setTabLoading(true);
+    api.get<DesktopCallHistoryItem[]>(url)
+      .then(({ data }) => setHistory(data))
+      .finally(() => setTabLoading(false));
+  };
 
   return (
-    <>
-      <div className="page-header">
-        <h1>Desktop do Agente</h1>
-        <p>Estado, atendimento em curso e tabulação</p>
-      </div>
-      <div className="page-body">
-        {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+      <PresenceBar
+        agentName={state?.agentName || 'Agente'}
+        extension={state?.sipExtension}
+        currentState={current}
+        currentPauseReasonId={state?.pauseReasonId}
+        stateSeconds={state?.secondsInState || 0}
+        pauseReasons={pauseReasons}
+        onStateChange={(st, prId) => setAgentState(st, prId)}
+      />
 
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center" style={{ gap: 8 }}>
-              <Circle size={12} fill="currentColor" />
-              <strong>{STATE_LABEL[current] ?? current}</strong>
-              {state?.pauseReasonLabel && <span style={{ color: 'var(--text-muted)' }}>— {state.pauseReasonLabel}</span>}
-            </div>
-          </div>
-
-          <div className="flex items-center" style={{ gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
-            <button className="btn btn-primary btn-sm" disabled={isEmAtendimento || isAcw}
-              onClick={() => setAgentState('DISPONIVEL')}>
-              Disponível
-            </button>
-            <select className="form-input" style={{ width: 200 }} value={selectedPauseReason}
-              disabled={isEmAtendimento || isAcw}
-              onChange={e => setSelectedPauseReason(e.target.value ? Number(e.target.value) : '')}>
-              <option value="">— Motivo de pausa —</option>
-              {pauseReasons.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
-            </select>
-            <button className="btn btn-ghost btn-sm" disabled={isEmAtendimento || isAcw || selectedPauseReason === ''}
-              onClick={() => setAgentState('PAUSA', selectedPauseReason === '' ? undefined : selectedPauseReason)}>
-              <Coffee size={14} /> Entrar em pausa
-            </button>
-            <button className="btn btn-ghost btn-sm" disabled={isEmAtendimento || isAcw}
-              onClick={() => setAgentState('OFFLINE')}>
-              Offline
-            </button>
-          </div>
+      {error && (
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-medium">
+          {error}
         </div>
+      )}
 
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-            <div className="flex items-center" style={{ gap: 8 }}>
-              <PhoneCall size={16} />
-              <strong>Softphone</strong>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <PhoneCall size={16} className="text-indigo-600 dark:text-indigo-400" />
+                <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">Softphone</h3>
+              </div>
+              {status === 'active' && (
+                <span className="text-xs font-mono font-medium text-slate-500">
+                  {`${String(Math.floor(durationSeconds / 60)).padStart(2, '0')}:${String(durationSeconds % 60).padStart(2, '0')}`}
+                </span>
+              )}
             </div>
-            {status === 'active' && (
-              <span style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>
-                {`${String(Math.floor(durationSeconds / 60)).padStart(2, '0')}:${String(durationSeconds % 60).padStart(2, '0')}`}
-              </span>
+
+            {status === 'idle' ? (
+              <div className="flex items-center gap-2">
+                <input
+                  className="flex-1 px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Ramal ou número"
+                  value={dialValue}
+                  onChange={e => setDialValue(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') doDial(); }}
+                />
+                <button
+                  className="px-4 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                  onClick={doDial}
+                  disabled={!dialValue.trim()}
+                >
+                  Discar
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                  <span>{status === 'ringing' ? (isIncoming ? '📲 Chamada entrante' : '📞 Chamando…') : '🟢 Em chamada'}</span>
+                  {remote && <span className="font-mono text-slate-400">— {remote}</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  {status === 'ringing' && isIncoming && (
+                    <button onClick={doAnswer} className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg">
+                      Atender
+                    </button>
+                  )}
+                  <button onClick={doHangup} className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg flex items-center gap-1">
+                    <PhoneOff size={14} /> Encerrar
+                  </button>
+                  {status === 'active' && (
+                    <button onClick={doMute} className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 text-xs font-medium rounded-lg flex items-center gap-1">
+                      {muted ? <MicOff size={14} /> : <Mic size={14} />} {muted ? 'Sem mudo' : 'Mudo'}
+                    </button>
+                  )}
+                </div>
+                {status === 'active' && (
+                  <div className="grid grid-cols-3 gap-1.5 pt-2 max-w-[180px]">
+                    {['1','2','3','4','5','6','7','8','9','*','0','#'].map(k => (
+                      <button key={k} onClick={() => doDtmf(k)} className="py-1 bg-slate-50 dark:bg-slate-800 text-xs font-mono rounded hover:bg-slate-100">
+                        {k}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
-          {status === 'idle' ? (
-            <div className="flex items-center" style={{ gap: 8 }}>
-              <input className="form-input" style={{ flex: 1 }} placeholder="Ramal ou número"
-                value={dialValue} onChange={e => setDialValue(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') doDial(); }} />
-              <button className="btn btn-primary btn-sm" onClick={doDial} disabled={!dialValue.trim()}>Discar</button>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center" style={{ gap: 8, marginBottom: 12 }}>
-                <span>{status === 'ringing' ? (isIncoming ? '📲 Chamada entrante' : '📞 Chamando…') : '🟢 Em chamada'}</span>
-                {remote && <span style={{ color: 'var(--text-muted)' }}>— {remote}</span>}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-3">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+              <PhoneCall size={16} className="text-slate-500" /> Atendimento em Curso
+            </h3>
+            {interaction ? (
+              <div className="space-y-1.5 text-xs">
+                <div><span className="text-slate-400">Fila:</span> <strong className="text-slate-700 dark:text-slate-300">{interaction.queueName ?? '—'}</strong></div>
+                <div><span className="text-slate-400">ANI:</span> <strong className="font-mono text-slate-700 dark:text-slate-300">{interaction.ani ?? '—'}</strong></div>
+                <div><span className="text-slate-400">Entrada:</span> <span className="font-mono text-slate-600 dark:text-slate-400">{interaction.queuedAt ? new Date(interaction.queuedAt).toLocaleTimeString('pt-BR') : '—'}</span></div>
               </div>
-              <div className="flex items-center" style={{ gap: 8, flexWrap: 'wrap' }}>
-                {status === 'ringing' && isIncoming && (
-                  <button className="btn btn-primary btn-sm" onClick={doAnswer}>Atender</button>
-                )}
-                <button className="btn btn-ghost btn-sm" onClick={doHangup}><PhoneOff size={14} /> Encerrar</button>
-                {status === 'active' && (
-                  <button className="btn btn-ghost btn-sm" onClick={doMute}>
-                    {muted ? <MicOff size={14} /> : <Mic size={14} />} {muted ? 'Sem mudo' : 'Mudo'}
-                  </button>
+            ) : (
+              <p className="text-xs text-slate-400 italic">Nenhum atendimento em andamento no momento.</p>
+            )}
+          </div>
+
+          {interaction?.identity && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                <Sparkles size={16} className="text-amber-500" /> Copiloto de IA
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <h4 className="text-xs font-medium text-slate-500">Histórico de Atendimentos</h4>
+                  <div className="mt-1 space-y-1 text-xs font-mono text-slate-600 dark:text-slate-400">
+                    {contactHistory.map(item => (
+                      <div key={`${item.channel}-${item.referenceId}`}>
+                        [{item.channel === 'voz' ? 'Voz' : 'Chat'}] {item.startedAt ? new Date(item.startedAt).toLocaleDateString('pt-BR') : '—'} · {item.dispositionLabel ?? 'sem tabulação'}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {profile && (
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                    <p className="text-xs text-slate-800 dark:text-slate-200 font-medium">{profile.resumoPerfil}</p>
+                    <div className="text-[11px] text-slate-400">
+                      Risco: <span className="font-semibold text-slate-600">{RISK_LABEL[riskLevel(profile.riscoEscalonamento)]}</span>
+                    </div>
+                  </div>
                 )}
               </div>
-              {status === 'active' && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, maxWidth: 180, marginTop: 12 }}>
-                  {['1','2','3','4','5','6','7','8','9','*','0','#'].map(k => (
-                    <button key={k} className="btn btn-ghost btn-sm" onClick={() => doDtmf(k)}>{k}</button>
-                  ))}
-                </div>
-              )}
-            </>
+            </div>
           )}
-        </div>
 
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="flex items-center" style={{ gap: 8, marginBottom: 12 }}>
-            <PhoneCall size={16} />
-            <strong>Atendimento em curso</strong>
-          </div>
-          {interaction ? (
-            <div className="form-grid">
-              {interaction.direction === 'OUTBOUND' ? (
-                <div><span style={{ color: 'var(--text-muted)' }}>Chamada de saída para:</span> {interaction.ani ?? '—'}</div>
-              ) : (
-                <>
-                  <div><span style={{ color: 'var(--text-muted)' }}>Fila:</span> {interaction.queueName ?? '—'}</div>
-                  <div><span style={{ color: 'var(--text-muted)' }}>ANI:</span> {interaction.ani ?? '—'}</div>
-                </>
-              )}
-              <div><span style={{ color: 'var(--text-muted)' }}>{interaction.direction === 'OUTBOUND' ? 'Discada às:' : 'Na fila desde:'}</span> {interaction.queuedAt ? new Date(interaction.queuedAt).toLocaleTimeString('pt-BR') : '—'}</div>
-              <div><span style={{ color: 'var(--text-muted)' }}>Atendida às:</span> {interaction.answeredAt ? new Date(interaction.answeredAt).toLocaleTimeString('pt-BR') : '—'}</div>
-            </div>
-          ) : (
-            <p style={{ color: 'var(--text-muted)' }}>Nenhuma chamada em atendimento.</p>
-          )}
-          {interaction?.identity ? (
-            <div className="form-grid" style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-              <div><span style={{ color: 'var(--text-muted)' }}>Contato identificado:</span> {interaction.identity.displayName ?? interaction.identity.samAccountName}</div>
-              {interaction.identity.department && <div><span style={{ color: 'var(--text-muted)' }}>Departamento:</span> {interaction.identity.department}</div>}
-              {interaction.identity.title && <div><span style={{ color: 'var(--text-muted)' }}>Cargo:</span> {interaction.identity.title}</div>}
-              {interaction.identity.telephoneNumber && <div><span style={{ color: 'var(--text-muted)' }}>Telefone:</span> {interaction.identity.telephoneNumber}</div>}
-            </div>
-          ) : interaction ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '.8rem', marginTop: 12 }}>
-              Contato não identificado nesta chamada.
-            </p>
-          ) : null}
-        </div>
-
-        {interaction?.identity && (
-          <div className="card" style={{ marginBottom: 16 }}>
-            <div className="flex items-center" style={{ gap: 8, marginBottom: 12 }}>
-              <Sparkles size={16} />
-              <strong>Copiloto de IA</strong>
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <strong style={{ fontSize: '.85rem' }}>Histórico de contatos anteriores</strong>
-              {contactHistory.length === 0 ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: '.85rem', marginTop: 6 }}>
-                  Nenhum atendimento anterior registrado para este contato.
-                </p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
-                  {contactHistory.map(item => (
-                    <div key={`${item.channel}-${item.referenceId}`} style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>
-                      [{item.channel === 'voz' ? 'Voz' : 'Chat'}] {item.startedAt ? new Date(item.startedAt).toLocaleString('pt-BR') : '—'}
-                      {' — '}{item.queueName ?? '—'} · {item.agentName ?? '—'} · {item.dispositionLabel ?? 'sem tabulação'}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <strong style={{ fontSize: '.85rem' }}>Perfil & Ações sugeridas (IA — nunca fato, só indício)</strong>
-              {!profile || profile.status === 'GENERATING' ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: '.85rem', marginTop: 6 }}>Gerando perfil…</p>
-              ) : (
-                <div style={{ marginTop: 6 }}>
-                  <p style={{ fontSize: '.9rem', margin: '4px 0' }}>{profile.resumoPerfil}</p>
-                  {profile.sentimentoHistorico && (
-                    <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', margin: '4px 0' }}>
-                      Sentimento histórico: {profile.sentimentoHistorico} · Risco de escalonamento: {RISK_LABEL[riskLevel(profile.riscoEscalonamento)]}
-                    </p>
-                  )}
-                  {!!profile.temasRecorrentes?.length && (
-                    <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', margin: '4px 0' }}>
-                      Temas recorrentes: {profile.temasRecorrentes.join(', ')}
-                    </p>
-                  )}
-                  {!!profile.acoesSugeridas?.length && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                      {profile.acoesSugeridas.map((acaoItem, idx) => (
-                        <div key={idx} className="card" style={{ padding: 10 }}>
-                          <div style={{ fontSize: '.85rem' }}><strong>{acaoItem.acao}</strong></div>
-                          <div style={{ fontSize: '.8rem', color: 'var(--text-muted)' }}>{acaoItem.justificativa}</div>
-                          {feedbackSent[idx] ? (
-                            <span style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>Obrigado pelo feedback.</span>
-                          ) : (
-                            <div className="flex items-center" style={{ gap: 6, marginTop: 6 }}>
-                              <button className="btn btn-ghost btn-sm" aria-label="Ação útil" onClick={() => sendProfileFeedback(idx, true)}>
-                                <ThumbsUp size={12} />
-                              </button>
-                              <button className="btn btn-ghost btn-sm" aria-label="Ação não útil" onClick={() => sendProfileFeedback(idx, false)}>
-                                <ThumbsDown size={12} />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {isAcw && (
-          <div className="card">
-            <strong>Tabulação da chamada</strong>
-            <div className="flex items-center" style={{ gap: 8, marginTop: 12 }}>
-              <select className="form-input" style={{ width: 250 }} value={selectedDisposition}
-                onChange={e => setSelectedDisposition(e.target.value ? Number(e.target.value) : '')}>
+          {isAcw && (
+            <div className="bg-white dark:bg-slate-900 border border-amber-500/30 rounded-xl p-5 shadow-sm space-y-3">
+              <h3 className="font-semibold text-amber-600 dark:text-amber-400 text-sm">Tabulação da Chamada</h3>
+              <select
+                className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                value={selectedDisposition}
+                onChange={e => setSelectedDisposition(e.target.value ? Number(e.target.value) : '')}
+              >
                 <option value="">— Selecione a tabulação —</option>
                 {dispositions.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
               </select>
-              <button className="btn btn-primary btn-sm" disabled={selectedDisposition === ''}
-                onClick={submitDisposition}>
-                Concluir
+              <button
+                className="w-full py-2 bg-indigo-600 text-white text-xs font-medium rounded-lg disabled:opacity-50"
+                disabled={selectedDisposition === ''}
+                onClick={submitDisposition}
+              >
+                Concluir Atendimento
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        <div className="card" style={{ marginTop: 16 }}>
-          <div className="flex items-center" role="tablist" style={{ gap: 8, marginBottom: 12 }}>
-            {(['resumo', 'historico', 'pausas'] as const).map(tab => (
-              <button key={tab} role="tab" aria-selected={metricsTab === tab}
-                className={`btn btn-sm ${metricsTab === tab ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => setMetricsTab(tab)}>
-                {tab === 'resumo' ? 'Meu resumo' : tab === 'historico' ? 'Meu histórico' : 'Minhas pausas'}
+        <div className="lg:col-span-8 space-y-6">
+          <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2 overflow-x-auto pb-1">
+            {[
+              { id: 'overview', label: 'Visão Geral' },
+              { id: 'interacoes', label: 'Interações' },
+              { id: 'produtividade', label: 'Produtividade' },
+              { id: 'escala', label: 'Escala' },
+              { id: 'qualidade', label: 'Qualidade' },
+              { id: 'ranking', label: 'Ranking' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-4 py-2 text-xs font-medium rounded-t-lg transition-colors border-b-2 whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 font-semibold'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                {tab.label}
               </button>
             ))}
           </div>
 
-          {metricsError && <div className="alert alert-error" style={{ marginBottom: 12 }}>{metricsError}</div>}
-
-          {metricsTab === 'resumo' && (
-            summary ? (
-              <div className="form-grid">
-                <div><span style={{ color: 'var(--text-muted)' }}>Chamadas atendidas hoje:</span> {summary.callsAnsweredToday}</div>
-                <div><span style={{ color: 'var(--text-muted)' }}>TMA:</span> {formatDuration(summary.avgTalkSeconds)}</div>
-                <div><span style={{ color: 'var(--text-muted)' }}>Tempo logado hoje:</span> {formatDuration(summary.loggedSeconds)}</div>
-                <div><span style={{ color: 'var(--text-muted)' }}>Tempo em pausa hoje:</span> {formatDuration(summary.pauseSeconds)}</div>
-              </div>
-            ) : <p style={{ color: 'var(--text-muted)' }}>Carregando…</p>
+          {activeTab === 'overview' && <KpiStrip summary={summary} />}
+          {activeTab === 'interacoes' && (
+            <InteractionsTable history={history} loading={tabLoading} onFilterChange={handleFilterHistory} />
           )}
-
-          {metricsTab === 'historico' && (
-            history.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)' }}>Nenhuma chamada hoje ainda.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {history.map(item => (
-                  <div key={item.interactionId} className="card" style={{ padding: 12 }}>
-                    <div className="flex items-center justify-between" style={{ cursor: 'pointer' }}
-                      role="button" tabIndex={0}
-                      aria-expanded={expandedCallId === item.interactionId}
-                      onClick={() => setExpandedCallId(expandedCallId === item.interactionId ? null : item.interactionId)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          setExpandedCallId(expandedCallId === item.interactionId ? null : item.interactionId);
-                        }
-                      }}>
-                      <div className="flex items-center" style={{ gap: 12 }}>
-                        <span>{new Date(item.dateTime).toLocaleTimeString('pt-BR')}</span>
-                        <span>{item.direction === 'OUTBOUND' ? 'Saída' : (item.queueName ?? '—')}</span>
-                        <span style={{ color: 'var(--text-muted)' }}>{item.ani ?? '—'}</span>
-                        <span style={{ color: 'var(--text-muted)' }}>{formatDuration(item.talkSeconds)}</span>
-                        {item.npsScore != null && <span>NPS: {item.npsScore}</span>}
-                      </div>
-                      <span style={{ color: 'var(--text-muted)', fontSize: '.8rem' }}>
-                        {TRANSCRIPTION_LABEL[item.transcriptionStatus] ?? item.transcriptionStatus}
-                      </span>
-                    </div>
-                    {expandedCallId === item.interactionId && (
-                      <div style={{ marginTop: 12 }}>
-                        {item.recordingUrl && <AuthedAudio path={item.recordingUrl} style={{ width: '100%', marginBottom: 8 }} />}
-                        {item.transcriptionStatus === 'DISPONIVEL' && item.transcript && (
-                          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', color: 'var(--text-muted)', margin: 0 }}>
-                            {item.transcript}
-                          </pre>
-                        )}
-                        {item.transcriptionStatus === 'EM_PROCESSAMENTO' && (
-                          <p style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>
-                            A transcrição desta chamada ainda está em processamento.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )
-          )}
-
-          {metricsTab === 'pausas' && (
-            pauses.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)' }}>Nenhuma pausa hoje ainda.</p>
-            ) : (
-              <table className="table">
-                <thead><tr><th>Motivo</th><th>Início</th><th>Fim</th><th>Duração</th></tr></thead>
-                <tbody>
-                  {pauses.map((p, idx) => (
-                    <tr key={idx}>
-                      <td>{p.reasonLabel}</td>
-                      <td>{new Date(p.startedAt).toLocaleTimeString('pt-BR')}</td>
-                      <td>{p.endedAt ? new Date(p.endedAt).toLocaleTimeString('pt-BR') : 'Em curso'}</td>
-                      <td>{formatDuration(p.durationSeconds)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )
-          )}
+          {activeTab === 'produtividade' && <ProductivityPanel trends={trends} loading={tabLoading} />}
+          {activeTab === 'escala' && <SchedulePanel schedule={schedule} loading={tabLoading} />}
+          {activeTab === 'qualidade' && <QualityPanel quality={quality} loading={tabLoading} />}
+          {activeTab === 'ranking' && <RankingPanel ranking={ranking} loading={tabLoading} />}
         </div>
       </div>
-    </>
+    </div>
   );
 }

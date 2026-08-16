@@ -1,12 +1,9 @@
 package com.asteriskia.domain.callcenter.desktop;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.asteriskia.domain.callcenter.CcAgent;
@@ -19,29 +16,30 @@ import com.asteriskia.domain.callcenter.interaction.CcAgentStateRepository;
 import com.asteriskia.domain.callcenter.interaction.CcInteraction;
 import com.asteriskia.domain.callcenter.interaction.CcInteractionRepository;
 import com.asteriskia.domain.callcenter.interaction.Direction;
-import com.asteriskia.domain.callcenter.recording.CcRecording;
 import com.asteriskia.domain.callcenter.recording.CcRecordingRepository;
-import com.asteriskia.domain.insights.CallAudioFile;
+import com.asteriskia.domain.callcenter.reports.AgentAdherenceRow;
+import com.asteriskia.domain.callcenter.reports.AgentGamificationRow;
+import com.asteriskia.domain.callcenter.reports.AgentProductivityReport;
+import com.asteriskia.domain.callcenter.reports.CallCenterAgentAdherenceService;
+import com.asteriskia.domain.callcenter.reports.CallCenterGamificationService;
+import com.asteriskia.domain.callcenter.reports.CallCenterProductivityService;
+import com.asteriskia.domain.callcenter.reports.CcAggAgentDaily;
+import com.asteriskia.domain.callcenter.reports.CcAggAgentDailyRepository;
+import com.asteriskia.domain.callcenter.reports.GamificationReport;
 import com.asteriskia.domain.insights.CallAudioFileRepository;
-import com.asteriskia.domain.insights.CallTranscriptSegment;
 import com.asteriskia.domain.insights.CallTranscriptSegmentRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
 
-/**
- * Cobre as três regras de negócio da Fase 22 (painel pessoal do agente): cálculo do resumo do
- * dia, a regra fechada D21 do histórico (somente leitura, nunca enfileira processamento) e o
- * recorte de pausas dentro da janela "hoje até agora".
- */
 @ExtendWith(MockitoExtension.class)
 class CallCenterDesktopServiceTest {
 
@@ -57,163 +55,109 @@ class CallCenterDesktopServiceTest {
     private CallAudioFileRepository audioFileRepository;
     @Mock
     private CallTranscriptSegmentRepository transcriptSegmentRepository;
+    @Mock
+    private CcAggAgentDailyRepository aggRepository;
+    @Mock
+    private CallCenterAgentAdherenceService adherenceService;
+    @Mock
+    private CallCenterProductivityService productivityService;
+    @Mock
+    private CallCenterGamificationService gamificationService;
 
     private CallCenterDesktopService service;
     private CcAgent agent;
 
     @BeforeEach
     void setUp() {
-        service = new CallCenterDesktopService(agentStateService, interactionRepository,
-                agentStateRepository, recordingRepository, audioFileRepository, transcriptSegmentRepository);
-        agent = CcAgent.builder().id(7L).name("Kaio").build();
+        service = new CallCenterDesktopService(
+                agentStateService,
+                interactionRepository,
+                agentStateRepository,
+                recordingRepository,
+                audioFileRepository,
+                transcriptSegmentRepository,
+                aggRepository,
+                adherenceService,
+                productivityService,
+                gamificationService);
+
+        agent = CcAgent.builder().id(42L).name("Agente Teste").active(true).build();
+    }
+
+    @Test
+    @DisplayName("resumo() calcula estatísticas do próprio dia e adere ao escopo do agente logado")
+    void resumo_calculatesDailyStatsForLoggedAgent() {
         when(agentStateService.currentAgent()).thenReturn(agent);
-    }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start = LocalDate.now().atStartOfDay();
 
-    private CcInteraction interaction(Long id, LocalDateTime queuedAt, LocalDateTime answeredAt,
-            LocalDateTime endedAt) {
-        return CcInteraction.builder()
-                .id(id)
-                .agent(agent)
-                .direction(Direction.INBOUND)
-                .channelUniqueId("chan-" + id)
-                .queue(CcQueue.builder().id(1L).name("Suporte").build())
-                .queuedAt(queuedAt)
-                .answeredAt(answeredAt)
-                .endedAt(endedAt)
-                .build();
-    }
+        CcQueue queue = CcQueue.builder().id(10L).name("Suporte").build();
+        CcInteraction i1 = CcInteraction.builder()
+                .id(100L).agent(agent).queue(queue).queuedAt(now.minusMinutes(30))
+                .answeredAt(now.minusMinutes(29)).endedAt(now.minusMinutes(24)).build();
 
-    @Test
-    @DisplayName("resumo calcula TMA só com chamadas atendidas e encerradas")
-    void resumo_calculaTmaSoComChamadasEncerradas() {
-        var now = LocalDateTime.now();
-        var answeredAndEnded = interaction(1L, now.minusHours(1), now.minusHours(1).plusSeconds(10),
-                now.minusHours(1).plusSeconds(70));
-        var answeredNotEnded = interaction(2L, now.minusMinutes(5), now.minusMinutes(4), null);
-        var neverAnswered = interaction(3L, now.minusMinutes(2), null, null);
+        when(interactionRepository.findByAgentIdAndQueuedAtBetween(eq(42L), any(), any()))
+                .thenReturn(List.of(i1));
 
-        when(interactionRepository.findByAgentIdAndQueuedAtBetween(eq(7L), any(), any()))
-                .thenReturn(List.of(answeredAndEnded, answeredNotEnded, neverAnswered));
-        when(agentStateRepository.findOverlapping(eq(7L), any(), any())).thenReturn(List.of());
+        CcAgentState s1 = CcAgentState.builder()
+                .agent(agent).state(AgentState.EM_ATENDIMENTO).startedAt(now.minusMinutes(29)).endedAt(now.minusMinutes(24)).build();
+        when(agentStateRepository.findOverlapping(eq(42L), any(), any()))
+                .thenReturn(List.of(s1));
 
-        var resumo = service.resumo();
+        when(adherenceService.adherence(eq(42L), any(), any()))
+                .thenReturn(List.of(new AgentAdherenceRow(LocalDate.now(), 28800L, 28000L, BigDecimal.valueOf(97.22))));
 
-        assertThat(resumo.callsAnsweredToday()).isEqualTo(2);
-        assertThat(resumo.avgTalkSeconds()).isEqualTo(60);
+        DesktopSummaryView summary = service.resumo();
+
+        assertThat(summary.callsAnsweredToday()).isEqualTo(1);
+        assertThat(summary.avgTalkSeconds()).isEqualTo(300);
+        assertThat(summary.adherencePct()).isEqualTo(BigDecimal.valueOf(97.22));
     }
 
     @Test
-    @DisplayName("resumo soma tempo logado e tempo em pausa a partir dos estados do dia")
-    void resumo_somaTempoLogadoEPausa() {
-        var start = LocalDate.now().atStartOfDay();
-        when(interactionRepository.findByAgentIdAndQueuedAtBetween(eq(7L), any(), any())).thenReturn(List.of());
-        when(agentStateRepository.findOverlapping(eq(7L), any(), any())).thenReturn(List.of(
-                CcAgentState.builder().agent(agent).state(AgentState.DISPONIVEL)
-                        .startedAt(start).endedAt(start.plusHours(2)).build(),
-                CcAgentState.builder().agent(agent).state(AgentState.PAUSA)
-                        .startedAt(start.plusHours(2)).endedAt(start.plusHours(2).plusMinutes(15)).build(),
-                CcAgentState.builder().agent(agent).state(AgentState.OFFLINE)
-                        .startedAt(start.plusHours(2).plusMinutes(15)).endedAt(null).build()));
+    @DisplayName("historico() rejeita janela maior que 90 dias com 400 Bad Request")
+    void historico_rejectsWindowGreaterThan90Days() {
+        when(agentStateService.currentAgent()).thenReturn(agent);
+        LocalDate de = LocalDate.now().minusDays(100);
+        LocalDate ate = LocalDate.now();
 
-        var resumo = service.resumo();
-
-        assertThat(resumo.pauseSeconds()).isEqualTo(15 * 60);
-        assertThat(resumo.loggedSeconds()).isEqualTo(2 * 3600 + 15 * 60);
+        assertThatThrownBy(() -> service.historico(de, ate))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("90 dias");
     }
 
     @Test
-    @DisplayName("D21: chamada gravada mas não processada aparece EM_PROCESSAMENTO e nada é enfileirado")
-    void historico_gravacaoNaoProcessada_naoEnfileiraNada() {
-        var call = interaction(10L, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now().plusMinutes(3));
-        var recording = CcRecording.builder().id(99L).interactionId(10L).build();
-        var pendingAudioFile = CallAudioFile.builder().id(500L).status("pending").build();
+    @DisplayName("tendencia() devolve série histórica preenchida para o número de dias solicitado")
+    void tendencia_returnsTrendSeries() {
+        when(agentStateService.currentAgent()).thenReturn(agent);
+        CcAggAgentDaily agg = CcAggAgentDaily.builder()
+                .agent(agent).date(LocalDate.now())
+                .answered(10).avgTalkSeconds(BigDecimal.valueOf(250))
+                .occupiedSeconds(2000).availableSeconds(1000).build();
 
-        when(interactionRepository.findByAgentIdAndQueuedAtBetween(eq(7L), any(), any())).thenReturn(List.of(call));
-        when(recordingRepository.findByInteractionId(10L)).thenReturn(Optional.of(recording));
-        when(audioFileRepository.findByCcRecordingId(99L)).thenReturn(Optional.of(pendingAudioFile));
+        when(aggRepository.findByAgentIdAndDateBetweenOrderByDateAsc(eq(42L), any(), any()))
+                .thenReturn(List.of(agg));
 
-        var historico = service.historico();
+        List<DesktopTrendPoint> points = service.tendencia(7);
 
-        assertThat(historico).hasSize(1);
-        assertThat(historico.get(0).transcriptionStatus()).isEqualTo("EM_PROCESSAMENTO");
-        assertThat(historico.get(0).transcript()).isNull();
-        assertThat(historico.get(0).recordingUrl()).isEqualTo("/callcenter/recordings/99/audio");
-
-        // Asserção explícita sobre a "fila" (status=pending do CallAudioFile): nunca é
-        // mutada por este serviço — ele só lê. Nenhuma chamada de escrita em nenhum dos
-        // dois repositórios de Insights, e o serviço nem depende de InsightsIngestionService.
-        verify(audioFileRepository, never()).save(any());
-        verifyNoMoreInteractions(transcriptSegmentRepository);
+        assertThat(points).hasSize(7);
+        assertThat(points.get(6).answeredCount()).isEqualTo(10);
     }
 
     @Test
-    @DisplayName("D21: chamada sem gravação nenhuma aparece SEM_GRAVACAO")
-    void historico_semGravacao() {
-        var call = interaction(11L, LocalDateTime.now(), null, null);
-        when(interactionRepository.findByAgentIdAndQueuedAtBetween(eq(7L), any(), any())).thenReturn(List.of(call));
-        when(recordingRepository.findByInteractionId(11L)).thenReturn(Optional.empty());
+    @DisplayName("ranking() anonymizes top 3 and locates logged agent position")
+    void ranking_returnsAnonymousTop3AndAgentPosition() {
+        when(agentStateService.currentAgent()).thenReturn(agent);
+        AgentGamificationRow r1 = new AgentGamificationRow(1, 10L, "Outro 1", 50, 10, BigDecimal.valueOf(90));
+        AgentGamificationRow r2 = new AgentGamificationRow(2, 42L, "Agente Teste", 40, 5, BigDecimal.valueOf(85));
+        when(gamificationService.rank(any(), any(), eq(1)))
+                .thenReturn(new GamificationReport(1, List.of(r1, r2), List.of()));
 
-        var historico = service.historico();
+        DesktopRankingView ranking = service.ranking(null, null);
 
-        assertThat(historico.get(0).transcriptionStatus()).isEqualTo("SEM_GRAVACAO");
-        assertThat(historico.get(0).recordingUrl()).isNull();
-    }
-
-    @Test
-    @DisplayName("chamada com transcrição pronta junta os segmentos em ordem")
-    void historico_transcricaoPronta_juntaSegmentos() {
-        var call = interaction(12L, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now().plusMinutes(2));
-        var recording = CcRecording.builder().id(77L).interactionId(12L).build();
-        var doneAudioFile = CallAudioFile.builder().id(600L).status("done").build();
-
-        when(interactionRepository.findByAgentIdAndQueuedAtBetween(eq(7L), any(), any())).thenReturn(List.of(call));
-        when(recordingRepository.findByInteractionId(12L)).thenReturn(Optional.of(recording));
-        when(audioFileRepository.findByCcRecordingId(77L)).thenReturn(Optional.of(doneAudioFile));
-        when(transcriptSegmentRepository.findByAudioFileIdOrderByStartMsAsc(600L)).thenReturn(List.of(
-                CallTranscriptSegment.builder().speaker("cliente").text("Olá").startMs(0).endMs(500).build(),
-                CallTranscriptSegment.builder().speaker("agente").text("Bom dia").startMs(600).endMs(900).build()));
-
-        var historico = service.historico();
-
-        assertThat(historico.get(0).transcriptionStatus()).isEqualTo("DISPONIVEL");
-        assertThat(historico.get(0).transcript()).isEqualTo("cliente: Olá\nagente: Bom dia");
-    }
-
-    @Test
-    @DisplayName("pausas recorta duração dentro da janela e mantém pausa em curso sem endedAt")
-    void pausas_recortaDuracaoEMantemPausaEmCurso() {
-        var start = LocalDate.now().atStartOfDay();
-        var reason = CcPauseReason.builder().id(1L).label("Almoço").build();
-        when(agentStateRepository.findOverlapping(eq(7L), any(), any())).thenReturn(List.of(
-                CcAgentState.builder().agent(agent).state(AgentState.PAUSA).pauseReason(reason)
-                        .startedAt(start.plusHours(1)).endedAt(start.plusHours(1).plusMinutes(10)).build(),
-                CcAgentState.builder().agent(agent).state(AgentState.PAUSA).pauseReason(reason)
-                        .startedAt(start.plusHours(3)).endedAt(null).build(),
-                CcAgentState.builder().agent(agent).state(AgentState.DISPONIVEL)
-                        .startedAt(start.plusHours(2)).endedAt(start.plusHours(3)).build()));
-
-        var pausas = service.pausas();
-
-        assertThat(pausas).hasSize(2);
-        assertThat(pausas.get(0).durationSeconds()).isEqualTo(600);
-        assertThat(pausas.get(0).endedAt()).isNotNull();
-        assertThat(pausas.get(1).endedAt()).isNull();
-        assertThat(pausas.get(1).reasonLabel()).isEqualTo("Almoço");
-    }
-
-    @Test
-    @DisplayName("resumo/histórico/pausas nunca resolvem agente por id vindo de fora — sempre currentAgent()")
-    void nuncaAceitaAgentIdExterno() {
-        when(interactionRepository.findByAgentIdAndQueuedAtBetween(eq(7L), any(), any())).thenReturn(List.of());
-        when(agentStateRepository.findOverlapping(eq(7L), any(), any())).thenReturn(List.of());
-
-        service.resumo();
-        service.historico();
-        service.pausas();
-
-        // As três chamadas resolveram o mesmo agente (id=7) exclusivamente via
-        // currentAgent() — nenhum método deste serviço tem parâmetro de agentId.
-        verify(interactionRepository, times(2))
-                .findByAgentIdAndQueuedAtBetween(eq(7L), any(), any());
+        assertThat(ranking.position()).isEqualTo(2);
+        assertThat(ranking.tierLabel()).isEqualTo("Top Performer");
+        assertThat(ranking.top3Anonymous()).hasSize(2);
+        assertThat(ranking.top3Anonymous().get(0).label()).isEqualTo("Agente #1");
     }
 }

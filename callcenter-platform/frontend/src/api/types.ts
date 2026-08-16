@@ -359,8 +359,12 @@ export interface CcPauseReason {
 
 export interface AgentStateView {
   agentId: number;
+  agentName?: string;
+  sipExtension?: string;
   state: AgentState;
+  pauseReasonId?: number | null;
   pauseReasonLabel?: string;
+  secondsInState?: number;
   startedAt?: string;
 }
 
@@ -436,6 +440,10 @@ export interface DesktopSummaryView {
   avgTalkSeconds: number | null;
   loggedSeconds: number;
   pauseSeconds: number;
+  occupancyPct: number | null;
+  avgNpsScore: number | null;
+  adherencePct: number | null;
+  comparedTo7dAvgTalkPct: number | null;
 }
 
 // D21: EM_PROCESSAMENTO nunca tem ação associada nesta tela — é só um estado informativo. O
@@ -449,6 +457,10 @@ export interface DesktopCallHistoryItem {
   ani?: string;
   queueName?: string;
   talkSeconds?: number;
+  waitSeconds?: number;
+  holdSeconds?: number;
+  dispositionLabel?: string;
+  contactName?: string;
   npsScore?: number;
   recordingUrl?: string;
   transcriptionStatus: DesktopTranscriptionStatus;
@@ -460,6 +472,45 @@ export interface DesktopPauseItem {
   startedAt: string;
   endedAt?: string;
   durationSeconds: number;
+}
+
+export interface DesktopTrendPoint {
+  date: string;
+  answeredCount: number;
+  avgTalkSeconds: number | null;
+  occupancyPct: number | null;
+  avgNpsScore: number | null;
+}
+
+export interface DesktopScheduleView {
+  shiftLabel: string;
+  shiftStart: string | null;
+  shiftEnd: string | null;
+  scheduledSeconds: number;
+  loggedSeconds: number;
+  adherencePct: number | null;
+  adherenceStatus: string;
+}
+
+export interface DesktopQualityView {
+  totalEvaluations: number;
+  avgScore: number | null;
+  strongPoints: string[];
+  improvementPoints: string[];
+}
+
+export interface AnonymousRankingItem {
+  position: number;
+  npsScore: number | null;
+  label: string;
+}
+
+export interface DesktopRankingView {
+  position: number;
+  totalAgents: number;
+  npsScore: number | null;
+  tierLabel: string;
+  top3Anonymous: AnonymousRankingItem[];
 }
 
 // Painel de supervisão (Fase 6) — GET /api/v1/callcenter/supervision/snapshot
