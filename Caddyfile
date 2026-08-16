@@ -52,7 +52,7 @@ app.voiphash.com.br {
 	}
 	handle @agents-api {
 		uri strip_prefix /agents
-		reverse_proxy voipia-agents-api:8000
+		reverse_proxy asteriskia-agents-api:8000
 	}
 
 	# ── Agentes — WebSocket (logs em tempo real) ──────────────────────────────
@@ -63,7 +63,7 @@ app.voiphash.com.br {
 	}
 	handle @agents-ws {
 		uri strip_prefix /agents
-		reverse_proxy voipia-agents-api:8000
+		reverse_proxy asteriskia-agents-api:8000
 	}
 
 	# ── Agentes — Frontend (React SPA servida pelo nginx do frontend) ─────────
@@ -74,7 +74,7 @@ app.voiphash.com.br {
 		path /agents*
 	}
 	handle @agents-ui {
-		reverse_proxy voipia-frontend:80
+		reverse_proxy asteriskia-frontend:80
 	}
 
 	# ── Insights — Frontend (React SPA servida pelo nginx do frontend) ────────
@@ -86,7 +86,7 @@ app.voiphash.com.br {
 		path /insights*
 	}
 	handle @insights-ui {
-		reverse_proxy voipia-frontend:80
+		reverse_proxy asteriskia-frontend:80
 	}
 
 	# ── Call Center — Frontend (React SPA servida pelo nginx do frontend) ────
@@ -98,7 +98,7 @@ app.voiphash.com.br {
 		path /callcenter*
 	}
 	handle @callcenter-ui {
-		reverse_proxy voipia-frontend:80
+		reverse_proxy asteriskia-frontend:80
 	}
 
 	# ── Documentação estática ─────────────────────────────────────────────────
@@ -120,7 +120,7 @@ app.voiphash.com.br {
 		path /api/*
 	}
 	handle @api {
-		reverse_proxy voipia-backend:8080
+		reverse_proxy asteriskia-backend:8080
 	}
 
 	# ── Telecom — WebSocket STOMP (dashboard em tempo real) ───────────────────
@@ -130,7 +130,7 @@ app.voiphash.com.br {
 		path /ws/*
 	}
 	handle @ws {
-		reverse_proxy voipia-backend:8080
+		reverse_proxy asteriskia-backend:8080
 	}
 
 	# ── Telecom — WebSocket Asterisk (softphone WebRTC) ───────────────────────
@@ -142,12 +142,12 @@ app.voiphash.com.br {
 	}
 	handle @asterisk-ws {
 		rewrite * /ws
-		reverse_proxy voipia-asterisk:8088
+		reverse_proxy asteriskia-asterisk:8088
 	}
 
 	# ── Telecom — Frontend React (catch-all) ──────────────────────────────────
 	handle {
-		reverse_proxy voipia-frontend:80
+		reverse_proxy asteriskia-frontend:80
 	}
 }
 
@@ -165,7 +165,7 @@ claw.voiphash.com.br {
 # ascsac-api-1:8000 dentro da rede ascsac_default). Callback receiver e
 # webhook de ingestão do backend ficam expostos por aqui, sem sessão de
 # usuário (autenticação própria — token na URL / HMAC).
-api.voiphash.com.br {
+smarthcm.voiphash.com.br {
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
@@ -181,9 +181,9 @@ api.voiphash.com.br {
 	}
 }
 
-# ── ReportECH (manager.voiphash.com.br) ──────────────────────────────────────
+# ── ReportECH (reportech.voiphash.com.br) ──────────────────────────────────────
 # Sistema de relatórios ECH, integrado ao Caddy principal.
-manager.voiphash.com.br {
+reportech.voiphash.com.br {
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
