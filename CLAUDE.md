@@ -563,10 +563,10 @@ print(jwt.encode({'sub':'_teste_manual','role':'ADMIN','iat':now,'exp':now+300},
 > 4. **Débitos transversais (fora do Call Center)**: CSP **✅ migrado para enforcement real em
 >    2026-08-15** (ver seção "Débito de segurança" mais abaixo). BU — **✅ fechado por completo em
 >    2026-08-15**: Insights do Call Center (`/calls`, detalhe, áudio — commits `a859bfd`/`7ee536b`),
->    `/dashboard` (4 queries de agregado) e o relatório 9c (`/calls`, `/chats`, exportação/
->    agendamento) todos filtram por `BusinessUnitContext` agora (ver seção "Controle de acesso por
->    BU" mais abaixo para o detalhe completo, inclusive o gap MEDIUM residual do agendamento por
->    Telegram/e-mail). Alertas Zabbix **nunca terá** segmentação por BU — decisão de produto
+>    `/dashboard` (4 queries de agregado) e o relatório 9c (`/calls`, `/chats`, exportação e
+>    agendamento por Telegram/e-mail — este último fechado em 2026-08-15, migration V88) todos
+>    filtram por `BusinessUnitContext` agora (ver seção "Controle de acesso por BU" mais abaixo
+>    para o detalhe completo). Alertas Zabbix **nunca terá** segmentação por BU — decisão de produto
 >    definitiva do usuário (2026-08-15), não é mais um gap. Jira sem credenciais reais (dependência
 >    externa, fica para quando o usuário trouxer as credenciais).
 >    **Catálogo de nós do Flow Builder do Call
@@ -1579,17 +1579,26 @@ nesses cadastros), Chamadas (`CallRecordService`, via `uras.business_unit_id`) e
   já tem `business_unit_id`, sem subquery); `searchChats` aplica o mesmo fail-open no filtro em
   memória (`cc_chat_sessions.business_unit_id`). `CallCenterReportsController` resolve o escopo
   nos 6 pontos (calls, chats, calls/export.xlsx, calls/export.pdf, chats/export.xlsx,
-  chats/export.pdf). **Gap residual aceito, documentado no código (MEDIUM, achado do
-  `ecc:security-reviewer`)**: `CallCenterReportScheduleService` (relatório agendado por
-  Telegram/e-mail) roda em background sem `SecurityContext`/`BusinessUnitContext` — passa
-  `businessUnitIds=null` explicitamente, o mesmo comportamento sem filtro que já existia antes
-  desta correção (não é uma regressão nova). Risco real registrado pela revisão: como
-  `POST /api/v1/callcenter/reports/schedules` exige só `PERM_WRITE_callcenter.reports` (não
-  `ROLE_ADMIN`), um usuário restrito a uma única BU pode criar um agendamento recorrente que
-  entrega dados de **todas** as BUs por Telegram/e-mail — uma via lateral que contorna o escopo
-  que a consulta interativa acabou de ganhar. Fechar direito exige persistir a BU de quem criou o
-  agendamento (ou exigir `ROLE_ADMIN` pra criar schedule) — fora do escopo desta fatia, mas
-  registrado como acompanhamento de curto prazo, não como aceito indefinidamente.
+  chats/export.pdf). **Gap do agendamento (Telegram/e-mail) fechado em 2026-08-15, migration
+  V88**: `CcReportSchedule` ganhou `businessUnitIds` (tabela associativa
+  `cc_report_schedule_business_units`, mesmo padrão N:N de `user_business_units`/
+  `client_business_units`) — congelado na criação do agendamento
+  (`CallCenterReportScheduleController.create`, via `BusinessUnitContext.currentBusinessUnitIds()`
+  no momento da requisição, já que a execução roda depois em background sem
+  `SecurityContext`) e propagado por `CallCenterReportScheduleService.buildExport` na hora de
+  gerar o arquivo — vazio significa "sem restrição" (agendamento criado por ADMIN), mesma
+  semântica usada no resto do domínio. **Achado extra corrigido junto**: POST/PUT/DELETE em
+  `/api/v1/callcenter/reports/schedules/**` não tinham matcher de RBAC próprio no
+  `SecurityConfig` — caíam no `anyRequest().authenticated()` genérico do fim da cadeia, então
+  **qualquer usuário autenticado** (não só quem tem `PERM_WRITE_callcenter.reports`) conseguia
+  criar/ativar/desativar/excluir agendamento; corrigido com matcher explícito exigindo
+  `PERM_WRITE_callcenter.reports`. Suíte completa do backend 965/966 verde (2 testes novos, 0
+  regressão — a única falha é o flake conhecido de `ffmpeg` ausente no container Maven ad hoc).
+  Deployado (`docker compose up -d --build backend`, migration V88 confirmada em
+  `flyway_schema_history`) e validado em produção via curl: POST sem token e com JWT de usuário
+  comum sem a permissão retornam 403 (antes desta correção passariam); ADMIN cria agendamento com
+  sucesso (`businessUnitIds: []`, esperado — sem restrição); registro de teste removido em
+  seguida. Release notes `v1.94` registrada.
 - ✅ **Alertas Zabbix — decisão de produto definitiva (2026-08-15): nunca terá segmentação por
   BU.** Não é mais um gap a fechar (ver seção "Controle de acesso por BU" acima para o detalhe).
 
@@ -1854,8 +1863,37 @@ fatia 9c futura.
   - ⏳ `docker-helper` continua root **por design, não por descuido**: ele monta `/var/run/docker.sock`,
     e isso já equivale a root no host independente do UID do processo dentro do container —
     de-rootizar não traria ganho de segurança real.
-  - ⏳ `asterisk`/`coturn`/`security` continuam root: portas privilegiadas (5060, 3478) e
-    `NET_ADMIN`/`network_mode: host` são requisitos genuínos da função de cada um.
+  - ⏳ `asterisk`/`coturn`/`security` continuam root — **revalidado em produção em 2026-08-15**
+    (`docker inspect`/permissões de arquivo reais, não só leitura do compose), justificativa por
+    container:
+    - **`asterisk`**: bind de `5060/udp` e `5060/tcp` (porta privilegiada, `pjsip.conf.template`
+      `bind = 0.0.0.0:5060`) — confirmado sem `USER` no Dockerfile, container roda root de fato
+      (`docker inspect --format='{{.Config.User}}'` vazio). **Achado desta revalidação**: bindar
+      porta <1024 sozinho não exige root pleno — o `frontend` já usa exatamente esse padrão
+      (`USER nginx` + `cap_add: [NET_BIND_SERVICE]`, ver `frontend/Dockerfile` linhas 124-133) e
+      funciona em produção com tráfego real. Migrar o Asterisk pro mesmo padrão é tecnicamente
+      viável em tese, mas **não foi validado nesta sessão** (Asterisk grava em vários caminhos do
+      host — spool de gravação, `pjsip.conf` gerado por `envsubst` no boot — que precisariam do
+      mesmo tratamento de grupo/GID já aplicado a `backend`/`ai-agent` na Fase de hardening GID
+      1500). Continua root por ora; fica registrado como oportunidade futura de hardening, não
+      como bloqueio genuíno como se pensava antes desta revalidação.
+    - **`coturn`**: `network_mode: host`, portas `3478`/`5349` (ambas **acima** de 1024 — não é
+      porta privilegiada, ao contrário do que o texto anterior desta seção dizia). **Motivo real de
+      precisar de root, encontrado só nesta revalidação** (não documentado antes): os certificados
+      TLS montados do volume do Caddy (`/var/lib/docker/volumes/asteriskia_caddy_data/_data/caddy/
+      certificates/.../app.voiphash.com.br.{crt,key}`) estão `0600 root:root` no host — a imagem
+      oficial `coturn/coturn:4.6.2` roda por padrão como `nobody:nogroup`, que não consegue ler
+      esses arquivos. Continuar como root aqui é a forma mais simples de ler o certificado sem
+      reestruturar a propriedade dos certificados do Caddy (fora do escopo de segurança deste
+      container isoladamente).
+    - **`security`**: `network_mode: host` + `cap_add: [NET_ADMIN, NET_RAW]` já concedidos (não é
+      preciso ser root só por causa do `nft`/`iptables-multiport` do fail2ban, que funcionam com
+      essas capabilities). O que ainda exige root de fato: os mounts `/etc/ufw` e `/run/ufw.lock`
+      do host são `0640 root:root` (confirmado via `ls -la` em produção) — um usuário não-root no
+      container não conseguiria lê-los mesmo com as capabilities de rede.
+    - Nenhum dos três teve mudança de comportamento nesta revalidação — é confirmação de que o
+      débito continua genuíno (com uma correção de detalhe: coturn não é por porta privilegiada, é
+      por permissão de certificado; e o caso do Asterisk tem uma via de hardening não explorada).
 
 ---
 

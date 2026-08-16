@@ -3,6 +3,8 @@ package com.asteriskia.domain.callcenter.reports;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -15,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,10 +54,16 @@ class CallCenterReportScheduleServiceTest {
 
     private CcReportSchedule schedule(String frequency, Integer dayOfWeek, Integer dayOfMonth, int hourOfDay,
             OffsetDateTime lastRunAt, String channel) {
+        return schedule(frequency, dayOfWeek, dayOfMonth, hourOfDay, lastRunAt, channel, Set.of());
+    }
+
+    private CcReportSchedule schedule(String frequency, Integer dayOfWeek, Integer dayOfMonth, int hourOfDay,
+            OffsetDateTime lastRunAt, String channel, Set<Integer> businessUnitIds) {
         return CcReportSchedule.builder()
                 .id(1L).name("Teste").reportType("CALLS_EXCEL").periodDays(7)
                 .frequency(frequency).dayOfWeek(dayOfWeek).dayOfMonth(dayOfMonth).hourOfDay(hourOfDay)
-                .channel(channel).recipient("dest").active(true).lastRunAt(lastRunAt).build();
+                .channel(channel).recipient("dest").active(true).lastRunAt(lastRunAt)
+                .businessUnitIds(businessUnitIds).build();
     }
 
     @Test
@@ -113,5 +122,33 @@ class CallCenterReportScheduleServiceTest {
         ArgumentCaptor<CcReportSchedule> captor = ArgumentCaptor.forClass(CcReportSchedule.class);
         verify(scheduleRepository, times(1)).save(captor.capture());
         assertThat(captor.getValue().getLastRunStatus()).isEqualTo("FAILED");
+    }
+
+    @Test
+    @DisplayName("propaga a BU congelada na criação do agendamento pro export — corrige vazamento cross-BU (V88)")
+    void runDue_restrictedSchedule_propagatesBusinessUnitScopeToExport() throws Exception {
+        CcReportSchedule s = schedule("DAILY", null, null, 8, null, "telegram", Set.of(3, 7));
+        when(scheduleRepository.findByActiveTrue()).thenReturn(List.of(s));
+        when(envFileStore.readRaw()).thenReturn(Map.of("CALLCENTER_TELEGRAM_BOT_TOKEN", "tok"));
+        when(exportService.exportCallsExcel(any(), eq(Set.of(3, 7)))).thenReturn(new byte[]{1});
+        when(telegramApiClient.sendDocument(anyString(), anyString(), any(), anyString())).thenReturn(true);
+
+        service.runDue(LocalDateTime.of(2026, 8, 14, 8, 0));
+
+        verify(exportService).exportCallsExcel(any(), eq(Set.of(3, 7)));
+    }
+
+    @Test
+    @DisplayName("agendamento criado sem BU (ADMIN) exporta sem restrição — passa null pro export")
+    void runDue_unrestrictedSchedule_exportsWithNullBusinessUnitScope() throws Exception {
+        CcReportSchedule s = schedule("DAILY", null, null, 8, null, "telegram", Set.of());
+        when(scheduleRepository.findByActiveTrue()).thenReturn(List.of(s));
+        when(envFileStore.readRaw()).thenReturn(Map.of("CALLCENTER_TELEGRAM_BOT_TOKEN", "tok"));
+        when(exportService.exportCallsExcel(any(), isNull())).thenReturn(new byte[]{1});
+        when(telegramApiClient.sendDocument(anyString(), anyString(), any(), anyString())).thenReturn(true);
+
+        service.runDue(LocalDateTime.of(2026, 8, 14, 8, 0));
+
+        verify(exportService).exportCallsExcel(any(), isNull());
     }
 }

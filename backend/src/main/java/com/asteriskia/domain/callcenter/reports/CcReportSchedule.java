@@ -2,7 +2,9 @@ package com.asteriskia.domain.callcenter.reports;
 
 import com.asteriskia.domain.callcenter.CcAgent;
 import com.asteriskia.domain.callcenter.CcQueue;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -12,6 +14,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,9 +24,13 @@ import lombok.Setter;
 
 /**
  * CcReportSchedule — agendamento de exportação periódica do relatório de chamada/chat (sub-fase
- * 9c.6). Escopo (fila/agente/período) e destinatário são congelados na criação e reavaliados só
+ * 9c.6). Escopo (fila/agente/período/BU) e destinatário são congelados na criação e reavaliados só
  * na execução — mesma disciplina fail-closed já aplicada em {@code CcQualityReport} (achado HIGH
  * real da Fase 26): a execução roda fora da sessão de quem criou o agendamento.
+ *
+ * <p>{@code businessUnitIds} vazio significa "sem restrição" (agendamento criado por ADMIN) —
+ * mesma semântica de {@code BusinessUnitContext.currentBusinessUnitIds()} nula/vazia usada no
+ * resto do domínio Call Center (V88, achado real: agendamento vazava dados de todas as BUs).
  */
 @Entity
 @Table(name = "cc_report_schedules")
@@ -95,4 +103,10 @@ public class CcReportSchedule {
 
     @Column(name = "last_run_status", length = 20)
     private String lastRunStatus;
+
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "cc_report_schedule_business_units", joinColumns = @JoinColumn(name = "schedule_id"))
+    @Column(name = "business_unit_id")
+    private Set<Integer> businessUnitIds = new HashSet<>();
 }

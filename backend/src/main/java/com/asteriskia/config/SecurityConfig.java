@@ -406,6 +406,13 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.ia_agentes")
                         .requestMatchers("/api/v1/callcenter/quality-reports/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.reports")
+                        // Agendamento de relatório (Fase 9c.6) — achado real (2026-08-15): não
+                        // tinha matcher próprio de escrita, caía no anyRequest().authenticated()
+                        // genérico do fim (qualquer usuário autenticado podia criar/ativar/excluir
+                        // agendamento). GET continua coberto pelo matcher genérico de /reports/**
+                        // acima (primeiro match vence); este cobre POST/PUT/DELETE.
+                        .requestMatchers("/api/v1/callcenter/reports/schedules/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.reports")
 
                         // Endpoints internos (dialplan/serviços via X-Internal-Key: ura-routing,
                         // ingestão de gravação, chamada de saída — Fase 23) exigem ROLE_INTERNAL

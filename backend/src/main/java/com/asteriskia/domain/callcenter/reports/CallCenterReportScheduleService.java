@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -143,24 +144,30 @@ public class CallCenterReportScheduleService {
         markResult(schedule, now, delivered ? "OK" : "FAILED");
     }
 
-    /** Sem restrição de BU: {@code CcReportSchedule} não tem coluna de BU/dono hoje (roda em
-     * background, fora de uma requisição autenticada — não há {@code BusinessUnitContext} pra
-     * consultar). Mesmo comportamento de antes da BU fechada no relatório 9c (2026-08-15) —
-     * gap pré-existente, fora do escopo desta correção; fechar direito exigiria persistir a BU
-     * de quem criou o agendamento. */
+    /** BU congelada na criação do agendamento (V88) — vazio/nulo significa "sem restrição"
+     * (agendamento criado por ADMIN). Corrige o gap real de segurança fechado em 2026-08-15: antes
+     * desta correção, o {@code null} passado aqui vazava dados de TODAS as BUs pro destinatário
+     * configurado, mesmo quando o agendamento tinha sido criado por um usuário restrito a uma
+     * única BU. */
     private byte[] buildExport(CcReportSchedule schedule, LocalDate from, LocalDate to) {
         Long queueId = schedule.getQueue() != null ? schedule.getQueue().getId() : null;
         Long agentId = schedule.getAgent() != null ? schedule.getAgent().getId() : null;
+        Set<Integer> businessUnitIds = schedule.getBusinessUnitIds() == null || schedule.getBusinessUnitIds().isEmpty()
+                ? null : schedule.getBusinessUnitIds();
         LocalDateTime fromDt = from.atStartOfDay();
         LocalDateTime toDt = to.atTime(LocalTime.MAX);
         CcReportSchedule.ReportType type = CcReportSchedule.ReportType.valueOf(schedule.getReportType());
         return switch (type) {
             case CALLS_EXCEL -> exportService.exportCallsExcel(
-                    new CallReportFilter(fromDt, toDt, queueId, agentId, null, null, null, null, null, null, null), null);
+                    new CallReportFilter(fromDt, toDt, queueId, agentId, null, null, null, null, null, null, null),
+                    businessUnitIds);
             case CALLS_PDF -> exportService.exportCallsPdf(
-                    new CallReportFilter(fromDt, toDt, queueId, agentId, null, null, null, null, null, null, null), null);
-            case CHATS_EXCEL -> exportService.exportChatsExcel(new ChatReportFilter(fromDt, toDt, queueId, agentId), null);
-            case CHATS_PDF -> exportService.exportChatsPdf(new ChatReportFilter(fromDt, toDt, queueId, agentId), null);
+                    new CallReportFilter(fromDt, toDt, queueId, agentId, null, null, null, null, null, null, null),
+                    businessUnitIds);
+            case CHATS_EXCEL -> exportService.exportChatsExcel(
+                    new ChatReportFilter(fromDt, toDt, queueId, agentId), businessUnitIds);
+            case CHATS_PDF -> exportService.exportChatsPdf(
+                    new ChatReportFilter(fromDt, toDt, queueId, agentId), businessUnitIds);
         };
     }
 

@@ -4,8 +4,10 @@ import com.asteriskia.domain.callcenter.CcAgent;
 import com.asteriskia.domain.callcenter.CcAgentRepository;
 import com.asteriskia.domain.callcenter.CcQueue;
 import com.asteriskia.domain.callcenter.CcQueueRepository;
+import com.asteriskia.domain.masterdata.BusinessUnitContext;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -70,6 +72,7 @@ public class CallCenterReportScheduleController {
                 .channel(request.channel())
                 .recipient(request.recipient())
                 .active(true)
+                .businessUnitIds(currentBusinessUnitScope())
                 .build();
         String createdBy = authentication != null ? authentication.getName() : "admin";
         return ResponseEntity.ok(scheduleService.create(schedule, createdBy));
@@ -85,6 +88,13 @@ public class CallCenterReportScheduleController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         scheduleService.delete(id);
         return ResponseEntity.ok().build();
+    }
+
+    /** BU de quem cria o agendamento, congelada na criação (V88) — vazio para ADMIN (sem
+     * restrição), mesma semântica de {@code BusinessUnitContext.currentBusinessUnitIds()} usada
+     * no resto do domínio Call Center. */
+    private Set<Integer> currentBusinessUnitScope() {
+        return BusinessUnitContext.isRestricted() ? BusinessUnitContext.currentBusinessUnitIds() : Set.of();
     }
 
     private CcQueue findQueue(Long id) {

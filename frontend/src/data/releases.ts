@@ -804,4 +804,12 @@ export const RELEASES: ReleaseEntry[] = [
       'Cadastro de Usuários: agora é possível atribuir um grupo de acesso customizado (RBAC granular) a um usuário, além do Perfil binário Admin/Usuário — só administradores podem fazer essa atribuição.',
     ],
   },
+  {
+    version: 'v1.94',
+    date: '2026-08-15',
+    changes: [
+      'Call Center — Relatórios: agendamento de relatório por Telegram/e-mail (Fase 9c.6) agora respeita a Unidade de Negócio de quem criou o agendamento, fechando o último gap de BU do relatório 9c — antes, um usuário restrito a uma única BU podia criar um agendamento recorrente que vazava dados de todas as BUs.',
+      'Segurança: criar/ativar/desativar/excluir um agendamento de relatório do Call Center agora exige a permissão de escrita da aba (antes, qualquer usuário autenticado conseguia, sem checagem de permissão).',
+    ],
+  },
 ];
