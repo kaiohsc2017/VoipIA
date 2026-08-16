@@ -173,7 +173,7 @@ smarthcm.voiphash.com.br {
 		Referrer-Policy "strict-origin-when-cross-origin"
 	}
 
-	reverse_proxy ascsac-web:80 {
+	reverse_proxy smarthcm-web:80 {
 		header_up Host {host}
 		header_up X-Real-IP {remote_host}
 		header_up X-Forwarded-For {remote_host}
@@ -198,16 +198,16 @@ reportech.voiphash.com.br {
 		path /api/*
 	}
 	handle @api {
-		reverse_proxy echweb-api:8080
+		reverse_proxy reportech-api:8080
 	}
 
 	# ── Health check da API ───────────────────────────────────────────────────
 	handle /health/* {
-		reverse_proxy echweb-api:8080
+		reverse_proxy reportech-api:8080
 	}
 
 	# ── Frontend (React SPA) ──────────────────────────────────────────────────
 	handle {
-		reverse_proxy echweb-web:80
+		reverse_proxy reportech-web:80
 	}
 }
