@@ -659,18 +659,14 @@ services:
       start_period: 20s
     depends_on:
       frontend:
-        condition: service_started   # frontend tem healthcheck próprio (D5), mas started já basta aqui
+        condition: service_started
       backend:
         condition: service_healthy
       agents-backend:
         condition: service_healthy
       asterisk:
         condition: service_healthy
-    ports:
-      - "80:80"      # HTTP
-      - "443:443"    # HTTPS
-      - "443:443/udp" # HTTP/3 (QUIC)
-      # Admin API NÃO é mais publicada como porta TCP — ver Caddyfile (socket Unix).
+    # Portas 80/443 do host são terminadas pelo Caddy principal (voipia.voiphash.com.br)
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro  # Configuração do proxy
       - ./docs:/srv/docs:ro                  # Documentação estática (/docs/*)
