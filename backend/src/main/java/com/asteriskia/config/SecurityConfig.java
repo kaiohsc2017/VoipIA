@@ -250,6 +250,8 @@ public class SecurityConfig {
                         // próprio painel", não gestão de outro agente.
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/desktop/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.desktop")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/quality/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.insights", "PERM_READ_insights.scorecards", "PERM_READ_callcenter.desktop")
                         // Supervisão em tempo real — Fase 6.
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/supervision/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.supervisao")
@@ -385,6 +387,10 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.desktop")
                         .requestMatchers("/api/v1/callcenter/interactions/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.desktop")
+                        .requestMatchers("/api/v1/callcenter/desktop/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.desktop")
+                        .requestMatchers("/api/v1/callcenter/quality/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.insights", "PERM_WRITE_insights.scorecards")
                         // Redirect de chamada em fila (Fase 15.3) — resource dedicado, pedido
                         // literal de "perfil específico"; precisa vir ANTES do matcher genérico
                         // de /supervision/** (mesma ordem de rotate-secret/chat/test acima).

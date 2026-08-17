@@ -66,4 +66,6 @@ public interface CallAudioFileRepository
      * nunca colidisse, o que não é uma garantia do schema. Ver TransferResolutionService,
      * que já precisa excluir a própria gravação da lista antes de aplicar. */
     List<CallAudioFile> findBySwitchCallId(String switchCallId);
+
+    List<CallAudioFile> findByCcRecordingIdIn(List<Long> ccRecordingIds);
 }

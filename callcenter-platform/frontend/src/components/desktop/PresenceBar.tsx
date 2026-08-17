@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { CcPauseReason } from '../../api/types';
 
 interface PresenceBarProps {
@@ -20,9 +20,26 @@ export const PresenceBar: React.FC<PresenceBarProps> = ({
   pauseReasons,
   onStateChange,
 }) => {
+  const [localSeconds, setLocalSeconds] = useState(stateSeconds);
+
+  useEffect(() => {
+    setLocalSeconds(stateSeconds);
+  }, [stateSeconds]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLocalSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [currentState, currentPauseReasonId]);
+
   const formatTime = (totalSec: number) => {
-    const mins = Math.floor(totalSec / 60);
+    const hours = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
     const secs = totalSec % 60;
+    if (hours > 0) {
+      return `${hours}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+    }
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -32,6 +49,8 @@ export const PresenceBar: React.FC<PresenceBarProps> = ({
         return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
       case 'EM_ATENDIMENTO':
         return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
+      case 'ACW':
+        return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
       case 'PAUSA':
         return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
       default:
@@ -39,14 +58,16 @@ export const PresenceBar: React.FC<PresenceBarProps> = ({
     }
   };
 
+  const currentPauseLabel = pauseReasons.find((r) => r.id === currentPauseReasonId)?.label;
+
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm mb-6">
       <div className="flex items-center gap-3">
-        <div className="w-11 h-11 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold flex items-center justify-center text-lg border border-indigo-500/20">
+        <div className="w-11 h-11 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold flex items-center justify-center text-base border border-indigo-500/20 shadow-inner">
           {agentName.slice(0, 2).toUpperCase()}
         </div>
         <div>
-          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h2 className="text-sm sm:text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             {agentName}
             {extension && (
               <span className="text-xs font-mono font-normal px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
@@ -55,11 +76,18 @@ export const PresenceBar: React.FC<PresenceBarProps> = ({
             )}
           </h2>
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(currentState)}`}>
-              ● {currentState}
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeClass(
+                currentState
+              )}`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5 animate-pulse" />
+              {currentState === 'PAUSA' && currentPauseLabel
+                ? `Pausa: ${currentPauseLabel}`
+                : currentState}
             </span>
             <span>•</span>
-            <span className="font-mono">{formatTime(stateSeconds)} no estado atual</span>
+            <span className="font-mono">{formatTime(localSeconds)} no estado atual</span>
           </div>
         </div>
       </div>
@@ -67,9 +95,9 @@ export const PresenceBar: React.FC<PresenceBarProps> = ({
       <div className="flex items-center gap-2 w-full sm:w-auto">
         <button
           onClick={() => onStateChange('DISPONIVEL')}
-          className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+          className={`flex-1 sm:flex-initial px-3.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
             currentState === 'DISPONIVEL'
-              ? 'bg-emerald-600 text-white border-emerald-600'
+              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
               : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
           }`}
         >
@@ -84,7 +112,7 @@ export const PresenceBar: React.FC<PresenceBarProps> = ({
               onStateChange('PAUSA', parseInt(val, 10));
             }
           }}
-          className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+          className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer ${
             currentState === 'PAUSA'
               ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
               : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900'
@@ -102,9 +130,9 @@ export const PresenceBar: React.FC<PresenceBarProps> = ({
 
         <button
           onClick={() => onStateChange('OFFLINE')}
-          className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+          className={`flex-1 sm:flex-initial px-3.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
             currentState === 'OFFLINE'
-              ? 'bg-slate-700 text-white border-slate-700'
+              ? 'bg-slate-700 text-white border-slate-700 shadow-sm'
               : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
           }`}
         >

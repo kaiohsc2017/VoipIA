@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { PhoneCall, Mic, MicOff, PhoneOff, Sparkles } from 'lucide-react';
+import { PhoneCall, Mic, MicOff, PhoneOff, Sparkles, Send, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
 import type {
   AgentStateView, CcPauseReason, CcDisposition, InteractionView,
   DesktopSummaryView, DesktopCallHistoryItem,
   ContactHistoryItem, ContactProfileView, DesktopTrendPoint,
   DesktopScheduleView, DesktopQualityView, DesktopRankingView,
+  DesktopEvaluationDetailView, CoachingPlanView,
 } from '../api/types';
 import { useSipPhone } from '../hooks/useSipPhone';
 import type { ShellCallAction, ShellCallState } from '../hooks/useShellBridge';
@@ -70,6 +71,7 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
   const [dispositions, setDispositions] = useState<CcDisposition[]>([]);
   const [selectedDisposition, setSelectedDisposition] = useState<number | ''>('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const [contactHistory, setContactHistory] = useState<ContactHistoryItem[]>([]);
   const [profile, setProfile] = useState<ContactProfileView | null>(null);
@@ -114,8 +116,31 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
   const [trends, setTrends] = useState<DesktopTrendPoint[]>([]);
   const [schedule, setSchedule] = useState<DesktopScheduleView | null>(null);
   const [quality, setQuality] = useState<DesktopQualityView | null>(null);
+  const [evaluations, setEvaluations] = useState<DesktopEvaluationDetailView[]>([]);
+  const [coachingPlans, setCoachingPlans] = useState<CoachingPlanView[]>([]);
   const [ranking, setRanking] = useState<DesktopRankingView | null>(null);
   const [tabLoading, setTabLoading] = useState(false);
+
+  // Modal de Contestação
+  const [appealModalEval, setAppealModalEval] = useState<DesktopEvaluationDetailView | null>(null);
+  const [appealReason, setAppealReason] = useState('');
+  const [submittingAppeal, setSubmittingAppeal] = useState(false);
+
+  const loadQualityData = () => {
+    setTabLoading(true);
+    Promise.all([
+      api.get<DesktopQualityView>('/callcenter/desktop/me/qualidade'),
+      api.get<DesktopEvaluationDetailView[]>('/callcenter/desktop/me/avaliacoes'),
+      api.get<CoachingPlanView[]>('/callcenter/desktop/me/coaching'),
+    ])
+      .then(([qualRes, evalRes, coachRes]) => {
+        setQuality(qualRes.data);
+        setEvaluations(evalRes.data);
+        setCoachingPlans(coachRes.data);
+      })
+      .catch((err) => setError(getErrorMessage(err, 'Erro ao carregar dados de qualidade.')))
+      .finally(() => setTabLoading(false));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -138,9 +163,7 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
         .then(({ data }) => { if (!cancelled) setSchedule(data); })
         .finally(() => { if (!cancelled) setTabLoading(false); });
     } else if (activeTab === 'qualidade') {
-      api.get<DesktopQualityView>('/callcenter/desktop/me/qualidade')
-        .then(({ data }) => { if (!cancelled) setQuality(data); })
-        .finally(() => { if (!cancelled) setTabLoading(false); });
+      loadQualityData();
     } else if (activeTab === 'ranking') {
       api.get<DesktopRankingView>('/callcenter/desktop/me/ranking')
         .then(({ data }) => { if (!cancelled) setRanking(data); })
@@ -196,6 +219,65 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
       .finally(() => setTabLoading(false));
   };
 
+  const handleDaysChange = (days: number) => {
+    setTabLoading(true);
+    api.get<DesktopTrendPoint[]>(`/callcenter/desktop/me/tendencia?dias=${days}`)
+      .then(({ data }) => setTrends(data))
+      .finally(() => setTabLoading(false));
+  };
+
+  const handleOpenAppealModal = (evalDetail: DesktopEvaluationDetailView) => {
+    setAppealModalEval(evalDetail);
+    setAppealReason('');
+  };
+
+  const handleOpenAppealFromHistory = (interactionId: number) => {
+    setActiveTab('qualidade');
+    api.get<DesktopEvaluationDetailView[]>('/callcenter/desktop/me/avaliacoes')
+      .then(({ data }) => {
+        setEvaluations(data);
+        const match = data.find((e) => e.interactionId === interactionId);
+        if (match) {
+          handleOpenAppealModal(match);
+        } else {
+          setError(`Nenhuma ficha de avaliação vinculada à interação #${interactionId} encontrada.`);
+        }
+      })
+      .catch((err) => setError(getErrorMessage(err, 'Erro ao buscar avaliações.')));
+  };
+
+  const handleSubmitAppeal = () => {
+    if (!appealModalEval || !appealReason.trim()) return;
+    setSubmittingAppeal(true);
+    setError('');
+    api.post(`/callcenter/desktop/me/avaliacoes/${appealModalEval.evaluationId}/contestar`, {
+      reason: appealReason.trim(),
+    })
+      .then(() => {
+        setAppealModalEval(null);
+        setAppealReason('');
+        setSuccessMessage('Contestação enviada com sucesso ao supervisor!');
+        setTimeout(() => setSuccessMessage(''), 5000);
+        loadQualityData();
+      })
+      .catch((err) => setError(getErrorMessage(err, 'Erro ao submeter contestação.')))
+      .finally(() => setSubmittingAppeal(false));
+  };
+
+  const handleUpdateCoachingStatus = (planId: number, newStatus: 'EM_ANDAMENTO' | 'CONCLUIDO') => {
+    api.patch(`/callcenter/desktop/me/coaching/${planId}/status`, { status: newStatus })
+      .then(() => {
+        setSuccessMessage(
+          newStatus === 'CONCLUIDO'
+            ? 'Plano de ação marcado como concluído! Excelente progresso.'
+            : 'Plano de ação reaberto.'
+        );
+        setTimeout(() => setSuccessMessage(''), 4000);
+        loadQualityData();
+      })
+      .catch((err) => setError(getErrorMessage(err, 'Erro ao atualizar status do plano de coaching.')));
+  };
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       <PresenceBar
@@ -209,12 +291,27 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
       />
 
       {error && (
-        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-medium">
-          {error}
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-medium flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+          <button onClick={() => setError('')} className="p-1 hover:opacity-75">✕</button>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-medium flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={16} />
+            <span>{successMessage}</span>
+          </div>
+          <button onClick={() => setSuccessMessage('')} className="p-1 hover:opacity-75">✕</button>
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* ─── Coluna Fixa de Operação à Esquerda (Softphone + Copiloto) ─── */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
@@ -346,6 +443,7 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
           )}
         </div>
 
+        {/* ─── Sub-Abas do Workspace Principal ─── */}
         <div className="lg:col-span-8 space-y-6">
           <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2 overflow-x-auto pb-1">
             {[
@@ -353,7 +451,7 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
               { id: 'interacoes', label: 'Interações' },
               { id: 'produtividade', label: 'Produtividade' },
               { id: 'escala', label: 'Escala' },
-              { id: 'qualidade', label: 'Qualidade' },
+              { id: 'qualidade', label: 'Qualidade & Coaching' },
               { id: 'ranking', label: 'Ranking' },
             ].map(tab => (
               <button
@@ -370,16 +468,138 @@ export function DesktopAgenteTab({ isEmbedded, callState, sendCallAction }: Desk
             ))}
           </div>
 
-          {activeTab === 'overview' && <KpiStrip summary={summary} />}
-          {activeTab === 'interacoes' && (
-            <InteractionsTable history={history} loading={tabLoading} onFilterChange={handleFilterHistory} />
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              <KpiStrip summary={summary} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                    Dica de Produtividade & Qualidade
+                  </h4>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Mantenha o tempo em mudo abaixo de 10% e confirme os dados cadastrais do cliente logo na abertura da chamada para garantir a máxima pontuação na monitoria.
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                    Atalhos Rápidos
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setActiveTab('interacoes')}
+                      className="px-3 py-1.5 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-lg"
+                    >
+                      Ver Histórico Completo
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('qualidade')}
+                      className="px-3 py-1.5 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 dark:text-indigo-400 rounded-lg font-medium"
+                    >
+                      Acessar Planos de Coaching
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
-          {activeTab === 'produtividade' && <ProductivityPanel trends={trends} loading={tabLoading} />}
-          {activeTab === 'escala' && <SchedulePanel schedule={schedule} loading={tabLoading} />}
-          {activeTab === 'qualidade' && <QualityPanel quality={quality} loading={tabLoading} />}
-          {activeTab === 'ranking' && <RankingPanel ranking={ranking} loading={tabLoading} />}
+
+          {activeTab === 'interacoes' && (
+            <InteractionsTable
+              history={history}
+              loading={tabLoading}
+              onFilterChange={handleFilterHistory}
+              onOpenAppealModal={handleOpenAppealFromHistory}
+            />
+          )}
+
+          {activeTab === 'produtividade' && (
+            <ProductivityPanel
+              trends={trends}
+              loading={tabLoading}
+              onDaysChange={handleDaysChange}
+            />
+          )}
+
+          {activeTab === 'escala' && (
+            <SchedulePanel schedule={schedule} loading={tabLoading} />
+          )}
+
+          {activeTab === 'qualidade' && (
+            <QualityPanel
+              quality={quality}
+              evaluations={evaluations}
+              coachingPlans={coachingPlans}
+              loading={tabLoading}
+              onOpenAppeal={handleOpenAppealModal}
+              onUpdateCoachingStatus={handleUpdateCoachingStatus}
+            />
+          )}
+
+          {activeTab === 'ranking' && (
+            <RankingPanel ranking={ranking} loading={tabLoading} />
+          )}
         </div>
       </div>
+
+      {/* ─── Modal de Contestação de Avaliação ─────────────────────────────── */}
+      {appealModalEval && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-xl max-w-lg w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Send size={16} className="text-indigo-600 dark:text-indigo-400" />
+                <h4 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+                  Contestar Avaliação — Atendimento #{appealModalEval.interactionId ?? appealModalEval.evaluationId}
+                </h4>
+              </div>
+              <button
+                onClick={() => setAppealModalEval(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
+              <p>
+                <strong>Nota Recebida:</strong> {appealModalEval.notaTotal.toFixed(0)}/100 · Ficha:{' '}
+                {appealModalEval.scorecardName}
+              </p>
+              <p>
+                Apresente seus argumentos e aponte os trechos da chamada para análise da supervisão:
+              </p>
+            </div>
+
+            <div>
+              <textarea
+                value={appealReason}
+                onChange={(e) => setAppealReason(e.target.value)}
+                placeholder="Descreva por que você discorda da pontuação e cite os trechos relevantes..."
+                rows={5}
+                className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none leading-relaxed"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setAppealModalEval(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitAppeal}
+                disabled={!appealReason.trim() || submittingAppeal}
+                className="px-4 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <Send size={12} /> {submittingAppeal ? 'Enviando...' : 'Enviar Contestação'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -63,6 +63,8 @@ class CallCenterDesktopServiceTest {
     private CallCenterProductivityService productivityService;
     @Mock
     private CallCenterGamificationService gamificationService;
+    @Mock
+    private com.asteriskia.domain.callcenter.quality.CallCenterQualityCoachingService qualityCoachingService;
 
     private CallCenterDesktopService service;
     private CcAgent agent;
@@ -79,7 +81,8 @@ class CallCenterDesktopServiceTest {
                 aggRepository,
                 adherenceService,
                 productivityService,
-                gamificationService);
+                gamificationService,
+                qualityCoachingService);
 
         agent = CcAgent.builder().id(42L).name("Agente Teste").active(true).build();
     }
@@ -159,5 +162,47 @@ class CallCenterDesktopServiceTest {
         assertThat(ranking.tierLabel()).isEqualTo("Top Performer");
         assertThat(ranking.top3Anonymous()).hasSize(2);
         assertThat(ranking.top3Anonymous().get(0).label()).isEqualTo("Agente #1");
+    }
+
+    @Test
+    @DisplayName("avaliacoes() delega para o qualityCoachingService com o agente logado")
+    void avaliacoes_delegatesToQualityCoachingService() {
+        when(agentStateService.currentAgent()).thenReturn(agent);
+        when(qualityCoachingService.getEvaluationsForAgent(eq(agent), any(), any()))
+                .thenReturn(List.of());
+
+        List<com.asteriskia.domain.callcenter.quality.DesktopEvaluationDetailView> list =
+                service.avaliacoes(null, null);
+
+        assertThat(list).isEmpty();
+    }
+
+    @Test
+    @DisplayName("contestarAvaliacao() repassa justificativa e agente logado")
+    void contestarAvaliacao_callsServiceWithAgent() {
+        when(agentStateService.currentAgent()).thenReturn(agent);
+        com.asteriskia.domain.callcenter.quality.AppealView appeal =
+                new com.asteriskia.domain.callcenter.quality.AppealView(
+                        1L, 10L, 42L, "Agente Teste", 100L, "Motivo", "PENDENTE", null, null, null, LocalDateTime.now());
+
+        when(qualityCoachingService.createAppeal(eq(10L), eq(agent), eq("Justificativa válida")))
+                .thenReturn(appeal);
+
+        var req = new com.asteriskia.domain.callcenter.quality.CreateAppealRequest("Justificativa válida");
+        var result = service.contestarAvaliacao(10L, req);
+
+        assertThat(result.status()).isEqualTo("PENDENTE");
+        assertThat(result.reason()).isEqualTo("Motivo");
+    }
+
+    @Test
+    @DisplayName("coaching() busca planos do agente logado")
+    void coaching_fetchesPlansForAgent() {
+        when(agentStateService.currentAgent()).thenReturn(agent);
+        when(qualityCoachingService.getCoachingPlansForAgent(eq(42L)))
+                .thenReturn(List.of());
+
+        var list = service.coaching();
+        assertThat(list).isEmpty();
     }
 }

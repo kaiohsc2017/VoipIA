@@ -71,4 +71,31 @@ public class CallCenterDesktopController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate ate) {
         return desktopService.ranking(de, ate);
     }
+
+    @GetMapping("/avaliacoes")
+    public List<com.asteriskia.domain.callcenter.quality.DesktopEvaluationDetailView> avaliacoes(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate de,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate ate) {
+        return desktopService.avaliacoes(de, ate);
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/avaliacoes/{evaluationId}/contestar")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    public com.asteriskia.domain.callcenter.quality.AppealView contestarAvaliacao(
+            @org.springframework.web.bind.annotation.PathVariable Long evaluationId,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody com.asteriskia.domain.callcenter.quality.CreateAppealRequest request) {
+        return desktopService.contestarAvaliacao(evaluationId, request);
+    }
+
+    @GetMapping("/coaching")
+    public List<com.asteriskia.domain.callcenter.quality.CoachingPlanView> coaching() {
+        return desktopService.coaching();
+    }
+
+    @org.springframework.web.bind.annotation.PatchMapping("/coaching/{planId}/status")
+    public com.asteriskia.domain.callcenter.quality.CoachingPlanView atualizarStatusCoaching(
+            @org.springframework.web.bind.annotation.PathVariable Long planId,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody com.asteriskia.domain.callcenter.quality.UpdateCoachingStatusRequest request) {
+        return desktopService.atualizarStatusCoaching(planId, request);
+    }
 }

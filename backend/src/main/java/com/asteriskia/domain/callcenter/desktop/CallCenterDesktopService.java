@@ -66,6 +66,7 @@ public class CallCenterDesktopService {
     private final CallCenterAgentAdherenceService adherenceService;
     private final CallCenterProductivityService productivityService;
     private final CallCenterGamificationService gamificationService;
+    private final com.asteriskia.domain.callcenter.quality.CallCenterQualityCoachingService qualityCoachingService;
 
     @Transactional(readOnly = true)
     public DesktopSummaryView resumo() {
@@ -276,6 +277,32 @@ public class CallCenterDesktopService {
         }
 
         return new DesktopRankingView(myPosition, rankingList.size(), myNps, tier, top3);
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.asteriskia.domain.callcenter.quality.DesktopEvaluationDetailView> avaliacoes(LocalDate de, LocalDate ate) {
+        var agent = agentStateService.currentAgent();
+        return qualityCoachingService.getEvaluationsForAgent(agent, de, ate);
+    }
+
+    @Transactional
+    public com.asteriskia.domain.callcenter.quality.AppealView contestarAvaliacao(
+            Long evaluationId, com.asteriskia.domain.callcenter.quality.CreateAppealRequest request) {
+        var agent = agentStateService.currentAgent();
+        return qualityCoachingService.createAppeal(evaluationId, agent, request.reason());
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.asteriskia.domain.callcenter.quality.CoachingPlanView> coaching() {
+        var agent = agentStateService.currentAgent();
+        return qualityCoachingService.getCoachingPlansForAgent(agent.getId());
+    }
+
+    @Transactional
+    public com.asteriskia.domain.callcenter.quality.CoachingPlanView atualizarStatusCoaching(
+            Long planId, com.asteriskia.domain.callcenter.quality.UpdateCoachingStatusRequest request) {
+        var agent = agentStateService.currentAgent();
+        return qualityCoachingService.updateCoachingPlanStatusByAgent(planId, agent.getId(), request.status());
     }
 
     private DesktopCallHistoryItem toHistoryItem(CcInteraction interaction) {

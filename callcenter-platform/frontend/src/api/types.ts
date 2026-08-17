@@ -513,6 +513,90 @@ export interface DesktopRankingView {
   top3Anonymous: AnonymousRankingItem[];
 }
 
+export interface EvaluationItemDetail {
+  itemId: number;
+  pergunta: string;
+  nota: number;
+  notaMaxima: number;
+  peso: number;
+  isCritical: boolean;
+  justificativa?: string;
+  trechoReferencia?: string;
+}
+
+export interface AppealView {
+  id: number;
+  evaluationId: number;
+  agentId: number;
+  agentName?: string;
+  interactionId?: number;
+  reason: string;
+  status: 'PENDENTE' | 'APROVADA' | 'REJEITADA' | 'CANCELADA';
+  supervisorNotes?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt: string;
+}
+
+export interface CreateAppealRequest {
+  reason: string;
+}
+
+export interface ReviewAppealRequest {
+  status: 'APROVADA' | 'REJEITADA';
+  supervisorNotes?: string;
+  newScore?: number;
+}
+
+export interface CoachingPlanView {
+  id: number;
+  agentId: number;
+  agentName?: string;
+  scorecardItemId?: number;
+  scorecardItemQuestion?: string;
+  evaluationId?: number;
+  title: string;
+  description: string;
+  actionItems?: string;
+  targetScore?: number;
+  status: 'EM_ANDAMENTO' | 'CONCLUIDO' | 'CANCELADO';
+  deadline?: string;
+  createdBy?: string;
+  completedAt?: string;
+  createdAt: string;
+}
+
+export interface CreateCoachingPlanRequest {
+  agentId: number;
+  scorecardItemId?: number;
+  evaluationId?: number;
+  title: string;
+  description: string;
+  actionItems?: string;
+  targetScore?: number;
+  deadline?: string;
+}
+
+export interface UpdateCoachingStatusRequest {
+  status: 'EM_ANDAMENTO' | 'CONCLUIDO' | 'CANCELADO';
+}
+
+export interface DesktopEvaluationDetailView {
+  evaluationId: number;
+  audioFileId: number;
+  interactionId?: number;
+  callDateTime?: string;
+  ani?: string;
+  queueName?: string;
+  notaTotal: number;
+  isFailed: boolean;
+  failReason?: string;
+  scorecardName: string;
+  items: EvaluationItemDetail[];
+  appeal?: AppealView | null;
+  transcript?: string;
+}
+
 // Painel de supervisão (Fase 6) — GET /api/v1/callcenter/supervision/snapshot
 // Fase 15.1 — chamador em espera ao vivo (AMI QueueStatus).
 export interface WaitingCallerView {
