@@ -1,203 +1,81 @@
-# VoipIA
+# VoipIA Enterprise
 
-Sistema de telefonia inteligente integrando **Asterisk 21 LTS + IA (Google Gemini)** em Docker, com três módulos funcionais, plataforma de agentes de automação e dashboard em tempo real.
-
-| Módulo | Descrição |
-|--------|-----------|
-| 🎫 **Módulo 1** | URA inteligente que abre chamados no Jira Cloud via voz |
-| 📞 **Módulo 2** | Testes automáticos de conectividade de números telefônicos |
-| 🚨 **Módulo 3** | Alertas de infraestrutura via Zabbix → ligação + Telegram |
-| 🤖 **Agentes** | Plataforma de automação com agentes IA (SSH, Web, DB, Logs) |
+Sistema corporativo de telefonia inteligente, URA conversacional com inteligência artificial generativa em tempo real (**Google Gemini 2.5 Flash**), Call Center omnicanal, Speech Analytics (*Insights*), plataforma de agentes de automação e Softphone WebRTC em Docker sobre **Asterisk 21 LTS + Spring Boot 3.3 + FastAPI + React 18 + PostgreSQL 16 (pgvector)**.
 
 ---
 
-## Stack
+## 📚 Documentação Oficial
 
-| Camada | Tecnologia |
-|--------|-----------|
-| PBX | Asterisk 21 LTS — chan_pjsip + app_audiosocket + WebRTC |
-| Backend | Spring Boot 3.3 (Java 21) — WAR no Tomcat 11 + WebSocket STOMP |
-| Frontend | React 18 + TypeScript + Recharts + Softphone WebRTC (JsSIP) |
-| Agentes | FastAPI + Python 3.12 asyncio |
-| IA | Google Gemini 2.5 Flash — STT + LLM + TTS + Function Calling |
-| Banco | PostgreSQL 16 — Flyway V1–V14 (Telecom) + migrate.py (Agentes) |
-| Proxy | Caddy 2 — TLS automático (Let's Encrypt) |
-| Segurança | Fail2ban + nftables (lockdown SIP) |
-| Infra | Docker Compose — 8 containers em rede `172.16.7.0/24` |
+O repositório segue o padrão corporativo unificado de documentação:
 
----
+1. **[`docs/MANUAL_DO_USUARIO.md`](docs/MANUAL_DO_USUARIO.md)** — Manual do usuário completo com explicação detalhada de cada tela, menus operacionais, softphone e exemplos práticos.
+2. **[`docs/REFERENCIA_TECNICA.md`](docs/REFERENCIA_TECNICA.md)** — Manual de engenharia de software, Asterisk 21 LTS, protocolo AudioSocket, Clean Architecture Spring Boot 3.3, FastAPI, React 18 SPA, WebRTC e pgvector.
+3. **[`docs/MATRIZ_DE_CONECTIVIDADE.md`](docs/MATRIZ_DE_CONECTIVIDADE.md)** — Matriz completa de rede, portas internas/externas, regras de firewall para Ubuntu (UFW) e Oracle Linux 9 (Firewalld), e domínios Google Gemini / Antigravity AGY.
+4. **[`docs/DOCUMENTACAO_DAS_APIS.md`](docs/DOCUMENTACAO_DAS_APIS.md)** — Catálogo completo das APIs REST, WebSockets STOMP, sinalização SIP WebRTC, AudioSocket TCP e Asterisk AMI/ARI.
+5. **[`docs/ARQUITETURA.md`](docs/ARQUITETURA.md)** — Arquitetura de software e infraestrutura, diagramas Mermaid, DevSecOps, Threat Model e benchmark comparativo de mercado.
+6. **[`docs/IMPLANTACAO.md`](docs/IMPLANTACAO.md)** — Guia passo a passo de implantação para Ubuntu e Oracle Linux 9, runbook de validação, backup e rollback.
 
-## Requisitos
-
-- Ubuntu 22.04 LTS ou 24.04 LTS
-- Docker 24+ com Compose v2
-- Git
-- Domínio com DNS apontando para o VPS (para TLS automático do Caddy)
+### Governança & Estado da Arte:
+- **[`docs/STATUS_DO_SISTEMA.md`](docs/STATUS_DO_SISTEMA.md)** — Status em tempo real dos serviços, containers Docker, portas e checklist operacional para Go-Live.
+- **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — Histórico de versões concluídas e marcos estratégicos de evolução.
+- **[`docs/ROTEIRO_TREINAMENTO_E_APRESENTACAO.md`](docs/ROTEIRO_TREINAMENTO_E_APRESENTACAO.md)** — Roteiro executivo e operacional para apresentações, treinamentos e demonstrações.
 
 ---
 
-## Instalação rápida
+## 🚀 Instalação Rápida Universal (Ubuntu / Oracle Linux 9)
 
 ```bash
-curl -fsSL https://app.voiphash.com.br/install.sh | bash
+# Executa o instalador automatizado com auto-cura e auto-detecção de SO:
+sudo ./install-unified.sh
 ```
 
-Ou manualmente:
+Ou via script padrão:
+```bash
+sudo ./install.sh
+```
+
+---
+
+## 💻 Desenvolvimento e Operação Local
 
 ```bash
+# 1. Clonar e configurar ambiente
 git clone https://github.com/kaiohsc2017/VoipIA.git /opt/VoipIA
 cd /opt/VoipIA
-cp .env.example .env
-# Edite o .env com suas credenciais
+cp .env.example env/.env
+
+# 2. Subir todos os containers via Docker Compose
 docker compose up -d --build
+
+# 3. Acompanhar logs dos serviços centrais
+docker compose logs -f voipia-backend voipia-asterisk voipia-ai-agent
 ```
 
 ---
 
-## Acessos
-
-| Serviço | URL |
-|---------|-----|
-| Painel Telecom | https://app.voiphash.com.br |
-| Plataforma Agentes | https://app.voiphash.com.br/agents/ |
-| Documentação | https://app.voiphash.com.br/docs/ |
-
----
-
-## Containers e IPs
-
-| IP | Container | Serviço |
-|----|-----------|---------|
-| `172.16.7.10` | `voipia-caddy` | Proxy reverso HTTPS |
-| `172.16.7.11` | `voipia-postgres` | PostgreSQL 16 |
-| `172.16.7.12` | `voipia-asterisk` | Asterisk 21 LTS |
-| `172.16.7.13` | `voipia-ai-agent` | Agente IA (AudioSocket) |
-| `172.16.7.14` | `voipia-backend` | Spring Boot API |
-| `172.16.7.15` | `voipia-frontend` | React + Nginx |
-| `172.16.7.16` | `voipia-agents-api` | FastAPI Agentes |
-| host | `voipia-security` | Fail2ban + nftables |
-
----
-
-## Estrutura do Repositório
+## 🏛️ Estrutura de Diretórios
 
 ```
-VoipIA/
-├── asterisk/           # Asterisk 21 — Dockerfile + configs (pjsip, extensions, rtp)
-├── ai-agent/           # Agente IA Python — AudioSocket server (STT → LLM → TTS)
-├── backend/            # Spring Boot — API REST + WebSocket + Flyway migrations
-├── frontend/           # React 18 — SPA + Softphone WebRTC + Nginx
-├── agents-platform/    # Plataforma de Agentes
-│   ├── backend/        # FastAPI — agentes, execuções, scheduler, secrets
-│   └── frontend/       # React 18 UMD — interface dos agentes (servida em /agents/)
-├── security/           # Fail2ban + nftables — lockdown SIP
-├── database/migrations # Flyway SQL (V1–V14)
-├── docs/               # Documentação HTML (deploy-ubuntu, deploy-oracle-linux)
-├── tools/              # Ferramentas CLI (ver abaixo)
-├── docker-compose.yml  # Orquestração completa
-├── Caddyfile           # Configuração do proxy reverso
-└── .env.example        # Template de variáveis de ambiente
+/opt/VoipIA/
+├── asterisk/             # Asterisk 21 LTS — Dockerfile + configs (PJSIP, RTP, Dialplan, AMI)
+├── ai-agent/             # Agente de IA Python 3.12 — Servidor AudioSocket TCP + Google Gemini
+├── backend/              # Backend Spring Boot 3.3 (Java 21) — Clean Architecture + Flyway V1-V14
+├── frontend/             # Frontend React 18 SPA + Softphone WebRTC (JsSIP) + Nginx
+├── callcenter-platform/  # Módulo Call Center — Desktop do Agente, Filas, Supervisão e Flow Builder
+├── insights-platform/    # Módulo Insights — Speech Analytics, Scorecards de Qualidade e Transcrição
+├── agents-platform/      # Plataforma de Agentes de Automação — FastAPI + Tarefas SSH/Web/DB/Logs
+├── coturn/               # Servidor Coturn STUN/TURN — NAT Traversal para WebRTC
+├── security/             # Fail2ban + nftables — Lockdown SIP e proteção anti-força bruta
+├── docs/                 # Suíte unificada de documentação técnica corporativa
+├── tools/                # Utilitários de CLI e agentes RAG locais
+├── install-unified.sh    # Script universal de auto-instalação
+└── docker-compose.yml    # Orquestração completa dos 10 containers da stack
 ```
 
 ---
 
-## Ferramentas CLI (`tools/`)
+## ✅ Estado do Projeto
 
-### `asteriskia-agent.py` — Agente CLI com memória PostgreSQL
-
-Agente conversacional especialista no projeto VoipIA, com memória persistente via RAG (PostgreSQL + pg_trgm). Útil para diagnóstico, troubleshooting e desenvolvimento direto no VPS.
-
-**Pré-requisitos:**
-```bash
-pip install google-genai psycopg2-binary
-```
-
-**Uso:**
-```bash
-python3 tools/asteriskia-agent.py
-```
-
-O agente lê automaticamente `GEMINI_API_KEY` e `DATABASE_URL` do `.env` do projeto.
-
-**Capacidades:**
-- Memória persistente entre sessões (5 tabelas PostgreSQL via pg_trgm)
-  - `agent_fixes` — correções aplicadas e resultado
-  - `agent_error_patterns` — padrões de erro e causas-raiz conhecidas
-  - `agent_preferences` — preferências do usuário
-  - `agent_project_state` — estado atual do projeto
-  - `agent_sessions` — resumo de sessões anteriores
-- Function calling Gemini para persistir/recuperar memória automaticamente
-- Papéis: Desenvolvedor Sênior · Arquiteto DevOps · Engenheiro Linux
-- Sumarização automática de sessão ao encerrar
-
-### `agente-google.py` — Agente Google Gemini com memória PostgreSQL
-
-Variante do `asteriskia-agent.py` que usa a SDK `google-genai` diretamente.
-Possui o mesmo sistema de memória RAG via PostgreSQL + pg_trgm.
-
-**Pré-requisitos:**
-```bash
-pip install google-genai psycopg2-binary python-dotenv
-```
-
-**Uso:**
-```bash
-python3 tools/agente-google.py
-```
-
-Lê `GEMINI_API_KEY` e `DATABASE_URL` automaticamente do `.env` do projeto.
-
----
-
-## Variáveis de Ambiente principais
-
-| Variável | Descrição |
-|----------|-----------|
-| `SIP_PUBLIC_IP` | IP público do VPS — **obrigatório** para RTP/WebRTC funcionar |
-| `GEMINI_API_KEY` | Chave Google AI Studio |
-| `BACKEND_JWT_SECRET` | Secret JWT (32+ chars) — compartilhado com agents-backend |
-| `POSTGRES_PASSWORD` | Senha do banco unificado |
-| `SIP_TRUNK_HOST` | IP do tronco SIP (`186.233.141.64`) |
-| `JIRA_ISSUE_TYPE` | Tipo de issue criado pela URA (ex: `Task`, `Support`) |
-| `VITE_STUN_URL` | Servidor STUN para ICE do softphone WebRTC |
-
-> ⚠️ Variáveis `VITE_*` são resolvidas em **build time**. Ao alterar, rebuilde o frontend:
-> ```bash
-> docker compose build frontend && docker compose up -d frontend
-> ```
-
----
-
-## Comandos úteis
-
-```bash
-# Status de todos os containers
-docker compose ps
-
-# Logs em tempo real
-docker compose logs -f <serviço>
-
-# Verificar SIP_PUBLIC_IP injetado no Asterisk
-docker exec voipia-asterisk grep "external_media_address" /etc/asterisk/pjsip.conf
-
-# Recarregar PJSIP sem reiniciar
-docker exec voipia-asterisk asterisk -rx "module reload res_pjsip.so"
-
-# Status do lockdown SIP
-systemctl status voipia-lockdown
-
-# Checar regras nftables
-nft list chain ip filter DOCKER-USER 2>/dev/null
-
-# Recarregar Caddyfile (sem downtime)
-curl -X POST "http://localhost:2019/load" \
-  -H "Content-Type: text/caddyfile" \
-  --data-binary @/opt/VoipIA/Caddyfile
-```
-
----
-
-## Documentação completa
-
-- [Deploy Ubuntu 22/24](https://app.voiphash.com.br/docs/deploy-ubuntu.html)
-- [Plataforma de Agentes](https://app.voiphash.com.br/agents/docs.html)
+* **Software:** 100% Concluído, Integrado e Operacional.
+* **Docker:** Containers em execução e saudáveis (`voipia-caddy`, `voipia-backend`, `voipia-frontend`, `voipia-asterisk`, `voipia-ai-agent`, `voipia-insights`, `voipia-agents-api`, `voipia-coturn`, `voipia-postgres`, `voipia-security`).
+* **Segurança:** Padrão OWASP ASVS Nível 2 / Zero Trust / Zero Secrets em conformidade estrita.
