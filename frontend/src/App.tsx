@@ -103,19 +103,26 @@ const PAGE_RESOURCE: Partial<Record<Page, string>> = {
   ccDesktop:     'callcenter.desktop',
   ccSupervisao:  'callcenter.supervisao',
   ccFluxos:      'callcenter.fluxos',
+  ccChat:        'callcenter.chat',
+  ccKb:          'callcenter.kb',
+  ccIaAgentes:   'callcenter.ia_agentes',
+  ccConfig:      'callcenter.config',
 };
 
 const LINK_RESOURCE: Partial<Record<Page, string>> = {
   insCalls: 'telecom.insights_link', insDashboard: 'telecom.insights_link', insProcessing: 'telecom.insights_link',
   insScorecards: 'telecom.insights_link', insReports: 'telecom.insights_link', insUploads: 'telecom.insights_link',
   ccAgentes: 'telecom.callcenter_link', ccFilas: 'telecom.callcenter_link', ccSkills: 'telecom.callcenter_link',
-  ccWfm: 'telecom.callcenter_link',
-  ccGravacoes: 'telecom.callcenter_link', ccDesktop: 'telecom.callcenter_link', ccSupervisao: 'telecom.callcenter_link',
-  ccFluxos: 'telecom.callcenter_link',
+  ccWfm: 'telecom.callcenter_link', ccGravacoes: 'telecom.callcenter_link', ccDesktop: 'telecom.callcenter_link',
+  ccSupervisao: 'telecom.callcenter_link', ccFluxos: 'telecom.callcenter_link', ccChat: 'telecom.callcenter_link',
+  ccKb: 'telecom.callcenter_link', ccIaAgentes: 'telecom.callcenter_link', ccConfig: 'telecom.callcenter_link',
 };
 
 const INSIGHTS_SUBPAGES: Page[] = ['insCalls', 'insDashboard', 'insProcessing', 'insScorecards', 'insReports', 'insUploads'];
-const CALLCENTER_SUBPAGES: Page[] = ['ccAgentes', 'ccFilas', 'ccSkills', 'ccWfm', 'ccGravacoes', 'ccDesktop', 'ccSupervisao', 'ccFluxos'];
+const CALLCENTER_SUBPAGES: Page[] = [
+  'ccAgentes', 'ccFilas', 'ccSkills', 'ccWfm', 'ccGravacoes', 'ccDesktop',
+  'ccSupervisao', 'ccFluxos', 'ccChat', 'ccKb', 'ccIaAgentes', 'ccConfig',
+];
 const FINANCEIRO_SUBPAGES: Page[] = ['finUra', 'finInsights', 'finEnvios'];
 
 const INSIGHTS_PAGE_TO_TAB: Record<string, string> = {
@@ -130,10 +137,12 @@ const INSIGHTS_TAB_TO_PAGE: Record<string, Page> = {
 const CALLCENTER_PAGE_TO_TAB: Record<string, string> = {
   ccAgentes: 'agentes', ccFilas: 'filas', ccSkills: 'skills', ccWfm: 'wfm',
   ccGravacoes: 'gravacoes', ccDesktop: 'desktop', ccSupervisao: 'supervisao', ccFluxos: 'fluxos',
+  ccChat: 'chat', ccKb: 'kb', ccIaAgentes: 'iaAgentes', ccConfig: 'configuracoes',
 };
 const CALLCENTER_TAB_TO_PAGE: Record<string, Page> = {
   agentes: 'ccAgentes', filas: 'ccFilas', skills: 'ccSkills', wfm: 'ccWfm',
   gravacoes: 'ccGravacoes', desktop: 'ccDesktop', supervisao: 'ccSupervisao', fluxos: 'ccFluxos',
+  chat: 'ccChat', kb: 'ccKb', iaAgentes: 'ccIaAgentes', configuracoes: 'ccConfig',
 };
 
 const FINANCEIRO_PAGE_TO_TAB: Record<string, string> = {

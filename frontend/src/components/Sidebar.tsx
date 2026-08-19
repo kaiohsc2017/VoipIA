@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Headset, Lightbulb, Wallet, PhoneForwarded, UsersRound,
   Settings, KeyRound, ClipboardList, Tag, LogOut, ChevronDown, ChevronRight,
   PhoneCall, TrendingUp, FileText, Upload, Send, Users, ListOrdered, Tags,
-  Disc, MonitorPlay, Workflow, Calculator,
+  Disc, MonitorPlay, Workflow, Calculator, MessageSquare, BookOpen, Bot, Sliders,
 } from 'lucide-react';
 import { canRead } from '../api/client';
 import { RELEASES } from '../data/releases';
@@ -14,7 +14,8 @@ const CURRENT_VERSION = RELEASES[RELEASES.length - 1].version;
 type Page = 'dashboard' | 'modulo1' | 'users' | 'settings' | 'audit' | 'accessGroups' | 'release'
   | 'finUra' | 'finInsights' | 'finEnvios'
   | 'insCalls' | 'insDashboard' | 'insProcessing' | 'insScorecards' | 'insReports' | 'insUploads'
-  | 'ccAgentes' | 'ccFilas' | 'ccSkills' | 'ccWfm' | 'ccGravacoes' | 'ccDesktop' | 'ccSupervisao' | 'ccFluxos';
+  | 'ccAgentes' | 'ccFilas' | 'ccSkills' | 'ccWfm' | 'ccGravacoes' | 'ccDesktop' | 'ccSupervisao' | 'ccFluxos'
+  | 'ccChat' | 'ccKb' | 'ccIaAgentes' | 'ccConfig';
 
 interface SidebarProps {
   currentPage: Page;
@@ -88,6 +89,10 @@ const NAV_ITEMS: NavEntry[] = [
       { page: 'ccDesktop',   icon: LayoutDashboard, label: 'Desktop do Agente', section: 'MÓDULOS', resource: 'callcenter.desktop' },
       { page: 'ccSupervisao', icon: MonitorPlay, label: 'Supervisão', section: 'MÓDULOS', resource: 'callcenter.supervisao' },
       { page: 'ccFluxos',  icon: Workflow,   label: 'Fluxos',  section: 'MÓDULOS', resource: 'callcenter.fluxos' },
+      { page: 'ccChat',    icon: MessageSquare, label: 'Chat Omnichannel', section: 'MÓDULOS', resource: 'callcenter.chat' },
+      { page: 'ccKb',      icon: BookOpen,   label: 'Base de Conhecimento', section: 'MÓDULOS', resource: 'callcenter.kb' },
+      { page: 'ccIaAgentes', icon: Bot,      label: 'Agentes de IA', section: 'MÓDULOS', resource: 'callcenter.ia_agentes' },
+      { page: 'ccConfig',  icon: Sliders,    label: 'Pausas & Tabulações', section: 'MÓDULOS', resource: 'callcenter.config' },
     ],
   },
   { page: 'users',        icon: UsersRound,    label: 'Usuários',           section: 'CADASTROS', resource: 'telecom.users'        },

@@ -135,6 +135,7 @@ export default function App() {
     { id: 'agentes' },
     { id: 'filas' },
     { id: 'skills' },
+    { id: 'wfm' },
     { id: 'gravacoes' },
     { id: 'desktop' },
     { id: 'supervisao' },
