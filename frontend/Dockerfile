@@ -61,26 +61,7 @@ ENV VITE_API_URL=$VITE_API_URL
 
 RUN npm run build
 
-# ---------- Stage 3: Build da SPA de Agentes ----------
-FROM node:22-alpine AS agents-builder
-
-WORKDIR /app
-
-COPY agents-platform/frontend/package.json agents-platform/frontend/package-lock.json* ./
-RUN npm ci --silent
-
-COPY agents-platform/frontend/ .
-
-# VITE_API_URL aponta pro backend Telecom (login + streaming-token do WS de
-# alertas) — o backend próprio de Agentes (FastAPI) é acessado via
-# VITE_AGENTS_API_URL, default '/agents' (relativo, mesma origem, atrás do
-# Caddy @agents-api) — não precisa de build arg em produção.
-ARG VITE_API_URL=https://app.voiphash.com.br/api/v1
-ENV VITE_API_URL=$VITE_API_URL
-
-RUN npm run build
-
-# ---------- Stage 4: Build da SPA de Call Center ----------
+# ---------- Stage 3: Build da SPA de Call Center ----------
 FROM node:22-alpine AS callcenter-builder
 
 WORKDIR /app
@@ -97,7 +78,7 @@ ENV VITE_API_URL=$VITE_API_URL
 
 RUN npm run build
 
-# ---------- Stage 5: Nginx ----------
+# ---------- Stage 4: Nginx ----------
 FROM nginx:1.27-alpine
 
 # Remove default config
@@ -111,9 +92,6 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copia build da SPA de Insights
 COPY --from=insights-builder /app/dist /usr/share/nginx/html/insights
-
-# Copia build da SPA de Agentes
-COPY --from=agents-builder /app/dist /usr/share/nginx/html/agents
 
 # Copia build da SPA de Call Center
 COPY --from=callcenter-builder /app/dist /usr/share/nginx/html/callcenter

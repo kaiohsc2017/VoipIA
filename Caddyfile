@@ -45,41 +45,6 @@ app.voiphash.com.br {
 		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' wss:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
 	}
 
-	# ── Agentes — API (FastAPI) ───────────────────────────────────────────────
-	# Prefixo /agents é removido antes de encaminhar ao backend de agentes.
-	@agents-api {
-		path /agents/api/*
-	}
-	handle @agents-api {
-		uri strip_prefix /agents
-		# AsteriskIA: reverse_proxy asteriskia-agents-api:8000
-		reverse_proxy voipia-agents-api:8000
-	}
-
-	# ── Agentes — WebSocket (logs em tempo real) ──────────────────────────────
-	@agents-ws {
-		header Connection *Upgrade*
-		header Upgrade websocket
-		path /agents/ws/*
-	}
-	handle @agents-ws {
-		uri strip_prefix /agents
-		# AsteriskIA: reverse_proxy asteriskia-agents-api:8000
-		reverse_proxy voipia-agents-api:8000
-	}
-
-	# ── Agentes — Frontend (React SPA servida pelo nginx do frontend) ─────────
-	# NÃO remover o prefixo /agents — o nginx tem location /agents/ com alias
-	# para servir os arquivos corretos. Se strip_prefix fosse feito aqui,
-	# o nginx receberia "/" e serviria o dashboard Telecom.
-	@agents-ui {
-		path /agents*
-	}
-	handle @agents-ui {
-		# AsteriskIA: reverse_proxy asteriskia-frontend:80
-		reverse_proxy voipia-frontend:80
-	}
-
 	# ── Insights — Frontend (React SPA servida pelo nginx do frontend) ────────
 	# Sem @insights-api/@insights-ws: o backend do Insights continua no Spring
 	# Boot (mesmo @api abaixo), diferente de Agentes que tem FastAPI dedicado.
