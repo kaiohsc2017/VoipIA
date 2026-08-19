@@ -206,35 +206,52 @@ Solução completa de atendimento receptivo e ativo para contact centers corpora
 * Central de mensagens unificada atendendo canais como **Telegram Bot** e **Web Chat Widget**.
 * Sessões de navegação assistida (*Co-Browsing*) com consentimento do cliente para suporte técnico avançado.
 
-### 6.7. Base de Conhecimento RAG com pgvector
+### 6.7. Base de Conhecimento RAG com pgvector & Busca Semântica em Gravações
 * Mecanismo de busca semântica em documentos corporativos alimentado pelo **PostgreSQL 16 + pgvector** para suporte automatizado aos agentes de atendimento.
+* Pesquisa inteligente por similaridade de cosseno (HNSW) sobre todo o acervo histórico de gravações de voz.
+
+### 6.8. Copiloto Realtime no Desktop do Agente
+* Assistente de inteligência artificial embarcado no Desktop do Operador que escuta o atendimento em tempo real e entrega recomendações contextuais, artigos de apoio e respostas sugeridas via WebSocket.
+
+### 6.9. Digital Twin de Filas & WFM Preditivo (Erlang-C)
+* Painel preditivo para cálculo de intensidade de tráfego (Erlangs), tempo médio de espera previsto e dimensionamento recomendado de agentes para atendimento das metas de SLA de cada fila.
 
 ---
 
-## 7. Módulo de Administração & Governança Corporativa
+## 7. Módulo de Sistema & Governança Corporativa
 
-### 7.1. Gestão de Usuários e Unidades de Negócio (BU)
+### 7.1. Configurações & Integrações Gerais
+* Gestão centralizada de chaves de provedores de IA (Google Gemini, OpenAI, Anthropic), parâmetros do Jira Cloud, Zabbix e Telegram com suporte a *hot-reload* e *Zero Secrets*.
+
+### 7.2. SSO & Identidade Corporativa (Microsoft Entra ID)
+* Painel de configuração nativo para autenticação corporativa via **OpenID Connect (OIDC)**:
+  * Application (Client) ID e Directory (Tenant) ID.
+  * Mascaramento seguro de Client Secret.
+  * Habilitação de auto-provisionamento de ramais SIP WebRTC no 1º login do usuário.
+  * Botão *"Entrar com Microsoft 365 / Entra ID"* integrado na tela de login.
+
+### 7.3. Gestão de Usuários e Unidades de Negócio (BU)
 * Criação e edição de contas de usuário.
 * Vinculação a uma ou mais Unidades de Negócio para controle de escopo multitenant.
 
-### 7.2. Grupos de Acesso & Matriz de Permissões RBAC Granular
+### 7.4. Grupos de Acesso & Matriz de Permissões RBAC Granular
 * Configuração de perfis de acesso com matriz de mais de 40 recursos granulares:
   * `telecom.*` — Visualização e gestão do módulo Telecom.
   * `callcenter.*` — Permissões de operador, supervisão, filas e gravações.
   * `insights.*` — Acesso a transcrições, scorecards e contestações.
   * `admin.*` — Acesso aos cadastros mestres e auditoria LGPD.
 
-### 7.3. Integração Active Directory / LDAP
+### 7.5. Integração Active Directory / LDAP
 * Sincronização periódica e provisionamento automático de usuários via AD/LDAP com mapeamento de grupos corporativos.
 
-### 7.4. Cadastro Telecom (0800, Troncos E1/DDR, Operadoras)
+### 7.6. Cadastro Telecom (0800, Troncos E1/DDR, Operadoras)
 * Gestão de rotas de entrada de números 0800 e números de regeneração.
 * Cadastro de operadoras de telefonia e parâmetros de sinalização SIP.
 
-### 7.5. Trilha de Auditoria LGPD & Logs de Segurança
+### 7.7. Trilha de Auditoria LGPD & Logs de Segurança
 * Relatório imutável de todas as ações executadas no sistema (quem, quando, qual IP, qual operação).
 
-### 7.6. Notas de Versão (Release Notes)
+### 7.8. Notas de Versão (Release Notes)
 * Registro histórico de todas as melhorias e correções implementadas em cada versão da plataforma.
 
 ---

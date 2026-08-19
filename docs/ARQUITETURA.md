@@ -1,7 +1,7 @@
 # 🏛️ Arquitetura de Software & Infraestrutura — VoipIA Enterprise
 
 > **Sistema:** VoipIA — Plataforma Corporativa de Telefonia IP, URA Conversacional com IA, Call Center Omnicanal & Speech Analytics  
-> **Versão Oficial:** v3.2 Enterprise (Asterisk 21 LTS + Spring Boot 3.3 + Python 3.12 + React + PostgreSQL 16 pgvector)  
+> **Versão Oficial:** v3.5 Enterprise (Asterisk 21 LTS + Spring Boot 3.3 + Python 3.12 + React + PostgreSQL 16 pgvector)  
 > **Classificação de Segurança:** OWASP ASVS Nível 2 / Zero Trust / Zero Secrets  
 > **Data de Atualização:** Agosto de 2026  
 
@@ -9,9 +9,9 @@
 
 ## 1. Visão Executiva da Arquitetura
 
-O **VoipIA** é o ecossistema corporativo de missão crítica projetado para unificar telefonia IP de alta densidade, inteligência artificial generativa conversacional em tempo real, plataforma de atendimento de Call Center omnicanal, auditoria e transcrição de gravações (*Speech Analytics / Insights*) e governança de custos e acessos.
+O **VoipIA** é o ecossistema corporativo de missão crítica projetado para unificar telefonia IP de alta densidade, inteligência artificial generativa conversacional em tempo real, plataforma de atendimento de Call Center omnicanal, dimensionamento preditivo WFM (Erlang-C), copiloto realtime, auditoria e transcrição de gravações com busca vetorial (*Speech Analytics / Insights*) e governança centralizada com SSO Microsoft Entra ID.
 
-O sistema opera em 10 containers Docker desacoplados sob uma rede bridge privada e isolada (`voipia-net: 172.16.8.0/24`), com proxy reverso de terminação TLS automática (Caddy 2), persistência relacional e vetorial no **PostgreSQL 16 com extensão pgvector**, e gateway de mídia WebRTC com **Coturn (STUN/TURN)**.
+O sistema opera em 10 containers Docker desacoplados sob uma rede bridge privada e isolada (`voipia-net: 172.16.8.0/24`), com proxy reverso de terminação TLS automática (Caddy 2), persistência relacional e vetorial no **PostgreSQL 16 com extensão pgvector (HNSW)**, e gateway de mídia WebRTC com **Coturn (STUN/TURN)**.
 
 ```mermaid
 flowchart TD
@@ -37,6 +37,7 @@ flowchart TD
         GeminiAI["🤖 Google Gemini 2.5 Flash / Vertex AI (STT + LLM + TTS)"]
         AlternativeAI["⚡ Provedores Alternativos (Anthropic, OpenAI, ElevenLabs, Grok)"]
         JiraCloud["🎫 Jira Cloud REST API v3"]
+        MicrosoftEntra["🏢 Microsoft Entra ID (OIDC / SAML SSO)"]
         ActiveDirectory["🏢 Active Directory / LDAPS (Porta 636)"]
         TelegramCloud["📱 Telegram Bot API"]
     end

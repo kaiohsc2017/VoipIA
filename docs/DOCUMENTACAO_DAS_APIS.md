@@ -99,6 +99,18 @@ curl -X POST https://app.voiphash.com.br/api/v1/auth/login \
 #### `POST /api/v1/auth/totp/verify`
 Valida o código de 6 dígitos gerado pelo aplicativo autenticador (Google Authenticator) utilizando o token temporário.
 
+#### `GET /api/v1/auth/sso/config`
+Retorna se o SSO está ativo e o nome de exibição do provedor para renderização na tela de login.
+
+#### `GET /api/v1/auth/sso/authorize-url`
+Gera a URL de autorização OpenID Connect (OIDC) com State e Nonce criptográficos para redirecionar o usuário para o Microsoft Entra ID.
+
+#### `POST /api/v1/auth/sso/callback`
+Processa o código de autorização (`code`) devolvido pela Microsoft, valida o ID Token com chave pública do Tenant, extrai email/nome, efetua auto-provisionamento de usuário/ramal SIP e emite o token JWT corporativo.
+
+#### `PUT /api/v1/auth/sso/admin/config`
+Permite aos administradores com permissão `PERM_WRITE_admin.sso` configurar Client ID, Client Secret, Tenant ID, Redirect URI e switch de auto-provisionamento.
+
 ---
 
 ### 3.2. URA & Telefonia (`/api/v1/ura` & `/api/v1/calls`)
@@ -194,12 +206,21 @@ Gerenciamento de sessões de chat omnicanal (Telegram e Web Widget), envio de me
 #### `POST /api/v1/callcenter/cobrowsing/sessions`
 Iniciação de sessão de navegação assistida e compartilhamento de tela com consentimento explícito do cliente.
 
+#### `GET /api/v1/callcenter/wfm/forecast` & `POST /api/v1/callcenter/wfm/queues/{queueId}/forecast/calculate`
+Dimensionamento preditivo de filas utilizando o motor matemático **Erlang-C**. Calcula em tempo real o tráfego em Erlangs, probabilidade de espera $P_w$, SLA previsto (%) e quantidade mínima de agentes recomendados para atender à meta de SLA e tempo de espera.
+
+#### `POST /api/v1/callcenter/copilot/recommendations` & `GET /api/v1/callcenter/copilot/logs`
+Mecanismo de assistência em tempo real para operadores de atendimento. Processa o contexto da chamada/chat e entrega recomendações contextuais, artigos de conhecimento e sugestões de resposta com broadcast automático via WebSocket.
+
 #### `POST /api/v1/callcenter/kb/query`
 Busca semântica na base de conhecimento usando vetores do **pgvector** e embeddings do Google Gemini.
 
 ---
 
 ### 3.4. Speech Analytics & Insights (`/api/v1/insights`)
+
+#### `POST /api/v1/insights/recordings/semantic-search`
+Pesquisa semântica vetorial sobre o histórico completo de gravações de voz. Utiliza indexação HNSW de alta performance com métrica de distância por cosseno `<=>` sobre o modelo de embeddings de 384 dimensões.
 
 #### `GET /api/v1/insights/calls`
 Lista gravações de voz processadas pela inteligência analítica com filtros de sentimento, scorecards e palavras de risco.
@@ -262,6 +283,7 @@ Consulta a trilha de auditoria imutável (quem realizou a ação, data/hora, end
   * `/topic/callcenter/queue-stats` — Volume de fila, chamadas em espera e tempo médio.
   * `/topic/callcenter/agent-status` — Mudanças de estado de operadores (Disponível, Em Chamada, Pausa).
   * `/topic/callcenter/chat/{sessionId}` — Mensagens de chat em tempo real para o operador.
+  * `/topic/callcenter/agent/{agentId}/copilot` — Assistência contextual do Copiloto IA transmitida em tempo real para o desktop do operador.
 
 ### 4.2. WebSockets SIP / WebRTC (Asterisk)
 * **Endpoint de Conexão:** `wss://app.voiphash.com.br/asterisk-ws`

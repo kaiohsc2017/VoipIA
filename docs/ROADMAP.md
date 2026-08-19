@@ -1,7 +1,7 @@
 # 🗺️ Roadmap de Evolução do Produto — VoipIA Enterprise
 
 > **Sistema:** VoipIA — Plataforma Corporativa de Telefonia IP, URA Conversacional com IA, Call Center Omnicanal & Speech Analytics  
-> **Versão Atual:** v3.2 Enterprise  
+> **Versão Atual:** v3.5 Enterprise  
 > **Data de Atualização:** Agosto de 2026  
 
 ---
@@ -38,31 +38,27 @@ O **VoipIA** é posicionado como a plataforma corporativa de telecomunicações 
 * Matriz de permissões RBAC granular com mais de 40 recursos e suporte multitenant por BU.
 * Hardening de segurança OWASP ASVS Nível 2 e proxy Caddy com terminação TLS 1.3.
 
+### 🏁 Versão 3.5 (Evoluções Corporativas, WFM, pgvector & Copiloto) — Concluída
+* **Digital Twin & WFM Preditivo (Erlang-C):** Cálculo em tempo real de intensidade de tráfego, probabilidade de espera $P_w$, SLA previsto e dimensionamento preditivo de agentes por fila.
+* **Busca Semântica Completa de Gravações (pgvector):** Consultas vetoriais nativas por similaridade de cosseno com índice HNSW sobre o acervo histórico de chamadas.
+* **SSO Corporativo via Microsoft Entra ID (OIDC):** Autenticação unificada com suporte a OpenID Connect, auto-provisionamento de ramais SIP WebRTC e gestão centralizada.
+* **Copiloto Realtime no Desktop do Agente:** Assistente de IA que entrega artigos de apoio e respostas sugeridas via WebSocket STOMP em tempo real.
+* **Consolidação do Menu "Sistema & Governança":** Agrupamento administrativo de Configurações, SSO, RBAC e Trilha de Auditoria.
+
 ---
 
-## 3. Próximos Marcos de Evolução (H2 2026 / 2027)
+## 3. Próximo Marco Estratégico (H2 2026 / 2027)
 
 ```mermaid
 gantt
     title Cronograma Estratégico de Evolução VoipIA
     dateFormat  YYYY-MM
-    section v3.5
-    Digital Twin de Filas & Previsão WFM       :2026-09, 2026-10
-    Busca Semântica Avançada de Áudios        :2026-10, 2026-11
-    section v4.0
-    Clustering de Asterisk em Alta Disponibilidade (HA) :2026-11, 2027-01
-    SSO Corporativo via Microsoft Entra ID (SAML/OIDC)  :2027-01, 2027-02
-    section v4.5
-    Copiloto em Tempo Real para o Atendente (Realtime Assist) :2027-02, 2027-04
+    section v4.0 Enterprise HA
+    Clustering Asterisk HA Ativo-Ativo (Kamailio / OpenSIPS) :2026-11, 2027-02
+    Replicação Distribuída de Gravações & Mídia (Ceph/NFS)   :2027-01, 2027-03
 ```
 
-### 🚀 Versão 3.5 (Previsão: Outubro de 2026)
-* **Digital Twin & Previsão Preditiva de Filas:** Algoritmos matemáticos de fila para antecipar estouros de SLA e alertar supervisores com antecedência.
-* **Busca Semântica Completa de Gravações:** Pesquisa livre por intenção e conceitos em toda a base histórica de chamadas usando vetores do pgvector.
-
-### 🚀 Versão 4.0 (Previsão: Janeiro de 2027)
-* **Clustering Asterisk HA Ativo-Ativo:** Suporte a múltiplos nós de Asterisk com balanceamento de carga SIP via Kamailio / OpenSIPS.
-* **SSO Corporativo Microsoft Entra ID:** Autenticação unificada com Single Sign-On corporativo (OIDC + PKCE).
-
-### 🚀 Versão 4.5 (Previsão: Abril de 2027)
-* **Copiloto Realtime no Desktop do Agente:** Assistente de IA que escuta a chamada em tempo real e sugere artigos da base de conhecimento e respostas na tela do operador durante o atendimento.
+### 🚀 Versão 4.0 (Clustering Asterisk HA Ativo-Ativo)
+* **Plano Arquitetural Já Estruturado:** Detalhado em [`docs/PLANO_CLUSTERING_ASTERISK_HA.md`](PLANO_CLUSTERING_ASTERISK_HA.md).
+* **Topologia:** Balanceamento de múltiplos nós Asterisk via Kamailio / OpenSIPS com Keepalived VIP (VRRP), DMQ para sincronização de sessões em memória e banco ARA unificado.
+* **Armazenamento de Mídia em HA:** Armazenamento compartilhado de gravações via NFSv4/CephFS.

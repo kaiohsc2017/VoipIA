@@ -18,20 +18,19 @@ O repositório segue o padrão corporativo unificado de documentação:
 ### Governança & Estado da Arte:
 - **[`docs/STATUS_DO_SISTEMA.md`](docs/STATUS_DO_SISTEMA.md)** — Status em tempo real dos serviços, containers Docker, portas e checklist operacional para Go-Live.
 - **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — Histórico de versões concluídas e marcos estratégicos de evolução.
+- **[`docs/PLANO_CLUSTERING_ASTERISK_HA.md`](docs/PLANO_CLUSTERING_ASTERISK_HA.md)** — Plano arquitetural completo de clustering Asterisk HA Ativo-Ativo com Kamailio / OpenSIPS.
 - **[`docs/ROTEIRO_TREINAMENTO_E_APRESENTACAO.md`](docs/ROTEIRO_TREINAMENTO_E_APRESENTACAO.md)** — Roteiro executivo e operacional para apresentações, treinamentos e demonstrações.
 
 ---
 
-## 🚀 Instalação Rápida Universal (Ubuntu / Oracle Linux 9)
+## 🚀 Instalação Rápida (Ubuntu / Oracle Linux 9)
 
 ```bash
-# Executa o instalador automatizado com auto-cura e auto-detecção de SO:
-sudo ./install-unified.sh
-```
-
-Ou via script padrão:
-```bash
+# Ubuntu 22.04 / 24.04 LTS:
 sudo ./install.sh
+
+# Oracle Linux 9 (UEK / RHEL 9):
+sudo ./install-oracle9.sh
 ```
 
 ---
@@ -59,7 +58,7 @@ docker compose logs -f voipia-backend voipia-asterisk voipia-ai-agent
 /opt/VoipIA/
 ├── asterisk/             # Asterisk 21 LTS — Dockerfile + configs (PJSIP, RTP, Dialplan, AMI)
 ├── ai-agent/             # Agente de IA Python 3.12 — Servidor AudioSocket TCP + Google Gemini
-├── backend/              # Backend Spring Boot 3.3 (Java 21) — Clean Architecture + Flyway V1-V90
+├── backend/              # Backend Spring Boot 3.3 (Java 21) — Clean Architecture + Flyway V1-V91
 ├── frontend/             # Frontend React SPA + Softphone WebRTC (JsSIP) + Nginx
 ├── callcenter-platform/  # Módulo Call Center — Desktop do Agente, Filas, Supervisão e Flow Builder
 ├── insights-platform/    # Módulo Insights — Speech Analytics, Scorecards de Qualidade e Transcrição
@@ -67,7 +66,8 @@ docker compose logs -f voipia-backend voipia-asterisk voipia-ai-agent
 ├── security/             # Fail2ban + nftables — Lockdown SIP e proteção anti-força bruta
 ├── docs/                 # Suíte unificada de documentação técnica corporativa
 ├── tools/                # Utilitários de CLI e agentes RAG locais
-├── install-unified.sh    # Script universal de auto-instalação
+├── install.sh            # Script de instalação para Ubuntu
+├── install-oracle9.sh    # Script de instalação para Oracle Linux 9
 └── docker-compose.yml    # Orquestração completa dos 10 containers da stack
 ```
 
@@ -75,6 +75,7 @@ docker compose logs -f voipia-backend voipia-asterisk voipia-ai-agent
 
 ## ✅ Estado do Projeto
 
-* **Software:** 100% Concluído, Integrado, Saneado e Operacional.
+* **Software:** 100% Concluído, Integrado, Saneado e Operacional (v3.5 Enterprise).
+* **Testes Automatizados:** 983 testes unitários e de integração aprovados com 100% de sucesso.
 * **Docker:** 10 containers em execução e saudáveis (`voipia-caddy`, `voipia-backend`, `voipia-frontend`, `voipia-asterisk`, `voipia-ai-agent`, `voipia-insights`, `voipia-docker-helper`, `voipia-coturn`, `voipia-postgres`, `voipia-security`).
 * **Segurança:** Padrão OWASP ASVS Nível 2 / Zero Trust / Zero Secrets em conformidade estrita.

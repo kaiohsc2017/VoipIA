@@ -1,7 +1,7 @@
 # 📊 VoipIA — Status do Sistema & Pendências
 
 > **Data de Atualização:** 19 de Agosto de 2026  
-> **Versão Oficial:** v3.2 Enterprise  
+> **Versão Oficial:** v3.5 Enterprise  
 > **Status Geral do Software:** ✅ 100% Concluído, Saneado e Validado  
 > **Status dos Serviços (Docker):** ✅ 100% Operacional e Saudável (*Healthy*)  
 
@@ -20,17 +20,17 @@
 | **Speech Analytics (`voipia-insights`)** | Python 3.12 Batch Analytics | Container `voipia-insights` | Batch Process | ✅ Saudável & Ativo |
 | **Gateway Docker Helper (`voipia-docker-helper`)** | Python 3.12 Socket Gateway | Container `voipia-docker-helper` | 8090 | ✅ Saudável & Ativo |
 | **STUN/TURN Server (`voipia-coturn`)** | Coturn 4.6 | Container `voipia-coturn` (Host) | 3478, 5349, 49152-49652 | ✅ Saudável & Ativo |
-| **Banco de Dados (`voipia-postgres`)** | PostgreSQL 16 + pgvector | Container `voipia-postgres` | 5432 (127.0.0.1) | ✅ Saudável & Migrado (V1-V90) |
+| **Banco de Dados (`voipia-postgres`)** | PostgreSQL 16 + pgvector | Container `voipia-postgres` | 5432 (127.0.0.1) | ✅ Saudável & Migrado (V1-V91) |
 | **Segurança & IPS (`voipia-security`)** | Fail2ban + nftables | Container `voipia-security` | N/A (Host IPS) | ✅ Saudável & Monitorando |
 
 ---
 
 ## 2. Cobertura e Qualidade de Código
 
-* **Backend Spring Boot 3.3 (Java 21):** Compilação limpa, **970 testes automatizados passando com 100% de sucesso** e migrações Flyway V1 a V90 aplicadas sem inconsistências.
-* **Frontend React (TypeScript Strict):** `0 erros de tipagem`, validação com TypeScript e build Vite otimizado em todas as SPAs.
+* **Backend Spring Boot 3.3 (Java 21):** Compilação limpa, **983 testes automatizados passando com 100% de sucesso (0 falhas, 0 erros)** e migrações Flyway V1 a V91 aplicadas sem inconsistências.
+* **Frontend React (TypeScript Strict):** `0 erros de tipagem`, validação estática com TypeScript (`tsc --noEmit`) e code-splitting otimizado em todas as SPAs.
 * **Agentes de IA & Insights (Python 3.12):** Sintaxe validada, conformidade assíncrona com `asyncio` e integração Google GenAI SDK 2.5 Flash.
-* **Auditoria de Segurança:** OWASP Top 10 ASVS Nível 2 atendido (Argon2id, Zero Secrets, CSP estrita, Rate Limiting e Lockout de contas).
+* **Auditoria de Segurança:** OWASP Top 10 ASVS Nível 2 atendido (Argon2id/BCrypt, Zero Secrets, CSP estrita, Rate Limiting e Lockout de contas).
 
 ---
 
@@ -40,7 +40,7 @@
 |---|---|---|
 | **Fase 1 — PBX Asterisk 21 LTS** | ✅ Concluída | chan_pjsip, WebSockets seguros, RTP 16000-16500, AudioSocket TCP |
 | **Fase 2 — Agente IA com Gemini** | ✅ Concluída | AudioSocket server em Python, WebRTC VAD, Google GenAI SDK 2.5 Flash, TTS e STT |
-| **Fase 3 — Backend Spring Boot** | ✅ Concluída | Clean Architecture, DDD, Flyway Migrations V1-V90, WebSocket STOMP, AMI Client |
+| **Fase 3 — Backend Spring Boot** | ✅ Concluída | Clean Architecture, DDD, Flyway Migrations V1-V91, WebSocket STOMP, AMI Client |
 | **Fase 4 — URA Inteligente com IA** | ✅ Concluída | Abertura automatizada de chamados no Jira Cloud via voz humanizada |
 | **Fase 5 — Call Center Omnicanal** | ✅ Concluída | Filas de atendimento, Desktop do Agente, Softphone WebRTC JsSIP, Chanspy e Whisper |
 | **Fase 6 — Flow Builder Visual** | ✅ Concluída | Construtor de fluxos visuais com grafos de decisão, horários de atendimento e nós de URA |
@@ -51,6 +51,8 @@
 | **Fase 11 — Módulo Financeiro** | ✅ Concluída | Gestão, tarifação e rateio de custos de tokens de IA por serviço e alertas |
 | **Fase 12 — Administração, AD & RBAC** | ✅ Concluída | Gestão de usuários, BUs multitenant, integração AD/LDAP e matriz com >40 permissões |
 | **Fase 13 — Saneamento & Hardening** | ✅ Concluída | Limpeza de tabelas legadas (V90), proxy Caddy TLS 1.3 e isolamento docker-helper |
+| **Fase 14 — Evoluções Corporativas (v3.5)** | ✅ Concluída | Digital Twin & WFM Erlang-C, busca vetorial pgvector em gravações, SSO Microsoft Entra ID (OIDC), Copiloto Realtime e Menu "Sistema & Governança" |
+| **Fase 15 — Clustering Asterisk HA (Plano)** | ✅ Planejada | Arquitetura de balanceamento ativo-ativo com Kamailio / OpenSIPS e Keepalived VIP (`docs/PLANO_CLUSTERING_ASTERISK_HA.md`) |
 
 ---
 
@@ -61,3 +63,4 @@
 3. [x] **WebRTC & Coturn:** Sinalização WSS e relay TURN operando normalmente para softphones.
 4. [x] **URA Conversacional:** Teste de chamada no ramal 2000 concluído com sucesso e áudio bidirecional.
 5. [x] **Trilha de Auditoria:** Registros de login, ações administrativas e chamadas persistidos em `audit_logs`.
+6. [x] **SSO Corporativo & Governança:** Microsoft Entra ID configurável via painel web e centralizado em "Sistema & Governança".
