@@ -117,9 +117,13 @@ public class AppConfig {
             }
         };
         return builder
-                .requestFactory(() -> factory)
-                .setConnectTimeout(java.time.Duration.ofSeconds(8))
-                .setReadTimeout(java.time.Duration.ofSeconds(8))
                 .build();
     }
+
+    @Bean
+    public org.springframework.security.crypto.password.PasswordEncoder passwordEncoder() {
+        return new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
+    }
 }
+
+

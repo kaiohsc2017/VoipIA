@@ -260,6 +260,50 @@ export default function Login({ onLogin }: LoginProps) {
                   'Entrar no Sistema'
                 )}
               </button>
+
+              <div style={{ marginTop: 16, textAlign: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', margin: '16px 0', opacity: 0.5 }}>
+                  <div style={{ flex: 1, height: 1, backgroundColor: 'currentColor' }} />
+                  <span style={{ padding: '0 10px', fontSize: '0.8rem' }}>OU</span>
+                  <div style={{ flex: 1, height: 1, backgroundColor: 'currentColor' }} />
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const { data } = await api.get<string>('/auth/sso/authorize-url');
+                      if (data) {
+                        window.location.href = data;
+                      }
+                    } catch {
+                      setError('SSO corporativo temporariamente indisponível.');
+                    }
+                  }}
+                  className="btn"
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    backgroundColor: '#0078d4',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '10px 16px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10 0H0V10H10V0Z" fill="#F25022"/>
+                    <path d="M21 0H11V10H21V0Z" fill="#7FBA00"/>
+                    <path d="M10 11H0V21H10V11Z" fill="#00A4EF"/>
+                    <path d="M21 11H11V21H21V11Z" fill="#FFB900"/>
+                  </svg>
+                  Entrar com Microsoft 365 / Entra ID
+                </button>
+              </div>
             </form>
           </>
         ) : (

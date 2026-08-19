@@ -1,10 +1,24 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
-// base '/insights/' — a SPA é servida sob esse prefixo pelo mesmo nginx do
-// frontend Telecom (ver frontend/nginx.conf, location /insights/), igual ao
-// padrão da SPA de Agentes (base implícita '/agents/').
 export default defineConfig({
   base: '/insights/',
   plugins: [react()],
-})
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-icons';
+            }
+          }
+        },
+      },
+    },
+  },
+});

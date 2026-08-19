@@ -69,6 +69,9 @@ public class SecurityConfig {
                                 "/api/v1/auth/refresh",
                                 "/api/v1/auth/logout",
                                 "/api/v1/auth/totp/verify", // 2FA: segunda etapa sem JWT
+                                "/api/v1/auth/sso/config",
+                                "/api/v1/auth/sso/authorize-url",
+                                "/api/v1/auth/sso/callback",
                                 "/api/health",          // health check externo (Caddy, Prometheus, monitoração)
                                 "/api/v1/ai/chain/active",    // ai-agent consulta chain via X-Internal-Key
                                 "/api/v1/ai/providers/*/key-internal", // ai-agent busca keys via X-Internal-Key
@@ -301,6 +304,11 @@ public class SecurityConfig {
                         // próprio, nunca callcenter.fluxos (ver ResourceCatalog).
                         .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/ia-agents/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.ia_agentes")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/wfm/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.wfm", "PERM_READ_callcenter.supervisao")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/callcenter/copilot/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_callcenter.copilot", "PERM_READ_callcenter.desktop")
+
 
                         // Escrita nos mesmos recursos — ADMIN ou PERM_WRITE granular.
                         // asterisk-config usa o resource "telecom.settings" (é sub-área da
@@ -412,6 +420,16 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.ia_agentes")
                         .requestMatchers("/api/v1/callcenter/quality-reports/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.reports")
+                        .requestMatchers("/api/v1/callcenter/wfm/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.wfm", "PERM_WRITE_callcenter.supervisao")
+                        .requestMatchers("/api/v1/callcenter/copilot/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_callcenter.copilot", "PERM_WRITE_callcenter.desktop")
+                        .requestMatchers("/api/v1/auth/sso/admin/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_admin.sso")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/insights/recordings/semantic-search/**")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_insights.semantic_search", "PERM_READ_callcenter.insights")
+                        .requestMatchers("/api/v1/insights/recordings/*/index-embedding")
+                                .hasAnyAuthority("ROLE_ADMIN", "PERM_WRITE_insights.semantic_search")
                         // Agendamento de relatório (Fase 9c.6) — achado real (2026-08-15): não
                         // tinha matcher próprio de escrita, caía no anyRequest().authenticated()
                         // genérico do fim (qualquer usuário autenticado podia criar/ativar/excluir
