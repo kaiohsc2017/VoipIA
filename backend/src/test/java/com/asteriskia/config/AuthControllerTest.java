@@ -80,7 +80,7 @@ class AuthControllerTest {
                         .totpEnabled(false)
                         .build();
 
-        when(userRepo.findByUsernameAndIsActiveTrue("kaio")).thenReturn(Optional.of(user));
+        when(userRepo.findByUsernameIgnoreCaseAndIsActiveTrue("kaio")).thenReturn(Optional.of(user));
         when(accessGroupService.permissionsFor(any())).thenReturn(java.util.Map.of());
         when(jwtService.generateToken(eq("kaio"), eq(9001), any(), any(), eq(java.util.Set.of())))
                 .thenReturn("jwt-token-mock");
@@ -114,7 +114,7 @@ class AuthControllerTest {
                         .totpSecret("BASE32SECRET")
                         .build();
 
-        when(userRepo.findByUsernameAndIsActiveTrue("kaio2fa")).thenReturn(Optional.of(user));
+        when(userRepo.findByUsernameIgnoreCaseAndIsActiveTrue("kaio2fa")).thenReturn(Optional.of(user));
         when(jwtService.generateTempToken("kaio2fa")).thenReturn("temp-token-mock");
         doNothing().when(auditService).logAs(any(), any(), any(), any(), anyBoolean());
 
@@ -131,7 +131,7 @@ class AuthControllerTest {
 
     @Test
     void login_credenciaisInvalidas_deveRetornar401() throws Exception {
-        when(userRepo.findByUsernameAndIsActiveTrue(anyString())).thenReturn(Optional.empty());
+        when(userRepo.findByUsernameIgnoreCaseAndIsActiveTrue(anyString())).thenReturn(Optional.empty());
         doNothing().when(auditService).logAs(any(), any(), any(), any(), anyBoolean());
 
         mockMvc.perform(
@@ -253,11 +253,11 @@ class AuthControllerTest {
         LdapUserAttributes attrs =
                 new LdapUserAttributes("admin.local", "Admin Local", null, null, null, List.of(), null, null, null, null);
 
-        when(userRepo.findByUsernameAndIsActiveTrue("admin.local")).thenReturn(Optional.empty());
+        when(userRepo.findByUsernameIgnoreCaseAndIsActiveTrue("admin.local")).thenReturn(Optional.empty());
         when(ldapClient.currentConfig()).thenReturn(AD_ENABLED);
         when(ldapClient.authenticate("admin.local", "senhaDoADdeAlguem")).thenReturn(Optional.of(attrs));
         when(adUserService.upsertMirror(attrs)).thenReturn(new AdUser());
-        when(userRepo.findByUsername("admin.local")).thenReturn(Optional.of(contaNativa));
+        when(userRepo.findByUsernameIgnoreCase("admin.local")).thenReturn(Optional.of(contaNativa));
 
         mockMvc.perform(
                         post("/api/v1/auth/login")
@@ -284,11 +284,11 @@ class AuthControllerTest {
         LdapUserAttributes attrs =
                 new LdapUserAttributes("ja.vinculado", "Já Vinculado", null, null, null, List.of(), null, null, null, null);
 
-        when(userRepo.findByUsernameAndIsActiveTrue("ja.vinculado")).thenReturn(Optional.empty());
+        when(userRepo.findByUsernameIgnoreCaseAndIsActiveTrue("ja.vinculado")).thenReturn(Optional.empty());
         when(ldapClient.currentConfig()).thenReturn(AD_ENABLED);
         when(ldapClient.authenticate("ja.vinculado", "senhaAd")).thenReturn(Optional.of(attrs));
         when(adUserService.upsertMirror(attrs)).thenReturn(new AdUser());
-        when(userRepo.findByUsername("ja.vinculado")).thenReturn(Optional.of(vinculada));
+        when(userRepo.findByUsernameIgnoreCase("ja.vinculado")).thenReturn(Optional.of(vinculada));
         when(accessGroupService.permissionsFor(any())).thenReturn(Map.of());
         when(jwtService.generateToken(eq("ja.vinculado"), eq(9040), any(), any(), any()))
                 .thenReturn("jwt-ad-existente-mock");
@@ -313,11 +313,11 @@ class AuthControllerTest {
         LdapUserAttributes attrs =
                 new LdapUserAttributes("des.ad", "Desativado", null, null, null, List.of(), null, null, null, null);
 
-        when(userRepo.findByUsernameAndIsActiveTrue("des.ad")).thenReturn(Optional.empty());
+        when(userRepo.findByUsernameIgnoreCaseAndIsActiveTrue("des.ad")).thenReturn(Optional.empty());
         when(ldapClient.currentConfig()).thenReturn(AD_ENABLED);
         when(ldapClient.authenticate("des.ad", "qualquer")).thenReturn(Optional.of(attrs));
         when(adUserService.upsertMirror(attrs)).thenReturn(new AdUser());
-        when(userRepo.findByUsername("des.ad")).thenReturn(Optional.of(desativado));
+        when(userRepo.findByUsernameIgnoreCase("des.ad")).thenReturn(Optional.of(desativado));
 
         mockMvc.perform(
                         post("/api/v1/auth/login")
@@ -332,7 +332,7 @@ class AuthControllerTest {
 
     @Test
     void login_adDesabilitado_naoDeveChamarLdapClientAuthenticate() throws Exception {
-        when(userRepo.findByUsernameAndIsActiveTrue(anyString())).thenReturn(Optional.empty());
+        when(userRepo.findByUsernameIgnoreCaseAndIsActiveTrue(anyString())).thenReturn(Optional.empty());
 
         mockMvc.perform(
                         post("/api/v1/auth/login")

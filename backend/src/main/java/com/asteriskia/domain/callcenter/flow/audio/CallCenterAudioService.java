@@ -183,7 +183,21 @@ public class CallCenterAudioService {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            log.warn("Falha ao transcodificar upload de áudio: {}", e.getMessage());
+            log.warn("Falha ao transcodificar upload de áudio via ffmpeg: {}", e.getMessage());
+            try {
+                if (Files.exists(source) && Files.size(source) >= 44) {
+                    byte[] header = new byte[12];
+                    try (var is = Files.newInputStream(source)) {
+                        int read = is.read(header);
+                        if (read == 12 && new String(header, 0, 4).equals("RIFF") && new String(header, 8, 4).equals("WAVE")) {
+                            Files.copy(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                            return Files.exists(target) && Files.size(target) > 0;
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                log.warn("Fallback de cópia direta de WAV falhou: {}", ex.getMessage());
+            }
             return false;
         }
     }

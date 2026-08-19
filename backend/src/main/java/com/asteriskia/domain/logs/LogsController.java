@@ -309,7 +309,13 @@ public class LogsController {
         List<String> r = new ArrayList<>();
         for (String s : param.split(",")) {
             String t = s.trim();
-            r.add(t.startsWith("asteriskia-") ? t : "asteriskia-" + t);
+            if (t.startsWith("voipia-")) {
+                r.add(t);
+            } else if (t.startsWith("asteriskia-")) {
+                r.add(t.replace("asteriskia-", "voipia-"));
+            } else {
+                r.add("voipia-" + t);
+            }
         }
         return r;
     }
