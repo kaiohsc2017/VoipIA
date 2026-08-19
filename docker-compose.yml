@@ -577,11 +577,12 @@ services:
       retries: 3
 
   # ---------------------------------------------------------------------------
-  # Caddy 2 — Proxy reverso HTTPS com TLS automático (Let's Encrypt)
-  # Ponto de entrada único para todo tráfego externo (porta 80 e 443).
-  # A porta 2019 da admin API fica exposta apenas internamente (127.0.0.1).
+  # Caddy 2 — Proxy reverso HTTPS local (Uso em servidor dedicado / Standalone)
+  # No VPS compartilhado, o roteamento é feito pelo asteriskia-caddy central.
   # ---------------------------------------------------------------------------
   caddy:
+    profiles:
+      - standalone
     image: caddy:2-alpine
     container_name: voipia-caddy
     restart: unless-stopped
