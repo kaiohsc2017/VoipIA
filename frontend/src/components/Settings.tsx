@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import api from '../api/client';
 import { AISettingsPanel } from './AISettingsPanel';
+import { SsoSettingsPanel } from './SsoSettingsPanel';
 import { AsteriskFilePanel } from './AsteriskFilePanel';
 import { AdSyncTab } from './AdSyncTab';
 
@@ -566,6 +567,11 @@ export default function Settings() {
               <AISettingsPanel
                 open={openSections.has('ai')}
                 onToggle={() => toggleSection('ai')}
+              />
+
+              <SsoSettingsPanel
+                open={openSections.has('sso')}
+                onToggle={() => toggleSection('sso')}
               />
 
               {SECTIONS.map(section => {

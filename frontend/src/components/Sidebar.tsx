@@ -90,10 +90,10 @@ const NAV_ITEMS: NavEntry[] = [
     ],
   },
   { page: 'users',        icon: UsersRound,    label: 'Usuários',           section: 'CADASTROS', resource: 'telecom.users'        },
-  { page: 'settings',     icon: Settings,      label: 'Configurações',      section: 'SISTEMA',   resource: 'telecom.settings'     },
-  { page: 'accessGroups', icon: KeyRound,      label: 'Grupos de Acesso',   section: 'SISTEMA',   adminOnly: true                  },
-  { page: 'audit',        icon: ClipboardList, label: 'Auditoria',          section: 'SISTEMA',   resource: 'telecom.audit'        },
-  { page: 'release',      icon: Tag,           label: 'Release',            section: 'SISTEMA',   resource: 'telecom.release'      },
+  { page: 'settings',     icon: Settings,      label: 'Configurações',      section: 'SISTEMA & GOVERNANÇA', resource: 'telecom.settings' },
+  { page: 'accessGroups', icon: KeyRound,      label: 'Grupos de Acesso',   section: 'SISTEMA & GOVERNANÇA', adminOnly: true },
+  { page: 'audit',        icon: ClipboardList, label: 'Auditoria',          section: 'SISTEMA & GOVERNANÇA', resource: 'telecom.audit' },
+  { page: 'release',      icon: Tag,           label: 'Release',            section: 'SISTEMA & GOVERNANÇA', resource: 'telecom.release' },
 ];
 
 type VisibleEntry = NavLeaf | (Omit<NavParent, 'children'> & { children: NavLeaf[] });
