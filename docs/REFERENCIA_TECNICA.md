@@ -2,7 +2,7 @@
 
 > **Sistema:** VoipIA — Plataforma Corporativa de Telefonia IP, URA Conversacional com IA, Call Center Omnicanal & Speech Analytics  
 > **Versão Oficial:** v3.2 Enterprise  
-> **Stack Principal:** Asterisk 21 LTS + Spring Boot 3.3 (Java 21) + FastAPI (Python 3.12) + React 18 (TypeScript Strict) + PostgreSQL 16 (pgvector) + Caddy 2  
+> **Stack Principal:** Asterisk 21 LTS + Spring Boot 3.3 (Java 21) + Python 3.12 + React (TypeScript Strict) + PostgreSQL 16 (pgvector) + Caddy 2  
 > **Classificação:** Engenharia de Software / Telecomunicações / Inteligência Artificial  
 > **Data de Atualização:** Agosto de 2026  
 
@@ -10,10 +10,11 @@
 
 ## 1. Visão Geral da Engenharia
 
-O **VoipIA** é projetado sob os mais rigorosos padrões de engenharia de software para ambientes de alta densidade e missão crítica. A plataforma integra três ecossistemas fundamentais:
-1. **Telecomunicações de Alta Densidade:** Baseado no **Asterisk 21 LTS** com suporte nativo a SIP (`chan_pjsip`), WebSockets seguros (`wss://`), streaming via `app_audiosocket` e NAT Traversal via **Coturn STUN/TURN**.
-2. **Backend Corporativo & Regras de Negócio:** Arquitetura desacoplada com **Spring Boot 3.3** em Java 21 LTS, utilizando **Clean Architecture**, DDD, JPA/Hibernate e migrações versionadas via **Flyway (V1 a V14)**.
-3. **Inteligência Artificial & Speech Analytics:** Pipeline assíncrono em Python 3.12 integrando **Google Gemini 2.5 Flash**, algoritmos de detecção de atividade de voz (**WebRTC VAD**), busca vetorial com **pgvector** e automação com **FastAPI**.
+O **VoipIA** é projetado sob os mais rigorosos padrões de engenharia de software para ambientes corporativos de alta densidade e missão crítica. A plataforma integra quatro subsistemas fundamentais:
+1. **Telecomunicações de Alta Densidade:** Baseado no **Asterisk 21 LTS** com suporte nativo a SIP (`chan_pjsip`), WebSockets seguros (`wss://`), streaming bidirecional via `app_audiosocket` e NAT Traversal via **Coturn STUN/TURN**.
+2. **Backend Corporativo & Regras de Negócio:** Arquitetura desacoplada com **Spring Boot 3.3** em Java 21 LTS, utilizando **Clean Architecture**, DDD, JPA/Hibernate e migrações versionadas via **Flyway (V1 a V90)**.
+3. **Inteligência Artificial & Speech Analytics:** Pipeline assíncrono em Python 3.12 integrando **Google Gemini 2.5 Flash**, algoritmos de detecção de atividade de voz (**WebRTC VAD**), transcrição com diarização e busca vetorial com **pgvector**.
+4. **Frontends Modernos & WebRTC:** Aplicações Single-Page (SPA) em React com TypeScript em modo estrito, Vite e biblioteca `JsSIP` conectada via WebSockets seguros.
 
 ---
 
@@ -81,7 +82,7 @@ flowchart LR
 * **Biblioteca:** `webrtcvad`.
 * **Modo de Agressividade:** 2 (Equilíbrio entre sensibilidade e supressão de ruído de fundo).
 * **Tamanho do Frame:** 20ms a 30ms (320 a 480 amostras em 16kHz).
-* **Lógica de Barge-In:** Ao detectar 3 frames consecutivos de fala humana enquanto a IA está emitindo áudio, o streamer interrompe o envio de áudio imediatamente para ouvir o usuário.
+* **Lógica de Barge-In:** Ao detectar 3 frames consecutivos de fala humana enquanto a IA está emitindo áudio, o streamer interrompe o envio de áudio imediatamente para ouvir o interlocutor.
 
 ---
 
@@ -89,49 +90,53 @@ flowchart LR
 
 ### 4.1. Clean Architecture & Estrutura de Pacotes
 ```
-com.asteriskia
-├── config/              # Configurações de Segurança, CORS, WebSockets e Beans
+com.asteriskia (artefato: voipia-backend)
+├── config/              # Configurações de Segurança, CORS, JWT, WebSockets STOMP e Beans
 ├── domain/              # Modelos de Domínio, Repositórios e Serviços de Negócio
-│   ├── accessgroup/     # Perfis e Matriz RBAC Granular
+│   ├── accessgroup/     # Perfis e Matriz RBAC Granular (>40 permissões)
 │   ├── ai/              # Precificação e Provedores de IA
 │   ├── alert/           # Motor de Alertas Operacionais
 │   ├── audit/           # Trilha de Auditoria e Logs LGPD
 │   ├── cadastro/        # Linhas E1/DDR, Operadoras e Números 0800
 │   ├── call/            # CDRs de Telefonia, Tags e Histórico
-│   ├── callcenter/      # Filas, Agentes, Skills, Gravações, Chat e Flow Builder
-│   └── integration/     # Integrações com Jira Cloud, Zabbix, AD e Telegram
+│   ├── callcenter/      # Filas, Agentes, Skills, Gravações, Chat, Co-Browsing, RAG e Flow Builder
+│   ├── insights/        # Speech Analytics, Scorecards, Contestações e Coaching
+│   ├── masterdata/      # Unidades de Negócio, Clientes e Operações
+│   ├── settings/        # Configurações de Sistema e Histórico
+│   └── user/            # Gestão de Usuários, MFA TOTP e Vínculo com AD/LDAP
+└── integration/         # Integrações com Jira Cloud, AD/LDAP e Telegram
 ```
 
 ### 4.2. Segurança e Criptografia
-* **Hash de Senha:** `Argon2PasswordEncoder` (Memory: 65536 KB, Iterations: 3, Parallelism: 1).
+* **Hash de Senha:** `Argon2PasswordEncoder` / BCrypt com salt de alta complexidade.
 * **Assinatura de Tokens:** HMAC-SHA256 / SHA512 com chaves simétricas de alta entropia.
+* **MFA:** Time-Based One-Time Password (TOTP — RFC 6238).
 * **Rate Limiting:** `RateLimitFilter` baseado em Bucket4j / Sliding Window por IP de origem.
 
 ### 4.3. Migrações de Banco de Dados (Flyway)
-* Migrações versionadas em `src/main/resources/db/migration/V1__*.sql` até `V14__*.sql`.
+* Migrações versionadas em `src/main/resources/db/migration/V1__*.sql` até `V90__*.sql`.
 * Controle transacional e idempotente de alterações de schema.
 
 ---
 
-## 5. Plataforma de Agentes de Automação — FastAPI (Python 3.12)
+## 5. Speech Analytics & Insights (`voipia-insights`)
 
-### 5.1. Motores de Execução (Task Runners)
-* **SSH Runner:** Conexões seguras via `asyncssh` para servidores Linux corporativos.
-* **HTTP Runner:** Execução de testes de API e crawlers web com `httpx`.
-* **DB Runner:** Validações de integridade em bancos relacionais com `SQLAlchemy / asyncpg`.
-* **Log Analyzer:** Parser em tempo real de logs de sistema para identificação de padrões de falha.
+### 5.1. Processamento e Diarização
+* Pipeline assíncrono para transcrição de áudios em lote ou em tempo real pós-chamada.
+* Separação de canais de áudio estéreo (Canal 1: Atendente / Canal 2: Cliente) para diarização perfeita.
+* Identificação de palavras de risco e classificação de sentimento (*Positivo*, *Neutro*, *Negativo*).
 
-### 5.2. Agendador (Scheduler)
-* Baseado em `APScheduler` com persistência em banco PostgreSQL.
-* Execução paralela sem bloqueio da thread principal.
+### 5.2. Fichas de Monitoria Automática (Scorecards)
+* Avaliação por IA com pesos configuráveis e preenchimento de justificativas objetivas.
+* Suporte ao workflow de contestação de notas pelo operador e planos de coaching (PDI).
 
 ---
 
-## 6. Frontend SPA & Softphone WebRTC (React 18 + Vite)
+## 6. Frontend SPAs & Softphone WebRTC (React + Vite)
 
 ### 6.1. Stack do Frontend
-* **Core:** React 18, TypeScript (Strict Mode), Vite.
-* **Roteamento:** React Router v6.
+* **Core:** React, TypeScript (Strict Mode), Vite.
+* **Roteamento:** React Router v6 com lazy loading.
 * **Estilização:** Tailwind CSS + Radix UI / Shadcn.
 * **Gráficos:** Recharts.
 * **Softphone WebRTC:** Biblioteca `JsSIP` conectada via WebSocket seguro (`wss://app.voiphash.com.br/asterisk-ws`).
@@ -147,21 +152,4 @@ com.asteriskia
 
 ### 7.1. Extensão pgvector
 * Habilitada via `CREATE EXTENSION IF NOT EXISTS vector;`.
-* Armazena vetores de embeddings (dimensão 768 / 1536) gerados pelo Google Gemini para a base de conhecimento de atendimento e busca semântica de chamadas.
-* Índices do tipo **HNSW** e **IVFFlat** para buscas de vizinhos mais próximos (Cosine Similarity).
-
-### 7.2. Principais Tabelas Relacionais
-* `call_records` — Registros completos de bilhetagem (CDR).
-* `ura_instances` / `ura_questions` — Parametrização da URA inteligente.
-* `users` / `access_groups` / `resource_permissions` — Matriz RBAC.
-* `scorecards` / `evaluations` / `coaching_plans` — Módulo de Qualidade (QM).
-* `audit_logs` — Trilha de auditoria imutável LGPD.
-* `agents` / `agent_runs` / `secrets` — Plataforma de Agentes de Automação.
-
----
-
-## 8. Proxy Reverso & Hardening (Caddy 2)
-
-* **TLS Automático:** Gerenciamento de certificados TLS 1.3 via Let's Encrypt / ZeroSSL.
-* **Content Security Policy (CSP):** Política restritiva de segurança bloqueando injeção de scripts maliciosos.
-* **Admin Socket:** Gerenciamento interno via socket Unix (`/run/caddy-admin/admin.sock`), eliminando portas TCP administrativas expostas.
+* Armazena vetores de embeddings (dimensão 768 / 1536) gerados pelo Google Gemini para a base de conhecimento de atendimento (`cc_kb_chunks`) e busca semântica em tempo real via índice vetorial HNSW/IVFFlat.

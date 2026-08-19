@@ -2,7 +2,7 @@
 
 > **Sistema:** VoipIA — Plataforma Corporativa de Telefonia IP, URA Conversacional com IA, Call Center Omnicanal & Speech Analytics  
 > **Versão da API:** v1 / v3.2 Enterprise  
-> **Autenticação:** Bearer Token JWT (HMAC-SHA256) / X-Internal-Key  
+> **Autenticação:** Bearer Token JWT (HMAC-SHA256) / Cookie httpOnly / X-Internal-Key  
 > **Padrão:** RESTful JSON, WebSocket STOMP, AudioSocket TCP e Asterisk AMI/WSS  
 > **Data de Atualização:** Agosto de 2026  
 
@@ -10,15 +10,15 @@
 
 ## 1. Visão Geral das Interfaces & Protocolos
 
-O **VoipIA** disponibiliza um conjunto completo de interfaces de integração para sistemas corporativos, CRMs, plataformas de BI, canais digitais e agentes de automação:
+O **VoipIA** disponibiliza um conjunto completo e unificado de interfaces de integração para sistemas corporativos, CRMs, plataformas de BI, canais digitais e clientes WebRTC:
 
 ```mermaid
 flowchart TD
     subgraph Clients ["Clientes & Consumidores"]
-        WebSPA["Web SPA (React)"]
-        ExternalCRM["CRM / ERP Externo"]
-        Softphone["Softphone WebRTC"]
-        AutomationAgent["Plataforma de Agentes"]
+        WebSPA["Web SPA (React Telecom / Call Center / Insights)"]
+        ExternalCRM["CRM / ERP Externo / Jira Cloud"]
+        Softphone["Softphone WebRTC (JsSIP)"]
+        ChatWidget["Widget de Chat Web"]
     end
 
     subgraph Gateway ["Caddy Reverse Proxy 2 (TLS 1.3)"]
@@ -27,7 +27,6 @@ flowchart TD
 
     subgraph APIs ["Interfaces VoipIA"]
         SpringBootAPI["Spring Boot API (:8080)\n/api/v1/*"]
-        FastAPI_Agents["FastAPI Agentes (:8000)\n/agents/api/*"]
         STOMP_WS["WebSocket STOMP (:8080)\n/ws"]
         Asterisk_WSS["Asterisk WebRTC (:8088)\n/asterisk-ws"]
         AudioSocket_TCP["AudioSocket TCP (:9092)\nPCM Linear 16-bit"]
@@ -37,10 +36,9 @@ flowchart TD
     WebSPA -->|WSS STOMP| HTTPS_Port
     Softphone -->|WSS SIP| HTTPS_Port
     ExternalCRM -->|HTTPS REST| HTTPS_Port
-    AutomationAgent -->|HTTPS REST / WS| HTTPS_Port
+    ChatWidget -->|HTTPS REST / WS| HTTPS_Port
 
     HTTPS_Port -->|/api/*| SpringBootAPI
-    HTTPS_Port -->|/agents/api/*| FastAPI_Agents
     HTTPS_Port -->|/ws/*| STOMP_WS
     HTTPS_Port -->|/asterisk-ws| Asterisk_WSS
 ```
@@ -74,7 +72,7 @@ As respostas de erro seguem o padrão RFC 7807 (Problem Details):
 ### 3.1. Autenticação & Sessão (`/api/v1/auth`)
 
 #### `POST /api/v1/auth/login`
-Autentica o usuário com login e senha (ou hash Argon2id) e retorna o token JWT e permissões RBAC.
+Autentica o usuário com login e senha (validação com Argon2id/BCrypt ou bind Active Directory/LDAP) e retorna o token JWT e permissões RBAC. Em caso de 2FA ativado, retorna `requiresTotp: true` e `tempToken`.
 
 * **Requisição:**
 ```bash
@@ -82,8 +80,7 @@ curl -X POST https://app.voiphash.com.br/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "username": "operador.telecom",
-    "password": "SenhaForte@2026",
-    "totpCode": "123456"
+    "password": "SenhaForte@2026"
   }'
 ```
 
@@ -91,17 +88,16 @@ curl -X POST https://app.voiphash.com.br/api/v1/auth/login \
 ```json
 {
   "token": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9...",
-  "refreshToken": "d8e3b4a2-11c9-4f8a-9821-3982749821a",
-  "user": {
-    "id": 12,
-    "username": "operador.telecom",
-    "name": "Carlos Silva",
-    "role": "ANALISTA",
-    "businessUnits": [1, 3],
-    "permissions": ["telecom.view", "callcenter.agent", "insights.view"]
-  }
+  "type": "Bearer",
+  "extension": 9001,
+  "name": "Carlos Silva",
+  "role": "ADMIN",
+  "requiresTotp": false
 }
 ```
+
+#### `POST /api/v1/auth/totp/verify`
+Valida o código de 6 dígitos gerado pelo aplicativo autenticador (Google Authenticator) utilizando o token temporário.
 
 ---
 
@@ -134,7 +130,7 @@ curl -X GET https://app.voiphash.com.br/api/v1/ura/instances \
 ```
 
 #### `POST /api/v1/calls/register`
-Endpoint interno chamado pelo `voipia-ai-agent` ao término da chamada para registrar o CDR e criar ticket no Jira.
+Endpoint interno chamado pelo `voipia-ai-agent` ao término da chamada para registrar o CDR, tarifação e criar ticket no Jira.
 
 * **Requisição:**
 ```bash
@@ -161,63 +157,18 @@ curl -X POST http://voipia-backend:8080/api/v1/calls/register \
 #### `GET /api/v1/calls/history`
 Consulta histórico de chamadas com paginação e filtros por data, número e status.
 
-* **Requisição:**
-```bash
-curl -X GET "https://app.voiphash.com.br/api/v1/calls/history?page=0&size=20&startDate=2026-08-01&endDate=2026-08-19" \
-  -H "Authorization: Bearer <token>"
-```
-
-* **Resposta (200 OK):**
-```json
-{
-  "content": [
-    {
-      "id": 1045,
-      "callId": "ast-1724083200.104",
-      "callerNumber": "11987654321",
-      "extension": "2000",
-      "uraName": "URA Service Desk TI",
-      "durationSeconds": 142,
-      "status": "COMPLETED",
-      "jiraKey": "TI-4509",
-      "createdAt": "2026-08-19T14:20:00Z"
-    }
-  ],
-  "totalElements": 1520,
-  "totalPages": 76
-}
-```
-
 ---
 
 ### 3.3. Call Center Omnicanal (`/api/v1/callcenter`)
 
 #### `GET /api/v1/callcenter/queues`
-Retorna a lista de filas de atendimento e métricas em tempo real.
+Retorna a lista de filas de atendimento, membros associados e métricas em tempo real.
 
-* **Requisição:**
-```bash
-curl -X GET https://app.voiphash.com.br/api/v1/callcenter/queues \
-  -H "Authorization: Bearer <token>"
-```
-
-* **Resposta (200 OK):**
-```json
-[
-  {
-    "id": 1,
-    "name": "Fila N1 - Suporte",
-    "strategy": "rrmemory",
-    "callsWaiting": 2,
-    "activeAgents": 6,
-    "serviceLevel20s": 94.5,
-    "averageWaitTime": 14
-  }
-]
-```
+#### `GET /api/v1/callcenter/agents`
+Lista atendentes humanos e agentes virtuais de IA, incluindo estado atual de presença e skills.
 
 #### `POST /api/v1/callcenter/spy`
-Inicia a escuta silenciosa (*Chanspy*) de uma chamada em andamento para supervisores.
+Inicia a escuta silenciosa (*Chanspy*) ou sussurro (*Whisper*) de uma chamada em andamento para supervisores.
 
 * **Requisição:**
 ```bash
@@ -231,18 +182,27 @@ curl -X POST https://app.voiphash.com.br/api/v1/callcenter/spy \
   }'
 ```
 
+#### `GET /api/v1/callcenter/flows` & `POST /api/v1/callcenter/flows`
+Endpoints do Construtor de Fluxos (*Flow Builder*) para criação, edição e publicação de grafos de atendimento visual.
+
+#### `GET /api/v1/callcenter/recordings`
+Consulta e reprodução de gravações telefônicas com suporte a controle de retenção e expurgo automático.
+
+#### `GET /api/v1/callcenter/chat/sessions` & `POST /api/v1/callcenter/chat/send`
+Gerenciamento de sessões de chat omnicanal (Telegram e Web Widget), envio de mensagens e anexos.
+
+#### `POST /api/v1/callcenter/cobrowsing/sessions`
+Iniciação de sessão de navegação assistida e compartilhamento de tela com consentimento explícito do cliente.
+
+#### `POST /api/v1/callcenter/kb/query`
+Busca semântica na base de conhecimento usando vetores do **pgvector** e embeddings do Google Gemini.
+
 ---
 
 ### 3.4. Speech Analytics & Insights (`/api/v1/insights`)
 
 #### `GET /api/v1/insights/calls`
-Lista gravações de voz processadas pela inteligência analítica com filtros de sentimento e risco.
-
-* **Requisição:**
-```bash
-curl -X GET "https://app.voiphash.com.br/api/v1/insights/calls?sentiment=NEGATIVE&riskAlert=true" \
-  -H "Authorization: Bearer <token>"
-```
+Lista gravações de voz processadas pela inteligência analítica com filtros de sentimento, scorecards e palavras de risco.
 
 * **Resposta (200 OK):**
 ```json
@@ -264,44 +224,31 @@ curl -X GET "https://app.voiphash.com.br/api/v1/insights/calls?sentiment=NEGATIV
 #### `POST /api/v1/insights/upload`
 Upload em lote de arquivos de áudio externos para processamento assíncrono de transcrição e auditoria.
 
-* **Requisição:**
-```bash
-curl -X POST https://app.voiphash.com.br/api/v1/insights/upload \
-  -H "Authorization: Bearer <token>" \
-  -F "file=@gravacao_externa.wav" \
-  -F "scorecardId=2" \
-  -F "businessUnitId=1"
-```
+#### `POST /api/v1/callcenter/quality/appeals` & `GET /api/v1/callcenter/quality/coaching`
+Endpoints para atendentes contestarem notas de monitoria e supervisores acompanharem Planos de Desenvolvimento Individual (PDI / Coaching).
 
 ---
 
-### 3.5. Plataforma de Agentes (`/agents/api/v1`)
+### 3.5. Gestão Financeira & Custos de IA (`/api/v1/financeiro`)
 
-#### `GET /agents/api/v1/agents`
-Lista os agentes de automação cadastrados na plataforma.
+#### `GET /api/v1/financeiro/costs/summary`
+Retorna o resumo consolidado de custos de IA por período, modelo (Gemini, Whisper, ElevenLabs) e módulo (URA, Insights, Call Center).
 
-* **Requisição:**
-```bash
-curl -X GET https://app.voiphash.com.br/agents/api/v1/agents \
-  -H "Authorization: Bearer <token>"
-```
+#### `GET /api/v1/financeiro/alerts` & `POST /api/v1/financeiro/alerts`
+Configuração de alertas e limites de gastos mensais com notificações automáticas via e-mail e webhook.
 
-#### `POST /agents/api/v1/execute`
-Dispara a execução imediata de um agente de automação.
+---
 
-* **Requisição:**
-```bash
-curl -X POST https://app.voiphash.com.br/agents/api/v1/execute \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agentId": 3,
-    "parameters": {
-      "targetHost": "192.168.10.50",
-      "action": "check_disk_health"
-    }
-  }'
-```
+### 3.6. Administração, Governança & Segurança (`/api/v1/users`, `/api/v1/access-groups`, `/api/v1/audit`)
+
+#### `GET /api/v1/users` & `POST /api/v1/users`
+Gestão de contas de usuário, vinculação de ramais e associação a Unidades de Negócio.
+
+#### `GET /api/v1/access-groups`
+Consulta e edição de grupos de acesso e sua respectiva matriz com mais de 40 permissões RBAC granulares.
+
+#### `GET /api/v1/audit/logs`
+Consulta a trilha de auditoria imutável (quem realizou a ação, data/hora, endereço IP, recurso acessado e resultado).
 
 ---
 
@@ -314,6 +261,7 @@ curl -X POST https://app.voiphash.com.br/agents/api/v1/execute \
   * `/topic/telecom/dashboard` — Métricas gerais de chamadas e troncos em tempo real.
   * `/topic/callcenter/queue-stats` — Volume de fila, chamadas em espera e tempo médio.
   * `/topic/callcenter/agent-status` — Mudanças de estado de operadores (Disponível, Em Chamada, Pausa).
+  * `/topic/callcenter/chat/{sessionId}` — Mensagens de chat em tempo real para o operador.
 
 ### 4.2. WebSockets SIP / WebRTC (Asterisk)
 * **Endpoint de Conexão:** `wss://app.voiphash.com.br/asterisk-ws`

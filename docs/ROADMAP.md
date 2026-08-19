@@ -8,7 +8,7 @@
 
 ## 1. Visão Estratégica do Produto
 
-O **VoipIA** é posicionado como a plataforma definitiva de telecomunicações e inteligência de voz para empresas que buscam autonomia, alta disponibilidade, custos previsíveis e inovação acelerada com inteligência artificial generativa de ponta.
+O **VoipIA** é posicionado como a plataforma corporativa de telecomunicações e inteligência de voz para empresas que buscam autonomia, alta disponibilidade, custos previsíveis e inovação acelerada com inteligência artificial generativa de ponta.
 
 ---
 
@@ -18,8 +18,6 @@ O **VoipIA** é posicionado como a plataforma definitiva de telecomunicações e
 * PBX Asterisk 21 LTS rodando em container Docker com `chan_pjsip`.
 * Agente de IA em Python 3.12 com suporte a streaming de áudio via AudioSocket TCP.
 * URA Inteligente com integração para abertura de chamados no Jira Cloud.
-* Testador automático de rotas e números de telefonia (Módulo 2).
-* Alertas de infraestrutura com disparo de chamadas telefônicas via Zabbix (Módulo 3).
 
 ### 🏁 Versão 2.0 (Call Center & Softphone WebRTC) — Concluída
 * Implementação do Desktop do Agente com Softphone WebRTC (`JsSIP`) embutido no navegador.
@@ -27,15 +25,16 @@ O **VoipIA** é posicionado como a plataforma definitiva de telecomunicações e
 * Painel de supervisão com escuta silenciosa (*Chanspy*) e sussurro (*Whisper*).
 * Servidor Coturn integrado para NAT Traversal em redes corporativas restritas.
 
-### 🏁 Versão 3.0 (Speech Analytics & Plataforma de Agentes) — Concluída
+### 🏁 Versão 3.0 (Speech Analytics & Inteligência de Voz) — Concluída
 * Módulo **Insights** para auditoria de 100% das chamadas com separação de falantes (diarização).
 * Fichas de monitoria de qualidade (Scorecards) preenchidas automaticamente por IA.
-* Plataforma de Agentes de Automação em FastAPI com tarefas SSH, Web, DB e Logs.
 * Módulo Financeiro com telemetria detalhada de consumo de tokens e custos em USD.
 
-### 🏁 Versão 3.2 (Omnichannel, Gestão de QM & pgvector) — Concluída
+### 🏁 Versão 3.2 (Omnichannel, Gestão de QM, Flow Builder & pgvector) — Concluída
+* Construtor visual de fluxos de atendimento (*Flow Builder*).
+* Chat Omnichannel (Telegram e Web Widget) e Co-Browsing com consentimento.
 * Gestão completa de contestações de monitorias e planos de coaching (PDI) para atendentes.
-* Base vetorial nativa no PostgreSQL 16 com extensão **pgvector** para base de conhecimento.
+* Base vetorial nativa no PostgreSQL 16 com extensão **pgvector** para base de conhecimento RAG.
 * Matriz de permissões RBAC granular com mais de 40 recursos e suporte multitenant por BU.
 * Hardening de segurança OWASP ASVS Nível 2 e proxy Caddy com terminação TLS 1.3.
 
@@ -58,7 +57,7 @@ gantt
 ```
 
 ### 🚀 Versão 3.5 (Previsão: Outubro de 2026)
-* **Digital Twin & Previsão Preditiva de Filas:** Algoritmos matemáticos de fila para antecipar estouros de SLA e alertar supervisores com 15 minutos de antecedência.
+* **Digital Twin & Previsão Preditiva de Filas:** Algoritmos matemáticos de fila para antecipar estouros de SLA e alertar supervisores com antecedência.
 * **Busca Semântica Completa de Gravações:** Pesquisa livre por intenção e conceitos em toda a base histórica de chamadas usando vetores do pgvector.
 
 ### 🚀 Versão 4.0 (Previsão: Janeiro de 2027)

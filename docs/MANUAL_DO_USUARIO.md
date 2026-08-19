@@ -27,30 +27,29 @@
    - 4.2 [Player de Áudio & Transcrição Diarizada com Sentimento](#42-player-de-áudio--transcrição-diarizada-com-sentimento)
    - 4.3 [Fichas de Monitoria de Qualidade (Scorecards)](#43-fichas-de-monitoria-de-qualidade-scorecards)
    - 4.4 [Gestão de Contestações de Notas de Monitoria](#44-gestão-de-contestações-de-notas-de-monitoria)
-   - 4.5 [Planos de Coaching do Atendente & Evolução](#45-planos-de-coaching-do-atendente--evolução)
+   - 4.5 [Planos de Coaching do Atendente & Evolução (PDI)](#45-planos-de-coaching-do-atendente--evolução-pdi)
    - 4.6 [Portal do Supervisor & Upload em Lote de Áudios](#46-portal-do-supervisor--upload-em-lote-de-áudios)
 5. [Módulo Financeiro — Gestão e Rateio de Custos de IA](#5-módulo-financeiro--gestão-e-rateio-de-custos-de-ia)
    - 5.1 [Consumo Consolidado de Tokens e Modelos](#51-consumo-consolidado-de-tokens-e-modelos)
    - 5.2 [Rateio por Módulo (URA, Insights e Envios)](#52-rateio-por-módulo-ura-insights-e-envios)
-   - 5.3 [Tabela de Tarifas por Modelo de IA](#53-tabela-de-tarifas-por-modelo-de-ia)
-6. [Módulo Call Center Omnicanal](#6-módulo-call-center-omnicanal)
+   - 5.3 [Tabela de Tarifas e Alertas de Custo](#53-tabela-de-tarifas-e-alertas-de-custo)
+6. [Módulo Call Center Omnicanal & Contact Center](#6-módulo-call-center-omnicanal--contact-center)
    - 6.1 [Desktop do Agente (Espaço do Atendente com Softphone)](#61-desktop-do-agente-espaço-do-atendente-com-softphone)
    - 6.2 [Gestão de Filas de Atendimento & Estratégias](#62-gestão-de-filas-de-atendimento--estratégias)
    - 6.3 [Cadastro de Agentes, Ramais e Habilidades (Skills)](#63-cadastro-de-agentes-ramais-e-habilidades-skills)
    - 6.4 [Painel de Supervisão em Tempo Real (Chanspy & Whisper)](#64-painel-de-supervisão-em-tempo-real-chanspy--whisper)
    - 6.5 [Construtor Visual de Fluxos (Flow Builder)](#65-construtor-visual-de-fluxos-flow-builder)
-7. [Plataforma de Agentes de Automação](#7-plataforma-de-agentes-de-automação)
-   - 7.1 [Catálogo de Agentes Autônomos (SSH, Web, DB, Logs)](#71-catálogo-de-agentes-autônomos-ssh-web-db-logs)
-   - 7.2 [Execuções em Tempo Real e Streaming de Logs](#72-execuções-em-tempo-real-e-streaming-de-logs)
-   - 7.3 [Agendador de Tarefas (Scheduler) & Cofre de Segredos](#73-agendador-de-tarefas-scheduler--cofre-de-segredos)
-8. [Módulo de Administração & Governança Corporativa](#8-módulo-de-administração--governança-corporativa)
-   - 8.1 [Gestão de Usuários e Unidades de Negócio (BU)](#81-gestão-de-usuários-e-unidades-de-negócio-bu)
-   - 8.2 [Grupos de Acesso & Matriz de Permissões RBAC Granular](#82-grupos-de-acesso--matriz-de-permissões-rbac-granular)
-   - 8.3 [Cadastro Telecom (0800, Troncos E1/DDR, Operadoras)](#83-cadastro-telecom-0800-troncos-e1ddr-operadoras)
-   - 8.4 [Trilha de Auditoria LGPD & Logs de Segurança](#84-trilha-de-auditoria-lgpd--logs-de-segurança)
-   - 8.5 [Notas de Versão (Release Notes)](#85-notas-de-versão-release-notes)
-9. [Guia de Resolução de Problemas (Troubleshooting)](#9-guia-de-resolução-de-problemas-troubleshooting)
-10. [Canais de Suporte & Atendimento](#10-canais-de-suporte--atendimento)
+   - 6.6 [Atendimento Chat Omnicanal & Co-Browsing](#66-atendimento-chat-omnicanal--co-browsing)
+   - 6.7 [Base de Conhecimento RAG com pgvector](#67-base-de-conhecimento-rag-com-pgvector)
+7. [Módulo de Administração & Governança Corporativa](#7-módulo-de-administração--governança-corporativa)
+   - 7.1 [Gestão de Usuários e Unidades de Negócio (BU)](#71-gestão-de-usuários-e-unidades-de-negócio-bu)
+   - 7.2 [Grupos de Acesso & Matriz de Permissões RBAC Granular](#72-grupos-de-acesso--matriz-de-permissões-rbac-granular)
+   - 7.3 [Integração Active Directory / LDAP](#73-integração-active-directory--ldap)
+   - 7.4 [Cadastro Telecom (0800, Troncos E1/DDR, Operadoras)](#74-cadastro-telecom-0800-troncos-e1ddr-operadoras)
+   - 7.5 [Trilha de Auditoria LGPD & Logs de Segurança](#75-trilha-de-auditoria-lgpd--logs-de-segurança)
+   - 7.6 [Notas de Versão (Release Notes)](#76-notas-de-versão-release-notes)
+8. [Guia de Resolução de Problemas (Troubleshooting)](#8-guia-de-resolução-de-problemas-troubleshooting)
+9. [Canais de Suporte & Atendimento](#9-canais-de-suporte--atendimento)
 
 ---
 
@@ -64,7 +63,7 @@ O acesso ao VoipIA é realizado através do navegador moderno no endereço corpo
 #### Procedimento de Login:
 1. Digite seu **Usuário** corporativo.
 2. Digite sua **Senha**. Use o ícone do olho (👁️) para validar o que foi digitado caso necessário.
-3. Clique em **Entrar**. As credenciais são validadas de forma segura com o algoritmo criptográfico **Argon2id**.
+3. Clique em **Entrar**. As credenciais são validadas de forma segura com o algoritmo criptográfico **Argon2id** ou via bind seguro com o **Active Directory / LDAP**.
 
 ---
 
@@ -98,170 +97,149 @@ O Dashboard consolida a visão operacional de telecomunicações, saúde dos tro
 ![Dashboard Principal](images/Area1.png)
 
 ### 2.1. KPIs e Métricas Operacionais em Tempo Real
-* **Total de Chamadas URA:** Volume de ligações atendidas pela IA no dia/mês.
-* **Chamados Jira Criados:** Quantidade de issues geradas com sucesso a partir das ligações.
-* **Tempo Médio de Atendimento (TMA):** Duração média das interações conversacionais.
-* **Status do Tronco SIP:** Conexão ativa (`ONLINE`), latência RTT em milissegundos e pacotes transmitidos.
-* **Gasto Acumulado de IA:** Valor total em USD consumido em APIs de voz e linguagem.
+* **Total de Chamadas URA:** Volume acumulado de chamadas atendidas pela IA.
+* **Chamados Criados no Jira:** Quantidade de tickets criados automaticamente com campos extraídos pela IA.
+* **Tronco SIP / Telecom:** Status de conectividade com a operadora de telefonia.
+* **Consumo de IA:** Custo acumulado no mês em dólares (USD) e total de tokens processados.
 
 ### 2.2. Gráficos de Tendência & Custos
-* Gráfico interativo com curva horária de pico de tráfego.
-* Divisão visual de custos entre URA, Insights e Envios Avulsos.
+* Gráfico de linha com a evolução diária do volume de chamadas e chamados gerados.
+* Gráfico de barras com o consumo de tokens discriminado por modelo de IA (Gemini 2.5 Flash, Whisper, TTS).
 
 ### 2.3. Tabela Dinâmica de Chamadas Recentes
-Exibe as últimas ligações com atualização em milissegundos:
-* **Telefone de Origem (ANI):** Número chamador completo (sem mascaramento).
-* **Unidade de Negócio (BU):** Identificação da área atendida.
-* **Ticket Gerado:** Link direto para abertura do chamado no Jira Cloud.
-* **Duração & Horário:** Tempo de conversa e carimbo UTC/Local.
+* Visualização das últimas chamadas recebidas, número do originador, duração, status do chamado no Jira e botão para abrir a transcrição completa.
 
 ---
 
 ## 3. Módulo URA Inteligente com IA de Voz
 
-A URA Conversacional do VoipIA substitui menus numéricos rígidos por agentes de inteligência artificial humanizados capazes de dialogar em linguagem natural.
+Ambiente de parametrização da URA Conversacional que atende chamadas telefônicas em linguagem natural humanizada.
 
-![Módulo URA](images/area3.png)
+![Módulo URA](images/Claude02.png)
 
 ### 3.1. Gestão de Instâncias de URA
-* **Ramal de Destino:** Ramal de discagem no Asterisk (ex: `2000`).
-* **Nome & Finalidade:** Identificador operacional (ex: *URA Suporte Corporativo N1*).
-* **Motor de IA:** Seleção do provedor padrão (**Google Gemini 2.5 Flash**) ou provedores secundários.
+* Criação de URAs vinculadas a ramais específicos (ex: ramal `2000` para TI, `2001` para RH).
+* Seleção do Provedor de IA (**Google Gemini**, OpenAI, Anthropic, Grok) e modelo generativo.
 
 ### 3.2. Editor de Fluxo de Prompts e Perguntas
-* **Mensagem de Boas-Vindas:** Texto inicial falado com voz neural humanizada.
-* **Perguntas Obrigatórias:** Lista de campos que a IA deve coletar durante o diálogo (ex: Nome do Usuário, E-mail, Sistema com Problema, Descrição Detalhada).
-* **Sensibilidade de Interrupção (VAD):** Ajuste fino de sensibilidade de silêncio para permitir que o cliente interrompa a IA e fale livremente (*barge-in*).
+* **Prompt do Sistema:** Instrução de personalidade, tom de voz e regras de atendimento que a IA deve seguir.
+* **Perguntas Estruturadas:** Cadastro de perguntas e campos obrigatórios que a IA deve coletar durante o diálogo (ex: *Nome*, *E-mail*, *Sistema*, *Descrição do Problema*).
 
 ### 3.3. Integração Nativa com Jira Cloud
-* **Chave do Projeto:** Ex: `TI` ou `SUPORTE`.
-* **Tipo de Chamado:** `Incident`, `Service Request`, `Task`.
-* **Mapeamento de Atributos:** A IA preenche os campos do Jira automaticamente a partir das respostas do cliente.
+* Mapeamento de campos coletados para campos customizados de tickets no Jira.
+* Definição automática de prioridade do chamado (*Baixa*, *Média*, *Alta*, *Crítica*) baseada na análise de urgência da IA.
 
 ---
 
 ## 4. Módulo Insights — Inteligência Analítica & Speech Analytics
 
-O Insights audita 100% das chamadas gravadas na empresa, transcrevendo os diálogos com separação de interlocutores (diarização) e aplicando critérios de conformidade de qualidade.
+Plataforma avançada de auditoria de qualidade de 100% das chamadas telefônicas corporativas.
 
-![Insights Chamadas](images/Claude02.png)
+![Módulo Insights](images/Claude04.png)
 
 ### 4.1. Central de Chamadas & Gravações Auditadas
-Filtros avançados por data, operador, fila, sentimento da chamada (Positivo, Neutro, Negativo) e alertas de risco.
+* Filtros dinâmicos por período, atendente, sentimento (*Positivo*, *Neutro*, *Negativo*), alerta de risco e nota de monitoria.
 
 ### 4.2. Player de Áudio & Transcrição Diarizada com Sentimento
-Ao clicar em uma gravação:
-* **Player com Forma de Onda:** Navegação visual pelo áudio com ajuste de velocidade (1x, 1.25x, 1.5x, 2x).
-* **Diálogo Diarizado:** Identificação clara entre **[Atendente]** e **[Cliente]** com marcação de sentimentos por trecho.
-* **Resumo Executivo & Palavras de Risco:** Resumo estruturado da chamada e tags de atenção (ex: *Ameaça de PROCON*, *Insatisfação*, *Cancelamento*).
+* Player de áudio com visualização de forma de onda interativa.
+* Transcrição textual completa com identificação automática de quem está falando (**Atendente vs. Cliente**).
+* Destaque visual colorido por sentimento e marcação de trechos com palavras de risco (*PROCON*, *Cancelamento*, *Processo*).
 
 ### 4.3. Fichas de Monitoria de Qualidade (Scorecards)
-* Criação de formulários personalizados de monitoria com pesos por quesito.
-* Avaliação automatizada por IA (Zero esforço manual) com pontuação de 0 a 100%.
+* Avaliação 100% automatizada por IA com base em critérios objetivos configuráveis (ex: *Saudação obrigatória*, *Clareza na explicação*, *Confirmação de dados*, *Empatia*).
+* Nota final de 0 a 100 com justificativa detalhada gerada pela IA para cada item.
 
 ### 4.4. Gestão de Contestações de Notas de Monitoria
-* Operadores e supervisores podem abrir contestações formais sobre avaliações de qualidade.
-* Fluxo com justificativa, reanálise pelo auditor e deferimento/indeferimento de nota.
+* Painel onde o atendente pode abrir recursos contestando avaliações que considera injustas.
+* Workflow de aprovação/revisão com parecer do supervisor de qualidade.
 
-### 4.5. Planos de Coaching do Atendente & Evolução
-* Registro de planos de desenvolvimento individual (PDI) vinculados aos pontos de melhoria identificados na auditoria de voz.
-* Acompanhamento de metas e evolução das notas ao longo das semanas.
+### 4.5. Planos de Coaching do Atendente & Evolução (PDI)
+* Planos de Desenvolvimento Individual gerados com base nos pontos de melhoria recorrentes detectados nas chamadas.
 
 ### 4.6. Portal do Supervisor & Upload em Lote de Áudios
-* Envio de múltiplos arquivos de áudio externos (WAV/MP3) para processamento em segundo plano pela inteligência analítica.
+* Upload de lotes de arquivos WAV externos para transcrição, análise e auditoria retroativa.
 
 ---
 
 ## 5. Módulo Financeiro — Gestão e Rateio de Custos de IA
 
-Permite aos gestores de TI e Telecom monitorar o investimento e consumo em centavos de dólar de todas as requisições de IA.
+Transparência e controle financeiro absoluto sobre o consumo de inteligência artificial.
 
-![Módulo Financeiro](images/Claude04.png)
+![Módulo Financeiro](images/Claude05.png)
 
 ### 5.1. Consumo Consolidado de Tokens e Modelos
-Exibe a quantidade total de tokens de entrada (*Prompt Tokens*), tokens de saída (*Completion Tokens*) e segundos de áudio processados.
+* Painel consolidado com a quantidade exata de tokens de entrada (*Input*) e saída (*Output*) processados.
 
-### 5.2. Rateio por Módulo
-Gráficos de distribuição de custo entre:
-* **URA de Voz:** Custos de áudio em tempo real e chamadas atendidas.
-* **Insights:** Custos de transcrição assíncrona e preenchimento de scorecards.
-* **Envios Avulsos:** Processamento manual de arquivos pelo Portal do Supervisor.
+### 5.2. Rateio por Módulo (URA, Insights e Envios)
+* Separação de custos por centro de custo, Unidade de Negócio e produto (URA Conversacional vs. Speech Analytics).
+
+### 5.3. Tabela de Tarifas e Alertas de Custo
+* Parametrização dos custos por milhão de tokens de cada modelo.
+* Configuração de limites de gastos mensais com envio de alertas automáticos quando o consumo atinge 80%, 90% e 100% do orçamento.
 
 ---
 
-## 6. Módulo Call Center Omnicanal
+## 6. Módulo Call Center Omnicanal & Contact Center
 
-Plataforma completa de atendimento humano integrada ao PBX Asterisk 21 LTS.
-
-![Módulo Call Center](images/Claude05.png)
+Solução completa de atendimento receptivo e ativo para contact centers corporativos de alta performance.
 
 ### 6.1. Desktop do Agente (Espaço do Atendente com Softphone)
-* Painel de atendimento integrado para operadores com Softphone WebRTC, status de presença (Disponível, Pausa Café, Pausa Almoço, Treinamento), tela de tabulação de chamada (*Disposition*) e consulta à Base de Conhecimento (KB).
+* Interface unificada com softphone WebRTC, controle de status de presença (*Disponível*, *Em Atendimento*, *Pausa*), histórico de atendimentos e tela de tabulação (*Disposition*).
 
 ### 6.2. Gestão de Filas de Atendimento & Estratégias
-* Configuração de filas com estratégias: *Ring All*, *Round Robin com Memória (rrmemory)*, *Least Recent*, *Fewest Calls*.
-* Definição de tempo limite de espera, música de espera e transbordo para outras filas ou URAs.
+* Configuração de filas com estratégias avançadas: *Ring All*, *Round Robin com Memória (rrmemory)*, *Least Recent*, *Fewest Calls*.
+* Definição de limites de tempo de espera, música de espera personalizada e transbordo inteligente.
 
 ### 6.3. Cadastro de Agentes, Ramais e Habilidades (Skills)
-* Associação de operadores a ramais fixos e habilidades com pesos (ex: *Inglês Avançado: 10*, *Suporte N2: 8*).
+* Agentes humanos e **Agentes Virtuais com IA**.
+* Roteamento baseado em habilidades com pesos diferenciados (ex: *Inglês Avançado: 10*, *Suporte N2: 8*).
 
 ### 6.4. Painel de Supervisão em Tempo Real (Chanspy & Whisper)
 * Supervisores visualizam em tempo real todas as chamadas em andamento e podem:
-  * **Escutar Chamada (Spy):** Ouvir o atendimento sem que nenhum dos dois interlocutores perceba.
-  * **Sussurrar ao Atendente (Whisper):** Falar no ouvido do operador para orientá-lo sem que o cliente ouça.
+  * **Escutar Chamada (Spy):** Ouvir o atendimento sem que nenhum dos interlocutores perceba.
+  * **Sussurrar ao Atendente (Whisper):** Falar no ouvido do operador para orientá-lo sem que o cliente escute.
 
 ### 6.5. Construtor Visual de Fluxos (Flow Builder)
-* Criação de fluxos de atendimento com nós visuais de decisão, horário de atendimento (*Business Hours*), URA e transbordo.
+* Criação visual de fluxos de atendimento com nós de decisão, verificação de horários de funcionamento (*Business Hours*), URA e transbordo.
+
+### 6.6. Atendimento Chat Omnicanal & Co-Browsing
+* Central de mensagens unificada atendendo canais como **Telegram Bot** e **Web Chat Widget**.
+* Sessões de navegação assistida (*Co-Browsing*) com consentimento do cliente para suporte técnico avançado.
+
+### 6.7. Base de Conhecimento RAG com pgvector
+* Mecanismo de busca semântica em documentos corporativos alimentado pelo **PostgreSQL 16 + pgvector** para suporte automatizado aos agentes de atendimento.
 
 ---
 
-## 7. Plataforma de Agentes de Automação
+## 7. Módulo de Administração & Governança Corporativa
 
-Ambiente dedicado para orquestração de agentes autônomos de IA que executam tarefas de infraestrutura e rotinas operacionais.
-
-![Plataforma de Agentes](images/Claude03.png)
-
-### 7.1. Catálogo de Agentes Autônomos
-* **Agentes SSH:** Execução de rotinas de manutenção em servidores Linux remotos.
-* **Agentes Web:** Monitoramento e automação de portais web.
-* **Agentes de Banco de Dados:** Validações de integridade e consultas de auditoria.
-* **Agentes de Logs:** Análise de anomalias em arquivos de log em tempo real.
-
-### 7.2. Execuções em Tempo Real e Streaming de Logs
-Acompanhamento via WebSocket do console de execução de cada agente com retorno detalhado de passos.
-
-### 7.3. Agendador de Tarefas (Scheduler) & Cofre de Segredos
-* Agendamentos periódicos via expressões Cron ou intervalos de tempo.
-* Armazenamento seguro de chaves SSH, senhas e tokens no cofre de segredos criptografado.
-
----
-
-## 8. Módulo de Administração & Governança Corporativa
-
-### 8.1. Gestão de Usuários e Unidades de Negócio (BU)
+### 7.1. Gestão de Usuários e Unidades de Negócio (BU)
 * Criação e edição de contas de usuário.
 * Vinculação a uma ou mais Unidades de Negócio para controle de escopo multitenant.
 
-### 8.2. Grupos de Acesso & Matriz de Permissões RBAC Granular
+### 7.2. Grupos de Acesso & Matriz de Permissões RBAC Granular
 * Configuração de perfis de acesso com matriz de mais de 40 recursos granulares:
   * `telecom.*` — Visualização e gestão do módulo Telecom.
   * `callcenter.*` — Permissões de operador, supervisão, filas e gravações.
   * `insights.*` — Acesso a transcrições, scorecards e contestações.
   * `admin.*` — Acesso aos cadastros mestres e auditoria LGPD.
 
-### 8.3. Cadastro Telecom (0800, Troncos E1/DDR, Operadoras)
+### 7.3. Integração Active Directory / LDAP
+* Sincronização periódica e provisionamento automático de usuários via AD/LDAP com mapeamento de grupos corporativos.
+
+### 7.4. Cadastro Telecom (0800, Troncos E1/DDR, Operadoras)
 * Gestão de rotas de entrada de números 0800 e números de regeneração.
 * Cadastro de operadoras de telefonia e parâmetros de sinalização SIP.
 
-### 8.4. Trilha de Auditoria LGPD & Logs de Segurança
+### 7.5. Trilha de Auditoria LGPD & Logs de Segurança
 * Relatório imutável de todas as ações executadas no sistema (quem, quando, qual IP, qual operação).
 
-### 8.5. Notas de Versão (Release Notes)
+### 7.6. Notas de Versão (Release Notes)
 * Registro histórico de todas as melhorias e correções implementadas em cada versão da plataforma.
 
 ---
 
-## 9. Guia de Resolução de Problemas (Troubleshooting)
+## 8. Guia de Resolução de Problemas (Troubleshooting)
 
 | Sintoma / Erro | Possível Causa | Ação Recomendada |
 |---|---|---|
@@ -272,7 +250,7 @@ Acompanhamento via WebSocket do console de execução de cada agente com retorno
 
 ---
 
-## 10. Canais de Suporte & Atendimento
+## 9. Canais de Suporte & Atendimento
 
 Para dúvidas técnicas, suporte emergencial ou solicitações de melhorias:
 * **E-mail de Suporte:** `suporte@voiphash.com.br`

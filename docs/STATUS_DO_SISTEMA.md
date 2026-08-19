@@ -2,7 +2,7 @@
 
 > **Data de Atualização:** 19 de Agosto de 2026  
 > **Versão Oficial:** v3.2 Enterprise  
-> **Status Geral do Software:** ✅ 100% Concluído e Validado  
+> **Status Geral do Software:** ✅ 100% Concluído, Saneado e Validado  
 > **Status dos Serviços (Docker):** ✅ 100% Operacional e Saudável (*Healthy*)  
 
 ---
@@ -12,26 +12,25 @@
 | Componente | Versão no Git (`HEAD`) | Container Docker | Porta(s) | Status de Sincronia |
 |---|---|---|---|---|
 | **Git Repository** | Branch `main` (GitHub) | N/A | N/A | ✅ Totalmente Sincronizado |
-| **Proxy Reverso (`voipia-caddy`)** | Caddy 2 com TLS 1.3 | Container `voipia-caddy` | 80, 443, 8086, 8443 | ✅ Saudável & Operacional |
+| **Proxy Reverso (`voipia-caddy`)** | Caddy 2 com TLS 1.3 | Container `voipia-caddy` | 80, 443 | ✅ Saudável & Operacional |
 | **PBX Telefonia (`voipia-asterisk`)** | Asterisk 21 LTS + PJSIP | Container `voipia-asterisk` | 5060, 16000-16500, 8088, 5038 | ✅ Saudável & Conectado |
 | **Agente Conversacional IA (`voipia-ai-agent`)** | Python 3.12 + AudioSocket | Container `voipia-ai-agent` | 9092 (AudioSocket) | ✅ Saudável & Conectado |
 | **Backend API (`voipia-backend`)** | Spring Boot 3.3 (Java 21) | Container `voipia-backend` | 8080 (REST + STOMP) | ✅ Saudável & Ativo |
-| **Frontend Web (`voipia-frontend`)** | React 18 + Vite + JsSIP | Container `voipia-frontend` | 80 (Nginx SPA) | ✅ Saudável & Ativo |
-| **Plataforma de Agentes (`voipia-agents-api`)** | FastAPI (Python 3.12) | Container `voipia-agents-api` | 8000 (REST + WS) | ✅ Saudável & Ativo |
+| **Frontend Web (`voipia-frontend`)** | React + Vite + JsSIP | Container `voipia-frontend` | 80 (Nginx SPA) | ✅ Saudável & Ativo |
 | **Speech Analytics (`voipia-insights`)** | Python 3.12 Batch Analytics | Container `voipia-insights` | Batch Process | ✅ Saudável & Ativo |
-| **Gateway Docker Helper (`voipia-docker-helper`)** | Python 3.12 Socket Gateway | Container `voipia-docker-helper` | 8001 | ✅ Saudável & Ativo |
+| **Gateway Docker Helper (`voipia-docker-helper`)** | Python 3.12 Socket Gateway | Container `voipia-docker-helper` | 8090 | ✅ Saudável & Ativo |
 | **STUN/TURN Server (`voipia-coturn`)** | Coturn 4.6 | Container `voipia-coturn` (Host) | 3478, 5349, 49152-49652 | ✅ Saudável & Ativo |
-| **Banco de Dados (`voipia-postgres`)** | PostgreSQL 16 + pgvector | Container `voipia-postgres` | 5432 (127.0.0.1) | ✅ Saudável & Migrado (V1-V14) |
+| **Banco de Dados (`voipia-postgres`)** | PostgreSQL 16 + pgvector | Container `voipia-postgres` | 5432 (127.0.0.1) | ✅ Saudável & Migrado (V1-V90) |
 | **Segurança & IPS (`voipia-security`)** | Fail2ban + nftables | Container `voipia-security` | N/A (Host IPS) | ✅ Saudável & Monitorando |
 
 ---
 
 ## 2. Cobertura e Qualidade de Código
 
-* **Backend Spring Boot 3.3 (Java 21):** Compilação limpa, validação de tipos e migrações Flyway V1 a V14 aplicadas sem inconsistências.
-* **Frontend React 18 (TypeScript Strict):** `0 erros de tipagem`, validação com TypeScript e build Vite otimizado.
-* **Agentes & IA (Python 3.12):** Sintaxe validada com `py_compile`, conformidade assíncrona com `asyncio`.
-* **Auditoria de Segurança:** OWASP Top 10 ASVS Nível 2 atendido (Argon2id, Zero Secrets, CSP estrita, Lockout de usuários).
+* **Backend Spring Boot 3.3 (Java 21):** Compilação limpa, **970 testes automatizados passando com 100% de sucesso** e migrações Flyway V1 a V90 aplicadas sem inconsistências.
+* **Frontend React (TypeScript Strict):** `0 erros de tipagem`, validação com TypeScript e build Vite otimizado em todas as SPAs.
+* **Agentes de IA & Insights (Python 3.12):** Sintaxe validada, conformidade assíncrona com `asyncio` e integração Google GenAI SDK 2.5 Flash.
+* **Auditoria de Segurança:** OWASP Top 10 ASVS Nível 2 atendido (Argon2id, Zero Secrets, CSP estrita, Rate Limiting e Lockout de contas).
 
 ---
 
@@ -41,17 +40,17 @@
 |---|---|---|
 | **Fase 1 — PBX Asterisk 21 LTS** | ✅ Concluída | chan_pjsip, WebSockets seguros, RTP 16000-16500, AudioSocket TCP |
 | **Fase 2 — Agente IA com Gemini** | ✅ Concluída | AudioSocket server em Python, WebRTC VAD, Google GenAI SDK 2.5 Flash, TTS e STT |
-| **Fase 3 — Backend Spring Boot** | ✅ Concluída | Clean Architecture, DDD, Flyway Migrations V1-V14, WebSocket STOMP, AMI Client |
-| **Fase 4 — Módulo 1 URA Inteligente** | ✅ Concluída | Abertura automatizada de chamados no Jira Cloud via voz humanizada |
-| **Fase 5 — Módulo 2 Testes de Linha** | ✅ Concluída | Testes automatizados de conectividade de números telefônicos |
-| **Fase 6 — Módulo 3 Alertas Infra** | ✅ Concluída | Integração Zabbix → ligação telefônica automatizada + Telegram Bot |
-| **Fase 7 — Plataforma de Agentes** | ✅ Concluída | FastAPI, executores de tarefas SSH, Web, DB e Logs, Scheduler, Secret Vault |
-| **Fase 8 — Call Center Omnicanal** | ✅ Concluída | Filas de atendimento, Desktop do Agente, Softphone WebRTC JsSIP, Chanspy e Whisper |
+| **Fase 3 — Backend Spring Boot** | ✅ Concluída | Clean Architecture, DDD, Flyway Migrations V1-V90, WebSocket STOMP, AMI Client |
+| **Fase 4 — URA Inteligente com IA** | ✅ Concluída | Abertura automatizada de chamados no Jira Cloud via voz humanizada |
+| **Fase 5 — Call Center Omnicanal** | ✅ Concluída | Filas de atendimento, Desktop do Agente, Softphone WebRTC JsSIP, Chanspy e Whisper |
+| **Fase 6 — Flow Builder Visual** | ✅ Concluída | Construtor de fluxos visuais com grafos de decisão, horários de atendimento e nós de URA |
+| **Fase 7 — Chat Omnichannel & Co-Browsing** | ✅ Concluída | Integração Telegram Bot, Web Chat Widget e suporte a co-browsing com consentimento |
+| **Fase 8 — Base de Conhecimento RAG** | ✅ Concluída | Busca semântica vetorial com PostgreSQL 16 + extensão pgvector |
 | **Fase 9 — Speech Analytics & Insights** | ✅ Concluída | Transcrição diarizada, análise de sentimento, scorecards de qualidade por IA |
 | **Fase 10 — Gestão de Qualidade (QM)** | ✅ Concluída | Contestações de avaliações de monitoria e planos de coaching (PDI) para atendentes |
-| **Fase 11 — Módulo Financeiro** | ✅ Concluída | Gestão, tarifação e rateio de custos de tokens de IA por serviço |
-| **Fase 12 — Administração & RBAC** | ✅ Concluída | Gestão de usuários, BUs multitenant, matriz com mais de 40 permissões granulares |
-| **Fase 13 — Base Vetorial (pgvector)** | ✅ Concluída | Suporte a pgvector no PostgreSQL 16 para busca semântica de chamadas e base de conhecimento |
+| **Fase 11 — Módulo Financeiro** | ✅ Concluída | Gestão, tarifação e rateio de custos de tokens de IA por serviço e alertas |
+| **Fase 12 — Administração, AD & RBAC** | ✅ Concluída | Gestão de usuários, BUs multitenant, integração AD/LDAP e matriz com >40 permissões |
+| **Fase 13 — Saneamento & Hardening** | ✅ Concluída | Limpeza de tabelas legadas (V90), proxy Caddy TLS 1.3 e isolamento docker-helper |
 
 ---
 

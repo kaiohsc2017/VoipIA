@@ -10,14 +10,14 @@
 
 ## 1. Visão Geral da Demonstração
 
-Este roteiro fornece o passo a passo estruturado para conduzir apresentações executivas, treinamentos operacionais e gravações de vídeos demonstrativos do ecossistema **VoipIA**.
+Este roteiro fornece o passo a passo estruturado para conduzir apresentações executivas, treinamentos operacionais e demonstrações da plataforma **VoipIA**.
 
 ```mermaid
 flowchart LR
     A["1. Abertura Executiva & Dashboard"] --> B["2. URA de Voz com IA & Jira"]
     B --> C["3. Desktop do Agente & WebRTC"]
     C --> D["4. Speech Analytics & Insights"]
-    D --> E["5. Agentes de Automação & Admin"]
+    D --> E["5. Governança, Custos & Admin"]
 ```
 
 ---
@@ -47,16 +47,18 @@ flowchart LR
 2. **Painel de Supervisão:**
    * Mostrar a visão do supervisor acompanhando chamadas simultâneas.
    * Explicar as funções de **Escuta Silenciosa (Spy)** e **Sussurro (Whisper)**.
+   * Exibir o **Construtor Visual de Fluxos (Flow Builder)**.
 
 ### Bloco 4: Speech Analytics, Qualidade & IA (2 minutos)
 1. **Acessar o Módulo Insights (`/insights`):**
    * Abrir uma chamada auditada com transcrição diarizada entre Atendente e Cliente.
    * Demonstrar a forma de onda do áudio interativo, a marcação de sentimentos e o alerta de palavras de risco.
    * Mostrar o Scorecard de qualidade preenchido 100% pela IA com nota calculada e justificativa.
+   * Apresentar o fluxo de contestações de notas e planos de coaching (PDI).
 
 ### Bloco 5: Governança, Custos & Fechamento (1 minuto)
-1. **Módulo Financeiro:** Demonstrar o controle granular de centavos de dólar consumidos por chamada.
-2. **Segurança:** Destacar a autenticação com Argon2id, 2FA e conformidade com LGPD (trilha de auditoria).
+1. **Módulo Financeiro:** Demonstrar o controle granular de centavos de dólar consumidos por chamada e alertas de teto orçamentário.
+2. **Segurança & AD:** Destacar a autenticação com Argon2id, 2FA, sincronização com Active Directory e conformidade com LGPD (trilha de auditoria).
 
 ---
 
@@ -65,7 +67,7 @@ flowchart LR
 ### Módulo T-01: Arquitetura de Containers & Portas
 * Entendimento da rede bridge Docker `172.16.8.0/24`.
 * Papel do proxy Caddy 2 com TLS 1.3 automático e certificados Let's Encrypt.
-* Isolamento do banco de dados PostgreSQL 16 na porta `127.0.0.1:5432`.
+* Isolamento do banco de dados PostgreSQL 16 na porta `127.0.0.1:5432` com extensão `pgvector`.
 * Liberação de portas no firewall UFW / Firewalld: SIP (`5060`), RTP (`16000-16500/udp`) e Coturn (`3478` / `49152-49652/udp`).
 
 ### Módulo T-02: Gestão de Troncos SIP & Cadastro de Linhas
@@ -81,7 +83,7 @@ flowchart LR
 ### Módulo T-04: Gestão de Usuários e Matriz RBAC
 * Cadastro de novos operadores e supervisores.
 * Vinculação a Unidades de Negócio (BUs) para escopo multitenant.
-* Atribuição de permissões granulares por grupo de acesso.
+* Atribuição de permissões granulares por grupo de acesso e vínculo com grupos do Active Directory.
 
 ---
 

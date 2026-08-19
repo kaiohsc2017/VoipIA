@@ -1,6 +1,6 @@
 # VoipIA Enterprise
 
-Sistema corporativo de telefonia inteligente, URA conversacional com inteligência artificial generativa em tempo real (**Google Gemini 2.5 Flash**), Call Center omnicanal, Speech Analytics (*Insights*), plataforma de agentes de automação e Softphone WebRTC em Docker sobre **Asterisk 21 LTS + Spring Boot 3.3 + FastAPI + React 18 + PostgreSQL 16 (pgvector)**.
+Sistema corporativo de telefonia inteligente, URA conversacional com inteligência artificial generativa em tempo real (**Google Gemini 2.5 Flash**), Call Center omnicanal, Speech Analytics (*Insights*), Construtor Visual de Fluxos (*Flow Builder*) e Softphone WebRTC em Docker sobre **Asterisk 21 LTS + Spring Boot 3.3 + Python 3.12 + React + PostgreSQL 16 (pgvector)**.
 
 ---
 
@@ -8,8 +8,8 @@ Sistema corporativo de telefonia inteligente, URA conversacional com inteligênc
 
 O repositório segue o padrão corporativo unificado de documentação:
 
-1. **[`docs/MANUAL_DO_USUARIO.md`](docs/MANUAL_DO_USUARIO.md)** — Manual do usuário completo com explicação detalhada de cada tela, menus operacionais, softphone e exemplos práticos.
-2. **[`docs/REFERENCIA_TECNICA.md`](docs/REFERENCIA_TECNICA.md)** — Manual de engenharia de software, Asterisk 21 LTS, protocolo AudioSocket, Clean Architecture Spring Boot 3.3, FastAPI, React 18 SPA, WebRTC e pgvector.
+1. **[`docs/MANUAL_DO_USUARIO.md`](docs/MANUAL_DO_USUARIO.md)** — Manual do usuário completo com explicação detalhada de cada tela, menus operacionais, softphone, URA, Call Center, Insights e exemplos práticos.
+2. **[`docs/REFERENCIA_TECNICA.md`](docs/REFERENCIA_TECNICA.md)** — Manual de engenharia de software, Asterisk 21 LTS, protocolo AudioSocket, Clean Architecture Spring Boot 3.3, React SPAs, WebRTC e pgvector.
 3. **[`docs/MATRIZ_DE_CONECTIVIDADE.md`](docs/MATRIZ_DE_CONECTIVIDADE.md)** — Matriz completa de rede, portas internas/externas, regras de firewall para Ubuntu (UFW) e Oracle Linux 9 (Firewalld), e domínios Google Gemini / Antigravity AGY.
 4. **[`docs/DOCUMENTACAO_DAS_APIS.md`](docs/DOCUMENTACAO_DAS_APIS.md)** — Catálogo completo das APIs REST, WebSockets STOMP, sinalização SIP WebRTC, AudioSocket TCP e Asterisk AMI/ARI.
 5. **[`docs/ARQUITETURA.md`](docs/ARQUITETURA.md)** — Arquitetura de software e infraestrutura, diagramas Mermaid, DevSecOps, Threat Model e benchmark comparativo de mercado.
@@ -59,11 +59,10 @@ docker compose logs -f voipia-backend voipia-asterisk voipia-ai-agent
 /opt/VoipIA/
 ├── asterisk/             # Asterisk 21 LTS — Dockerfile + configs (PJSIP, RTP, Dialplan, AMI)
 ├── ai-agent/             # Agente de IA Python 3.12 — Servidor AudioSocket TCP + Google Gemini
-├── backend/              # Backend Spring Boot 3.3 (Java 21) — Clean Architecture + Flyway V1-V14
-├── frontend/             # Frontend React 18 SPA + Softphone WebRTC (JsSIP) + Nginx
+├── backend/              # Backend Spring Boot 3.3 (Java 21) — Clean Architecture + Flyway V1-V90
+├── frontend/             # Frontend React SPA + Softphone WebRTC (JsSIP) + Nginx
 ├── callcenter-platform/  # Módulo Call Center — Desktop do Agente, Filas, Supervisão e Flow Builder
 ├── insights-platform/    # Módulo Insights — Speech Analytics, Scorecards de Qualidade e Transcrição
-├── agents-platform/      # Plataforma de Agentes de Automação — FastAPI + Tarefas SSH/Web/DB/Logs
 ├── coturn/               # Servidor Coturn STUN/TURN — NAT Traversal para WebRTC
 ├── security/             # Fail2ban + nftables — Lockdown SIP e proteção anti-força bruta
 ├── docs/                 # Suíte unificada de documentação técnica corporativa
@@ -76,6 +75,6 @@ docker compose logs -f voipia-backend voipia-asterisk voipia-ai-agent
 
 ## ✅ Estado do Projeto
 
-* **Software:** 100% Concluído, Integrado e Operacional.
-* **Docker:** Containers em execução e saudáveis (`voipia-caddy`, `voipia-backend`, `voipia-frontend`, `voipia-asterisk`, `voipia-ai-agent`, `voipia-insights`, `voipia-agents-api`, `voipia-coturn`, `voipia-postgres`, `voipia-security`).
+* **Software:** 100% Concluído, Integrado, Saneado e Operacional.
+* **Docker:** 10 containers em execução e saudáveis (`voipia-caddy`, `voipia-backend`, `voipia-frontend`, `voipia-asterisk`, `voipia-ai-agent`, `voipia-insights`, `voipia-docker-helper`, `voipia-coturn`, `voipia-postgres`, `voipia-security`).
 * **Segurança:** Padrão OWASP ASVS Nível 2 / Zero Trust / Zero Secrets em conformidade estrita.
