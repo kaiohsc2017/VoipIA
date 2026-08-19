@@ -275,21 +275,67 @@
   flex-shrink: 0;
 }
 
-/* Submenu expansível (ex: Financeiro → URA/Insights/Análise Sob Demanda) */
+/* Submenu expansível (Insights, Financeiro, Call Center...) */
+.nav-subitems,
 .nav-submenu {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 2px 0 2px 12px;
-  padding-left: 8px;
-  border-left: 1px solid var(--border-glass);
+  gap: 3px;
+  margin: 3px 0 4px 12px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
 }
 
 .nav-subitem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition);
+  color: var(--text-secondary);
   font-size: 0.82rem;
+  font-weight: 500;
+  border: 1px solid transparent;
+  user-select: none;
 }
 
+.nav-subitem:hover {
+  background: var(--bg-glass-hover);
+  color: var(--text-primary);
+  border-color: var(--border-glass);
+}
+
+.nav-subitem.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-color: transparent;
+  border-left: 3px solid var(--clr-primary);
+  padding-left: 9px;
+  font-weight: 600;
+}
+
+.nav-subitem .nav-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-subitem-badge {
+  background: var(--clr-primary);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: auto;
+}
+
+.sidebar.collapsed .nav-subitems,
 .sidebar.collapsed .nav-submenu {
   display: none;
 }

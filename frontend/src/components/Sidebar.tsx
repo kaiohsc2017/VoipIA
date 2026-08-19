@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Headset, Lightbulb, Wallet, PhoneForwarded, UsersRound,
   Settings, KeyRound, ClipboardList, Tag, LogOut, ChevronDown, ChevronRight,
   PhoneCall, TrendingUp, FileText, Upload, Send, Users, ListOrdered, Tags,
-  Disc, MonitorPlay, Workflow,
+  Disc, MonitorPlay, Workflow, Calculator,
 } from 'lucide-react';
 import { canRead } from '../api/client';
 import { RELEASES } from '../data/releases';
@@ -14,7 +14,7 @@ const CURRENT_VERSION = RELEASES[RELEASES.length - 1].version;
 type Page = 'dashboard' | 'modulo1' | 'users' | 'settings' | 'audit' | 'accessGroups' | 'release'
   | 'finUra' | 'finInsights' | 'finEnvios'
   | 'insCalls' | 'insDashboard' | 'insProcessing' | 'insScorecards' | 'insReports' | 'insUploads'
-  | 'ccAgentes' | 'ccFilas' | 'ccSkills' | 'ccGravacoes' | 'ccDesktop' | 'ccSupervisao' | 'ccFluxos';
+  | 'ccAgentes' | 'ccFilas' | 'ccSkills' | 'ccWfm' | 'ccGravacoes' | 'ccDesktop' | 'ccSupervisao' | 'ccFluxos';
 
 interface SidebarProps {
   currentPage: Page;
@@ -83,6 +83,7 @@ const NAV_ITEMS: NavEntry[] = [
       { page: 'ccAgentes', icon: Users,       label: 'Agentes', section: 'MÓDULOS', resource: 'callcenter.agentes' },
       { page: 'ccFilas',   icon: ListOrdered, label: 'Filas',   section: 'MÓDULOS', resource: 'callcenter.filas'   },
       { page: 'ccSkills',  icon: Tags,        label: 'Skills',  section: 'MÓDULOS', resource: 'callcenter.skills'  },
+      { page: 'ccWfm',     icon: Calculator,  label: 'WFM & Dimensionamento', section: 'MÓDULOS', resource: 'callcenter.wfm' },
       { page: 'ccGravacoes', icon: Disc,      label: 'Gravações', section: 'MÓDULOS', resource: 'callcenter.gravacoes' },
       { page: 'ccDesktop',   icon: LayoutDashboard, label: 'Desktop do Agente', section: 'MÓDULOS', resource: 'callcenter.desktop' },
       { page: 'ccSupervisao', icon: MonitorPlay, label: 'Supervisão', section: 'MÓDULOS', resource: 'callcenter.supervisao' },

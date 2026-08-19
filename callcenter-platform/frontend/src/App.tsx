@@ -19,6 +19,7 @@ import { ConfiguracoesTab } from './components/ConfiguracoesTab';
 import { PesquisasTab } from './components/PesquisasTab';
 import { KbTab } from './components/KbTab';
 import { IaAgentsTab } from './components/IaAgentsTab';
+import { WfmTab } from './components/WfmTab';
 import { revokeSession } from './api/client';
 import { authSessionFromToken } from './hooks/useAuthSession';
 import { useShellBridge } from './hooks/useShellBridge';
@@ -32,6 +33,7 @@ const TAB_RESOURCE = {
   agentes: 'callcenter.agentes',
   filas: 'callcenter.filas',
   skills: 'callcenter.skills',
+  wfm: 'callcenter.wfm',
   gravacoes: 'callcenter.gravacoes',
   desktop: 'callcenter.desktop',
   supervisao: 'callcenter.supervisao',
@@ -181,6 +183,7 @@ export default function App() {
             {currentTab === 'agentes' && <AgentesTab canWrite={session.hasWrite('callcenter.agentes')} canReadRamalSecret={session.hasRead('callcenter.ramais')} />}
             {currentTab === 'filas' && <FilasTab canWrite={session.hasWrite('callcenter.filas')} />}
             {currentTab === 'skills' && <SkillsTab canWrite={session.hasWrite('callcenter.skills')} />}
+            {currentTab === 'wfm' && <WfmTab />}
             {currentTab === 'gravacoes' && <GravacoesTab
               canWrite={session.hasWrite('callcenter.gravacoes')}
               canReadCobrowsing={session.hasRead('callcenter.cobrowsing')}

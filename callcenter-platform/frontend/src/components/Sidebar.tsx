@@ -3,13 +3,13 @@ import { useState } from 'react';
 import {
   Users, ListOrdered, Tags, Disc, LogOut, LayoutDashboard, MonitorPlay, Workflow,
   PhoneCall, BarChart3, ListChecks, ClipboardList, FileText, MessageSquare, TrendingUp, Settings, Smile,
-  BookOpen, Bot,
+  BookOpen, Bot, Calculator,
 } from 'lucide-react';
 import type { AuthSession } from '../hooks/useAuthSession';
 
 type Tab = 'agentes' | 'filas' | 'skills' | 'gravacoes' | 'desktop' | 'supervisao' | 'fluxos'
   | 'insightsChamadas' | 'insightsDashboard' | 'insightsProcessamento' | 'insightsScorecards' | 'insightsReports'
-  | 'chat' | 'reports' | 'pesquisas' | 'configuracoes' | 'kb' | 'iaAgentes';
+  | 'chat' | 'reports' | 'pesquisas' | 'configuracoes' | 'kb' | 'iaAgentes' | 'wfm';
 
 interface SidebarProps {
   currentTab: Tab;
@@ -28,6 +28,7 @@ const NAV_ITEMS: { tab: Tab; icon: ComponentType<{ size?: number; strokeWidth?: 
   { tab: 'agentes', icon: Users,       label: 'Agentes', resource: 'callcenter.agentes' },
   { tab: 'filas',   icon: ListOrdered, label: 'Filas',   resource: 'callcenter.filas'   },
   { tab: 'skills',  icon: Tags,        label: 'Skills',  resource: 'callcenter.skills'  },
+  { tab: 'wfm',     icon: Calculator,  label: 'WFM & Dimensionamento', resource: 'callcenter.wfm' },
   { tab: 'gravacoes', icon: Disc,      label: 'Gravações', resource: 'callcenter.gravacoes' },
   { tab: 'desktop',   icon: LayoutDashboard, label: 'Desktop do Agente', resource: 'callcenter.desktop' },
   { tab: 'supervisao', icon: MonitorPlay, label: 'Supervisão', resource: 'callcenter.supervisao' },
