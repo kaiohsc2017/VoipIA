@@ -38,7 +38,7 @@ const telecomApi = axios.create({
 
 function attachAuth(instance: AxiosInstance) {
   instance.interceptors.request.use((config) => {
-    const token = localStorage.getItem('asteriskia_token');
+    const token = localStorage.getItem('voipia_token') ?? localStorage.getItem('asteriskia_token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   });
@@ -60,8 +60,11 @@ api.interceptors.response.use(
 );
 
 function logout() {
+  localStorage.removeItem('voipia_token');
+  localStorage.removeItem('voipia_user');
   localStorage.removeItem('asteriskia_token');
   localStorage.removeItem('asteriskia_user');
+  window.dispatchEvent(new Event('voipia:logout'));
   window.dispatchEvent(new Event('asteriskia:logout'));
 }
 

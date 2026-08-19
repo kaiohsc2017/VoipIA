@@ -175,7 +175,7 @@ class AuthControllerTest {
                         MockMvcRequestBuilders.post("/api/v1/auth/refresh")
                                 .cookie(
                                         new jakarta.servlet.http.Cookie(
-                                                "asteriskia_refresh_token", "refresh-valido")))
+                                                "voipia_refresh_token", "refresh-valido")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").value("novo-jwt-mock"));
 

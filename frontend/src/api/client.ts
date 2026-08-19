@@ -86,7 +86,7 @@ api.interceptors.response.use(
 
     // 401 que já passou pelo retry (token novo também rejeitado, sessão revogada,
     // clock skew): não deixar a sessão "presa" — força logout e redireciona ao login.
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !isAuthEndpoint) {
       logout();
     }
 

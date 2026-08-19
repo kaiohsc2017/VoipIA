@@ -24,5 +24,5 @@ export function authSessionFromToken(token: string | null): AuthSession {
 }
 
 export function useAuthSession(): AuthSession {
-  return authSessionFromToken(localStorage.getItem('asteriskia_token'));
+  return authSessionFromToken(localStorage.getItem('voipia_token') ?? localStorage.getItem('asteriskia_token'));
 }

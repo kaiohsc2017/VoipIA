@@ -3,73 +3,92 @@ import type { DesktopRankingView } from '../../api/types';
 
 interface RankingPanelProps {
   ranking: DesktopRankingView | null;
-  loading: boolean;
+  loading?: boolean;
 }
 
-export const RankingPanel: React.FC<RankingPanelProps> = ({ ranking, loading }) => {
-  if (loading) {
-    return <div className="py-12 text-center text-xs text-slate-500">Carregando ranking...</div>;
-  }
+export const RankingPanel: React.FC<RankingPanelProps> = ({
+  ranking,
+  loading = false,
+}) => {
+  const position = ranking?.position ?? '—';
+  const totalAgents = ranking?.totalAgents ?? '—';
+  const npsScore = ranking?.npsScore != null ? ranking.npsScore.toFixed(1).replace('.', ',') : '—';
+  const tierLabel = ranking?.tierLabel || 'Classificação Geral';
+  const top3 = ranking?.top3Anonymous ?? [];
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">
-        Sua Posicionamento no Ranking
-      </h3>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-        Baseado no NPS e qualidade dos atendimentos do mês (dados anonimizados)
-      </p>
-
-      <div className="flex flex-col md:flex-row items-center gap-6 p-6 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 mb-6">
-        <div className="flex flex-col items-center">
-          <span className="text-xs text-slate-500 font-medium">Sua Posição</span>
-          <div className="text-4xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-1">
-            #{ranking?.position ?? '—'}
-          </div>
-          <span className="text-xs text-slate-400 mt-1">de {ranking?.totalAgents ?? 0} agentes</span>
-        </div>
-
-        <div className="w-full md:w-px h-px md:h-16 bg-slate-200 dark:bg-slate-700 my-2 md:my-0" />
-
-        <div className="flex-1 space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Nível: {ranking?.tierLabel || 'Em Evolução'}
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            NPS Médio no Período: <strong className="text-slate-800 dark:text-slate-200">{ranking?.npsScore != null ? ranking.npsScore.toFixed(1) : '—'}</strong>
-          </p>
-        </div>
+    <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-xs space-y-5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-slate-900">Minha posição no ranking</h3>
+        <span className="text-xs text-slate-400 font-medium">classificação mensal</span>
       </div>
 
-      <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-3">
-        Top Performers do Mês (Anonimizado)
-      </h4>
-      <div className="space-y-2">
-        {ranking?.top3Anonymous && ranking.top3Anonymous.length > 0 ? (
-          ranking.top3Anonymous.map((item) => (
-            <div
-              key={item.position}
-              className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900"
-            >
-              <div className="flex items-center gap-3">
-                <span className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-600 font-bold text-xs flex items-center justify-center">
-                  #{item.position}
-                </span>
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                  {item.label}
-                </span>
-              </div>
-              <span className="text-xs font-mono font-semibold text-slate-600 dark:text-slate-400">
-                NPS {item.npsScore != null ? item.npsScore.toFixed(1) : '—'}
-              </span>
+      {loading ? (
+        <div className="py-12 text-center text-xs text-slate-400">Carregando ranking...</div>
+      ) : (
+        <>
+          {/* ─── Hero Banner ─── */}
+          <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-100/80 flex items-center gap-4">
+            <div className="text-3xl font-extrabold text-indigo-700 font-sans tracking-tight">
+              {position !== '—' ? `${position}º` : '—'}
             </div>
-          ))
-        ) : (
-          <p className="text-xs text-slate-400 italic">Sem ranking disponível.</p>
-        )}
-      </div>
+            <div>
+              <h4 className="text-xs font-bold text-slate-900">
+                {totalAgents !== '—' ? `entre ${totalAgents} agentes elegíveis` : tierLabel}
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                NPS individual: <strong>{npsScore}</strong> · {tierLabel}
+              </p>
+            </div>
+          </div>
+
+          {/* ─── Ranking Bars ─── */}
+          {top3.length > 0 ? (
+            <div className="space-y-3.5 pt-2">
+              {top3.map((item, idx) => {
+                const isYou = item.position === ranking?.position;
+                const score = item.npsScore != null ? item.npsScore.toFixed(1).replace('.', ',') : '—';
+                const pct = item.npsScore != null ? `${(item.npsScore / 10) * 100}%` : '50%';
+                return (
+                  <div key={idx} className="flex items-center gap-4 text-xs">
+                    <span
+                      className={`w-24 font-medium ${
+                        isYou ? 'font-bold text-indigo-600' : 'text-slate-700'
+                      }`}
+                    >
+                      {item.label || `${item.position}º lugar`}
+                    </span>
+                    <div className="flex-1 h-3 rounded-full bg-slate-100 overflow-hidden relative">
+                      <div
+                        style={{ width: pct }}
+                        className={`h-full rounded-full ${
+                          isYou ? 'bg-indigo-600' : 'bg-slate-300'
+                        }`}
+                      />
+                    </div>
+                    <span
+                      className={`w-8 font-mono text-right ${
+                        isYou ? 'font-bold text-indigo-600' : 'font-medium text-slate-700'
+                      }`}
+                    >
+                      {score}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-8 text-center text-xs text-slate-400 italic">
+              Posições da fila serão calculadas ao final do ciclo de atendimento do mês.
+            </div>
+          )}
+
+          {/* ─── Footnote ─── */}
+          <div className="pt-4 border-t border-slate-100 text-[11px] text-slate-400 leading-relaxed">
+            Gamificação e ranking com anonimização dos colegas por padrão.
+          </div>
+        </>
+      )}
     </div>
   );
 };

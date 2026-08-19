@@ -8,6 +8,7 @@ interface LoginProps {
 
 export default function Login({ onLogin }: LoginProps) {
   const [form, setForm] = useState<LoginRequest>({ username: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -25,13 +26,16 @@ export default function Login({ onLogin }: LoginProps) {
 
   // Guarda a sessão e entra no app — ou, se for o primeiro login, oferece MFA antes.
   const finishLogin = (token: string, firstLoginCompleted?: boolean) => {
+    const cleanUser = form.username.trim();
     localStorage.setItem('voipia_token', token);
-    localStorage.setItem('voipia_user', form.username);
+    localStorage.setItem('voipia_user', cleanUser);
+    localStorage.setItem('asteriskia_token', token);
+    localStorage.setItem('asteriskia_user', cleanUser);
     if (!firstLoginCompleted) {
       setMfaStep('offer');
       return;
     }
-    onLogin(token, form.username);
+    onLogin(token, cleanUser);
   };
 
   // --- Etapa 1: usuário + senha ---
@@ -39,13 +43,17 @@ export default function Login({ onLogin }: LoginProps) {
     e.preventDefault();
     setError('');
     setLoading(true);
+    const payload = {
+      username: form.username.trim(),
+      password: form.password,
+    };
     try {
-      const { data } = await api.post<LoginResponse & { requiresTotp?: boolean; tempToken?: string; displayName?: string }>('/auth/login', form);
+      const { data } = await api.post<LoginResponse & { requiresTotp?: boolean; tempToken?: string; displayName?: string }>('/auth/login', payload);
 
       if (data.requiresTotp && data.tempToken) {
         // 2FA ativo → mostra campo de código TOTP
         setTempToken(data.tempToken);
-        setTotpDisplayName(data.displayName ?? form.username);
+        setTotpDisplayName(data.displayName ?? payload.username);
         setRequiresTotp(true);
         return;
       }
@@ -210,16 +218,39 @@ export default function Login({ onLogin }: LoginProps) {
 
               <div className="form-group" style={{ marginBottom: 24 }}>
                 <label className="form-label" htmlFor="password">Senha</label>
-                <input
-                  id="password"
-                  type="password"
-                  className="form-input"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  value={form.password}
-                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  required
-                />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    className="form-input"
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    style={{ paddingRight: 40 }}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    title={showPassword ? 'Ocultar senha' : 'Ver senha'}
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '1.1rem',
+                      opacity: 0.7,
+                      padding: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      color: 'inherit',
+                    }}
+                  >
+                    {showPassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
               </div>
 
               <button type="submit" className="btn login-btn" disabled={loading}>

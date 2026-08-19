@@ -84,8 +84,8 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 }
 
 export default function App() {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('asteriskia_token'));
-  const [username, setUsername] = useState<string>(() => localStorage.getItem('asteriskia_user') ?? '');
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('voipia_token') ?? localStorage.getItem('asteriskia_token'));
+  const [username, setUsername] = useState<string>(() => localStorage.getItem('voipia_user') ?? localStorage.getItem('asteriskia_user') ?? '');
   const session = authSessionFromToken(token);
 
   const [tab, setTab] = useState<Tab>('agentes');
@@ -102,8 +102,12 @@ export default function App() {
   // Escuta logout forçado (token expirado / 401) — mesmo padrão do Telecom.
   useEffect(() => {
     const handleLogout = () => handleSignOut();
+    window.addEventListener('voipia:logout', handleLogout);
     window.addEventListener('asteriskia:logout', handleLogout);
-    return () => window.removeEventListener('asteriskia:logout', handleLogout);
+    return () => {
+      window.removeEventListener('voipia:logout', handleLogout);
+      window.removeEventListener('asteriskia:logout', handleLogout);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -113,6 +117,8 @@ export default function App() {
   };
 
   const handleSignOut = () => {
+    localStorage.removeItem('voipia_token');
+    localStorage.removeItem('voipia_user');
     localStorage.removeItem('asteriskia_token');
     localStorage.removeItem('asteriskia_user');
     revokeSession();
@@ -159,7 +165,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className="app-layout">
-        {!isEmbedded && (
+        {!isEmbedded && currentTab !== 'desktop' && (
           <Sidebar
             currentTab={currentTab ?? 'agentes'}
             onNavigate={setTab}
@@ -170,8 +176,8 @@ export default function App() {
             onToggleCollapse={() => setSidebarCollapsed(c => !c)}
           />
         )}
-        <main className={`main-content${isEmbedded ? ' embedded' : sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
-          <div className="page-body">
+        <main className={`main-content${isEmbedded || currentTab === 'desktop' ? ' embedded' : sidebarCollapsed ? ' sidebar-collapsed' : ''}${currentTab === 'desktop' ? ' desktop-mode' : ''}`}>
+          <div className={currentTab === 'desktop' ? 'page-body-desktop' : 'page-body'}>
             {currentTab === 'agentes' && <AgentesTab canWrite={session.hasWrite('callcenter.agentes')} canReadRamalSecret={session.hasRead('callcenter.ramais')} />}
             {currentTab === 'filas' && <FilasTab canWrite={session.hasWrite('callcenter.filas')} />}
             {currentTab === 'skills' && <SkillsTab canWrite={session.hasWrite('callcenter.skills')} />}
@@ -181,7 +187,14 @@ export default function App() {
               canWriteCobrowsing={session.hasWrite('callcenter.cobrowsing')}
             />}
             {currentTab === 'desktop' && (
-              <DesktopAgenteTab isEmbedded={isEmbedded} callState={callState} sendCallAction={sendCallAction} />
+              <DesktopAgenteTab
+                isEmbedded={isEmbedded}
+                callState={callState}
+                sendCallAction={sendCallAction}
+                onNavigateToTab={(t) => setTab(t as Tab)}
+                onLogout={handleSignOut}
+                username={username}
+              />
             )}
             {currentTab === 'supervisao' && <SupervisaoTab canWrite={session.hasWrite('callcenter.supervisao')} canRedirect={session.hasWrite('callcenter.supervisao.redirect')} />}
             {currentTab === 'fluxos' && <FluxosTab canWrite={session.hasWrite('callcenter.fluxos')} />}

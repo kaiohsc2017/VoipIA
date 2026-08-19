@@ -50,8 +50,8 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 }
 
 export default function App() {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('asteriskia_token'));
-  const [username, setUsername] = useState<string>(() => localStorage.getItem('asteriskia_user') ?? '');
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('voipia_token') ?? localStorage.getItem('asteriskia_token'));
+  const [username, setUsername] = useState<string>(() => localStorage.getItem('voipia_user') ?? localStorage.getItem('asteriskia_user') ?? '');
   const session = authSessionFromToken(token);
 
   const [page, setPage] = useState<Page>('dashboard');
@@ -63,8 +63,12 @@ export default function App() {
   // mesmo padrão do Telecom/Insights.
   useEffect(() => {
     const handleLogout = () => handleSignOut();
+    window.addEventListener('voipia:logout', handleLogout);
     window.addEventListener('asteriskia:logout', handleLogout);
-    return () => window.removeEventListener('asteriskia:logout', handleLogout);
+    return () => {
+      window.removeEventListener('voipia:logout', handleLogout);
+      window.removeEventListener('asteriskia:logout', handleLogout);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -83,6 +87,8 @@ export default function App() {
   };
 
   const handleSignOut = () => {
+    localStorage.removeItem('voipia_token');
+    localStorage.removeItem('voipia_user');
     localStorage.removeItem('asteriskia_token');
     localStorage.removeItem('asteriskia_user');
     setToken(null);

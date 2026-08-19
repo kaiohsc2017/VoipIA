@@ -2,37 +2,23 @@ import { useState, useEffect, Component, type ReactNode, lazy, Suspense } from '
 import './App.css';
 import Login from './components/Login';
 import Sidebar, { type Page } from './components/Sidebar';
-import ModuloLogs from './components/ModuloLogs';
-import ModuloSeguranca from './components/ModuloSeguranca';
 import { revokeSession } from './api/client';
 import { authSessionFromToken } from './hooks/useAuthSession';
 
-// ─── Lazy imports — cada módulo vira um chunk separado ───────────────────────
-// O React cria um chunk JS separado para cada componente lazy.
-// O chunk só é baixado quando o usuário navega para aquela página.
-const Dashboard          = lazy(() => import('./components/Dashboard'));
-const ModuloURA          = lazy(() => import('./components/ModuloURA'));
-const ModuloConectividade= lazy(() => import('./components/ModuloConectividade'));
-const ModuloAlertas      = lazy(() => import('./components/ModuloAlertas'));
-const Softphone          = lazy(() => import('./components/Softphone'));
-const MasterData         = lazy(() => import('./components/MasterData'));
-const Users              = lazy(() => import('./components/Users'));
-const Operadoras         = lazy(() => import('./components/Operadoras'));
-const Cadastro0800       = lazy(() => import('./components/Cadastro0800'));
-const Linhas             = lazy(() => import('./components/Linhas'));
-const Settings           = lazy(() => import('./components/Settings'));
-const Auditoria          = lazy(() => import('./components/Auditoria'));
-const AccessGroups       = lazy(() => import('./components/AccessGroups'));
-const Documentacao       = lazy(() => import('./components/Documentacao'));
-const Release            = lazy(() => import('./components/Release'));
-const AgentesPage        = lazy(() => import('./components/AgentesPage'));
-const InsightsPage       = lazy(() => import('./components/InsightsPage'));
-const CallCenterPage     = lazy(() => import('./components/CallCenterPage'));
-const Financeiro         = lazy(() => import('./components/Financeiro'));
+// ─── Lazy imports ─────────────────────────────────────────────────────────────
+const Dashboard      = lazy(() => import('./components/Dashboard'));
+const ModuloURA      = lazy(() => import('./components/ModuloURA'));
+const Softphone      = lazy(() => import('./components/Softphone'));
+const Users          = lazy(() => import('./components/Users'));
+const Settings       = lazy(() => import('./components/Settings'));
+const Auditoria      = lazy(() => import('./components/Auditoria'));
+const AccessGroups   = lazy(() => import('./components/AccessGroups'));
+const Release        = lazy(() => import('./components/Release'));
+const InsightsPage   = lazy(() => import('./components/InsightsPage'));
+const CallCenterPage = lazy(() => import('./components/CallCenterPage'));
+const Financeiro     = lazy(() => import('./components/Financeiro'));
 
 // ─── ErrorBoundary ─────────────────────────────────────────────────────────────
-// Evita que erros em componentes filhos desmontem toda a árvore React (tela em branco).
-// React 18 sem ErrorBoundary: qualquer exceção em render/useEffect → root vazio.
 class ErrorBoundary extends Component<
   { children: ReactNode },
   { error: Error | null }
@@ -93,72 +79,43 @@ function PageLoader() {
 
 // ─── App ───────────────────────────────────────────────────────────────────────
 
-// Mapeia cada página interna pro resource_key do RBAC granular (ResourceCatalog.java
-// / access_group_permissions) — mantido em sincronia manual com o backend.
 const PAGE_RESOURCE: Partial<Record<Page, string>> = {
-  dashboard:  'telecom.dashboard',
-  modulo1:    'telecom.modulo1',
-  insights:   'telecom.insights_link',
-  modulo2:    'telecom.modulo2',
-  modulo3:    'telecom.modulo3',
-  masterdata: 'telecom.masterdata',
-  users:      'telecom.users',
-  operadoras: 'telecom.operadoras',
-  cadastro0800: 'telecom.0800',
-  linhas:     'telecom.linhas',
-  settings:   'telecom.settings',
-  logs:       'telecom.logs',
-  security:   'telecom.security',
-  audit:      'telecom.audit',
-  docs:       'telecom.docs',
-  release:    'telecom.release',
-  agents:     'telecom.agents_link',
-  finUra:      'financeiro.ura',
-  finInsights: 'financeiro.insights',
-  finEnvios:   'financeiro.envios',
+  dashboard:     'telecom.dashboard',
+  modulo1:       'telecom.modulo1',
+  users:         'telecom.users',
+  settings:      'telecom.settings',
+  audit:         'telecom.audit',
+  release:       'telecom.release',
+  finUra:        'financeiro.ura',
+  finInsights:   'financeiro.insights',
+  finEnvios:     'financeiro.envios',
   insCalls:      'insights.calls',
   insDashboard:  'insights.dashboard',
   insProcessing: 'insights.processing',
   insScorecards: 'insights.scorecards',
   insReports:    'insights.reports',
   insUploads:    'insights.uploads',
-  agDashboard: 'agents.dashboard',
-  agAgents:    'agents.agents',
-  agServers:   'agents.servers',
-  agKnowledge: 'agents.knowledge',
-  agLogs:      'agents.logs',
-  agAlerts:    'agents.reports',
-  agSecrets:   'agents.secrets',
-  agLlm:       'agents.llm',
-  ccAgentes: 'callcenter.agentes',
-  ccFilas:   'callcenter.filas',
-  ccSkills:  'callcenter.skills',
-  ccGravacoes: 'callcenter.gravacoes',
-  ccDesktop: 'callcenter.desktop',
-  ccSupervisao: 'callcenter.supervisao',
-  ccFluxos:  'callcenter.fluxos',
+  ccAgentes:     'callcenter.agentes',
+  ccFilas:       'callcenter.filas',
+  ccSkills:      'callcenter.skills',
+  ccGravacoes:   'callcenter.gravacoes',
+  ccDesktop:     'callcenter.desktop',
+  ccSupervisao:  'callcenter.supervisao',
+  ccFluxos:      'callcenter.fluxos',
 };
 
-// Submenus Insights/Agentes: cada aba exige, além do resource_key próprio
-// (PAGE_RESOURCE acima), o resource_key do item de menu — telecom.insights_link/
-// telecom.agents_link não têm relação com os dados, só liberam o link (ver CLAUDE.md).
 const LINK_RESOURCE: Partial<Record<Page, string>> = {
   insCalls: 'telecom.insights_link', insDashboard: 'telecom.insights_link', insProcessing: 'telecom.insights_link',
   insScorecards: 'telecom.insights_link', insReports: 'telecom.insights_link', insUploads: 'telecom.insights_link',
-  agDashboard: 'telecom.agents_link', agAgents: 'telecom.agents_link', agServers: 'telecom.agents_link',
-  agKnowledge: 'telecom.agents_link', agLogs: 'telecom.agents_link', agAlerts: 'telecom.agents_link',
-  agSecrets: 'telecom.agents_link', agLlm: 'telecom.agents_link',
   ccAgentes: 'telecom.callcenter_link', ccFilas: 'telecom.callcenter_link', ccSkills: 'telecom.callcenter_link',
   ccGravacoes: 'telecom.callcenter_link', ccDesktop: 'telecom.callcenter_link', ccSupervisao: 'telecom.callcenter_link',
   ccFluxos: 'telecom.callcenter_link',
 };
 
 const INSIGHTS_SUBPAGES: Page[] = ['insCalls', 'insDashboard', 'insProcessing', 'insScorecards', 'insReports', 'insUploads'];
-const AGENTS_SUBPAGES: Page[] = ['agDashboard', 'agAgents', 'agServers', 'agKnowledge', 'agLogs', 'agAlerts', 'agSecrets', 'agLlm'];
 const CALLCENTER_SUBPAGES: Page[] = ['ccAgentes', 'ccFilas', 'ccSkills', 'ccGravacoes', 'ccDesktop', 'ccSupervisao', 'ccFluxos'];
+const FINANCEIRO_SUBPAGES: Page[] = ['finUra', 'finInsights', 'finEnvios'];
 
-// Mapeia Page (id de rota do Telecom) <-> tab/page interno das SPAs embutidas —
-// trocado via postMessage (ver InsightsPage.tsx/AgentesPage.tsx) para não remontar o iframe.
 const INSIGHTS_PAGE_TO_TAB: Record<string, string> = {
   insCalls: 'calls', insDashboard: 'dashboard', insProcessing: 'processing',
   insScorecards: 'scorecards', insReports: 'reports', insUploads: 'uploads',
@@ -167,21 +124,18 @@ const INSIGHTS_TAB_TO_PAGE: Record<string, Page> = {
   calls: 'insCalls', dashboard: 'insDashboard', processing: 'insProcessing',
   scorecards: 'insScorecards', reports: 'insReports', uploads: 'insUploads',
 };
-const AGENTS_PAGE_TO_TAB: Record<string, string> = {
-  agDashboard: 'dashboard', agAgents: 'agents', agServers: 'servers', agKnowledge: 'knowledge',
-  agLogs: 'logs', agAlerts: 'reports', agSecrets: 'secrets', agLlm: 'llm',
-};
-const AGENTS_TAB_TO_PAGE: Record<string, Page> = {
-  dashboard: 'agDashboard', agents: 'agAgents', servers: 'agServers', knowledge: 'agKnowledge',
-  logs: 'agLogs', reports: 'agAlerts', secrets: 'agSecrets', llm: 'agLlm',
-};
+
 const CALLCENTER_PAGE_TO_TAB: Record<string, string> = {
-  ccAgentes: 'agentes', ccFilas: 'filas', ccSkills: 'skills', ccGravacoes: 'gravacoes',
-  ccDesktop: 'desktop', ccSupervisao: 'supervisao', ccFluxos: 'fluxos',
+  ccAgentes: 'agentes', ccFilas: 'filas', ccSkills: 'skills',
+  ccGravacoes: 'gravacoes', ccDesktop: 'desktop', ccSupervisao: 'supervisao', ccFluxos: 'fluxos',
 };
 const CALLCENTER_TAB_TO_PAGE: Record<string, Page> = {
-  agentes: 'ccAgentes', filas: 'ccFilas', skills: 'ccSkills', gravacoes: 'ccGravacoes',
-  desktop: 'ccDesktop', supervisao: 'ccSupervisao', fluxos: 'ccFluxos',
+  agentes: 'ccAgentes', filas: 'ccFilas', skills: 'ccSkills',
+  gravacoes: 'ccGravacoes', desktop: 'ccDesktop', supervisao: 'ccSupervisao', fluxos: 'ccFluxos',
+};
+
+const FINANCEIRO_PAGE_TO_TAB: Record<string, string> = {
+  finUra: 'ura', finInsights: 'insights', finEnvios: 'envios',
 };
 
 export default function App() {
@@ -192,22 +146,14 @@ export default function App() {
   const pageFromHash = (): Page => {
     const hash = window.location.hash.replace('#', '').trim() as Page;
     const valid: Page[] = [
-      'dashboard','modulo1','insights','modulo2','modulo3','masterdata','users','operadoras','cadastro0800','linhas','settings','audit','logs','security','accessGroups','docs','release','agents','finUra','finInsights','finEnvios',
-      ...INSIGHTS_SUBPAGES, ...AGENTS_SUBPAGES, ...CALLCENTER_SUBPAGES,
+      'dashboard','modulo1','users','settings','audit','accessGroups','release',
+      ...INSIGHTS_SUBPAGES,
+      ...CALLCENTER_SUBPAGES,
+      ...FINANCEIRO_SUBPAGES,
     ];
     if (!valid.includes(hash)) return 'dashboard';
-    // Acesso direto via hash (digitado/favoritado) a uma página sem permissão de
-    // leitura: volta pro dashboard. O botão de nav já fica escondido (ver
-    // Sidebar.tsx), isso cobre quem navega direto pela URL.
     const session = authSessionFromToken(localStorage.getItem('voipia_token'));
-    // Grupos de acesso não têm resource_key próprio — o backend (AccessGroupController)
-    // exige ROLE_ADMIN puro (evita o ovo-e-galinha de um grupo customizado
-    // precisar de si mesmo pra existir), então a checagem aqui é direto por role.
     if (hash === 'accessGroups') return session.role === 'ADMIN' ? hash : 'dashboard';
-    // Hash legado #insights/#agents (de antes do submenu) — resolve pra primeira
-    // aba legível do submenu, ou pro dashboard se não tiver nenhuma.
-    if (hash === 'insights') return INSIGHTS_SUBPAGES.find(p => session.hasRead(PAGE_RESOURCE[p]!) && session.hasRead(LINK_RESOURCE[p]!)) ?? 'dashboard';
-    if (hash === 'agents') return AGENTS_SUBPAGES.find(p => session.hasRead(PAGE_RESOURCE[p]!) && session.hasRead(LINK_RESOURCE[p]!)) ?? 'dashboard';
     const resource = PAGE_RESOURCE[hash];
     if (resource && !session.hasRead(resource)) return 'dashboard';
     const link = LINK_RESOURCE[hash];
@@ -216,29 +162,21 @@ export default function App() {
   };
   const [page, setPage] = useState<Page>(pageFromHash);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [agentsAlertCount, setAgentsAlertCount] = useState(0);
 
   const navigateTo = (p: Page) => { setPage(p); window.location.hash = p; };
 
-  // Escuta evento de logout forçado (token expirado / 401)
   useEffect(() => {
     const handleLogout = () => handleSignOut();
     window.addEventListener('voipia:logout', handleLogout);
     return () => window.removeEventListener('voipia:logout', handleLogout);
   }, []);
 
-  // Sincroniza page com o hash da URL (botões voltar/avançar do browser)
   useEffect(() => {
     const onHashChange = () => setPage(pageFromHash());
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  // Reescreve o hash quando `page` foi resolvido diferente do hash bruto da URL —
-  // hash legado #insights/#agents (pré-submenu) ou qualquer hash inválido/sem
-  // permissão que pageFromHash() rebaixou pro dashboard. Sem isso a URL fica
-  // divergente do menu ativo (ex: menu mostra "Chamadas" mas a barra de
-  // endereço continua em #insights).
   useEffect(() => {
     const rawHash = window.location.hash.replace('#', '').trim();
     if (rawHash !== page) window.location.hash = page;
@@ -256,14 +194,13 @@ export default function App() {
   const handleSignOut = () => {
     localStorage.removeItem('voipia_token');
     localStorage.removeItem('voipia_user');
-    revokeSession(); // revoga o refresh token no backend + limpa o cookie httpOnly
+    revokeSession();
     setToken(null);
     setUsername('');
     setRole('USER');
     setPerms({});
   };
 
-  // ---- Não autenticado: tela de login ----
   if (!token) {
     return (
       <ErrorBoundary>
@@ -272,7 +209,6 @@ export default function App() {
     );
   }
 
-  // ---- Autenticado: layout principal ----
   return (
     <ErrorBoundary>
       <div className="app-layout">
@@ -285,39 +221,22 @@ export default function App() {
           onLogout={handleSignOut}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(c => !c)}
-          agentsAlertCount={agentsAlertCount}
         />
 
         <main className={`main-content${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
           <Suspense fallback={<PageLoader />}>
             <ErrorBoundary>
-              {page === 'dashboard'  && <Dashboard />}
-              {page === 'modulo1'    && <ModuloURA />}
+              {page === 'dashboard'    && <Dashboard />}
+              {page === 'modulo1'      && <ModuloURA />}
+              {page === 'users'        && <Users />}
+              {page === 'settings'     && <Settings />}
+              {page === 'audit'        && <Auditoria />}
+              {page === 'accessGroups' && <AccessGroups />}
+              {page === 'release'      && <Release />}
               {INSIGHTS_SUBPAGES.includes(page) && (
                 <InsightsPage
                   tab={INSIGHTS_PAGE_TO_TAB[page] ?? 'calls'}
                   onTabChange={(t) => { const p = INSIGHTS_TAB_TO_PAGE[t]; if (p) navigateTo(p); }}
-                />
-              )}
-              {page === 'modulo2'    && <ModuloConectividade />}
-              {page === 'modulo3'    && <ModuloAlertas />}
-              {page === 'masterdata' && <MasterData />}
-              {page === 'users'      && <Users />}
-              {page === 'operadoras' && <Operadoras />}
-              {page === 'cadastro0800' && <Cadastro0800 />}
-              {page === 'linhas'     && <Linhas />}
-              {page === 'settings'   && <Settings />}
-              {page === 'audit'      && <Auditoria />}
-              {page === 'logs'       && <ModuloLogs />}
-              {page === 'security'   && <ModuloSeguranca />}
-              {page === 'accessGroups' && <AccessGroups />}
-              {page === 'docs'       && <Documentacao />}
-              {page === 'release'    && <Release />}
-              {AGENTS_SUBPAGES.includes(page) && (
-                <AgentesPage
-                  tab={AGENTS_PAGE_TO_TAB[page] ?? 'dashboard'}
-                  onTabChange={(t) => { const p = AGENTS_TAB_TO_PAGE[t]; if (p) navigateTo(p); }}
-                  onAlertCount={setAgentsAlertCount}
                 />
               )}
               {CALLCENTER_SUBPAGES.includes(page) && (
@@ -326,14 +245,15 @@ export default function App() {
                   onTabChange={(t) => { const p = CALLCENTER_TAB_TO_PAGE[t]; if (p) navigateTo(p); }}
                 />
               )}
-              {page === 'finUra'      && <Financeiro scope="ura" />}
-              {page === 'finInsights' && <Financeiro scope="insights" />}
-              {page === 'finEnvios'   && <Financeiro scope="envios" />}
+              {FINANCEIRO_SUBPAGES.includes(page) && (
+                <Financeiro
+                  scope={(FINANCEIRO_PAGE_TO_TAB[page] ?? 'ura') as 'ura' | 'insights' | 'envios'}
+                />
+              )}
             </ErrorBoundary>
           </Suspense>
         </main>
 
-        {/* Softphone WebRTC — flutuante em todas as páginas */}
         <Suspense fallback={null}>
           <ErrorBoundary><Softphone /></ErrorBoundary>
         </Suspense>

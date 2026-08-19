@@ -81,6 +81,24 @@
   flex-direction: column;
   transition: margin-left 0.25s ease;
 }
+
+.main-content.desktop-mode {
+  margin-left: 0 !important;
+  height: 100vh !important;
+  width: 100vw !important;
+  overflow: hidden !important;
+  background: #0f172a !important;
+  padding: 0 !important;
+}
+
+.page-body-desktop {
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
 .page-header {
   padding: 32px 40px 24px;
   border-bottom: 1px solid var(--border-glass);

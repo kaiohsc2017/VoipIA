@@ -29,7 +29,6 @@ volumes:
   asterisk_log:           # Logs do Asterisk (consumidos pelo fail2ban)
   fail2ban_socket:        # Socket do fail2ban (compartilhado com o backend)
   security_cmds:          # Fila de comandos nftables (backend → security)
-  agents_knowledge:       # Base de conhecimento da plataforma de agentes
   caddy_data:             # Certificados TLS gerenciados pelo Caddy
   caddy_config:           # Cache de configuração interno do Caddy
   ura_audio_cache:        # PCM pré-gerado para mensagens estáticas da URA
@@ -578,62 +577,6 @@ services:
       retries: 3
 
   # ---------------------------------------------------------------------------
-  # Agents Backend — FastAPI + Python 3.12
-  # Plataforma de automação com agentes IA.
-  # Porta 8000 não exposta ao host: acesso exclusivo via Caddy (/agents/api/*).
-  # ---------------------------------------------------------------------------
-  agents-backend:
-    build:
-      context: ./agents-platform/backend
-      dockerfile: Dockerfile
-    container_name: voipia-agents-api
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512m
-          cpus: "1.0"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      AGENTS_DB_HOST:     postgres
-      AGENTS_DB_PORT:     5432
-      AGENTS_DB_NAME:     ${POSTGRES_DB:-asteriskia}
-      AGENTS_DB_USER:     ${POSTGRES_USER:-asteriskia}
-      AGENTS_DB_PASS:     ${POSTGRES_PASSWORD}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      # ── LLM ────────────────────────────────────────────────────────────────
-      # Provedor ativo: google | anthropic | openai | minimax | openai_compat
-      AGENTS_LLM_PROVIDER:        ${AGENTS_LLM_PROVIDER:-google}
-      AGENTS_LLM_MODEL:           ${AGENTS_LLM_MODEL:-gemini-2.5-flash}
-      AGENTS_LLM_ENABLED:         ${AGENTS_LLM_ENABLED:-false}
-      AGENTS_LLM_GOOGLE_KEY:      ${AGENTS_LLM_GOOGLE_KEY:-${GEMINI_API_KEY:-}}
-      AGENTS_LLM_ANTHROPIC_KEY:   ${AGENTS_LLM_ANTHROPIC_KEY:-}
-      AGENTS_LLM_OPENAI_KEY:      ${AGENTS_LLM_OPENAI_KEY:-}
-      AGENTS_LLM_MINIMAX_KEY:     ${AGENTS_LLM_MINIMAX_KEY:-}
-      AGENTS_LLM_MINIMAX_GROUP_ID: ${AGENTS_LLM_MINIMAX_GROUP_ID:-}
-      # URL base para APIs compatíveis com OpenAI (Ollama, Groq, Together…)
-      AGENTS_LLM_COMPAT_URL:      ${AGENTS_LLM_COMPAT_URL:-http://localhost:11434/v1}
-      AGENTS_LLM_COMPAT_KEY:      ${AGENTS_LLM_COMPAT_KEY:-}
-      BACKEND_JWT_SECRET:         ${BACKEND_JWT_SECRET}
-      # CORS — mesmas origens do backend Telecom (frontend é same-origin)
-      BACKEND_ALLOWED_ORIGINS:    ${BACKEND_ALLOWED_ORIGINS}
-    volumes:
-      - agents_knowledge:/app/knowledge_docs
-      - /opt/VoipIA/env:/opt/VoipIA/env
-    networks:
-      voipia-net:
-          ipv4_address: 172.16.8.16
-    healthcheck:
-      # Usa o endpoint público de health do FastAPI (curl não existe na imagem slim)
-      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://localhost:8000/api/system/health', timeout=4)"]
-      interval: 20s
-      timeout: 8s
-      retries: 5
-      start_period: 40s
-
-  # ---------------------------------------------------------------------------
   # Caddy 2 — Proxy reverso HTTPS com TLS automático (Let's Encrypt)
   # Ponto de entrada único para todo tráfego externo (porta 80 e 443).
   # A porta 2019 da admin API fica exposta apenas internamente (127.0.0.1).
@@ -647,10 +590,6 @@ services:
         limits:
           memory: 256m
           cpus: "0.5"
-    # Fase 10 (endurecimento, D5): healthcheck real para observabilidade — NUNCA acoplar
-    # depends_on de outro serviço a "service_healthy" deste Caddy (regra inegociável nº 1 do
-    # projeto: nunca deixar o Caddy cair sem religar imediatamente; um healthcheck que fique
-    # unhealthy não deve, por si só, impedir nada de subir/continuar rodando).
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:80/"]
       interval: 30s
@@ -662,11 +601,9 @@ services:
         condition: service_started
       backend:
         condition: service_healthy
-      agents-backend:
-        condition: service_healthy
       asterisk:
         condition: service_healthy
-    # Portas 80/443 do host são terminadas pelo Caddy principal (voipia.voiphash.com.br)
+    # Portas 80/443 do host são terminadas pelo Caddy principal (asteriskia-caddy)
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro  # Configuração do proxy
       - ./docs:/srv/docs:ro                  # Documentação estática (/docs/*)

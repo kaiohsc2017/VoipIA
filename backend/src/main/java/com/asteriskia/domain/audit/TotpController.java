@@ -191,7 +191,7 @@ public class TotpController {
 
         // Refresh token via cookie httpOnly — nunca no corpo JSON (mesmo padrão do AuthController).
         ResponseCookie cookie =
-                ResponseCookie.from("asteriskia_refresh_token", newRefreshToken)
+                ResponseCookie.from("voipia_refresh_token", newRefreshToken)
                         .httpOnly(true)
                         .secure(true)
                         .sameSite("Strict")

@@ -22,7 +22,7 @@ const api = axios.create({
 
 // ---- Request interceptor: injeta JWT ----
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('asteriskia_token');
+  const token = localStorage.getItem('voipia_token') ?? localStorage.getItem('asteriskia_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -48,8 +48,11 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const isAuthEndpoint = originalRequest?.url?.includes('/auth/login') ||
+                           originalRequest?.url?.includes('/auth/refresh') ||
+                           originalRequest?.url?.includes('/auth/totp');
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       if (isRefreshing) {
         return new Promise(function(resolve, reject) {
           failedQueue.push({resolve, reject});
@@ -67,6 +70,7 @@ api.interceptors.response.use(
       try {
         // Sem body: o refresh token vai no cookie httpOnly (withCredentials).
         const { data } = await axios.post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true });
+        localStorage.setItem('voipia_token', data.token);
         localStorage.setItem('asteriskia_token', data.token);
 
         processQueue(null, data.token);
@@ -83,7 +87,7 @@ api.interceptors.response.use(
 
     // 401 que já passou pelo retry (token novo também rejeitado, sessão revogada,
     // clock skew): não deixar a sessão "presa" — força logout e redireciona ao login.
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !isAuthEndpoint) {
       logout();
     }
 
@@ -94,7 +98,7 @@ api.interceptors.response.use(
 /**
  * Revoga o refresh token no backend e limpa o cookie httpOnly (não há como
  * o JS limpar um cookie httpOnly diretamente). Best-effort — não bloqueia
- * o logout local se a rede falhar. Não dispara 'asteriskia:logout' (quem
+ * o logout local se a rede falhar. Não dispara 'voipia:logout' (quem
  * chama já está tratando o encerramento da sessão local).
  */
 export function revokeSession() {
@@ -116,9 +120,12 @@ export function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 function logout() {
+  localStorage.removeItem('voipia_token');
+  localStorage.removeItem('voipia_user');
   localStorage.removeItem('asteriskia_token');
   localStorage.removeItem('asteriskia_user');
   revokeSession();
+  window.dispatchEvent(new Event('voipia:logout'));
   window.dispatchEvent(new Event('asteriskia:logout'));
 }
 

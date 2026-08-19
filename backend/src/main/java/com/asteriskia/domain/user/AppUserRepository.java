@@ -15,7 +15,11 @@ public interface AppUserRepository extends JpaRepository<AppUser, Integer> {
 
     Optional<AppUser> findByUsername(String username);
 
+    Optional<AppUser> findByUsernameIgnoreCase(String username);
+
     Optional<AppUser> findByUsernameAndIsActiveTrue(String username);
+
+    Optional<AppUser> findByUsernameIgnoreCaseAndIsActiveTrue(String username);
 
     /**
      * Retorna o próximo ramal disponível a partir de {@code start}.

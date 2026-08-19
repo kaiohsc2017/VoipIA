@@ -136,11 +136,14 @@ public class RateLimitFilter implements Filter {
     }
 
     private boolean isTrustedProxy(String remoteAddr) {
-        try {
-            return InetAddress.getByName("caddy").getHostAddress().equals(remoteAddr);
-        } catch (UnknownHostException e) {
-            log.warn("Não foi possível resolver o host 'caddy' — headers de IP encaminhado ignorados.");
-            return false;
+        if (remoteAddr == null || remoteAddr.isBlank()) return false;
+        if ("127.0.0.1".equals(remoteAddr) || "0:0:0:0:0:0:0:1".equals(remoteAddr)) return true;
+        for (String host : new String[]{"caddy", "asteriskia-caddy", "voipia-caddy"}) {
+            try {
+                if (InetAddress.getByName(host).getHostAddress().equals(remoteAddr)) return true;
+            } catch (UnknownHostException ignored) {}
         }
+        // Subnets privadas de containers Docker (bridge)
+        return remoteAddr.startsWith("172.") || remoteAddr.startsWith("10.") || remoteAddr.startsWith("192.168.");
     }
 }

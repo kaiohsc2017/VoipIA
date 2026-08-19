@@ -9,6 +9,7 @@ import com.asteriskia.integration.ad.LdapClient;
 import com.asteriskia.integration.ad.LdapUserAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.text.Normalizer;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -72,12 +73,29 @@ public class AuthController {
     public ResponseEntity<?> login(
             @Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
 
+        final String rawUsername = request.username() != null ? request.username() : "";
+        final String username = Normalizer.normalize(rawUsername, Normalizer.Form.NFKC).trim();
+        final String rawPassword = request.password() != null ? request.password() : "";
+        final String normalizedPassword = Normalizer.normalize(rawPassword, Normalizer.Form.NFKC)
+                .replace("\u200B", "")
+                .replace("\uFEFF", "")
+                .replace("\r", "")
+                .replace("\n", "");
+        final String trimmedPassword = normalizedPassword.trim();
+
         // 1. Tenta autenticar via tabela app_users (BCrypt)
         try {
-            Optional<AppUser> userOpt = userRepo.findByUsernameAndIsActiveTrue(request.username());
+            Optional<AppUser> userOpt = userRepo.findByUsernameIgnoreCaseAndIsActiveTrue(username);
             if (userOpt.isPresent()) {
                 AppUser user = userOpt.get();
-                if (ENCODER.matches(request.password(), user.getPasswordHash())) {
+                boolean matches = ENCODER.matches(normalizedPassword, user.getPasswordHash())
+                        || ENCODER.matches(trimmedPassword, user.getPasswordHash())
+                        || ENCODER.matches(rawPassword, user.getPasswordHash());
+
+                log.info("Auth attempt: user='{}', db_user='{}', pwd_len={}, matches={}",
+                        username, user.getUsername(), normalizedPassword.length(), matches);
+
+                if (matches) {
                     if (user.hasExpiredAccess()) {
                         auditService.logAs(
                                 httpRequest,
@@ -112,16 +130,19 @@ public class AuthController {
         // soubesse a senha AD daquele username sequestraria a conta local sem nunca validar a
         // senha local (BCrypt). Conta local "nativa" (criada pela tela Usuários) nunca aceita AD.
         if (ldapClient.currentConfig().enabled()) {
-            var adAttrsOpt = ldapClient.authenticate(request.username(), request.password());
+            var adAttrsOpt = ldapClient.authenticate(username, normalizedPassword);
+            if (adAttrsOpt.isEmpty() && !normalizedPassword.equals(rawPassword)) {
+                adAttrsOpt = ldapClient.authenticate(username, rawPassword);
+            }
             if (adAttrsOpt.isPresent()) {
                 LdapUserAttributes attrs = adAttrsOpt.get();
                 adUserService.upsertMirror(attrs);
-                Optional<AppUser> existing = userRepo.findByUsername(request.username());
+                Optional<AppUser> existing = userRepo.findByUsernameIgnoreCase(username);
                 if (existing.isPresent() && !Boolean.TRUE.equals(existing.get().getIsActive())) {
                     // Conta local desativada — não deixa o bind AD contornar a desativação.
                     auditService.logAs(
                             httpRequest,
-                            request.username(),
+                            username,
                             "LOGIN_FAILED",
                             "Bind AD ok, mas conta local está desativada",
                             false);
@@ -130,7 +151,7 @@ public class AuthController {
                     // autentica esta conta; segue para os demais fallbacks (nunca handleSuccessfulLogin).
                     auditService.logAs(
                             httpRequest,
-                            request.username(),
+                            username,
                             "LOGIN_FAILED",
                             "Bind AD ok, mas conta local não está vinculada ao AD (adLinked=false)",
                             false);
@@ -152,18 +173,21 @@ public class AuthController {
         }
 
         // 2. Fallback: credenciais de ambiente (compatibilidade retroativa)
-        if (adminUsername.equals(request.username()) && adminPassword.equals(request.password())) {
+        if (adminUsername.equalsIgnoreCase(username)
+                && (adminPassword.equals(normalizedPassword)
+                        || adminPassword.equals(trimmedPassword)
+                        || adminPassword.equals(rawPassword))) {
             // Fallback via env é sempre a conta mestre — tratado como ADMIN.
             var envPerms = accessGroupService.permissionsFor(accessGroupService.administradores());
-            String token = jwtService.generateToken(request.username(), 9001, "ADMIN", envPerms);
-            String refreshToken = refreshTokenService.generateRefreshToken(request.username());
+            String token = jwtService.generateToken(username, 9001, "ADMIN", envPerms);
+            String refreshToken = refreshTokenService.generateRefreshToken(username);
             auditService.logAs(
                     httpRequest,
-                    request.username(),
+                    username,
                     "LOGIN",
                     "Login via variáveis de ambiente (fallback)",
                     true);
-            log.info("Login ENV: '{}' → ramal 9001 (fallback)", request.username());
+            log.info("Login ENV: '{}' → ramal 9001 (fallback)", username);
             return ResponseEntity.ok()
                     .header(
                             HttpHeaders.SET_COOKIE,
@@ -174,11 +198,11 @@ public class AuthController {
         // 3. Credenciais inválidas
         auditService.logAs(
                 httpRequest,
-                request.username(),
+                username,
                 "LOGIN_FAILED",
                 "Tentativa com credenciais inválidas",
                 false);
-        log.warn("Tentativa de login inválida: '{}'", request.username());
+        log.warn("Tentativa de login inválida: '{}'", username);
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ErrorResponse("Credenciais inválidas"));
     }
