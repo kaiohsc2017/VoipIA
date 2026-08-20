@@ -169,7 +169,7 @@ export function InsightsChamadasTab({ pendingDrillDown, onDrillDownConsumed }: I
 
   const closeDetail = () => { setDetailId(null); setDetail(null); };
 
-  const findingsByTipo = (tipo: string) => detail?.findings.filter(f => f.tipo === tipo) ?? [];
+  const findingsByTipo = (tipo: string) => (detail?.findings ?? []).filter(f => f.tipo === tipo);
 
   return (
     <>
@@ -312,9 +312,9 @@ export function InsightsChamadasTab({ pendingDrillDown, onDrillDownConsumed }: I
                       borderRadius: 8, padding: '12px 14px', maxHeight: 320, overflowY: 'auto',
                       display: 'flex', flexDirection: 'column', gap: 10,
                     }}>
-                      {detail.segments.length === 0 ? (
+                      {(detail.segments ?? []).length === 0 ? (
                         <span className="text-muted" style={{ fontSize: '.85rem' }}>Transcrição não disponível</span>
-                      ) : detail.segments.map(seg => (
+                      ) : (detail.segments ?? []).map(seg => (
                         <div key={seg.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             {speakerBadge(seg.speaker)}

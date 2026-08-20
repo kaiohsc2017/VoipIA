@@ -83,7 +83,7 @@ export function ExecutionTracePanel({ flowId, onClose }: ExecutionTracePanelProp
       })
       .then(({ data }) => {
         if (!mountedRef.current || seq !== requestSeqRef.current) return;
-        setExecutions(data.content);
+        setExecutions(Array.isArray(data?.content) ? data.content : []);
       })
       .catch(err => {
         if (!mountedRef.current || seq !== requestSeqRef.current) return;

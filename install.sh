@@ -239,13 +239,16 @@ if [ ! -f env/.env ]; then
 
     JWT_SECRET=$(openssl rand -hex 32)
     DB_PASS=$(openssl rand -hex 16)
+    INTERNAL_KEY=$(openssl rand -hex 16)
     TURN_SECRET=$(openssl rand -hex 16)
     SIP_PASS=$(openssl rand -hex 12)
 
-    sed -i "s|CHANGE_ME_JWT_SECRET|$JWT_SECRET|g" env/.env 2>/dev/null || echo "BACKEND_JWT_SECRET=$JWT_SECRET" >> env/.env
-    sed -i "s|CHANGE_ME_DB_PASSWORD|$DB_PASS|g" env/.env 2>/dev/null || echo "POSTGRES_PASSWORD=$DB_PASS" >> env/.env
-    sed -i "s|CHANGE_ME_TURN_SECRET|$TURN_SECRET|g" env/.env 2>/dev/null || echo "TURN_CREDENTIAL=$TURN_SECRET" >> env/.env
-    sed -i "s|CHANGE_ME_SIP_PASSWORD|$SIP_PASS|g" env/.env 2>/dev/null || echo "VITE_SIP_PASSWORD=$SIP_PASS" >> env/.env
+    sed -i "s|^BACKEND_JWT_SECRET=.*|BACKEND_JWT_SECRET=$JWT_SECRET|g" env/.env
+    sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$DB_PASS|g" env/.env
+    sed -i "s|^INTERNAL_API_KEY=.*|INTERNAL_API_KEY=$INTERNAL_KEY|g" env/.env
+    sed -i "s|^TURN_CREDENTIAL=.*|TURN_CREDENTIAL=$TURN_SECRET|g" env/.env
+    sed -i "s|^VITE_SIP_PASSWORD=.*|VITE_SIP_PASSWORD=$SIP_PASS|g" env/.env
+    sed -i "s|^ASTERISK_PJSIP_PASSWORD=.*|ASTERISK_PJSIP_PASSWORD=$SIP_PASS|g" env/.env
     
     chmod 600 env/.env
     log_ok "Arquivo env/.env gerado com segredos criptograficamente seguros."

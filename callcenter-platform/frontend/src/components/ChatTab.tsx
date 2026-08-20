@@ -86,7 +86,7 @@ export function ChatTab({ isAdmin }: ChatTabProps) {
       loadChannels();
       loadExtensions();
       api.get<FlowView[]>('/callcenter/fluxos')
-        .then(({ data }) => setChatFlows(data.filter(f => f.channel === 'chat' || f.channel === 'both')))
+        .then(({ data }) => setChatFlows((Array.isArray(data) ? data : []).filter(f => f.channel === 'chat' || f.channel === 'both')))
         .catch(() => setChatFlows([]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

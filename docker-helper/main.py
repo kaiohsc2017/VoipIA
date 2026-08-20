@@ -13,6 +13,7 @@ controllers Java já faziam antes (nada de "rode este comando arbitrário").
 """
 import asyncio
 import os
+import secrets
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
@@ -29,29 +30,30 @@ _ASTERISK_LOG_FILE  = "/var/log/asterisk/full"
 # ao subprocess sem checar contra esta lista.
 _ALLOWED_SERVICES = {
     "voipia-backend", "voipia-asterisk", "voipia-ai-agent",
-    "voipia-frontend", "voipia-postgres", "voipia-agents-api",
+    "voipia-frontend", "voipia-postgres", "voipia-insights",
     "voipia-caddy", "voipia-security",
 }
 
 # Allowlist das chaves de serviço do docker-compose.yml (nomes usados em
 # `docker compose up <service>`, diferentes dos nomes de container acima).
-# Achado de segurança: /compose/up repassava `services` do body direto pro
-# subprocess sem checar contra nenhuma allowlist — único container com acesso
-# ao docker.sock, então deveria validar por conta própria mesmo que o backend
-# Java já valide antes.
 _ALLOWED_COMPOSE_SERVICES = {
     "postgres", "asterisk", "ai-agent", "docker-helper", "backend",
-    "frontend", "coturn", "security", "agents-backend", "caddy",
+    "frontend", "coturn", "security", "insights", "caddy",
 }
 
 
 async def check_internal_key(x_internal_key: str = Header(default="")):
-    if x_internal_key != _INTERNAL_KEY:
+    if not secrets.compare_digest(x_internal_key, _INTERNAL_KEY):
         raise HTTPException(401, "Chave interna inválida")
 
 
 def _resolve_service(name: str) -> str:
-    svc = name if name.startswith("asteriskia-") else f"asteriskia-{name}"
+    if name.startswith("voipia-"):
+        svc = name
+    elif name.startswith("asteriskia-"):
+        svc = name.replace("asteriskia-", "voipia-")
+    else:
+        svc = f"voipia-{name}"
     if svc not in _ALLOWED_SERVICES:
         raise HTTPException(400, f"Serviço desconhecido: {svc}")
     return svc

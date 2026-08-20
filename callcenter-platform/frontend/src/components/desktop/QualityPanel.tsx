@@ -16,10 +16,10 @@ interface QualityPanelProps {
 
 export const QualityPanel: React.FC<QualityPanelProps> = ({
   quality,
-  evaluations,
+  evaluations = [],
   loading = false,
 }) => {
-  const evalRows = evaluations.map((e) => ({
+  const evalRows = (evaluations ?? []).map((e) => ({
     chamada: e.callDateTime
       ? new Date(e.callDateTime).toLocaleString('pt-BR', {
           day: '2-digit',

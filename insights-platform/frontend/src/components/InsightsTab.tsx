@@ -245,7 +245,7 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
 
   const closeDetail = () => { setDetailId(null); setDetail(null); };
 
-  const findingsByTipo = (tipo: string) => detail?.findings.filter(f => f.tipo === tipo) ?? [];
+  const findingsByTipo = (tipo: string) => (detail?.findings ?? []).filter(f => f.tipo === tipo);
 
   return (
     <>
@@ -349,11 +349,11 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
                   {/* Histórico de transferências (grupo D) */}
                   <div>
                     <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>Histórico de transferências</div>
-                    {detail.transferEvents.length === 0 ? (
+                    {(detail.transferEvents ?? []).length === 0 ? (
                       <div style={{ fontSize: '.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Sem transferências nesta chamada.</div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {detail.transferEvents.map(ev => (
+                        {(detail.transferEvents ?? []).map(ev => (
                           <div key={ev.order} style={{
                             background: 'var(--bg-input)', border: '1px solid var(--border-glass)',
                             borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 12,
@@ -448,7 +448,7 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
                         </div>
                       )}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {detail.evaluationItems.map(item => (
+                        {(detail.evaluationItems ?? []).map(item => (
                           <div key={item.id} style={{
                             background: 'var(--bg-input)', border: '1px solid var(--border-glass)',
                             borderRadius: 8, padding: '8px 12px',
@@ -507,9 +507,9 @@ export function InsightsTab({ pendingDrillDown, onDrillDownConsumed }: InsightsT
                       borderRadius: 8, padding: '12px 14px', maxHeight: 320, overflowY: 'auto',
                       display: 'flex', flexDirection: 'column', gap: 10,
                     }}>
-                      {detail.segments.length === 0 ? (
+                      {(detail.segments ?? []).length === 0 ? (
                         <span className="text-muted" style={{ fontSize: '.85rem' }}>Transcrição não disponível</span>
-                      ) : detail.segments.map(seg => (
+                      ) : (detail.segments ?? []).map(seg => (
                         <div key={seg.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             {speakerBadge(seg.speaker)}

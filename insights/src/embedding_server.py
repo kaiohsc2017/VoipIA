@@ -37,8 +37,13 @@ _model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
 EMBEDDING_DIMENSIONS = 384
 
 
+import secrets
+
+from pydantic import BaseModel, Field
+
+
 class EmbedRequest(BaseModel):
-    text: str
+    text: str = Field(..., min_length=1, max_length=10000)
 
 
 class EmbedResponse(BaseModel):
@@ -52,7 +57,7 @@ def _verify_internal_key(x_internal_key: str | None = Header(default=None)) -> N
     resultado da comparação, para não vazar segredo em log de erro.
     """
     expected = os.environ.get("INTERNAL_API_KEY")
-    if not expected or x_internal_key != expected:
+    if not expected or not x_internal_key or not secrets.compare_digest(x_internal_key, expected):
         logger.warning("Tentativa de acesso a /internal/embed com X-Internal-Key inválida ou ausente")
         raise HTTPException(status_code=401, detail="Não autorizado")
 
