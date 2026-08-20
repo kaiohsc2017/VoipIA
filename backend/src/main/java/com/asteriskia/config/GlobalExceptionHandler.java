@@ -90,6 +90,15 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", ex.getReason() != null ? ex.getReason() : "Erro na requisição"));
     }
 
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<Map<String, String>> handleSecurityException(SecurityException ex) {
+        // Usada hoje só pelo fluxo de login SSO (SsoService) — code ausente, state
+        // CSRF inválido/expirado, conta não vinculada ao SSO, etc. As mensagens já são
+        // seguras para o usuário final (nunca incluem detalhe interno/stacktrace).
+        log.warn("Falha de autenticação SSO: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", ex.getMessage()));
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, String>> handleRuntimeException(RuntimeException ex) {
         // Detalhe completo só no log do servidor — nunca no corpo da resposta,
