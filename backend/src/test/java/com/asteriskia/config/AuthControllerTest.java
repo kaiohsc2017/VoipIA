@@ -144,13 +144,14 @@ class AuthControllerTest {
     }
 
     // ─── Refresh — regressão de segurança ─────────────────────────────────────
-    // Achado do security-reviewer: um usuário desativado/removido que ainda
-    // segure um refresh token válido (até 7 dias) não pode ganhar a claim
-    // "perm" completa do grupo Administradores — role e perms precisam ficar
-    // sincronizados no mesmo branch "default" (USER / sem permissão nenhuma).
+    // Endurecido: um usuário desativado/removido que ainda segure um refresh
+    // token válido (até 30 dias) tem o refresh recusado e o token revogado —
+    // não cai mais num branch "default" que emitia token USER/sem permissões
+    // (comportamento anterior, funcionalmente inofensivo mas desnecessariamente
+    // permissivo: uma conta removida não deveria conseguir renovar sessão).
 
     @Test
-    void refresh_usuarioDesativadoOuRemovido_naoDeveGanharPermissoesDeAdmin() throws Exception {
+    void refresh_usuarioDesativadoOuRemovido_deveSerRecusadoERevogado() throws Exception {
         String username = "usuario_desativado";
 
         RefreshToken storedToken =
@@ -164,34 +165,20 @@ class AuthControllerTest {
         when(refreshTokenService.validateRefreshToken("refresh-valido"))
                 .thenReturn(Optional.of(storedToken));
         // findByUsernameAndIsActiveTrue vazio: simula usuário desativado (soft
-        // delete) ou excluído — cai no branch "default" de refresh().
+        // delete) ou excluído — não é o admin de fallback do .env, então o
+        // refresh é recusado antes de chegar a qualquer branch de role/perms.
         when(userRepo.findByUsernameAndIsActiveTrue(username)).thenReturn(Optional.empty());
-        when(refreshTokenService.generateRefreshToken(username)).thenReturn("novo-refresh-token");
-        when(jwtService.generateToken(
-                        eq(username), eq(9001), eq("USER"), any(), eq(java.util.Set.of())))
-                .thenReturn("novo-jwt-mock");
 
         mockMvc.perform(
                         MockMvcRequestBuilders.post("/api/v1/auth/refresh")
                                 .cookie(
                                         new jakarta.servlet.http.Cookie(
                                                 "voipia_refresh_token", "refresh-valido")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("novo-jwt-mock"));
+                .andExpect(status().isUnauthorized());
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Map<String, String>> permsCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(jwtService)
-                .generateToken(
-                        eq(username),
-                        eq(9001),
-                        eq("USER"),
-                        permsCaptor.capture(),
-                        eq(java.util.Set.of()));
-
-        // O bug corrigido: perms vinha pré-inicializado com o grupo Administradores
-        // (leitura+escrita em todos os 19 recursos) mesmo quando role="USER".
-        assertThat(permsCaptor.getValue()).isEmpty();
+        verify(refreshTokenService).revokeRefreshToken("refresh-valido");
+        verify(jwtService, org.mockito.Mockito.never())
+                .generateToken(anyString(), any(), anyString(), any(), any());
     }
 
     // ─── Fallback AD/LDAP (módulo Call Center, Fase 1) ────────────────────────

@@ -57,6 +57,11 @@ CREATE TABLE IF NOT EXISTS sso_configurations (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- app_users.sso_linked — mesmo racional de ad_linked: só uma conta explicitamente provisionada
+-- via SSO pode ser autenticada pelo fluxo SSO, evitando sequestro de conta local por colisão
+-- de e-mail/username com uma identidade do tenant Microsoft Entra ID.
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS sso_linked BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- Seed default Entra ID template
 INSERT INTO sso_configurations (
     provider_name, display_name, tenant_id, client_id, is_active, auto_provision_users

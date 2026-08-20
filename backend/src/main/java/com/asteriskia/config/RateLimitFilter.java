@@ -127,10 +127,13 @@ public class RateLimitFilter implements Filter {
     private String resolveIp(HttpServletRequest request) {
         String remoteAddr = request.getRemoteAddr();
         if (isTrustedProxy(remoteAddr)) {
-            String forwarded = request.getHeader("X-Forwarded-For");
-            if (forwarded != null && !forwarded.isBlank()) return forwarded.split(",")[0].trim();
             String realIp = request.getHeader("X-Real-IP");
             if (realIp != null && !realIp.isBlank()) return realIp.trim();
+            String forwarded = request.getHeader("X-Forwarded-For");
+            if (forwarded != null && !forwarded.isBlank()) {
+                String[] parts = forwarded.split(",");
+                return parts[parts.length - 1].trim();
+            }
         }
         return remoteAddr;
     }

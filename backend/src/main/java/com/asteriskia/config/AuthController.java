@@ -52,6 +52,9 @@ public class AuthController {
     @Value("${app.auth.admin-password:changeme}")
     private String adminPassword;
 
+    @Value("${app.jwt.refresh-expiration-days:7}")
+    private int refreshExpirationDays;
+
     private static final String REFRESH_COOKIE = "voipia_refresh_token";
 
     /**
@@ -92,8 +95,8 @@ public class AuthController {
                         || ENCODER.matches(trimmedPassword, user.getPasswordHash())
                         || ENCODER.matches(rawPassword, user.getPasswordHash());
 
-                log.info("Auth attempt: user='{}', db_user='{}', pwd_len={}, matches={}",
-                        username, user.getUsername(), normalizedPassword.length(), matches);
+                log.info("Auth attempt: user='{}', db_user='{}', matches={}",
+                        username, user.getUsername(), matches);
 
                 if (matches) {
                     if (user.hasExpiredAccess()) {
@@ -191,7 +194,7 @@ public class AuthController {
             return ResponseEntity.ok()
                     .header(
                             HttpHeaders.SET_COOKIE,
-                            refreshCookie(refreshToken, 30L * 24 * 3600).toString())
+                            refreshCookie(refreshToken, (long) refreshExpirationDays * 24 * 3600).toString())
                     .body(new LoginResponse(token, "Bearer", 8, 9001, "Administrador", true));
         }
 
@@ -207,11 +210,6 @@ public class AuthController {
                 .body(new ErrorResponse("Credenciais inválidas"));
     }
 
-    /**
-     * Auto-provisiona um AppUser no primeiro login bem-sucedido via AD. passwordHash recebe um
-     * hash BCrypt de um UUID aleatório — nunca usado para autenticar (usuários AD sempre entram
-     * pela etapa 1bis), só satisfaz a coluna NOT NULL sem reaproveitar um hash previsível/fixo.
-     */
     private AppUser provisionAdUser(LdapUserAttributes attrs) {
         var group =
                 adUserService.resolveAccessGroup(
@@ -220,24 +218,25 @@ public class AuthController {
         AppUser user =
                 AppUser.builder()
                         .username(attrs.samAccountName())
-                        .passwordHash(ENCODER.encode(java.util.UUID.randomUUID().toString()))
                         .displayName(
-                                attrs.displayName() != null ? attrs.displayName() : attrs.samAccountName())
+                                attrs.displayName() != null
+                                        ? attrs.displayName()
+                                        : attrs.samAccountName())
+                        .passwordHash(ENCODER.encode(java.util.UUID.randomUUID().toString()))
                         .extension(extension)
-                        .isActive(true)
                         .role("USER")
                         .accessGroup(group)
+                        .isActive(true)
                         .accessIndeterminate(true)
                         .firstLoginCompleted(false)
                         .adLinked(true)
                         .build();
-        AppUser saved = userRepo.save(user);
-        log.info("Usuário provisionado via AD: '{}' → ramal {}", saved.getUsername(), extension);
-        return saved;
+        return userRepo.save(user);
     }
 
-    private ResponseEntity<?> handleSuccessfulLogin(AppUser user, HttpServletRequest request) {
-        // Se 2FA está ativo, emite token temporário (5 min) e retorna requiresTotp=true
+    private ResponseEntity<?> handleSuccessfulLogin(
+            AppUser user, HttpServletRequest request) {
+        // Se 2FA está ativo
         if (Boolean.TRUE.equals(user.getTotpEnabled())) {
             String tempToken = jwtService.generateTempToken(user.getUsername());
             auditService.logAs(
@@ -246,7 +245,6 @@ public class AuthController {
                     "LOGIN",
                     "Primeira etapa do login concluída — aguardando TOTP",
                     true);
-            log.info("Login DB: '{}' — 2FA ativo, aguardando TOTP", user.getUsername());
             return ResponseEntity.ok(
                     Map.of(
                             "requiresTotp",
@@ -257,14 +255,12 @@ public class AuthController {
                             user.getDisplayName()));
         }
 
-        // Login normal (sem 2FA)
-        var perms = accessGroupService.permissionsFor(user.getAccessGroup());
         String token =
                 jwtService.generateToken(
                         user.getUsername(),
                         user.getExtension(),
                         user.getRole(),
-                        perms,
+                        accessGroupService.permissionsFor(user.getAccessGroup()),
                         user.businessUnitIds());
         String refreshToken = refreshTokenService.generateRefreshToken(user.getUsername());
         auditService.logAs(
@@ -277,7 +273,7 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(
                         HttpHeaders.SET_COOKIE,
-                        refreshCookie(refreshToken, 30L * 24 * 3600).toString())
+                        refreshCookie(refreshToken, (long) refreshExpirationDays * 24 * 3600).toString())
                 .body(
                         new LoginResponse(
                                 token,
@@ -305,14 +301,20 @@ public class AuthController {
         RefreshToken refreshToken = optToken.get();
         String username = refreshToken.getUsername();
 
+        boolean isEnvFallbackAdmin = adminUsername.equals(username);
+        Optional<AppUser> userOpt = userRepo.findByUsernameAndIsActiveTrue(username);
+
+        // Se o usuário não for o admin de fallback e não existir/estiver inativo no banco:
+        if (!isEnvFallbackAdmin && userOpt.isEmpty()) {
+            refreshTokenService.revokeRefreshToken(reqRefreshToken);
+            log.warn("Refresh bloqueado: usuário '{}' inativo ou inexistente", username);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("Conta inativa ou inexistente."));
+        }
+
         Integer extension = 9001;
         String displayName = "Administrador";
-        boolean isEnvFallbackAdmin = adminUsername.equals(username);
         String role = isEnvFallbackAdmin ? "ADMIN" : "USER";
-        // CRÍTICO: perms deve espelhar exatamente a mesma condição de role acima. Um usuário
-        // desativado (isActive=false) ou removido cai neste branch default via refresh token
-        // ainda válido (até 7 dias) — dar perms de Administradores aqui seria escalação de
-        // privilégio total, ignorando a desativação da conta.
         var perms =
                 isEnvFallbackAdmin
                         ? accessGroupService.permissionsFor(accessGroupService.administradores())
@@ -320,7 +322,6 @@ public class AuthController {
         Set<Integer> businessUnitIds = Set.of();
         boolean firstLoginCompleted = true;
 
-        Optional<AppUser> userOpt = userRepo.findByUsernameAndIsActiveTrue(username);
         if (userOpt.isPresent()) {
             AppUser user = userOpt.get();
             if (user.hasExpiredAccess()) {
@@ -340,7 +341,6 @@ public class AuthController {
             firstLoginCompleted = Boolean.TRUE.equals(user.getFirstLoginCompleted());
         }
 
-        // Rotação: revoga o antigo e gera um novo
         refreshTokenService.revokeRefreshToken(reqRefreshToken);
         String newJwt = jwtService.generateToken(username, extension, role, perms, businessUnitIds);
         String newRefreshToken = refreshTokenService.generateRefreshToken(username);
@@ -349,7 +349,7 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(
                         HttpHeaders.SET_COOKIE,
-                        refreshCookie(newRefreshToken, 30L * 24 * 3600).toString())
+                        refreshCookie(newRefreshToken, (long) refreshExpirationDays * 24 * 3600).toString())
                 .body(
                         new LoginResponse(
                                 newJwt, "Bearer", 8, extension, displayName, firstLoginCompleted));

@@ -47,13 +47,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7);
 
         try {
-            // Achado de segurança: token de streaming (60s, scope=stream — ver
-            // StreamingTokenFilter/JwtService.generateStreamingToken) é pensado
-            // só pra query string de WS/SSE. Sem esta checagem, ele funcionaria
-            // como Bearer normal em QUALQUER endpoint (mesmo privilégio do
-            // usuário) durante sua validade — baixo risco dado o TTL curto, mas
-            // contraria o design pretendido de "restrito a streaming".
-            if (jwtService.isValid(token) && !jwtService.isStreamingScope(token)
+            // Achado de segurança (DevSecOps / OWASP A07):
+            // 1. Token de streaming (60s, scope=stream) restrito a streaming WS/SSE.
+            // 2. Token temporário de 2FA (claim totp_pending=true) só pode acessar /api/v1/auth/totp/verify.
+            // 3. Token de chat público (scope=chat_customer) não concede credenciais internas de staff.
+            if (jwtService.isValid(token)
+                    && !jwtService.isStreamingScope(token)
+                    && !jwtService.isTotpPending(token)
+                    && !jwtService.isChatCustomerScope(token)
                     && SecurityContextHolder.getContext().getAuthentication() == null) {
 
                 String username = jwtService.extractUsername(token);

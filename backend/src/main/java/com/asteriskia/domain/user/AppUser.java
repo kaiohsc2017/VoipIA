@@ -103,6 +103,16 @@ public class AppUser {
     @Builder.Default
     private Boolean adLinked = false;
 
+    /**
+     * True somente para contas provisionadas via SSO (Microsoft Entra ID). Mesmo racional do
+     * {@link #adLinked}: só uma conta com ssoLinked=true pode ser autenticada pelo fluxo SSO —
+     * impede que uma conta local pré-existente com o mesmo e-mail/username de uma identidade do
+     * Entra ID seja sequestrada por quem tiver acesso àquele e-mail no tenant corporativo.
+     */
+    @Column(name = "sso_linked", nullable = false)
+    @Builder.Default
+    private Boolean ssoLinked = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

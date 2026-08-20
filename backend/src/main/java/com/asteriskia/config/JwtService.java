@@ -347,5 +347,18 @@ public class JwtService {
             return false;
         }
     }
+
+    public boolean isChatCustomerScope(String token) {
+        try {
+            var claims = Jwts.parser()
+                    .verifyWith(key())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            return "chat_customer".equals(claims.get("scope"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }
 

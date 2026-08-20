@@ -12,6 +12,8 @@ export interface LoginResponse {
   token: string;
   type: string;
   expiresInHours: number;
+  extension?: number;
+  displayName?: string;
   firstLoginCompleted?: boolean;
 }
 

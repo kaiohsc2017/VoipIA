@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import api, { getErrorMessage } from '../api/client';
 import type { LoginRequest, LoginResponse } from '../api/types';
 
@@ -23,6 +23,36 @@ export default function Login({ onLogin }: LoginProps) {
   const [mfaSetupData, setMfaSetupData] = useState<{ secret: string; qrCodeUrl: string } | null>(null);
   const [mfaCode, setMfaCode] = useState('');
   const [mfaMsg, setMfaMsg] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state');
+    if (code) {
+      setLoading(true);
+      setError('');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      api.post<LoginResponse>('/auth/sso/callback', {
+        code,
+        state,
+        redirectUri: `${window.location.origin}/login`,
+      })
+        .then(({ data }) => {
+          if (data.token) {
+            const user = data.displayName || 'SSO User';
+            localStorage.setItem('voipia_token', data.token);
+            localStorage.setItem('voipia_user', user);
+            localStorage.setItem('asteriskia_token', data.token);
+            localStorage.setItem('asteriskia_user', user);
+            onLogin(data.token, user);
+          }
+        })
+        .catch(err => {
+          setError(getErrorMessage(err, 'Falha na autenticação via Microsoft Entra ID.'));
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [onLogin]);
 
   // Guarda a sessão e entra no app — ou, se for o primeiro login, oferece MFA antes.
   const finishLogin = (token: string, firstLoginCompleted?: boolean) => {
