@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Eye, ListOrdered, Star } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, ListOrdered, Star, Calendar } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
 import { ConfirmModal } from './ConfirmModal';
 import type { AgentRequest, AppUserOption, BusinessUnit, CcAgent, CcAgentSkill, CcQueue, CcQueueMember, CcSkill } from '../api/types';
@@ -17,6 +17,7 @@ export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean
   const [secret, setSecret] = useState('');
   const [queuesOf, setQueuesOf] = useState<CcAgent | null>(null);
   const [skillsOf, setSkillsOf] = useState<CcAgent | null>(null);
+  const [schedulesOf, setSchedulesOf] = useState<CcAgent | null>(null);
   const [msg, setMsg] = useState('');
   const [fd, setFd] = useState<AgentRequest>(EMPTY_FORM);
 
@@ -116,6 +117,11 @@ export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean
             onError={m => flash(m)} />
         )}
 
+        {schedulesOf && (
+          <AgentScheduleModal agent={schedulesOf} canWrite={canWrite} onClose={() => setSchedulesOf(null)}
+            onError={m => flash(m)} />
+        )}
+
         {canWrite && showForm && (
           <div className="modal-overlay" onClick={() => setShowForm(false)}>
             <div className="modal" onClick={e => e.stopPropagation()}>
@@ -193,6 +199,7 @@ export function AgentesTab({ canWrite, canReadRamalSecret }: { canWrite: boolean
                   <td>
                     <button className="btn btn-ghost btn-sm" title="Filas do agente" onClick={() => setQueuesOf(a)}><ListOrdered size={14} /></button>
                     <button className="btn btn-ghost btn-sm" title="Skills do agente" onClick={() => setSkillsOf(a)}><Star size={14} /></button>
+                    <button className="btn btn-ghost btn-sm" title="Escala de trabalho (Turnos)" onClick={() => setSchedulesOf(a)}><Calendar size={14} /></button>
                     {canReadRamalSecret && a.extension && (
                       <button className="btn btn-ghost btn-sm" title="Ver senha do ramal" onClick={() => revealSecret(a)}><Eye size={14} /></button>
                     )}
@@ -412,6 +419,226 @@ function AgentSkillsModal({ agent, canWrite, onClose, onError }: {
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface AgentSchedule {
+  id: number;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  active: boolean;
+}
+
+const DAY_NAMES: Record<number, string> = {
+  1: 'Segunda-feira',
+  2: 'Terça-feira',
+  3: 'Quarta-feira',
+  4: 'Quinta-feira',
+  5: 'Sexta-feira',
+  6: 'Sábado',
+  7: 'Domingo',
+};
+
+function AgentScheduleModal({ agent, canWrite, onClose, onError }: {
+  agent: CcAgent; canWrite: boolean; onClose: () => void; onError: (m: string) => void;
+}) {
+  const [schedules, setSchedules] = useState<AgentSchedule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dayOfWeek, setDayOfWeek] = useState(1);
+  const [startTime, setStartTime] = useState('08:00');
+  const [endTime, setEndTime] = useState('17:00');
+  const [saving, setSaving] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    api.get<AgentSchedule[]>(`/callcenter/reports/agent-schedules?agentId=${agent.id}`)
+      .then(({ data }) => setSchedules(data || []))
+      .catch(err => onError(getErrorMessage(err, 'Erro ao carregar escalas do agente.')))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agent.id]);
+
+  const handleAdd = () => {
+    if (!startTime || !endTime) {
+      onError('Informe o horário de entrada e saída.');
+      return;
+    }
+    setSaving(true);
+    api.post('/callcenter/reports/agent-schedules', {
+      agentId: agent.id,
+      dayOfWeek: Number(dayOfWeek),
+      startTime: startTime.length === 5 ? `${startTime}:00` : startTime,
+      endTime: endTime.length === 5 ? `${endTime}:00` : endTime,
+    })
+      .then(() => {
+        load();
+      })
+      .catch(err => onError(getErrorMessage(err, 'Erro ao salvar escala de trabalho.')))
+      .finally(() => setSaving(false));
+  };
+
+  const handleDelete = (id: number) => {
+    api.delete(`/callcenter/reports/agent-schedules/${id}`)
+      .then(() => load())
+      .catch(err => onError(getErrorMessage(err, 'Erro ao remover escala.')));
+  };
+
+  const handleApplyWeekdays = () => {
+    setSaving(true);
+    const promises = [1, 2, 3, 4, 5].map(d =>
+      api.post('/callcenter/reports/agent-schedules', {
+        agentId: agent.id,
+        dayOfWeek: d,
+        startTime: startTime.length === 5 ? `${startTime}:00` : startTime,
+        endTime: endTime.length === 5 ? `${endTime}:00` : endTime,
+      })
+    );
+    Promise.all(promises)
+      .then(() => load())
+      .catch(err => onError(getErrorMessage(err, 'Erro ao salvar escala semanal.')))
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: '680px' }}>
+        <div className="modal-header">
+          <h2>📅 Escala de Trabalho — {agent.name}</h2>
+          <button className="btn-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>
+            Configure os horários esperados de login (entrada) e logout (saída) para cada dia da semana.
+          </p>
+
+          {canWrite && (
+            <div style={{ background: 'var(--bg-deep, #f8f9fa)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-glass, #e5e7eb)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr auto', gap: '10px', alignItems: 'end' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                    Dia da Semana
+                  </label>
+                  <select
+                    className="form-input"
+                    value={dayOfWeek}
+                    onChange={e => setDayOfWeek(Number(e.target.value))}
+                    style={{ width: '100%' }}
+                  >
+                    {Object.entries(DAY_NAMES).map(([d, name]) => (
+                      <option key={d} value={d}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                    Login (Entrada)
+                  </label>
+                  <input
+                    type="time"
+                    className="form-input"
+                    value={startTime}
+                    onChange={e => setStartTime(e.target.value)}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                    Logout (Saída)
+                  </label>
+                  <input
+                    type="time"
+                    className="form-input"
+                    value={endTime}
+                    onChange={e => setEndTime(e.target.value)}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleAdd}
+                  disabled={saving}
+                  style={{ height: '36px', padding: '0 14px' }}
+                >
+                  {saving ? '...' : '+ Adicionar'}
+                </button>
+              </div>
+
+              <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={handleApplyWeekdays}
+                  disabled={saving}
+                  style={{ fontSize: '0.75rem', color: 'var(--clr-primary)' }}
+                >
+                  ⚡ Replicar horário para Seg–Sex
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="table-wrapper" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+            <table style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <th>Dia da Semana</th>
+                  <th>Horário Entrada (Login)</th>
+                  <th>Horário Saída (Logout)</th>
+                  <th>Carga Diária</th>
+                  {canWrite && <th style={{ width: '50px' }}></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Carregando escalas...</td></tr>
+                ) : schedules.length === 0 ? (
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>Nenhuma escala cadastrada para este agente.</td></tr>
+                ) : (
+                  schedules
+                    .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+                    .map(s => {
+                      const [sh, sm] = s.startTime.split(':').map(Number);
+                      const [eh, em] = s.endTime.split(':').map(Number);
+                      const totalMin = (eh * 60 + em) - (sh * 60 + sm);
+                      const hours = Math.floor(totalMin / 60);
+                      const mins = totalMin % 60;
+                      return (
+                        <tr key={s.id}>
+                          <td style={{ fontWeight: 600 }}>{DAY_NAMES[s.dayOfWeek]}</td>
+                          <td style={{ fontFamily: 'monospace' }}>{s.startTime.slice(0, 5)}</td>
+                          <td style={{ fontFamily: 'monospace' }}>{s.endTime.slice(0, 5)}</td>
+                          <td style={{ color: 'var(--text-muted)' }}>{hours}h {mins > 0 ? `${mins}m` : ''}</td>
+                          {canWrite && (
+                            <td>
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => handleDelete(s.id)}
+                                title="Remover escala"
+                                style={{ color: 'var(--clr-danger)' }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-primary" onClick={onClose}>Fechar</button>
         </div>
       </div>
     </div>
