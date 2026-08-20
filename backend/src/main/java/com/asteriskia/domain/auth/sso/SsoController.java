@@ -23,23 +23,21 @@ public class SsoController {
     }
 
     @GetMapping("/authorize-url")
-    public ResponseEntity<String> getAuthorizeUrl(
-            @RequestParam(defaultValue = "https://app.voiphash.com.br/login") String redirectUri) {
-        return ResponseEntity.ok(ssoService.buildAuthorizeUrl(redirectUri));
+    public ResponseEntity<String> getAuthorizeUrl() {
+        return ResponseEntity.ok(ssoService.buildAuthorizeUrl());
     }
 
     @PostMapping("/callback")
     public ResponseEntity<SsoService.SsoLoginResponseDto> processCallback(
             @RequestBody SsoCallbackRequest request) {
-        return ResponseEntity.ok(
-                ssoService.processSsoLoginWithCode(request.code(), request.state(), request.redirectUri()));
+        return ResponseEntity.ok(ssoService.processSsoLoginWithCode(request.code(), request.state()));
     }
 
     @PutMapping("/admin/config")
-    public ResponseEntity<SsoConfiguration> updateAdminConfig(
+    public ResponseEntity<SsoService.SsoAdminConfigDto> updateAdminConfig(
             @RequestBody SsoService.SsoConfigUpdateRequest request) {
-        return ResponseEntity.ok(ssoService.updateAdminConfig(request));
+        return ResponseEntity.ok(SsoService.SsoAdminConfigDto.from(ssoService.updateAdminConfig(request)));
     }
 
-    public record SsoCallbackRequest(String code, String state, String redirectUri) {}
+    public record SsoCallbackRequest(String code, String state) {}
 }

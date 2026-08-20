@@ -67,15 +67,17 @@ public class SsoService {
         return new SsoPublicConfigDto(false, "Microsoft 365 / Entra ID", "MICROSOFT_ENTRA");
     }
 
-    public String buildAuthorizeUrl(String redirectUri) {
+    /**
+     * Sempre usa o redirect_uri configurado pelo admin — nunca aceita um valor do chamador,
+     * evitando que um cliente escolha, dentre múltiplos redirect_uri registrados no App
+     * Registration do Entra (ex: staging vs. produção), qual endpoint recebe o fluxo.
+     */
+    public String buildAuthorizeUrl() {
         SsoConfiguration cfg = ssoConfigRepository.findByProviderNameIgnoreCase("MICROSOFT_ENTRA")
                 .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
                 .orElseThrow(() -> new IllegalStateException("Configuração SSO Microsoft Entra não encontrada ou desativada"));
 
         String tenant = (cfg.getTenantId() != null && !cfg.getTenantId().isBlank()) ? cfg.getTenantId() : "common";
-        // Sempre o redirect_uri configurado pelo admin — o valor do chamador nunca é usado aqui,
-        // evitando que um cliente escolha, dentre múltiplos redirect_uri registrados no App
-        // Registration do Entra (ex: staging vs. produção), qual endpoint recebe o fluxo.
         String targetRedirect = (cfg.getRedirectUri() != null && !cfg.getRedirectUri().isBlank())
                 ? cfg.getRedirectUri()
                 : "https://app.voiphash.com.br/login";
@@ -91,7 +93,7 @@ public class SsoService {
         );
     }
 
-    public SsoLoginResponseDto processSsoLoginWithCode(String code, String state, String redirectUri) {
+    public SsoLoginResponseDto processSsoLoginWithCode(String code, String state) {
         if (code == null || code.isBlank()) {
             throw new SecurityException("Código de autorização OAuth2/OIDC ausente.");
         }
@@ -196,10 +198,10 @@ public class SsoService {
                         "Esta conta não está vinculada ao login corporativo (SSO). Use a senha local.");
             }
             if (!Boolean.TRUE.equals(user.getIsActive())) {
-                throw new IllegalStateException("Conta de usuário desativada.");
+                throw new SecurityException("Conta de usuário desativada.");
             }
             if (user.hasExpiredAccess()) {
-                throw new IllegalStateException("Acesso expirado.");
+                throw new SecurityException("Acesso expirado.");
             }
             if (Boolean.TRUE.equals(user.getTotpEnabled())) {
                 // Decisão deliberada: SSO não substitui o 2FA local — quem ativou TOTP precisa
@@ -274,6 +276,37 @@ public class SsoService {
     public record SsoPublicConfigDto(boolean enabled, String displayName, String provider) {}
 
     public record SsoLoginResponseDto(String token, Integer id, String username, String displayName, Integer extension) {}
+
+    /**
+     * View de {@link SsoConfiguration} para a resposta do admin — nunca inclui clientSecret.
+     * Achado real de segurança: a entidade JPA era serializada direto, ecoando o segredo do
+     * App Registration do Entra ID em texto puro a cada PUT /admin/config.
+     */
+    public record SsoAdminConfigDto(
+            Long id,
+            String displayName,
+            String clientId,
+            boolean clientSecretConfigured,
+            String tenantId,
+            String redirectUri,
+            Boolean autoProvisionUsers,
+            Boolean isActive,
+            Integer defaultAccessGroupId
+    ) {
+        public static SsoAdminConfigDto from(SsoConfiguration cfg) {
+            return new SsoAdminConfigDto(
+                    cfg.getId(),
+                    cfg.getDisplayName(),
+                    cfg.getClientId(),
+                    cfg.getClientSecret() != null && !cfg.getClientSecret().isBlank(),
+                    cfg.getTenantId(),
+                    cfg.getRedirectUri(),
+                    cfg.getAutoProvisionUsers(),
+                    cfg.getIsActive(),
+                    cfg.getDefaultAccessGroup() != null ? cfg.getDefaultAccessGroup().getId() : null
+            );
+        }
+    }
 
     public record SsoConfigUpdateRequest(
             String displayName,

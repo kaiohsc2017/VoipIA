@@ -73,8 +73,6 @@ public class SecurityConfig {
                                 "/api/v1/auth/sso/authorize-url",
                                 "/api/v1/auth/sso/callback",
                                 "/api/health",          // health check externo (Caddy, Prometheus, monitoração)
-                                "/api/v1/ai/chain/active",    // ai-agent consulta chain via X-Internal-Key
-                                "/api/v1/ai/providers/*/key-internal", // ai-agent busca keys via X-Internal-Key
                                 "/actuator/health",
                                 "/ws/**",           // SockJS handshake (GET /ws/info) e upgrade WebSocket
                                 // Widget de chat público (Fase 7b) — cliente anônimo, sem JWT de
@@ -111,6 +109,17 @@ public class SecurityConfig {
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.users")
                         .requestMatchers(HttpMethod.GET, "/api/v1/asterisk-config/**")
                                 .hasAnyAuthority("ROLE_ADMIN", "PERM_READ_telecom.settings")
+                        // Achado de segurança: estavam em permitAll() (comentário dizia
+                        // "autenticado via X-Internal-Key", mas nada aqui de fato exigia
+                        // ROLE_INTERNAL — InternalKeyFilter só concede a authority quando a
+                        // chave bate, nunca bloqueia a requisição) — qualquer cliente na
+                        // internet conseguia ler a chave real de qualquer provedor de IA
+                        // configurado via GET /api/v1/ai/providers/{id}/key-internal sem
+                        // nenhum header. Precisa vir ANTES da regra genérica de GET
+                        // /api/v1/ai/** abaixo, que é para o admin no browser (JWT), não
+                        // para o ai-agent (X-Internal-Key).
+                        .requestMatchers(HttpMethod.GET, "/api/v1/ai/chain/active", "/api/v1/ai/providers/*/key-internal")
+                                .hasAuthority("ROLE_INTERNAL")
                         // Configuração de provedores de IA (AISettingsPanel, dentro da aba
                         // Configurações) — reusa "telecom.settings" (mesma página, sem menu
                         // próprio). Achado de segurança: não tinha requestMatcher nenhum e

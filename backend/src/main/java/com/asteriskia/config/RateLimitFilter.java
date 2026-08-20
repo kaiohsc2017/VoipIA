@@ -45,7 +45,9 @@ public class RateLimitFilter implements Filter {
     /** Endpoints protegidos por rate limit — login e a segunda etapa do 2FA (código TOTP). */
     private static final Set<String> LIMITED_PATHS = Set.of(
             "/api/v1/auth/login",
-            "/api/v1/auth/totp/verify"
+            "/api/v1/auth/totp/verify",
+            "/api/v1/auth/sso/authorize-url",
+            "/api/v1/auth/sso/callback"
     );
 
     // Chave (IP + path) → contagem + timestamp da primeira tentativa nesta janela.

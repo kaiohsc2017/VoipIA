@@ -76,7 +76,7 @@ class SsoServiceTest {
     void buildAuthorizeUrl_throws_whenProviderDisabled() {
         when(ssoConfigRepository.findByProviderNameIgnoreCase("MICROSOFT_ENTRA")).thenReturn(Optional.empty());
 
-        assertThrows(IllegalStateException.class, () -> ssoService.buildAuthorizeUrl("https://x/login"));
+        assertThrows(IllegalStateException.class, () -> ssoService.buildAuthorizeUrl());
     }
 
     @Test
@@ -84,7 +84,7 @@ class SsoServiceTest {
         when(ssoConfigRepository.findByProviderNameIgnoreCase("MICROSOFT_ENTRA"))
                 .thenReturn(Optional.of(activeConfig()));
 
-        String url = ssoService.buildAuthorizeUrl("https://atacante.example/steal");
+        String url = ssoService.buildAuthorizeUrl();
 
         assertFalse(url.contains("atacante.example"));
         assertTrue(url.contains("app.voiphash.com.br"));
@@ -94,13 +94,13 @@ class SsoServiceTest {
     @Test
     void processSsoLoginWithCode_rejectsMissingCode() {
         assertThrows(SecurityException.class,
-                () -> ssoService.processSsoLoginWithCode(null, "any-state", null));
+                () -> ssoService.processSsoLoginWithCode(null, "any-state"));
     }
 
     @Test
     void processSsoLoginWithCode_rejectsUnknownOrExpiredState() {
         assertThrows(SecurityException.class,
-                () -> ssoService.processSsoLoginWithCode("some-code", "state-nunca-emitido", null));
+                () -> ssoService.processSsoLoginWithCode("some-code", "state-nunca-emitido"));
     }
 
     @Test
@@ -108,7 +108,7 @@ class SsoServiceTest {
         // Emite um state real (provedor ativo no momento da autorização)...
         when(ssoConfigRepository.findByProviderNameIgnoreCase("MICROSOFT_ENTRA"))
                 .thenReturn(Optional.of(activeConfig()));
-        String authorizeUrl = ssoService.buildAuthorizeUrl("https://app.voiphash.com.br/login");
+        String authorizeUrl = ssoService.buildAuthorizeUrl();
         String state = authorizeUrl.replaceAll(".*state=([^&]+).*", "$1");
 
         // ...mas o provedor foi desativado antes do callback ser processado.
@@ -116,7 +116,7 @@ class SsoServiceTest {
                 activeConfig().toBuilder().isActive(false).build()));
 
         assertThrows(SecurityException.class,
-                () -> ssoService.processSsoLoginWithCode("some-code", state, null));
+                () -> ssoService.processSsoLoginWithCode("some-code", state));
     }
 
     @Test
@@ -148,7 +148,7 @@ class SsoServiceTest {
         when(userRepository.findByUsernameIgnoreCase("carlos.silva@empresa.com.br"))
                 .thenReturn(Optional.of(existing));
 
-        assertThrows(IllegalStateException.class, () ->
+        assertThrows(SecurityException.class, () ->
                 invokeResolveOrProvision(activeConfig(), "carlos.silva@empresa.com.br", "Carlos Silva"));
     }
 

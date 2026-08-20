@@ -3,9 +3,13 @@ package com.asteriskia.domain.callcenter.wfm;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * Proteção vem só dos matchers em {@code SecurityConfig} — não há
+ * {@code @EnableMethodSecurity} configurado no projeto, então {@code @PreAuthorize} aqui seria
+ * código morto (mesmo achado já corrigido em {@code SsoController}).
+ */
 @RestController
 @RequestMapping("/api/v1/callcenter/wfm")
 @RequiredArgsConstructor
@@ -14,7 +18,6 @@ public class QueuePredictiveWfmController {
     private final QueuePredictiveWfmService wfmService;
 
     @PostMapping("/queues/{queueId}/predictive/generate")
-    @PreAuthorize("hasAuthority('callcenter.wfm:write') or hasRole('ADMIN')")
     public ResponseEntity<List<QueuePredictiveWfmService.WfmForecastDto>> generateForecast(
             @PathVariable Long queueId,
             @RequestParam(defaultValue = "60") int horizonMinutes) {
@@ -22,7 +25,6 @@ public class QueuePredictiveWfmController {
     }
 
     @GetMapping("/queues/{queueId}/predictive")
-    @PreAuthorize("hasAuthority('callcenter.wfm:read') or hasRole('ADMIN')")
     public ResponseEntity<List<QueuePredictiveWfmService.WfmForecastDto>> getForecasts(
             @PathVariable Long queueId) {
         List<QueuePredictiveWfmService.WfmForecastDto> forecasts = wfmService.getRecentForecasts(queueId);
@@ -33,7 +35,6 @@ public class QueuePredictiveWfmController {
     }
 
     @GetMapping("/alerts")
-    @PreAuthorize("hasAuthority('callcenter.wfm:read') or hasRole('ADMIN')")
     public ResponseEntity<List<QueuePredictiveWfmService.WfmForecastDto>> getActiveAlerts() {
         return ResponseEntity.ok(wfmService.getActiveBreachAlerts());
     }
