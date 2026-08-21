@@ -5,6 +5,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -123,6 +125,25 @@ public class AppConfig {
     @Bean
     public org.springframework.security.crypto.password.PasswordEncoder passwordEncoder() {
         return new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
+    }
+
+    /**
+     * TaskScheduler dedicado para os jobs {@code @Scheduled} do projeto (achado de auditoria
+     * 2026-08-20 — HIGH: ~25 jobs agendados competiam pela única thread do
+     * {@code ThreadPoolTaskScheduler} default de 1 thread que o Spring Boot cria implicitamente
+     * quando nenhum bean {@code TaskScheduler}/{@code ScheduledExecutorService} é declarado). Pool
+     * de 10 threads — valor conservador, não medido sob carga real; folga suficiente para os jobs
+     * de curta duração (verificação de intervalo/limite) não travarem atrás de um job mais longo
+     * (ex: sincronização de AD, busca de preço de IA).
+     */
+    @Bean
+    public TaskScheduler taskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(10);
+        scheduler.setThreadNamePrefix("scheduled-task-");
+        scheduler.setAwaitTerminationSeconds(10);
+        scheduler.setWaitForTasksToCompleteOnShutdown(true);
+        return scheduler;
     }
 }
 
