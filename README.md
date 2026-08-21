@@ -58,7 +58,7 @@ docker compose logs -f voipia-backend voipia-asterisk voipia-ai-agent
 /opt/VoipIA/
 ├── asterisk/             # Asterisk 21 LTS — Dockerfile + configs (PJSIP, RTP, Dialplan, AMI)
 ├── ai-agent/             # Agente de IA Python 3.12 — Servidor AudioSocket TCP + Google Gemini
-├── backend/              # Backend Spring Boot 3.3 (Java 21) — Clean Architecture + Flyway V1-V91
+├── backend/              # Backend Spring Boot 3.3 (Java 21) — Clean Architecture + Flyway V1-V96
 ├── frontend/             # Frontend React SPA + Softphone WebRTC (JsSIP) + Nginx
 ├── callcenter-platform/  # Módulo Call Center — Desktop do Agente, Filas, Supervisão e Flow Builder
 ├── insights-platform/    # Módulo Insights — Speech Analytics, Scorecards de Qualidade e Transcrição
@@ -76,6 +76,6 @@ docker compose logs -f voipia-backend voipia-asterisk voipia-ai-agent
 ## ✅ Estado do Projeto
 
 * **Software:** 100% Concluído, Integrado, Saneado e Operacional (v3.5 Enterprise).
-* **Testes Automatizados:** 983 testes unitários e de integração aprovados com 100% de sucesso.
+* **Testes Automatizados:** 993 testes unitários e de integração aprovados com 100% de sucesso.
 * **Docker:** 10 containers em execução e saudáveis (`voipia-caddy`, `voipia-backend`, `voipia-frontend`, `voipia-asterisk`, `voipia-ai-agent`, `voipia-insights`, `voipia-docker-helper`, `voipia-coturn`, `voipia-postgres`, `voipia-security`).
 * **Segurança:** Padrão OWASP ASVS Nível 2 / Zero Trust / Zero Secrets em conformidade estrita.

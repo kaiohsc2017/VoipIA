@@ -4,7 +4,7 @@
 > **Versão Oficial:** v3.2 Enterprise  
 > **Público-Alvo:** Gestores Executivos, Supervisores de Atendimento, Operadores de Call Center e Administradores de TI  
 > **Duração Estimada:** 15 a 30 minutos (Apresentação Completa)  
-> **Data de Atualização:** Agosto de 2026  
+> **Data de Atualização:** 20 de Agosto de 2026  
 
 ---
 

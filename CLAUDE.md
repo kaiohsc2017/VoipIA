@@ -93,10 +93,14 @@ docker compose up -d --build frontend
 
 - **Instância:** PostgreSQL 16 em `voipia-postgres:5432`
 - **Banco unificado:** `asteriskia` (Telecom + Agentes na mesma instância)
-- **Migrations Telecom:** Flyway — classpath `backend/src/main/resources/db/migration/` — V1 a V21
-  aplicadas em produção; **V22 (grupos de acesso) commitada, aguardando deploy do backend**
-- **Migrations Agentes:** `agents-platform/backend/migrate.py` — `CREATE TABLE IF NOT EXISTS` (idempotente)
-- **Próxima migration Flyway:** V36 — confirme sempre com `ls backend/src/main/resources/db/migration/ | sort -V | tail -1`
+- **Migrations Telecom:** Flyway — classpath `backend/src/main/resources/db/migration/` — V1 a V96
+  aplicadas em produção (o módulo `agents-platform` segmentado foi removido do repositório em
+  2026-08-19, commit `658622b` — a plataforma de Agentes hoje vive só dentro do domínio unificado
+  do backend Java, sem `migrate.py`/schema Python próprio).
+- **Próxima migration Flyway:** confirme sempre com
+  `ls backend/src/main/resources/db/migration/ | sort -V | tail -1` (não confie em um número fixo
+  documentado aqui — este arquivo é frequentemente editado depois do deploy real de migrations
+  novas).
 
 ```bash
 # Acesso direto (porta exposta apenas localmente)

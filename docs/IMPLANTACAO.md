@@ -3,7 +3,7 @@
 > **Sistema:** VoipIA — Plataforma Corporativa de Telefonia IP, URA Conversacional com IA, Call Center Omnicanal & Speech Analytics  
 > **Versão Oficial:** v3.2 Enterprise  
 > **Sistemas Homologados:** Linux Ubuntu 22.04 / 24.04 LTS e Oracle Linux 9 (UEK / Red Hat Compatible Kernel)  
-> **Data de Atualização:** Agosto de 2026  
+> **Data de Atualização:** 20 de Agosto de 2026  
 
 ---
 

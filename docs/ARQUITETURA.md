@@ -3,7 +3,7 @@
 > **Sistema:** VoipIA — Plataforma Corporativa de Telefonia IP, URA Conversacional com IA, Call Center Omnicanal & Speech Analytics  
 > **Versão Oficial:** v3.5 Enterprise (Asterisk 21 LTS + Spring Boot 3.3 + Python 3.12 + React + PostgreSQL 16 pgvector)  
 > **Classificação de Segurança:** OWASP ASVS Nível 2 / Zero Trust / Zero Secrets  
-> **Data de Atualização:** Agosto de 2026  
+> **Data de Atualização:** 20 de Agosto de 2026  
 
 ---
 
@@ -89,7 +89,7 @@ A arquitetura do **VoipIA** é dividida em subsistemas especializados e desacopl
 
 ### 2.3. Backend Principal (voipia-backend — Spring Boot 3.3)
 * Desenvolvido em **Java 21 LTS** seguindo princípios de **Clean Architecture e DDD**.
-* Gerenciamento de persistência com **Spring Data JPA/Hibernate** e migrações automatizadas via **Flyway (V1 a V90)**.
+* Gerenciamento de persistência com **Spring Data JPA/Hibernate** e migrações automatizadas via **Flyway (V1 a V96)**.
 * Notificações em tempo real com **WebSocket STOMP** para atualização dinâmica do Dashboard, status de operadores e Wallboards de fila.
 * Integração nativa com Jira Cloud (criação automática de chamados a partir da URA de voz) e sincronização corporativa com Active Directory / LDAPS.
 * Módulos de negócio: Telecom, Call Center Omnichannel (filas, skills, gravações, chat, co-browsing, RAG), Insights e Gestão Financeira.

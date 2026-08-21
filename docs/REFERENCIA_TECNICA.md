@@ -4,7 +4,7 @@
 > **Versão Oficial:** v3.2 Enterprise  
 > **Stack Principal:** Asterisk 21 LTS + Spring Boot 3.3 (Java 21) + Python 3.12 + React (TypeScript Strict) + PostgreSQL 16 (pgvector) + Caddy 2  
 > **Classificação:** Engenharia de Software / Telecomunicações / Inteligência Artificial  
-> **Data de Atualização:** Agosto de 2026  
+> **Data de Atualização:** 20 de Agosto de 2026  
 
 ---
 
@@ -12,7 +12,7 @@
 
 O **VoipIA** é projetado sob os mais rigorosos padrões de engenharia de software para ambientes corporativos de alta densidade e missão crítica. A plataforma integra quatro subsistemas fundamentais:
 1. **Telecomunicações de Alta Densidade:** Baseado no **Asterisk 21 LTS** com suporte nativo a SIP (`chan_pjsip`), WebSockets seguros (`wss://`), streaming bidirecional via `app_audiosocket` e NAT Traversal via **Coturn STUN/TURN**.
-2. **Backend Corporativo & Regras de Negócio:** Arquitetura desacoplada com **Spring Boot 3.3** em Java 21 LTS, utilizando **Clean Architecture**, DDD, JPA/Hibernate e migrações versionadas via **Flyway (V1 a V90)**.
+2. **Backend Corporativo & Regras de Negócio:** Arquitetura desacoplada com **Spring Boot 3.3** em Java 21 LTS, utilizando **Clean Architecture**, DDD, JPA/Hibernate e migrações versionadas via **Flyway (V1 a V96)**.
 3. **Inteligência Artificial & Speech Analytics:** Pipeline assíncrono em Python 3.12 integrando **Google Gemini 2.5 Flash**, algoritmos de detecção de atividade de voz (**WebRTC VAD**), transcrição com diarização e busca vetorial com **pgvector**.
 4. **Frontends Modernos & WebRTC:** Aplicações Single-Page (SPA) em React com TypeScript em modo estrito, Vite e biblioteca `JsSIP` conectada via WebSockets seguros.
 
@@ -114,7 +114,7 @@ com.asteriskia (artefato: voipia-backend)
 * **Rate Limiting:** `RateLimitFilter` baseado em Bucket4j / Sliding Window por IP de origem.
 
 ### 4.3. Migrações de Banco de Dados (Flyway)
-* Migrações versionadas em `src/main/resources/db/migration/V1__*.sql` até `V90__*.sql`.
+* Migrações versionadas em `src/main/resources/db/migration/V1__*.sql` até `V96__*.sql`.
 * Controle transacional e idempotente de alterações de schema.
 
 ---

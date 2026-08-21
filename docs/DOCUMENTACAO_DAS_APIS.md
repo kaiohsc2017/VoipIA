@@ -4,7 +4,7 @@
 > **Versão da API:** v1 / v3.2 Enterprise  
 > **Autenticação:** Bearer Token JWT (HMAC-SHA256) / Cookie httpOnly / X-Internal-Key  
 > **Padrão:** RESTful JSON, WebSocket STOMP, AudioSocket TCP e Asterisk AMI/WSS  
-> **Data de Atualização:** Agosto de 2026  
+> **Data de Atualização:** 20 de Agosto de 2026  
 
 ---
 
@@ -207,7 +207,10 @@ Gerenciamento de sessões de chat omnicanal (Telegram e Web Widget), envio de me
 Iniciação de sessão de navegação assistida e compartilhamento de tela com consentimento explícito do cliente.
 
 #### `GET /api/v1/callcenter/wfm/forecast` & `POST /api/v1/callcenter/wfm/queues/{queueId}/forecast/calculate`
-Dimensionamento preditivo de filas utilizando o motor matemático **Erlang-C**. Calcula em tempo real o tráfego em Erlangs, probabilidade de espera $P_w$, SLA previsto (%) e quantidade mínima de agentes recomendados para atender à meta de SLA e tempo de espera.
+Dimensionamento preditivo de filas utilizando o motor matemático **Erlang-C**. Calcula em tempo real o tráfego em Erlangs, probabilidade de espera $P_w$, SLA previsto (%) e quantidade mínima de agentes recomendados para atender à meta de SLA e tempo de espera. O forecast é alimentado pelo histórico real consolidado em `cc_agg_queue_daily` (não mais dado simulado).
+
+#### `GET /api/v1/callcenter/wfm/schedules/batch`
+Endpoint em lote para carregamento das escalas de trabalho de toda a equipe do WFM, eliminando o padrão N+1 de uma consulta por agente.
 
 #### `POST /api/v1/callcenter/copilot/recommendations` & `GET /api/v1/callcenter/copilot/logs`
 Mecanismo de assistência em tempo real para operadores de atendimento. Processa o contexto da chamada/chat e entrega recomendações contextuais, artigos de conhecimento e sugestões de resposta com broadcast automático via WebSocket.

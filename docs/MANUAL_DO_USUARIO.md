@@ -4,7 +4,7 @@
 > **Versão Oficial:** v3.2 Enterprise  
 > **Público-Alvo:** Operadores de Atendimento, Agentes de Call Center, Supervisores de Operação, Analistas de Qualidade, Engenheiros de Telecomunicações e Administradores de TI  
 > **Endereço de Acesso:** `https://app.voiphash.com.br`  
-> **Data de Atualização:** Agosto de 2026  
+> **Data de Atualização:** 20 de Agosto de 2026  
 
 ---
 
@@ -215,6 +215,7 @@ Solução completa de atendimento receptivo e ativo para contact centers corpora
 
 ### 6.9. Digital Twin de Filas & WFM Preditivo (Erlang-C)
 * Painel preditivo para cálculo de intensidade de tráfego (Erlangs), tempo médio de espera previsto e dimensionamento recomendado de agentes para atendimento das metas de SLA de cada fila.
+* Modal de gestão de escalas de trabalho da equipe, com carregamento em lote das escalas de todos os agentes.
 
 ---
 
