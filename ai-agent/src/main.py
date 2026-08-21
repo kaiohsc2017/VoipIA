@@ -10,6 +10,7 @@ e delega ao flow correspondente.
 
 import asyncio
 import logging
+import httpx
 from src.config import AUDIOSOCKET_HOST, AUDIOSOCKET_PORT
 from src.protocol import read_frame
 from src.flows.jira_call_flow import JiraCallFlow
@@ -108,8 +109,25 @@ async def _detect_flow_type(call_uuid: str) -> str:
         await bc.get(f"/api/v1/alert-calls/by-uuid/{call_uuid}")
         logger.info(f"UUID {call_uuid} encontrado em alert-calls → ZABBIX_ALERT")
         return "ZABBIX_ALERT"
-    except Exception:
-        # 404 ou qualquer erro de rede → assume JiraCallFlow (padrão seguro)
+    except httpx.HTTPStatusError as e:
+        # 404 é o caso normal/esperado (chamada não é de alerta Zabbix) — sem log de erro
+        if e.response.status_code != 404:
+            logger.warning(
+                "Backend retornou %d ao consultar alert-calls para UUID %s — assumindo JIRA_CALL",
+                e.response.status_code, call_uuid,
+            )
+        return "JIRA_CALL"
+    except (httpx.ConnectError, httpx.TimeoutException) as e:
+        logger.error(
+            "Falha de rede/timeout ao consultar alert-calls para UUID %s (%s) — assumindo JIRA_CALL",
+            call_uuid, e,
+        )
+        return "JIRA_CALL"
+    except Exception as e:
+        logger.error(
+            "Erro inesperado ao consultar alert-calls para UUID %s (%s) — assumindo JIRA_CALL",
+            call_uuid, e,
+        )
         return "JIRA_CALL"
 
 
