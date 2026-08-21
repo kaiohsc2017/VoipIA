@@ -1,6 +1,7 @@
 package com.asteriskia.config;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -88,6 +89,18 @@ public class GlobalExceptionHandler {
         log.debug("ResponseStatusException: {} — {}", ex.getStatusCode(), ex.getReason());
         return ResponseEntity.status(ex.getStatusCode())
                 .body(Map.of("error", ex.getReason() != null ? ex.getReason() : "Erro na requisição"));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        // Achado de auditoria: várias FKs do domínio callcenter (V70/V80/V81/V82/V83) não têm
+        // ON DELETE explícito — excluir uma linha referenciada (ex: fila/fluxo/agente com
+        // execuções vinculadas) violava a constraint no banco e caía no catch-all de
+        // RuntimeException abaixo, virando sempre 500 genérico. Detalhe completo (nome da
+        // constraint, tabela) só no log — nunca no corpo da resposta.
+        log.warn("Violação de integridade referencial: ", ex);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "Não é possível excluir: existem registros vinculados."));
     }
 
     @ExceptionHandler(SecurityException.class)
