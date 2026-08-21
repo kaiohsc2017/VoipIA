@@ -29,7 +29,8 @@ public class SsoConfiguration {
     @Column(name = "client_id")
     private String clientId;
 
-    @Column(name = "client_secret")
+    @Column(name = "client_secret", length = 512)
+    @Convert(converter = EncryptedSecretConverter.class)
     private String clientSecret;
 
     @Column(name = "tenant_id")
