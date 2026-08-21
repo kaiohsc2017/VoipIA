@@ -87,27 +87,37 @@ export function InsightsChamadasTab({ pendingDrillDown, onDrillDownConsumed }: I
   const [detailLoading, setDetailLoading] = useState(false);
 
   /** overrides permite disparar a busca com valores que ainda não foram aplicados ao estado
-   * local (drill-down do Dashboard) — setState é assíncrono, então ler o estado logo após
-   * chamá-lo pegaria o valor antigo. */
-  const loadCalls = (p = 0, overrides: Partial<CcInsightsDrillDownFilters> = {}) => {
+   * local (drill-down do Dashboard, limpeza de filtros) — setState é assíncrono, então ler o
+   * estado logo após chamá-lo pegaria o valor antigo. */
+  const loadCalls = (p = 0, overrides: Partial<CcInsightsDrillDownFilters> & {
+    dateFrom?: string; dateTo?: string; phrase?: string; toneCliente?: string;
+    toneAtendente?: string; agentName?: string; skill?: string;
+  } = {}) => {
     setLoading(true);
     const effectiveCategoria = overrides.categoria ?? categoria;
     const effectiveCriticidade = overrides.criticidade ?? criticidade;
     const effectiveFindingType = overrides.findingType ?? findingType;
     const effectiveIsFailed = overrides.isFailed;
+    const effectiveDateFrom = overrides.dateFrom ?? dateFrom;
+    const effectiveDateTo = overrides.dateTo ?? dateTo;
+    const effectivePhrase = overrides.phrase ?? phrase;
+    const effectiveToneCliente = overrides.toneCliente ?? toneCliente;
+    const effectiveToneAtendente = overrides.toneAtendente ?? toneAtendente;
+    const effectiveAgentName = overrides.agentName ?? agentName;
+    const effectiveSkill = overrides.skill ?? skill;
     const params = new URLSearchParams({ page: String(p), size: '20' });
     if (overrides.id != null) params.set('id', String(overrides.id));
     if (text) params.set('text', text);
-    if (dateFrom) params.set('dateFrom', dateFrom);
-    if (dateTo) params.set('dateTo', dateTo);
-    if (phrase) params.set('phrase', phrase);
-    if (toneCliente) params.set('toneCliente', toneCliente);
-    if (toneAtendente) params.set('toneAtendente', toneAtendente);
+    if (effectiveDateFrom) params.set('dateFrom', effectiveDateFrom);
+    if (effectiveDateTo) params.set('dateTo', effectiveDateTo);
+    if (effectivePhrase) params.set('phrase', effectivePhrase);
+    if (effectiveToneCliente) params.set('toneCliente', effectiveToneCliente);
+    if (effectiveToneAtendente) params.set('toneAtendente', effectiveToneAtendente);
     if (effectiveCategoria) params.set('categoria', effectiveCategoria);
     if (effectiveCriticidade) params.set('criticidade', effectiveCriticidade);
     if (effectiveFindingType) params.set('findingType', effectiveFindingType);
-    if (agentName) params.set('agentName', agentName);
-    if (skill) params.set('skill', skill);
+    if (effectiveAgentName) params.set('agentName', effectiveAgentName);
+    if (effectiveSkill) params.set('skill', effectiveSkill);
     if (effectiveIsFailed != null) params.set('isFailed', String(effectiveIsFailed));
     api.get<Page<CcInsightsListItem>>(`/callcenter/insights/calls?${params}`)
       .then(r => {
@@ -151,7 +161,12 @@ export function InsightsChamadasTab({ pendingDrillDown, onDrillDownConsumed }: I
     setDateFrom(''); setDateTo(''); setPhrase(''); setToneCliente(''); setToneAtendente('');
     setCategoria(''); setCriticidade(''); setFindingType('');
     setAgentName(''); setSkill('');
-    setTimeout(() => loadCalls(0), 0);
+    // Passa os filtros já limpos explicitamente — nunca lê o state via closure, que ainda
+    // teria os valores antigos no momento desta chamada (setState é assíncrono).
+    loadCalls(0, {
+      dateFrom: '', dateTo: '', phrase: '', toneCliente: '', toneAtendente: '',
+      categoria: '', criticidade: '', findingType: '', agentName: '', skill: '',
+    });
   };
 
   const openDetail = (id: number) => {
@@ -184,7 +199,7 @@ export function InsightsChamadasTab({ pendingDrillDown, onDrillDownConsumed }: I
               <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>
                 Chamada {detail?.audioFile.callRef ?? detailId}
               </h3>
-              <button className="btn-close" onClick={closeDetail}>×</button>
+              <button className="btn-close" aria-label="Fechar" onClick={closeDetail}>×</button>
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {detailLoading || !detail ? (
@@ -463,7 +478,7 @@ export function InsightsChamadasTab({ pendingDrillDown, onDrillDownConsumed }: I
           <div className="pagination">
             <span className="pagination-info">{items.length} registros nesta página</span>
             <div className="pagination-btns">
-              <button className="page-btn" disabled={page === 0} onClick={() => loadCalls(page - 1)}>‹</button>
+              <button className="page-btn" aria-label="Página anterior" disabled={page === 0} onClick={() => loadCalls(page - 1)}>‹</button>
               {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => (
                 <button key={i} className={`page-btn ${i === page ? 'active' : ''}`} onClick={() => loadCalls(i)}>
                   {i + 1}
