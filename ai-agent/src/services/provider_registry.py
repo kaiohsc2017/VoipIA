@@ -27,16 +27,16 @@ _chain_cache: dict[str, list[dict]] = {}
 _cache_ts: float = 0.0
 _cache_lock = asyncio.Lock()
 
+# Cliente HTTP único e reutilizável — evita refazer o handshake TCP/TLS a
+# cada expiração do cache de 60-120s (mesmo padrão de backend_client.py).
+_client = httpx.AsyncClient(timeout=5.0, headers={"X-Internal-Key": INTERNAL_API_KEY})
+
 
 async def _fetch_chain_from_backend() -> dict[str, list[dict]]:
     """Busca a chain ativa no backend via endpoint interno."""
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(
-            f"{BACKEND_URL}/api/v1/ai/chain/active",
-            headers={"X-Internal-Key": INTERNAL_API_KEY},
-        )
-        resp.raise_for_status()
-        return resp.json()
+    resp = await _client.get(f"{BACKEND_URL}/api/v1/ai/chain/active")
+    resp.raise_for_status()
+    return resp.json()
 
 
 async def get_chain(capability: str) -> list[dict]:
@@ -70,13 +70,9 @@ async def get_chain(capability: str) -> list[dict]:
 async def _fetch_provider_key(provider: str) -> str:
     """Busca a API key real do provedor no backend (convenção AI_KEY_<PROVIDER> no system_config)."""
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(
-                f"{BACKEND_URL}/api/v1/ai/providers/{provider}/key-internal",
-                headers={"X-Internal-Key": INTERNAL_API_KEY},
-            )
-            if resp.status_code == 200:
-                return resp.json().get("apiKey", "")
+        resp = await _client.get(f"{BACKEND_URL}/api/v1/ai/providers/{provider}/key-internal")
+        if resp.status_code == 200:
+            return resp.json().get("apiKey", "")
     except Exception as e:
         logger.debug("Erro ao buscar key do provedor %s: %s", provider, e)
     return ""
