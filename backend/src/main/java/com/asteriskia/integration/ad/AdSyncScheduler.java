@@ -44,11 +44,9 @@ public class AdSyncScheduler {
         AdSyncRun run = syncRunRepo.save(AdSyncRun.builder().startedAt(LocalDateTime.now()).build());
         try {
             var users = ldapClient.fetchAll();
-            int count = 0;
-            for (var attrs : users) {
-                adUserService.upsertMirror(attrs);
-                count++;
-            }
+            // Achado de auditoria 2026-08-20: upsert em lote (1 SELECT + 1 INSERT/UPDATE em lote,
+            // numa única transação) em vez de um save() individual por usuário.
+            int count = adUserService.upsertMirrorBatch(users);
             run.setStatus(count == users.size() ? AdSyncRun.Status.SUCCESS : AdSyncRun.Status.PARTIAL);
             run.setUsersSynced(count);
             log.info("Sincronização AD concluída: {} usuários", count);
