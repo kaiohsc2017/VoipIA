@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import threading
 
 import httpx
 
@@ -23,6 +24,37 @@ logger = logging.getLogger("asteriskia.provider.local")
 
 OLLAMA_BASE_URL = "http://host.docker.internal:11434"  # acessa o host a partir do container
 SAMPLE_RATE     = 8000
+
+# Cache de modelos Whisper carregados — evita reler o modelo do disco a cada
+# turno de fala (dezenas de segundos de latência numa chamada em andamento).
+_whisper_models: dict[str, object] = {}
+_whisper_models_lock = threading.Lock()
+
+
+def _get_faster_whisper_model(model_size: str):
+    model = _whisper_models.get(f"faster:{model_size}")
+    if model is not None:
+        return model
+    with _whisper_models_lock:
+        model = _whisper_models.get(f"faster:{model_size}")
+        if model is None:
+            from faster_whisper import WhisperModel  # type: ignore
+            model = WhisperModel(model_size, device="cpu", compute_type="int8")
+            _whisper_models[f"faster:{model_size}"] = model
+    return model
+
+
+def _get_openai_whisper_model(model_name: str):
+    model = _whisper_models.get(f"openai:{model_name}")
+    if model is not None:
+        return model
+    with _whisper_models_lock:
+        model = _whisper_models.get(f"openai:{model_name}")
+        if model is None:
+            import whisper  # type: ignore
+            model = whisper.load_model(model_name)
+            _whisper_models[f"openai:{model_name}"] = model
+    return model
 
 
 class LocalProvider(BaseAIProvider):
@@ -60,9 +92,8 @@ class LocalProvider(BaseAIProvider):
 
         # Tenta faster-whisper (preferido — menor latência)
         try:
-            from faster_whisper import WhisperModel  # type: ignore
             model_size = self._model_id.replace("whisper-", "").replace("whisper_", "") or "medium"
-            model = WhisperModel(model_size, device="cpu", compute_type="int8")
+            model = _get_faster_whisper_model(model_size)
             audio_buf = io.BytesIO(wav_bytes)
             segments, _ = model.transcribe(audio_buf, language="pt")
             return " ".join(s.text.strip() for s in segments).strip()
@@ -74,7 +105,7 @@ class LocalProvider(BaseAIProvider):
             import whisper  # type: ignore
             import tempfile, os
             model_name = self._model_id.replace("whisper-", "") or "medium"
-            model = whisper.load_model(model_name)
+            model = _get_openai_whisper_model(model_name)
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 f.write(wav_bytes)
                 tmp_path = f.name
