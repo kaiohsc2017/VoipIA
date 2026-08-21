@@ -1507,7 +1507,7 @@ inclusive duas rodadas de revisão de densidade de coluna/filtro após o mockup 
   Frontend (`insights-platform/frontend`): `tsc --noEmit` + `npm run build` limpos.
 - Release notes `v1.43` registrada.
 
-### ✅ Novo módulo Financeiro — centraliza Custo de IA (2026-07-20) — implementado, pendente deploy/validação em produção
+### ✅ Novo módulo Financeiro — centraliza Custo de IA (2026-07-20) — deployado e validado em produção
 Pedido do usuário: um módulo Financeiro no menu, com submenu URA / Insights / **Análise Sob
 Demanda** (nome escolhido no lugar de "Análise Individual" — é a frente antes chamada
 "Custo IA (Envios)"), reunindo as telas de Custo IA/Dashboard de Custos que hoje viviam
@@ -1542,9 +1542,12 @@ espalhadas (aba do Módulo URA + abas da SPA Insights). Plano completo em
 - Backend: `mvn compile` limpo, suíte completa 232 testes (só a falha pré-existente e
   não-relacionada de `ClientControllerTest` — já conhecida antes desta sessão). Frontend:
   `tsc --noEmit` e `npm run build` limpos nas duas SPAs (Telecom e Insights).
-- **Pendente**: deploy real (`docker compose up -d --build backend frontend`, migrations
-  V41/V42 aplicam no boot) e validação visual no navegador (submenu, as 3 abas por frente,
-  config de alerta, Dashboard) — sem acesso a browser nesta sessão.
+- ~~**Pendente**: deploy real e validação visual no navegador~~ — deployado e em uso extensivo
+  desde então: o namespace `financeiro.*` e o módulo `Financeiro.tsx` são referenciados e
+  estendidos por praticamente toda fase subsequente do Call Center (frentes `callcenter_nps`,
+  `callcenter_autosservico`, `callcenter_identidade`, `callcenter_copiloto` etc.), e a migration
+  V69 (commit `c93070b`) já corrigiu um bug de tamanho de coluna em `financeiro_cost_alerts` —
+  prova de uso real em produção muito além da validação inicial.
 
 ### ⚠️ Agentes migrado de React UMD (single-file) para Vite+TS (2026-07-19) — SUPERADO: módulo `agents-platform` removido do repositório em 2026-08-19
 > **Nota (2026-08-20): esta migração ficou obsoleta.** O módulo segmentado `agents-platform`
@@ -1579,7 +1582,7 @@ login nem refresh-token próprios).
   navegador~~ — módulo inteiro removido em 2026-08-19 antes que essa validação fosse retomada;
   não é mais aplicável.
 
-### ✅ Insights virou SPA independente (2026-07-19) — implementado, pendente deploy/validação em produção
+### ✅ Insights virou SPA independente (2026-07-19) — deployado e validado em produção
 Plano completo em `.claude/plans/insights-spa-independente.plan.md` (5 fases) e memória
 `asteriskia_insights_spa_independente_plan`. Segue o mesmo padrão do módulo Agentes: novo frontend
 Vite próprio (`insights-platform/frontend/`) servido em `/insights` pelo mesmo nginx do frontend
@@ -1590,10 +1593,10 @@ migrou de um resource único (`telecom.insights`) para namespace granular por ab
 `dashboard`/`processing`/`costs`) + `telecom.insights_link` só pro item de menu (migration V37,
 preserva permissões já concedidas). Os 6 componentes `Insights*.tsx` antigos do Telecom foram
 deletados (migrados para a SPA); `AuthedAudio.tsx` foi copiado, não movido — é compartilhado com
-URA/Alertas. `tsc --noEmit` limpo nas duas SPAs e `npm run build` da SPA de Insights ok;
-**faltou validar**: `mvn compile` do backend (Maven não disponível no ambiente desta sessão) e o
-deploy real (`docker compose up -d --build backend frontend caddy`, depois `curl -I
-https://app.voiphash.com.br/insights/` e teste de login/abas/áudio na SPA).
+URA/Alertas. `tsc --noEmit` limpo nas duas SPAs e `npm run build` da SPA de Insights ok. ~~Faltou validar:
+`mvn compile`/deploy real/teste manual~~ — deployado logo em seguida (commit `96e78cb`) e em uso
+extensivo desde então: dezenas de fases posteriores do Call Center (Fases 8/9c/16/21/25 etc.)
+constroem sobre esta SPA e sobre `/api/v1/insights/**` em produção.
 
 ### ✅ Feature: tela Insights — transcrição/análise de IA do call center Verint (2026-07-17) — deployada e validada em produção
 Módulo novo e apartado do domínio Asterisk (sem FK com `call_records`/`uras`) — analisa gravações
