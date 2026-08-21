@@ -10,6 +10,16 @@ import org.springframework.stereotype.Component;
 @Component
 public class ErlangCCalculator {
 
+    /** Limite superior de busca em {@link #calculateRequiredAgents} — quantos agentes acima do
+     * mínimo teoricamente estável (piso da intensidade de tráfego) o loop tenta antes de desistir
+     * de achar uma quantidade que cumpra a meta de SLA. */
+    private static final int MAX_AGENTS_SEARCH_RANGE = 100;
+
+    /** Dimensionamento de fallback devolvido por {@link #calculateRequiredAgents} quando nenhuma
+     * quantidade dentro de {@link #MAX_AGENTS_SEARCH_RANGE} atinge a meta de SLA — mesmo piso
+     * mais uma margem de segurança fixa, nunca "sem resposta". */
+    private static final int FALLBACK_AGENTS_SAFETY_MARGIN = 10;
+
     /**
      * Calcula a intensidade de tráfego (Erlangs) = (taxa de chamadas/hora * AHT em segundos) / 3600.
      */
@@ -67,13 +77,13 @@ public class ErlangCCalculator {
             return 1;
         }
         int minAgents = (int) Math.floor(intensity) + 1;
-        for (int m = minAgents; m <= minAgents + 100; m++) {
+        for (int m = minAgents; m <= minAgents + MAX_AGENTS_SEARCH_RANGE; m++) {
             double sla = calculateServiceLevel(m, intensity, ahtSeconds, targetTimeSeconds);
             if (sla >= targetSlaPercent) {
                 return m;
             }
         }
-        return minAgents + 10;
+        return minAgents + FALLBACK_AGENTS_SAFETY_MARGIN;
     }
 
     private double factorial(int n) {
