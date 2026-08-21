@@ -178,16 +178,19 @@ export function WfmTab() {
       setAgents(agentList);
 
       const schedulesMap: Record<number, AgentSchedule[]> = {};
-      await Promise.all(
-        agentList.map(async (agent) => {
-          try {
-            const schedRes = await api.get<AgentSchedule[]>(`/callcenter/reports/agent-schedules?agentId=${agent.id}`);
-            schedulesMap[agent.id] = schedRes.data || [];
-          } catch {
-            schedulesMap[agent.id] = [];
-          }
-        })
-      );
+      if (agentList.length > 0) {
+        // Uma única requisição em lote (achado de auditoria — antes era 1 requisição por
+        // agente via Promise.all, uma rajada de centenas de chamadas HTTP simultâneas na
+        // escala de agentes já projetada pelo CLAUDE.md).
+        const params = new URLSearchParams();
+        agentList.forEach(agent => params.append('agentIds', String(agent.id)));
+        const batchRes = await api.get<Record<string, AgentSchedule[]>>(
+          `/callcenter/reports/agent-schedules/batch?${params}`
+        );
+        for (const agent of agentList) {
+          schedulesMap[agent.id] = batchRes.data[String(agent.id)] || [];
+        }
+      }
       if (mountedRef.current) setAgentSchedules(schedulesMap);
     } catch (err) {
       console.error('Erro ao carregar escalas da equipe:', err);

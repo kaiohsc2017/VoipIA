@@ -7,6 +7,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -42,6 +44,22 @@ public class CallCenterAgentScheduleController {
     @GetMapping
     public ResponseEntity<List<CcAgentSchedule>> list(@RequestParam Long agentId) {
         return ResponseEntity.ok(scheduleRepository.findByAgentIdAndActiveTrue(agentId));
+    }
+
+    /**
+     * Busca em lote (achado de auditoria — o painel de escalas da equipe em {@code WfmTab.tsx}
+     * fazia 1 requisição por agente via {@code Promise.all}, uma rajada de centenas de chamadas
+     * HTTP simultâneas na escala de agentes já projetada pelo CLAUDE.md). Agrupa por
+     * {@code agentId} para o frontend consumir direto no mesmo shape de state já usado.
+     */
+    @GetMapping("/batch")
+    public ResponseEntity<Map<Long, List<CcAgentSchedule>>> listBatch(@RequestParam List<Long> agentIds) {
+        if (agentIds.isEmpty()) {
+            return ResponseEntity.ok(Map.of());
+        }
+        Map<Long, List<CcAgentSchedule>> byAgent = scheduleRepository.findByAgentIdInAndActiveTrue(agentIds).stream()
+                .collect(Collectors.groupingBy(s -> s.getAgent().getId()));
+        return ResponseEntity.ok(byAgent);
     }
 
     @PostMapping
