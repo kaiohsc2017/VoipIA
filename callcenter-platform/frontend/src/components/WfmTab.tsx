@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   TrendingUp,
   AlertTriangle,
@@ -91,10 +91,23 @@ export function WfmTab() {
   const [simTargetTime, setSimTargetTime] = useState<number>(20);
   const [simAgents, setSimAgents] = useState<number>(5);
 
+  // Flag de montagem — evita setState em componente desmontado (ex: troca de aba antes da
+  // resposta chegar), mesmo padrão de DesktopAgenteTab.tsx.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // Descarta a resposta de uma previsão antiga que chegue depois de uma mais nova (fila trocada,
+  // ou "Recalcular Horizonte" clicado, antes da request anterior voltar).
+  const forecastSeqRef = useRef(0);
+
   // Carrega filas e alertas
   useEffect(() => {
     api.get<Queue[]>('/callcenter/filas')
       .then(res => {
+        if (!mountedRef.current) return;
         const list = res.data || [];
         setQueues(list);
         if (list.length > 0) {
@@ -106,7 +119,7 @@ export function WfmTab() {
       });
 
     api.get<WfmForecastDto[]>('/callcenter/wfm/alerts')
-      .then(res => setAlerts(res.data || []))
+      .then(res => { if (mountedRef.current) setAlerts(res.data || []); })
       .catch(err => console.error('Erro ao buscar alertas WFM:', err));
   }, []);
 
@@ -124,29 +137,35 @@ export function WfmTab() {
   }, [viewMode]);
 
   const loadForecast = async (queueId: number) => {
+    const seq = ++forecastSeqRef.current;
     setLoading(true);
     setError(null);
     try {
       const res = await api.get<WfmForecastDto[]>(`/callcenter/wfm/queues/${queueId}/predictive`);
+      if (!mountedRef.current || seq !== forecastSeqRef.current) return;
       setForecasts(res.data || []);
     } catch (err: any) {
+      if (!mountedRef.current || seq !== forecastSeqRef.current) return;
       setError(err?.response?.data?.message || 'Falha ao carregar dados preditivos de WFM.');
     } finally {
-      setLoading(false);
+      if (mountedRef.current && seq === forecastSeqRef.current) setLoading(false);
     }
   };
 
   const handleGenerateForecast = async () => {
     if (!selectedQueueId) return;
+    const seq = ++forecastSeqRef.current;
     setGenerating(true);
     setError(null);
     try {
       const res = await api.post<WfmForecastDto[]>(`/callcenter/wfm/queues/${selectedQueueId}/predictive/generate?horizonMinutes=60`);
+      if (!mountedRef.current || seq !== forecastSeqRef.current) return;
       setForecasts(res.data || []);
     } catch (err: any) {
+      if (!mountedRef.current || seq !== forecastSeqRef.current) return;
       setError(err?.response?.data?.message || 'Falha ao gerar nova previsão WFM.');
     } finally {
-      setGenerating(false);
+      if (mountedRef.current && seq === forecastSeqRef.current) setGenerating(false);
     }
   };
 
@@ -154,6 +173,7 @@ export function WfmTab() {
     setLoadingSchedules(true);
     try {
       const agentsRes = await api.get<CcAgent[]>('/callcenter/agentes');
+      if (!mountedRef.current) return;
       const agentList = agentsRes.data || [];
       setAgents(agentList);
 
@@ -168,12 +188,19 @@ export function WfmTab() {
           }
         })
       );
-      setAgentSchedules(schedulesMap);
+      if (mountedRef.current) setAgentSchedules(schedulesMap);
     } catch (err) {
       console.error('Erro ao carregar escalas da equipe:', err);
     } finally {
-      setLoadingSchedules(false);
+      if (mountedRef.current) setLoadingSchedules(false);
     }
+  };
+
+  // Converte o valor bruto do input numérico, tratando string vazia/inválida como 0 — evita
+  // "NaN" visível nos KPIs do simulador enquanto o campo está sendo editado.
+  const parseSimInput = (raw: string): number => {
+    const v = Number(raw);
+    return Number.isFinite(v) ? v : 0;
   };
 
   // Cálculo de simulação local Erlang-C
@@ -480,56 +507,61 @@ export function WfmTab() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                 <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                  <label htmlFor="sim-calls-per-hour" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                     Chamadas / Hora (λ)
                   </label>
                   <input
+                    id="sim-calls-per-hour"
                     type="number"
                     value={simCallsPerHour}
-                    onChange={e => setSimCallsPerHour(Number(e.target.value))}
+                    onChange={e => setSimCallsPerHour(parseSimInput(e.target.value))}
                     style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-glass, #e5e7eb)', fontSize: '0.85rem' }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                  <label htmlFor="sim-aht-sec" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                     TMA em Segundos (AHT)
                   </label>
                   <input
+                    id="sim-aht-sec"
                     type="number"
                     value={simAhtSec}
-                    onChange={e => setSimAhtSec(Number(e.target.value))}
+                    onChange={e => setSimAhtSec(parseSimInput(e.target.value))}
                     style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-glass, #e5e7eb)', fontSize: '0.85rem' }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                  <label htmlFor="sim-target-sla" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                     Meta SLA (%)
                   </label>
                   <input
+                    id="sim-target-sla"
                     type="number"
                     value={simTargetSla}
-                    onChange={e => setSimTargetSla(Number(e.target.value))}
+                    onChange={e => setSimTargetSla(parseSimInput(e.target.value))}
                     style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-glass, #e5e7eb)', fontSize: '0.85rem' }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                  <label htmlFor="sim-target-time" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                     Tempo Alvo Espera (s)
                   </label>
                   <input
+                    id="sim-target-time"
                     type="number"
                     value={simTargetTime}
-                    onChange={e => setSimTargetTime(Number(e.target.value))}
+                    onChange={e => setSimTargetTime(parseSimInput(e.target.value))}
                     style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-glass, #e5e7eb)', fontSize: '0.85rem' }}
                   />
                 </div>
               </div>
 
               <div style={{ marginBottom: '16px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                <label htmlFor="sim-agents" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                   Agentes Disponíveis no Cenário ({simAgents})
                 </label>
                 <input
+                  id="sim-agents"
                   type="range"
                   min={1}
                   max={30}
@@ -748,7 +780,7 @@ function WfmAgentScheduleModal({ agent, onClose }: { agent: CcAgent; onClose: ()
       <div className="modal modal-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: '680px' }}>
         <div className="modal-header">
           <h2>📅 Escala de Trabalho — {agent.name}</h2>
-          <button className="btn-close" onClick={onClose}>×</button>
+          <button className="btn-close" onClick={onClose} aria-label="Fechar">×</button>
         </div>
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>
@@ -764,10 +796,11 @@ function WfmAgentScheduleModal({ agent, onClose }: { agent: CcAgent; onClose: ()
           <div style={{ background: 'var(--bg-deep, #f8f9fa)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-glass, #e5e7eb)' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr auto', gap: '10px', alignItems: 'end' }}>
               <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                <label htmlFor="wfm-schedule-day" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                   Dia da Semana
                 </label>
                 <select
+                  id="wfm-schedule-day"
                   className="form-input"
                   value={dayOfWeek}
                   onChange={e => setDayOfWeek(Number(e.target.value))}
@@ -779,10 +812,11 @@ function WfmAgentScheduleModal({ agent, onClose }: { agent: CcAgent; onClose: ()
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                <label htmlFor="wfm-schedule-start" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                   Login (Entrada)
                 </label>
                 <input
+                  id="wfm-schedule-start"
                   type="time"
                   className="form-input"
                   value={startTime}
@@ -791,10 +825,11 @@ function WfmAgentScheduleModal({ agent, onClose }: { agent: CcAgent; onClose: ()
                 />
               </div>
               <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                <label htmlFor="wfm-schedule-end" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                   Logout (Saída)
                 </label>
                 <input
+                  id="wfm-schedule-end"
                   type="time"
                   className="form-input"
                   value={endTime}
@@ -843,7 +878,7 @@ function WfmAgentScheduleModal({ agent, onClose }: { agent: CcAgent; onClose: ()
                 ) : schedules.length === 0 ? (
                   <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>Nenhuma escala cadastrada para este agente.</td></tr>
                 ) : (
-                  schedules
+                  [...schedules]
                     .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
                     .map(s => {
                       const [sh, sm] = s.startTime.split(':').map(Number);
