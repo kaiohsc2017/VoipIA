@@ -484,7 +484,7 @@ export function InsightsChamadasTab({ pendingDrillDown, onDrillDownConsumed }: I
                   {i + 1}
                 </button>
               ))}
-              <button className="page-btn" disabled={page >= totalPages - 1} onClick={() => loadCalls(page + 1)}>›</button>
+              <button className="page-btn" aria-label="Próxima página" disabled={page >= totalPages - 1} onClick={() => loadCalls(page + 1)}>›</button>
             </div>
           </div>
         </div>
