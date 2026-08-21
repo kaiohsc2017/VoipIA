@@ -1,16 +1,27 @@
-import { useEffect, useState, Component, type ReactNode } from 'react';
+import { useEffect, useState, Component, lazy, Suspense, type ReactNode } from 'react';
 import Login from './components/Login';
 import Sidebar, { type Tab } from './components/Sidebar';
 import { InsightsTab } from './components/InsightsTab';
-import { InsightsDashboardTab } from './components/InsightsDashboardTab';
 import { InsightsProcessingTab } from './components/InsightsProcessingTab';
 import { ScorecardsTab } from './components/ScorecardsTab';
-import { ReportsTab } from './components/ReportsTab';
 import { SupervisorPortalTab } from './components/SupervisorPortalTab';
 import { revokeSession } from './api/client';
 import { authSessionFromToken } from './hooks/useAuthSession';
 import { useShellBridge } from './hooks/useShellBridge';
 import type { InsightsDrillDownFilters } from './api/types';
+
+// Code-splitting por aba (achado de auditoria 2026-08-20 — MEDIUM): as 2 abas abaixo carregam
+// `recharts` — buscadas sob demanda em vez de entrarem no bundle inicial, hoje buscado por
+// qualquer usuário mesmo sem permissão de leitura nessas abas. `.then(m => ({ default: m.X }))`
+// porque os componentes usam named export, não default — `React.lazy` só aceita `default`.
+const InsightsDashboardTab = lazy(() =>
+  import('./components/InsightsDashboardTab').then((m) => ({ default: m.InsightsDashboardTab }))
+);
+const ReportsTab = lazy(() => import('./components/ReportsTab').then((m) => ({ default: m.ReportsTab })));
+
+const TabLoadingFallback = () => (
+  <p style={{ color: 'var(--text-muted)' }}>Carregando…</p>
+);
 
 // Resource keys do namespace RBAC granular `insights.*` — espelha o namespace
 // `agents.*` da Plataforma de Agentes (ResourceCatalog.java). Mantido em
@@ -143,10 +154,18 @@ export default function App() {
         <main className={`main-content${isEmbedded ? ' embedded' : sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
           <div className="page-body">
             {currentTab === 'calls' && <InsightsTab pendingDrillDown={pendingDrillDown} onDrillDownConsumed={handleDrillDownConsumed} />}
-            {currentTab === 'dashboard' && <InsightsDashboardTab onDrillDown={handleDrillDown} />}
+            {currentTab === 'dashboard' && (
+              <Suspense fallback={<TabLoadingFallback />}>
+                <InsightsDashboardTab onDrillDown={handleDrillDown} />
+              </Suspense>
+            )}
             {currentTab === 'processing' && <InsightsProcessingTab onDrillDown={handleDrillDown} />}
             {currentTab === 'scorecards' && <ScorecardsTab canWrite={session.hasWrite('insights.scorecards')} />}
-            {currentTab === 'reports' && <ReportsTab canWrite={session.hasWrite('insights.reports')} isAdmin={session.role === 'ADMIN'} />}
+            {currentTab === 'reports' && (
+              <Suspense fallback={<TabLoadingFallback />}>
+                <ReportsTab canWrite={session.hasWrite('insights.reports')} isAdmin={session.role === 'ADMIN'} />
+              </Suspense>
+            )}
             {currentTab === 'uploads' && (
               <SupervisorPortalTab canWrite={session.hasWrite('insights.uploads')} isAdmin={session.role === 'ADMIN'} />
             )}

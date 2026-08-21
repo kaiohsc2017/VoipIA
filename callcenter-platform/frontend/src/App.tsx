@@ -1,4 +1,4 @@
-import { useEffect, useState, Component, type ReactNode } from 'react';
+import { useEffect, useState, Component, lazy, Suspense, type ReactNode } from 'react';
 import Login from './components/Login';
 import Sidebar, { type Tab } from './components/Sidebar';
 import { AgentesTab } from './components/AgentesTab';
@@ -9,12 +9,9 @@ import { DesktopAgenteTab } from './components/DesktopAgenteTab';
 import { SupervisaoTab } from './components/SupervisaoTab';
 import { FluxosTab } from './components/FluxosTab';
 import { InsightsChamadasTab } from './components/InsightsChamadasTab';
-import { InsightsDashboardTab } from './components/InsightsDashboardTab';
 import { InsightsProcessamentoTab } from './components/InsightsProcessamentoTab';
 import { ScorecardsViewTab } from './components/ScorecardsViewTab';
-import { ReportsTab } from './components/ReportsTab';
 import { ChatTab } from './components/ChatTab';
-import { ReportsQueueTab } from './components/ReportsQueueTab';
 import { ConfiguracoesTab } from './components/ConfiguracoesTab';
 import { PesquisasTab } from './components/PesquisasTab';
 import { KbTab } from './components/KbTab';
@@ -24,6 +21,23 @@ import { revokeSession } from './api/client';
 import { authSessionFromToken } from './hooks/useAuthSession';
 import { useShellBridge } from './hooks/useShellBridge';
 import type { CcInsightsDrillDownFilters } from './api/types';
+
+// Code-splitting por aba (achado de auditoria 2026-08-20 — MEDIUM): as 3 abas abaixo carregam
+// `recharts` (a maior dependência de gráficos do bundle) — carregadas sob demanda em vez de
+// entrarem no bundle inicial, que hoje é buscado por qualquer usuário mesmo sem permissão de
+// leitura nessas abas. `.then(m => ({ default: m.X }))` porque os componentes usam named export,
+// não default — `React.lazy` só aceita módulos com `default`.
+const InsightsDashboardTab = lazy(() =>
+  import('./components/InsightsDashboardTab').then((m) => ({ default: m.InsightsDashboardTab }))
+);
+const ReportsTab = lazy(() => import('./components/ReportsTab').then((m) => ({ default: m.ReportsTab })));
+const ReportsQueueTab = lazy(() =>
+  import('./components/ReportsQueueTab').then((m) => ({ default: m.ReportsQueueTab }))
+);
+
+const TabLoadingFallback = () => (
+  <p style={{ color: 'var(--text-muted)' }}>Carregando…</p>
+);
 
 // Resource keys do namespace RBAC granular `callcenter.*` — mantido em
 // sincronia manual com o backend (ResourceCatalog.java) e com os `resource`
@@ -205,14 +219,24 @@ export default function App() {
             {currentTab === 'insightsChamadas' && (
               <InsightsChamadasTab pendingDrillDown={pendingDrillDown} onDrillDownConsumed={handleDrillDownConsumed} />
             )}
-            {currentTab === 'insightsDashboard' && <InsightsDashboardTab onDrillDown={handleDrillDown} />}
+            {currentTab === 'insightsDashboard' && (
+              <Suspense fallback={<TabLoadingFallback />}>
+                <InsightsDashboardTab onDrillDown={handleDrillDown} />
+              </Suspense>
+            )}
             {currentTab === 'insightsProcessamento' && <InsightsProcessamentoTab onDrillDown={handleDrillDown} />}
             {currentTab === 'insightsScorecards' && <ScorecardsViewTab />}
             {currentTab === 'insightsReports' && (
-              <ReportsTab canWrite={session.hasWrite('callcenter.insights.reports')} isAdmin={session.role === 'ADMIN'} />
+              <Suspense fallback={<TabLoadingFallback />}>
+                <ReportsTab canWrite={session.hasWrite('callcenter.insights.reports')} isAdmin={session.role === 'ADMIN'} />
+              </Suspense>
             )}
             {currentTab === 'chat' && <ChatTab isAdmin={session.role === 'ADMIN'} />}
-            {currentTab === 'reports' && <ReportsQueueTab isAdmin={session.role === 'ADMIN'} />}
+            {currentTab === 'reports' && (
+              <Suspense fallback={<TabLoadingFallback />}>
+                <ReportsQueueTab isAdmin={session.role === 'ADMIN'} />
+              </Suspense>
+            )}
             {currentTab === 'pesquisas' && <PesquisasTab canWrite={session.hasWrite('callcenter.config')} />}
             {currentTab === 'kb' && <KbTab canWrite={session.hasWrite('callcenter.kb')} />}
             {currentTab === 'iaAgentes' && <IaAgentsTab canWrite={session.hasWrite('callcenter.ia_agentes')} />}
