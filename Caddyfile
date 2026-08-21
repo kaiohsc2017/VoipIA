@@ -45,6 +45,13 @@ app.voiphash.com.br {
 		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' wss:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
 	}
 
+	# ── Compressão HTTP (achado de auditoria 2026-08-20 — HIGH: nenhuma compressão na API) ────
+	# Aplica-se a todo o site (API Spring Boot + as 4 SPAs), incluindo /api/*. Caddy nunca
+	# comprime respostas já comprimidas (áudio/imagem) nem abaixo de um tamanho mínimo — não
+	# quebra streaming de áudio (InsightsController/CallCenterInsightsController) nem WebSocket
+	# (upgrade não passa por este middleware).
+	encode gzip zstd
+
 	# ── Insights — Frontend (React SPA servida pelo nginx do frontend) ────────
 	# Sem @insights-api/@insights-ws: o backend do Insights continua no Spring
 	# Boot (mesmo @api abaixo), diferente de Agentes que tem FastAPI dedicado.
