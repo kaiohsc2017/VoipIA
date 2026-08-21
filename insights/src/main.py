@@ -214,7 +214,10 @@ async def process_pair(pair: AudioPair) -> None:
         logger.warning("call_ref=%s: falha ao marcar início de processamento — %s", pair.call_ref, e)
 
     try:
-        metadata = parse_call_xml(pair.xml_path)
+        # Descarregado para thread — diferente de decode_to_pcm (já em to_thread),
+        # o parse de XML rodava direto no loop compartilhado com todas as
+        # chamadas/ingestões simultâneas deste processo.
+        metadata = await asyncio.to_thread(parse_call_xml, pair.xml_path)
     except XmlParseError as e:
         logger.error("call_ref=%s: falha ao parsear XML — %s", pair.call_ref, e)
         await _safe_mark_error(pair.call_ref, f"Falha ao parsear XML: {e}")

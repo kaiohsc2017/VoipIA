@@ -14,6 +14,7 @@ Autenticação: mesmo esquema de "chave interna" já usado em
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 
@@ -79,6 +80,9 @@ async def embed(payload: EmbedRequest) -> EmbedResponse:
     # corretamente a distância cosseno (operador `<=>`, vector_cosine_ops)
     # do lado do Java/Postgres — sem normalizar, a comparação de vetores não
     # equivale à similaridade de cosseno esperada.
-    vector = _model.encode(text, normalize_embeddings=True)
+    # Descarregado para thread: _model.encode é síncrono/CPU-bound e este
+    # processo roda no mesmo event loop do polling de ingestão (asyncio.gather
+    # em main.py) — sem isso, o polling trava enquanto um embedding é gerado.
+    vector = await asyncio.to_thread(_model.encode, text, normalize_embeddings=True)
 
     return EmbedResponse(vector=vector.tolist())
