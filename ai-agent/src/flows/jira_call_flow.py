@@ -141,7 +141,7 @@ class JiraCallFlow:
         # 6. Grava WAV com voz do chamador (MixMonitor não captura audio do AudioSocket)
         audio_path = f"/var/spool/asterisk/monitor/{self.call_uuid}.wav"
         try:
-            self.recorder.write_wav(audio_path)
+            await self.recorder.write_wav(audio_path)
         except Exception as e:
             logger.warning("[%s] Erro ao salvar gravação: %s", self.call_uuid, e)
             audio_path = None

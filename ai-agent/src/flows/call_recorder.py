@@ -4,6 +4,7 @@ call_recorder.py — gravação em WAV e registro do chamado no backend/Jira (M�
 Extraído de jira_call_flow.py (fase 22, O3.3 da refatoração).
 """
 
+import asyncio
 import logging
 import wave
 
@@ -43,11 +44,9 @@ class CallRecorder:
         self.collected_answers: dict[str, str] = {}
         self.transcriptions: list[str] = []
 
-    def write_wav(self, path: str) -> None:
-        """
-        Escreve em disco a chamada completa (perguntas da URA + respostas do
-        cliente, na ordem em que ocorreram) como WAV 8kHz/16bit/mono.
-        """
+    def _write_wav_sync(self, path: str) -> None:
+        """Implementação síncrona — nunca chamar direto de um contexto async
+        (ver write_wav, que descarrega esta chamada para uma thread)."""
         if not self.recorded_audio:
             logger.warning("[%s] Sem áudio gravado — arquivo WAV não será criado", self.call_uuid)
             return
@@ -59,6 +58,19 @@ class CallRecorder:
             wf.writeframes(pcm)
         logger.info("[%s] Gravação salva: %s (%d bytes / %.1fs)",
                     self.call_uuid, path, len(pcm), len(pcm) / (_SAMPLE_RATE * _BYTES_SAMPLE))
+
+    async def write_wav(self, path: str) -> None:
+        """
+        Escreve em disco a chamada completa (perguntas da URA + respostas do
+        cliente, na ordem em que ocorreram) como WAV 8kHz/16bit/mono.
+
+        Descarregada para uma thread (asyncio.to_thread) — é uma operação de
+        I/O síncrona (wave/write) e o event loop é compartilhado por TODAS as
+        chamadas simultâneas atendidas pelo servidor AudioSocket; sem isso, a
+        cadência de 20ms/frame das demais chamadas sofre jitter enquanto esta
+        grava.
+        """
+        await asyncio.to_thread(self._write_wav_sync, path)
 
     async def create_jira_issue(
         self,
