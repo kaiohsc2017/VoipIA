@@ -98,8 +98,7 @@ public class AgentCopilotService {
 
     @Transactional(readOnly = true)
     public List<CopilotSuggestionDto> getHistoryForAgent(Long agentId) {
-        return copilotLogRepository.findByAgentIdOrderByCreatedAtDesc(agentId).stream()
-                .limit(30)
+        return copilotLogRepository.findFirst30ByAgentIdOrderByCreatedAtDesc(agentId).stream()
                 .map(l -> new CopilotSuggestionDto(
                         l.getId(),
                         l.getAgent() != null ? l.getAgent().getId() : null,
