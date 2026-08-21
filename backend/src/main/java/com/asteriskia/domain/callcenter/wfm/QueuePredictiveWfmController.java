@@ -24,14 +24,14 @@ public class QueuePredictiveWfmController {
         return ResponseEntity.ok(wfmService.generateForecastForQueue(queueId, horizonMinutes));
     }
 
+    // GET é só leitura (achado de auditoria corrigido) — antes gerava e gravava um forecast novo
+    // quando não havia nenhum recente, um efeito colateral de escrita inesperado num verbo GET.
+    // Geração/gravação agora é exclusiva do POST .../predictive/generate acima; sem forecast
+    // recente, devolve lista vazia (o frontend já trata isso disparando o POST manualmente).
     @GetMapping("/queues/{queueId}/predictive")
     public ResponseEntity<List<QueuePredictiveWfmService.WfmForecastDto>> getForecasts(
             @PathVariable Long queueId) {
-        List<QueuePredictiveWfmService.WfmForecastDto> forecasts = wfmService.getRecentForecasts(queueId);
-        if (forecasts.isEmpty()) {
-            forecasts = wfmService.generateForecastForQueue(queueId, 60);
-        }
-        return ResponseEntity.ok(forecasts);
+        return ResponseEntity.ok(wfmService.getRecentForecasts(queueId));
     }
 
     @GetMapping("/alerts")
