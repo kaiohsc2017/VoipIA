@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import api, { getErrorMessage } from '../api/client';
 import type {
@@ -136,6 +136,9 @@ function QueueReport({ reprocessTick }: { reprocessTick: number }) {
   const [comparing, setComparing] = useState(false);
 
   const [recall, setRecall] = useState<RecallAndDispositionSummary | null>(null);
+  // Descarta a resposta de uma busca antiga que chegue depois de uma mais nova (fila/granularidade/
+  // período trocados antes da request anterior voltar) — mesmo padrão de DetailReportTab.tsx.
+  const searchSeq = useRef(0);
 
   useEffect(() => {
     api.get<CcQueue[]>('/callcenter/filas')
@@ -144,6 +147,7 @@ function QueueReport({ reprocessTick }: { reprocessTick: number }) {
   }, []);
 
   useEffect(() => {
+    const seq = ++searchSeq.current;
     if (!selectedQueueId) {
       setRows([]);
       setRecall(null);
@@ -154,14 +158,14 @@ function QueueReport({ reprocessTick }: { reprocessTick: number }) {
     api.get<QueuePeriodMetrics[]>('/callcenter/reports/queues', {
       params: { queueId: selectedQueueId, from, to, granularity },
     })
-      .then(({ data }) => setRows(data))
-      .catch(err => setError(getErrorMessage(err, 'Falha ao carregar relatório')))
-      .finally(() => setLoading(false));
+      .then(({ data }) => { if (seq === searchSeq.current) setRows(data); })
+      .catch(err => { if (seq === searchSeq.current) setError(getErrorMessage(err, 'Falha ao carregar relatório')); })
+      .finally(() => { if (seq === searchSeq.current) setLoading(false); });
     api.get<RecallAndDispositionSummary>(`/callcenter/reports/queues/${selectedQueueId}/recall`, {
       params: { from, to },
     })
-      .then(({ data }) => setRecall(data))
-      .catch(() => setRecall(null));
+      .then(({ data }) => { if (seq === searchSeq.current) setRecall(data); })
+      .catch(() => { if (seq === searchSeq.current) setRecall(null); });
   }, [selectedQueueId, granularity, from, to, reprocessTick]);
 
   const runComparison = () => {
@@ -320,6 +324,9 @@ function AgentReport({ reprocessTick }: { reprocessTick: number }) {
   const [newDayOfWeek, setNewDayOfWeek] = useState(1);
   const [newStartTime, setNewStartTime] = useState('08:00');
   const [newEndTime, setNewEndTime] = useState('18:00');
+  // Descarta a resposta de uma busca antiga que chegue depois de uma mais nova (agente/granularidade/
+  // período trocados antes da request anterior voltar) — mesmo padrão de DetailReportTab.tsx.
+  const searchSeq = useRef(0);
 
   useEffect(() => {
     api.get<CcAgent[]>('/callcenter/agentes')
@@ -356,6 +363,7 @@ function AgentReport({ reprocessTick }: { reprocessTick: number }) {
   };
 
   useEffect(() => {
+    const seq = ++searchSeq.current;
     if (!selectedAgentId) {
       setRows([]);
       return;
@@ -365,9 +373,9 @@ function AgentReport({ reprocessTick }: { reprocessTick: number }) {
     api.get<AgentPeriodMetrics[]>('/callcenter/reports/agents', {
       params: { agentId: selectedAgentId, from, to, granularity },
     })
-      .then(({ data }) => setRows(data))
-      .catch(err => setError(getErrorMessage(err, 'Falha ao carregar relatório')))
-      .finally(() => setLoading(false));
+      .then(({ data }) => { if (seq === searchSeq.current) setRows(data); })
+      .catch(err => { if (seq === searchSeq.current) setError(getErrorMessage(err, 'Falha ao carregar relatório')); })
+      .finally(() => { if (seq === searchSeq.current) setLoading(false); });
   }, [selectedAgentId, granularity, from, to, reprocessTick]);
 
   const runComparison = () => {
@@ -537,6 +545,9 @@ function FlowReport({ reprocessTick }: { reprocessTick: number }) {
   const [nodeRows, setNodeRows] = useState<FlowNodeAbandonmentRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Descarta a resposta de uma busca antiga que chegue depois de uma mais nova (fluxo/granularidade/
+  // período trocados antes da request anterior voltar) — mesmo padrão de DetailReportTab.tsx.
+  const searchSeq = useRef(0);
 
   useEffect(() => {
     api.get<FlowView[]>('/callcenter/flows')
@@ -545,6 +556,7 @@ function FlowReport({ reprocessTick }: { reprocessTick: number }) {
   }, []);
 
   useEffect(() => {
+    const seq = ++searchSeq.current;
     if (!selectedFlowId) {
       setRows([]);
       setNodeRows([]);
@@ -561,11 +573,12 @@ function FlowReport({ reprocessTick }: { reprocessTick: number }) {
       }),
     ])
       .then(([metrics, nodes]) => {
+        if (seq !== searchSeq.current) return;
         setRows(metrics.data);
         setNodeRows(nodes.data);
       })
-      .catch(err => setError(getErrorMessage(err, 'Falha ao carregar relatório')))
-      .finally(() => setLoading(false));
+      .catch(err => { if (seq === searchSeq.current) setError(getErrorMessage(err, 'Falha ao carregar relatório')); })
+      .finally(() => { if (seq === searchSeq.current) setLoading(false); });
   }, [selectedFlowId, granularity, from, to, reprocessTick]);
 
   return (
