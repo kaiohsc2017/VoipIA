@@ -1546,7 +1546,14 @@ espalhadas (aba do Módulo URA + abas da SPA Insights). Plano completo em
   V41/V42 aplicam no boot) e validação visual no navegador (submenu, as 3 abas por frente,
   config de alerta, Dashboard) — sem acesso a browser nesta sessão.
 
-### ✅ Agentes migrado de React UMD (single-file) para Vite+TS (2026-07-19) — implementado, pendente deploy/validação em produção
+### ⚠️ Agentes migrado de React UMD (single-file) para Vite+TS (2026-07-19) — SUPERADO: módulo `agents-platform` removido do repositório em 2026-08-19
+> **Nota (2026-08-20): esta migração ficou obsoleta.** O módulo segmentado `agents-platform`
+> (backend FastAPI + frontend Vite descritos abaixo) foi removido por completo do repositório no
+> commit `658622b` — a Plataforma de Agentes hoje vive só dentro do domínio unificado do backend
+> Java, sem schema/backend Python próprio (ver `## Estrutura do repositório` e a seção "Evoluções
+> corporativas v3.5" mais abaixo). O "pendente deploy/validação" original nunca chegou a importar:
+> a seção abaixo é preservada só como registro histórico da migração Vite que antecedeu a remoção.
+
 Plano completo em `.claude/plans/agentes-migracao-vite-spa.plan.md` (9 fases). O antigo
 `agents-platform/frontend/index.html` (1688 linhas, React 18 UMD sem build step, `js/` com
 `react`/`react-dom` vendorizados manualmente) virou um projeto Vite+React+TypeScript completo,
@@ -1568,8 +1575,9 @@ login nem refresh-token próprios).
 - `frontend/Dockerfile` ganhou um 3º estágio de build (`agents-builder`, espelhando
   `insights-builder`) — `Caddyfile`/`frontend/nginx.conf` **não mudaram** (o roteamento por path
   já era compatível, achado confirmado na pesquisa antes de implementar).
-- **Pendente**: deploy real (`docker compose build/up frontend`) e validação manual no navegador
-  (login com 2FA, WebSocket de alertas, as 8 telas, CRUDs) — sem acesso a browser nesta sessão.
+- ~~**Pendente**: deploy real (`docker compose build/up frontend`) e validação manual no
+  navegador~~ — módulo inteiro removido em 2026-08-19 antes que essa validação fosse retomada;
+  não é mais aplicável.
 
 ### ✅ Insights virou SPA independente (2026-07-19) — implementado, pendente deploy/validação em produção
 Plano completo em `.claude/plans/insights-spa-independente.plan.md` (5 fases) e memória
