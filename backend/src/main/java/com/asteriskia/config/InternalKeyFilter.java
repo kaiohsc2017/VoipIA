@@ -14,6 +14,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
 
 /**
@@ -37,8 +39,13 @@ public class InternalKeyFilter extends OncePerRequestFilter {
 
         String key = request.getHeader(HEADER);
 
-        if (key != null && key.equals(internalApiKey)
-                && SecurityContextHolder.getContext().getAuthentication() == null) {
+        // Comparação em tempo constante — evita vazar, via diferença de tempo de resposta,
+        // quantos caracteres iniciais da chave real o atacante já acertou.
+        boolean keyMatches = key != null
+                && MessageDigest.isEqual(
+                        key.getBytes(StandardCharsets.UTF_8), internalApiKey.getBytes(StandardCharsets.UTF_8));
+
+        if (keyMatches && SecurityContextHolder.getContext().getAuthentication() == null) {
 
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(
