@@ -321,6 +321,12 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       BACKEND_JWT_SECRET:         ${BACKEND_JWT_SECRET}
       TZ:                         America/Sao_Paulo
+      # Achado de auditoria 2026-08-20 (MEDIUM): heap da JVM sem tuning para o limite do
+      # container (deploy.resources.limits.memory acima) — sem isso, o default do JVM (baseado
+      # na memória TOTAL do host, não do cgroup do container antes do Java 10, e mesmo com
+      # suporte a cgroup, sem esse percentual explícito o heap pode ficar folgado/apertado demais
+      # frente ao limite de 1g deste serviço).
+      JAVA_TOOL_OPTIONS:          -XX:MaxRAMPercentage=75.0
       BACKEND_ALLOWED_ORIGINS:    ${BACKEND_ALLOWED_ORIGINS}
       ADMIN_USERNAME:             ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD:             ${ADMIN_PASSWORD}
