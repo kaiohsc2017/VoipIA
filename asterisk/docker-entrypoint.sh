@@ -26,5 +26,13 @@ for f in /etc/asterisk/*.conf.template; do
     echo "[VoipIA] Template processado: $(basename $f) → $(basename $dest)"
 done
 
-echo "[VoipIA] Iniciando Asterisk..."
-exec "$@"
+# Achado de auditoria (hardening não-root): as portas do Asterisk (5060, 8088, RTP
+# 16000-16500) estão todas acima de 1024 — não exigem privilégio nenhum para bind, só
+# corrigir a posse dos caminhos que o processo precisa escrever. Roda ainda como root aqui
+# (chown -R exige) porque /var/spool/asterisk e /var/log/asterisk são volume nomeado cujo
+# conteúdo pode ter sido criado por uma versão anterior do container rodando como root —
+# /etc/asterisk (bind mount do host) já vem preparado com o grupo compartilhado GID 1500.
+chown -R asterisk:asterisk /var/spool/asterisk /var/log/asterisk /var/run/asterisk 2>/dev/null || true
+
+echo "[VoipIA] Iniciando Asterisk como usuário não-root (asterisk)..."
+exec setpriv --reuid=asterisk --regid=asterisk --init-groups "$@"

@@ -113,7 +113,8 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r asterisk \
-    && useradd -r -g asterisk -d /var/lib/asterisk -s /usr/sbin/nologin asterisk
+    && groupadd -g 1500 voipia-app 2>/dev/null || true \
+    && useradd -r -g asterisk -G voipia-app -d /var/lib/asterisk -s /usr/sbin/nologin asterisk
 
 COPY --from=builder /usr/sbin/asterisk /usr/sbin/asterisk
 COPY --from=builder /usr/lib/asterisk /usr/lib/asterisk
@@ -130,6 +131,10 @@ RUN chmod +x /usr/sbin/asterisk && \
     chown -R asterisk:asterisk /etc/asterisk /var/lib/asterisk /var/spool/asterisk /var/log/asterisk /var/run/asterisk && \
     chmod -R 750 /etc/asterisk && \
     ldconfig
+# Nota: os chown acima valem para o conteúdo GRAVADO NA IMAGEM — /etc/asterisk,
+# var/spool/asterisk e var/log/asterisk são sobrescritos em runtime por bind mount/volume
+# nomeado do host (docker-compose.yml), cuja posse real só é corrigida no boot pelo próprio
+# docker-entrypoint.sh (ainda como root, antes de dropar privilégio — ver comentário lá).
 
 COPY config/ /etc/asterisk/
 COPY docker-entrypoint.sh /docker-entrypoint.sh
