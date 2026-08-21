@@ -8,9 +8,12 @@ import asyncio
 import hashlib
 import logging
 import os
+from collections import OrderedDict
 from pathlib import Path
 
 logger = logging.getLogger("asteriskia.audio_cache")
+
+MAX_LOCKS = 500  # limite de locks simultâneos em memória — evita crescimento ilimitado
 
 
 class AudioCacheService:
@@ -28,7 +31,7 @@ class AudioCacheService:
             self._dir.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             logger.warning("Não foi possível criar diretório de cache %s: %s", self._dir, e)
-        self._locks: dict[str, asyncio.Lock] = {}
+        self._locks: "OrderedDict[str, asyncio.Lock]" = OrderedDict()
 
     def _path(self, text: str) -> Path:
         key = hashlib.sha256(text.encode()).hexdigest()[:32]
@@ -51,8 +54,12 @@ class AudioCacheService:
             return data
 
         lock_key = path.stem
-        if lock_key not in self._locks:
+        if lock_key in self._locks:
+            self._locks.move_to_end(lock_key)
+        else:
             self._locks[lock_key] = asyncio.Lock()
+            if len(self._locks) > MAX_LOCKS:
+                self._locks.popitem(last=False)  # remove o lock mais antigo (LRU)
 
         async with self._locks[lock_key]:
             if await asyncio.to_thread(path.exists):
