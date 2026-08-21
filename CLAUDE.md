@@ -370,6 +370,7 @@ VoipIA/
 | `BACKEND_JWT_SECRET` | backend, agents-api | Compartilhado — HS256, 32+ chars |
 | `POSTGRES_PASSWORD` | postgres, backend, agents-api | Senha pode conter caracteres especiais — agents-api faz URL-encode |
 | `INTERNAL_API_KEY` | backend, ai-agent | Autenticação interna entre serviços |
+| `SSO_SECRET_ENCRYPTION_KEY` | backend | **CRÍTICO desde 2026-08-20** — cifra em repouso (AES-256-GCM) o `client_secret` do App Registration do SSO Microsoft Entra ID (`sso_configurations`, migration V93). Sem ela, a cifragem cai para um modo degradado — nunca deixe vazia em produção |
 | `JIRA_ISSUE_TYPE` | backend (Jira) | Tipo de issue da URA (ex: Task, Support) |
 | `VITE_STUN_URL` | frontend (build time) | STUN para ICE do softphone WebRTC |
 | `VITE_*` | frontend (build time) | Rebuild obrigatório ao alterar |
@@ -639,6 +640,126 @@ atuais foram calibrados pra uma VPS de 2 vCPU/3.8Gi de desenvolvimento, não par
 - Esta recomendação não substitui uma validação empírica: quando houver volume real ou uma janela
   seguinda (servidor dedicado, fora da VPS compartilhada com outros projetos), vale medir de fato
   antes de comprar hardware definitivo.
+
+### ✅ Auditoria full-stack estilo SonarQube (2026-08-20) — 41/41 achados corrigidos e deployados
+Rodada com 6 revisões especializadas em paralelo (security/Java/Python/React/database/performance)
+sobre o VoipIA inteiro. Achou 2 CRITICAL ativos em produção (não teóricos — exploráveis sem
+autenticação) mais 39 achados HIGH/MEDIUM/LOW. Relatório consolidado publicado como Artifact
+(`https://claude.ai/code/artifact/71a76e52-f25d-4ba8-91c3-5612b65f2ae9`); memória de continuidade
+`auditoria_sonarqube_2026-08-20` registra o histórico completo achado a achado. Migrations **V93 a
+V96**.
+- **2 CRITICAL**: (1) **sequestro de conta local via login SSO Microsoft Entra** —
+  `POST /api/v1/auth/sso/callback` aceitava email/nome direto do chamador sem nenhuma verificação
+  contra a Microsoft, dando token válido de **qualquer conta existente** (inclusive ADMIN) só
+  sabendo o username; corrigido com troca real de Authorization Code OAuth2, validação de `state`
+  (CSRF) e flag `sso_linked` em `AppUser` (mesmo racional do `ad_linked` já existente); (2)
+  `GET /api/v1/ai/providers/{id}/key-internal` e `/api/v1/ai/chain/active` estavam em
+  `permitAll()` — vazavam a API key real de qualquer provedor de IA (Gemini/OpenAI/
+  Anthropic/ElevenLabs) para qualquer requisição não autenticada da internet; corrigido com
+  `hasAuthority("ROLE_INTERNAL")` explícito. Um checksum do Flyway quebrou no meio do processo (a
+  V91, já aplicada em produção, foi editada por engano) e derrubou o backend em crash loop —
+  revertida para o conteúdo exato já aplicado, a coluna nova (`app_users.sso_linked`) foi para a
+  V92; **lição registrada no código/memória**: sempre `SELECT version FROM
+  flyway_schema_history ORDER BY installed_rank DESC LIMIT 1` antes de editar qualquer migration.
+- **13 HIGH** (destaques): `client_secret` do SSO cifrado em repouso com **AES-256-GCM**
+  (`EncryptedSecretConverter`, `SsoSecretReencryptionRunner` re-cifra legado no boot, migration
+  V93 — exige `SSO_SECRET_ENCRYPTION_KEY` no `.env`); Whisper local (`local_provider.py`) virou
+  singleton por processo (antes recarregava o modelo do zero a cada turno de fala, risco real de
+  timeout numa ligação); IDOR em `AgentCopilotController` (`agentId` do chamador sem validar
+  contra o agente autenticado, resolvido: sempre pelo agente logado, só ADMIN informa outro id);
+  forecast Erlang-C do WFM (`QueuePredictiveWfmService`) era 100% sintético — passou a usar
+  histórico real de `cc_agg_queue_daily` (últimos 28 dias, com fallback conservador explícito se
+  o histórico for insuficiente) e `GET /predictive` deixou de gerar forecast como efeito
+  colateral (só `POST .../generate` grava); I/O bloqueante no event loop compartilhado do
+  ai-agent (`write_wav` do gravador de chamada, `SentenceTransformer.encode`/parse de XML do
+  Insights) movido para thread separada; 3 race conditions no React sem guard de sequência
+  (`WfmTab`/`ReportsQueueTab`/relatório fila-agente-fluxo) corrigidas; índice trigram da V85
+  ativado de fato (`AdUserRepository` usava `similarity()` só no SELECT/ORDER BY, nunca no
+  WHERE — sequential scan completo a cada resolução de identidade por voz); 5 FKs sem
+  `ON DELETE` (V70/V80/V81/V82/V83) causavam 500 genérico ao excluir a linha referenciada —
+  `DataIntegrityViolationException` agora vira 409 com mensagem de negócio; zero compressão HTTP
+  em toda a API (Caddy não comprimia `/api/*`, `server.compression.enabled` ausente no Spring
+  Boot) corrigido nos dois lados; `@EnableScheduling` sem `TaskScheduler` dedicado — 25 jobs
+  `@Scheduled` reais competindo pela única thread default do Spring Boot, corrigido com pool de
+  10 threads; HikariCP/Tomcat sem nenhuma configuração explícita para o volume de 250 agentes já
+  projetado pelo CLAUDE.md — tuning conservador aplicado.
+- **15 MEDIUM + 11 LOW** (resumo): RBAC concedido por `ILIKE` no nome do grupo na V91
+  (`callcenter.wfm`/`callcenter.copilot`/`insights.semantic_search`/`admin.sso`) trocado por
+  referência a id fixo do grupo Administradores (migrations V95 documenta o achado sem revogar
+  nada, V96 aplica a correção); `RateLimitFilter` confiava em `X-Forwarded-For` de **qualquer**
+  container Docker, não só do `caddy` — corrigido; `InternalKeyFilter` (Java) e a comparação
+  equivalente em `docker-helper`/`embedding_server.py` (Python) passaram a usar comparação em
+  tempo constante (`MessageDigest.isEqual`/`secrets.compare_digest`); colunas tipo-enum sem CHECK
+  constraint (V85) + índice parcial ausente em `cc_report_schedules.active` corrigidos (V94);
+  sincronização de AD passou a ser em lote e transacional (`upsertMirrorBatch`); scheduler diário
+  novo garante 6 meses de partições futuras em `cc_interaction_events`/`cc_chat_messages`/
+  `cc_flow_execution_steps` (`CcPartitionMaintenanceScheduler`); heap da JVM fixado em 75% do
+  `mem_limit` do container via `JAVA_TOOL_OPTIONS`; as 3 SPAs ganharam code-splitting
+  (`React.lazy()`) das abas com `recharts`; histórico do copiloto de IA passou a paginar no banco
+  em vez de cortar em memória; endpoint batch novo elimina N+1 de requisições por agente no WFM
+  (ver seção própria abaixo); bugs reais de UI corrigidos ("Limpar filtros" do Insights com
+  closure obsoleta, `.sort()` mutando state e `NaN` sem tratamento no simulador Erlang-C do WFM,
+  `key={idx}` instável no `QualityPanel`, inputs sem `aria-label`/`htmlFor` em vários lugares);
+  magic numbers extraídos em `ErlangCCalculator`; cache de locks de `audio_cache.py` (ai-agent)
+  limitado a 500 entradas (LRU, antes crescia sem limite).
+- **Estado final**: suíte completa do backend verde, `tsc --noEmit` limpo nas 3 SPAs, todos os
+  containers `healthy` em produção. Restam só 2 notas informativas de severidade irrisória, sem
+  ação pendente: um lazy-load simples dentro do loop de `CallCenterReportScheduleService.runDue`
+  (job de background, sem impacto perceptível no volume atual) e a migration `V90__*.sql` com
+  `DROP TABLE ... CASCADE` sem listar as dependências explicitamente (migration já aplicada em
+  produção, imutável por regra do projeto).
+
+### ✅ Evoluções corporativas v3.5 — SSO Microsoft Entra ID, WFM Erlang-C, Copiloto Realtime, busca vetorial pgvector (2026-08-19) — deployado e validado em produção
+Leva de features que fecha o "Menu Sistema & Governança" e a v3.5 Enterprise mencionada no
+README/docs. Migrations **V91/V92**.
+- **SSO Microsoft Entra ID (OIDC)**: login corporativo via Authorization Code flow completo
+  (`SsoService`/`SsoController`, painel de administração em Configurações → Sistema &
+  Governança) — ver a auditoria acima para as 2 correções críticas de segurança aplicadas sobre
+  esta feature já no dia seguinte ao deploy inicial (sequestro de conta e vazamento de
+  `client_secret`).
+- **Copiloto Realtime** (`AgentCopilotController`/`AgentCopilotService`): recomendações em tempo
+  real para o operador durante o atendimento, com histórico consultável — ver achados de IDOR e
+  paginação corrigidos na auditoria acima.
+- **Digital Twin de filas & WFM Preditivo (Erlang-C)** (`QueuePredictiveWfmController`/
+  `QueuePredictiveWfmService`): painel de dimensionamento de agentes por fila — o forecast era
+  sintético no deploy inicial, corrigido para dado real na auditoria seguinte (ver acima); ganhou
+  depois gestão de escalas de trabalho e carregamento em lote (ver Fase abaixo).
+- **Busca vetorial pgvector em gravações**: extensão do uso de `pgvector` (já presente desde a
+  V69/Fase 25) para busca semântica sobre gravações.
+- **Limpeza estrutural na mesma leva**: o módulo `agents-platform` segmentado (schema Python
+  próprio, `migrate.py`) foi **removido do repositório** (commit `658622b`) — a Plataforma de
+  Agentes hoje vive só dentro do domínio unificado do backend Java, sem schema/migração próprios
+  (isso já está refletido no restante deste arquivo, mas registrado aqui como o commit que fez a
+  transição). Um efeito colateral dessa limpeza derrubou por engano a tabela
+  `agent_evolution_snapshots` (pertence na verdade ao Insights/Quality Management, não ao
+  `agents-platform`) — restaurada via migration V92 no mesmo lote da auditoria acima.
+
+### ✅ Modal de gestão de escalas de trabalho de agentes + endpoint batch (2026-08-20) — deployada e validada em produção
+Fecha o WFM com a peça que faltava: `AgentesTab.tsx` ganhou um modal de escala de trabalho por
+agente, nova aba WFM na SPA do Call Center e mapeamento de todos os seus submenus no shell —
+padronização de cores de submenu e catálogo RBAC simplificado (acesso automático a admins) junto.
+`loadTeamSchedules` fazia 1 requisição HTTP por agente via `Promise.all` — uma rajada de centenas
+de chamadas simultâneas na escala de 250 agentes já projetada por este arquivo. Endpoint novo
+`GET /api/v1/callcenter/reports/agent-schedules/batch?agentIds=1,2,3` devolve todas as escalas
+numa única consulta (`findByAgentIdInAndActiveTrue`), agrupadas por `agentId` — RBAC herdado do
+matcher genérico `GET /api/v1/callcenter/reports/**`, sem resource novo.
+
+### ✅ Hardening final Docker — Asterisk roda como usuário não-root (2026-08-20) — deployado e validado em produção
+Fecha o último item do débito de segurança de containers root registrado desde 2026-07-02 (ver
+seção "Débito de segurança" mais abaixo — a revalidação de 2026-08-15 já tinha identificado que
+bindar porta <1024 sozinho não exige root pleno, seguindo o mesmo padrão já usado pelo
+`frontend`/nginx). `docker-entrypoint.sh` agora roda o setup (envsubst dos templates, chown dos
+volumes nomeados de spool/log) ainda como root, e só então dropa privilégio via `setpriv
+--reuid/--regid/--init-groups` antes de exec'ar o Asterisk como o usuário `asterisk` (já criado
+no Dockerfile, agora também membro do grupo compartilhado GID 1500 usado por
+backend/ai-agent/agents-backend desde a Fase de hardening de 2026-08-14). Os 5 arquivos `.conf`
+regenerados a cada boot (`ari`/`manager`/`pjsip`/`res_pgsql`/`sorcery.conf`, bind mount do host)
+tiveram grupo e bit de escrita de grupo ajustados no host para o GID 1500 — os `.conf` estáticos
+continuam `root:root 644`, leitura já funciona sem mudança. Validado num container isolado antes
+do deploy: processo roda como `asterisk` (`ps aux`), pjsip carrega os 4 ramais + tronco, dialplan
+reload/module reload funcionam, zero "permission denied" no log. `coturn`/`security`/
+`docker-helper` continuam root pelos motivos já documentados (certificado TLS `root:root 600`,
+mounts `/etc/ufw` `root:root 640`, `docker.sock` — ver seção de débito de segurança).
 
 ### ✅ Atribuir grupo de acesso customizado a um usuário pela UI (2026-08-15) — deployada e validada em produção
 Fechava a última lacuna binária do RBAC granular (V22): a UI de usuários (`Users.tsx`) só permitia
@@ -1836,7 +1957,7 @@ fatia 9c futura.
   cadastrados nesta VPS de dev (`SELECT count(*) FROM cc_agents` = 0). Validação visual no
   navegador não foi feita (sem acesso a browser nesta sessão).
 
-### ✅ Débito de segurança — 2 de 3 fechados (2026-07-03), 1 parcial
+### ✅ Débito de segurança — 3 de 4 containers root fechados (2026-07-03 → 2026-08-20), `docker-helper` root por design
 - **CSP**: ✅ **migrado para enforcement real em 2026-08-15** (`Content-Security-Policy`, não mais
   `-Report-Only`) — validado em produção via Chrome headless antes e depois da mudança (Telecom,
   Agentes, Insights, Call Center incluindo o Flow Builder), zero bloqueio real. `script-src` perdeu
@@ -1864,20 +1985,14 @@ fatia 9c futura.
   - ⏳ `docker-helper` continua root **por design, não por descuido**: ele monta `/var/run/docker.sock`,
     e isso já equivale a root no host independente do UID do processo dentro do container —
     de-rootizar não traria ganho de segurança real.
-  - ⏳ `asterisk`/`coturn`/`security` continuam root — **revalidado em produção em 2026-08-15**
+  - ✅ **`asterisk` não-root desde 2026-08-20** (ver seção "Hardening final Docker — Asterisk roda
+    como usuário não-root" mais acima) — a via de hardening identificada na revalidação de
+    2026-08-15 (bindar porta <1024 não exige root pleno, mesmo padrão do `frontend`/nginx) foi
+    de fato implementada: `docker-entrypoint.sh` roda o setup como root e dropa privilégio via
+    `setpriv` antes de exec'ar como o usuário `asterisk` (grupo compartilhado GID 1500).
+  - ⏳ `coturn`/`security` continuam root — **revalidado em produção em 2026-08-15**
     (`docker inspect`/permissões de arquivo reais, não só leitura do compose), justificativa por
     container:
-    - **`asterisk`**: bind de `5060/udp` e `5060/tcp` (porta privilegiada, `pjsip.conf.template`
-      `bind = 0.0.0.0:5060`) — confirmado sem `USER` no Dockerfile, container roda root de fato
-      (`docker inspect --format='{{.Config.User}}'` vazio). **Achado desta revalidação**: bindar
-      porta <1024 sozinho não exige root pleno — o `frontend` já usa exatamente esse padrão
-      (`USER nginx` + `cap_add: [NET_BIND_SERVICE]`, ver `frontend/Dockerfile` linhas 124-133) e
-      funciona em produção com tráfego real. Migrar o Asterisk pro mesmo padrão é tecnicamente
-      viável em tese, mas **não foi validado nesta sessão** (Asterisk grava em vários caminhos do
-      host — spool de gravação, `pjsip.conf` gerado por `envsubst` no boot — que precisariam do
-      mesmo tratamento de grupo/GID já aplicado a `backend`/`ai-agent` na Fase de hardening GID
-      1500). Continua root por ora; fica registrado como oportunidade futura de hardening, não
-      como bloqueio genuíno como se pensava antes desta revalidação.
     - **`coturn`**: `network_mode: host`, portas `3478`/`5349` (ambas **acima** de 1024 — não é
       porta privilegiada, ao contrário do que o texto anterior desta seção dizia). **Motivo real de
       precisar de root, encontrado só nesta revalidação** (não documentado antes): os certificados
@@ -1892,9 +2007,10 @@ fatia 9c futura.
       essas capabilities). O que ainda exige root de fato: os mounts `/etc/ufw` e `/run/ufw.lock`
       do host são `0640 root:root` (confirmado via `ls -la` em produção) — um usuário não-root no
       container não conseguiria lê-los mesmo com as capabilities de rede.
-    - Nenhum dos três teve mudança de comportamento nesta revalidação — é confirmação de que o
-      débito continua genuíno (com uma correção de detalhe: coturn não é por porta privilegiada, é
-      por permissão de certificado; e o caso do Asterisk tem uma via de hardening não explorada).
+    - Os dois (`coturn`/`security`) não tiveram mudança de comportamento nesta revalidação — é
+      confirmação de que o débito continua genuíno para eles (com uma correção de detalhe: coturn
+      não é por porta privilegiada, é por permissão de certificado). O terceiro (`asterisk`) já
+      não é mais débito — ver hardening de 2026-08-20 acima.
 
 ---
 

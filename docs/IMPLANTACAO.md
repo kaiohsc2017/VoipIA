@@ -86,10 +86,11 @@ chmod 600 env/.env
 
 Edite o arquivo `env/.env` preenchendo as variáveis obrigatórias:
 * `POSTGRES_PASSWORD`: Senha forte para o banco de dados.
-* `JWT_SECRET`: Chave secreta de alta entropia (mínimo 64 caracteres).
+* `BACKEND_JWT_SECRET`: Chave secreta de alta entropia (mínimo 32 caracteres) — compartilhada entre backend e agents-api.
 * `GEMINI_API_KEY`: Chave da API do Google Gemini.
 * `INTERNAL_API_KEY`: Chave de autenticação entre microservices.
 * `COTURN_SECRET`: Chave secreta compartilhada para o servidor TURN.
+* `SSO_SECRET_ENCRYPTION_KEY`: **obrigatória se o SSO Microsoft Entra ID estiver habilitado** — cifra em repouso (AES-256-GCM) o `client_secret` do App Registration. Sem ela, o segredo é gravado sem cifragem no banco.
 
 ---
 
