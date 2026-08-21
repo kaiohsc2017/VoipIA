@@ -20,6 +20,7 @@ export const QualityPanel: React.FC<QualityPanelProps> = ({
   loading = false,
 }) => {
   const evalRows = (evaluations ?? []).map((e) => ({
+    id: e.evaluationId,
     chamada: e.callDateTime
       ? new Date(e.callDateTime).toLocaleString('pt-BR', {
           day: '2-digit',
@@ -62,8 +63,8 @@ export const QualityPanel: React.FC<QualityPanelProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono">
-                {evalRows.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                {evalRows.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-2.5 px-2 text-slate-900">{row.chamada}</td>
                     <td className="py-2.5 px-2 font-sans text-slate-700">{row.ficha}</td>
                     <td className="py-2.5 px-2 text-center font-bold text-slate-900">{row.nota}</td>
@@ -87,8 +88,8 @@ export const QualityPanel: React.FC<QualityPanelProps> = ({
               <h4 className="font-bold text-emerald-600 mb-2">Pontos fortes</h4>
               {strongPoints.length > 0 ? (
                 <ul className="space-y-1.5 text-slate-700">
-                  {strongPoints.map((pt, i) => (
-                    <li key={i} className="flex items-start gap-2">
+                  {strongPoints.map((pt) => (
+                    <li key={pt} className="flex items-start gap-2">
                       <span className="text-slate-400">•</span>
                       <span>{pt}</span>
                     </li>
@@ -104,8 +105,8 @@ export const QualityPanel: React.FC<QualityPanelProps> = ({
               <h4 className="font-bold text-amber-600 mb-2">Pontos de melhoria</h4>
               {improvementPoints.length > 0 ? (
                 <ul className="space-y-1.5 text-slate-700">
-                  {improvementPoints.map((pt, i) => (
-                    <li key={i} className="flex items-start gap-2">
+                  {improvementPoints.map((pt) => (
+                    <li key={pt} className="flex items-start gap-2">
                       <span className="text-slate-400">•</span>
                       <span>{pt}</span>
                     </li>
