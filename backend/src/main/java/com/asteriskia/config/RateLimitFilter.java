@@ -140,15 +140,22 @@ public class RateLimitFilter implements Filter {
         return remoteAddr;
     }
 
+    /**
+     * SEGURANÇA (achado de auditoria corrigido): confiar em qualquer IP com prefixo de subnet
+     * privada Docker (172./10./192.168.) tornava qualquer container na mesma rede um "proxy
+     * confiável" capaz de forjar X-Forwarded-For/X-Real-IP e resetar o contador de rate limit.
+     * Mesmo padrão restrito de {@code PublicCallCenterChatController#isTrustedProxy} — confia
+     * só na conexão TCP direta vinda do hostname do próprio container {@code caddy} (único
+     * reverse proxy da stack), resolvido via DNS a cada chamada.
+     */
     private boolean isTrustedProxy(String remoteAddr) {
         if (remoteAddr == null || remoteAddr.isBlank()) return false;
         if ("127.0.0.1".equals(remoteAddr) || "0:0:0:0:0:0:0:1".equals(remoteAddr)) return true;
-        for (String host : new String[]{"caddy", "asteriskia-caddy", "voipia-caddy"}) {
-            try {
-                if (InetAddress.getByName(host).getHostAddress().equals(remoteAddr)) return true;
-            } catch (UnknownHostException ignored) {}
+        try {
+            return InetAddress.getByName("caddy").getHostAddress().equals(remoteAddr);
+        } catch (UnknownHostException e) {
+            log.warn("Não foi possível resolver o host 'caddy' — headers de IP encaminhado ignorados.");
+            return false;
         }
-        // Subnets privadas de containers Docker (bridge)
-        return remoteAddr.startsWith("172.") || remoteAddr.startsWith("10.") || remoteAddr.startsWith("192.168.");
     }
 }
