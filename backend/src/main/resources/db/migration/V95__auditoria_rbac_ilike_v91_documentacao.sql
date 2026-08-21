@@ -1,0 +1,57 @@
+-- V95 — Documentação do achado de auditoria (2026-08-20) sobre a migration V91: concessão de
+-- RBAC via ILIKE no nome do grupo de acesso. NÃO edita a V91 (já aplicada em produção) e NÃO
+-- revoga nenhuma concessão — ver justificativa abaixo.
+--
+-- ─── O achado ────────────────────────────────────────────────────────────────────────────────
+-- A V91 concede os resources `callcenter.wfm`, `callcenter.copilot`, `insights.semantic_search`
+-- e `admin.sso` a QUALQUER grupo de acesso cujo NOME contenha "admin"/"supervis"/"agent"/"atend"
+-- (via `WHERE g.name ILIKE '%admin%' OR ...`), em vez de referenciar os grupos por id/critério
+-- estável. Isso é frágil por natureza: o nome de um grupo de acesso é um campo de texto livre
+-- (`AccessGroups.tsx`, sem enum/allowlist), então uma concessão de permissão sensível fica
+-- acoplada a uma substring de nome que qualquer ADMIN pode digitar por acaso no futuro — ex.: um
+-- grupo "Agentes de Vendas Externas" (sem nenhuma relação com o Call Center) ganharia
+-- `callcenter.copilot` só por conter "agent" no nome; um grupo "Administração de Estoque" (sem
+-- nenhuma relação com SSO corporativo) ganharia `admin.sso`.
+--
+-- ─── Por que não foi revogado nesta migration ───────────────────────────────────────────────
+-- Consulta directa em produção (2026-08-20, somente leitura, nenhum dado alterado) confirmou que
+-- hoje só existem 2 grupos de acesso cadastrados nesta VPS:
+--
+--   SELECT id, name FROM access_groups ORDER BY id;
+--     1 | Administradores
+--     2 | Usuários
+--
+-- E as 4 concessões da V91 (`admin.sso`, `callcenter.copilot`, `callcenter.wfm`,
+-- `insights.semantic_search`) bateram só em "Administradores" — que É a concessão intencional
+-- (o grupo ADMIN de fato deve ter acesso a essas 4 telas administrativas/sensíveis). "Usuários"
+-- não contém nenhuma das 4 substrings e não recebeu nada.
+--
+--   SELECT g.name, p.resource_key, p.can_read, p.can_write
+--   FROM access_group_permissions p JOIN access_groups g ON g.id = p.group_id
+--   WHERE p.resource_key IN ('callcenter.wfm','callcenter.copilot','insights.semantic_search','admin.sso')
+--   ORDER BY g.name, p.resource_key;
+--     Administradores | admin.sso                | t | t
+--     Administradores | callcenter.copilot       | t | t
+--     Administradores | callcenter.wfm           | t | t
+--     Administradores | insights.semantic_search | t | t
+--
+-- Ou seja: não há, HOJE, nenhuma concessão real feita por acidente para revogar — revogar algo
+-- que não existe não teria efeito, e alterar a lógica da V91 diretamente é proibido (migration já
+-- aplicada e com checksum validado pelo Flyway em produção). O risco real é PROSPECTIVO: a
+-- próxima vez que alguém criar um grupo de acesso customizado cujo nome contenha uma dessas
+-- substrings por coincidência, ele herdará essas 4 permissões sensíveis sem intenção — e esta
+-- migration, sendo `CREATE`/documentação apenas, não tem como prevenir isso de forma automática
+-- sem reescrever a V91 (proibido) ou adicionar um gatilho/validação nova na criação de grupo
+-- (fora do escopo desta correção pontual — decisão de produto/segurança maior, precisa de
+-- confirmação humana antes de ser implementada).
+--
+-- ─── Recomendação para uma correção definitiva futura (não aplicada aqui) ──────────────────
+-- Trocar o padrão "concede a quem casar o nome" por uma migration que concede pelo id explícito
+-- do grupo Administradores (`id = 1`, seed fixo desde a V1) e documentar que qualquer novo grupo
+-- que precise dessas permissões deve receber a concessão manualmente pela tela "Grupos de
+-- Acesso" — nunca por convenção de nome. Requer decisão humana antes de ser feito, pois pode
+-- haver expectativa de que outros nomes de grupo continuem a herdar essas permissões por design.
+--
+-- Nenhuma alteração de esquema ou de dado é feita por esta migration — é só o registro do achado
+-- no histórico do Flyway, como pedido pela auditoria.
+SELECT 1;
