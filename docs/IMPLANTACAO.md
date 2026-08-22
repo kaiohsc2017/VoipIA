@@ -1,7 +1,7 @@
 # 🚀 Guia de Implantação & Runbook Operacional — VoipIA Enterprise
 
 > **Sistema:** VoipIA — Plataforma Corporativa de Telefonia IP, URA Conversacional com IA, Call Center Omnicanal & Speech Analytics  
-> **Versão Oficial:** v3.2 Enterprise  
+> **Versão Oficial:** v3.5 Enterprise  
 > **Sistemas Homologados:** Linux Ubuntu 22.04 / 24.04 LTS e Oracle Linux 9 (UEK / Red Hat Compatible Kernel)  
 > **Data de Atualização:** 20 de Agosto de 2026  
 
@@ -86,7 +86,7 @@ chmod 600 env/.env
 
 Edite o arquivo `env/.env` preenchendo as variáveis obrigatórias:
 * `POSTGRES_PASSWORD`: Senha forte para o banco de dados.
-* `BACKEND_JWT_SECRET`: Chave secreta de alta entropia (mínimo 32 caracteres) — compartilhada entre backend e agents-api.
+* `BACKEND_JWT_SECRET`: Chave secreta de alta entropia (mínimo 32 caracteres) para assinatura e validação dos tokens JWT da aplicação.
 * `GEMINI_API_KEY`: Chave da API do Google Gemini.
 * `INTERNAL_API_KEY`: Chave de autenticação entre microservices.
 * `COTURN_SECRET`: Chave secreta compartilhada para o servidor TURN.

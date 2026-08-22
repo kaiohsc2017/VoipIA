@@ -1,7 +1,7 @@
 # 🎬 Roteiro Master de Treinamento, Apresentação & Demonstração — VoipIA Enterprise
 
 > **Sistema:** VoipIA — Plataforma Corporativa de Telefonia IP, URA Conversacional com IA, Call Center Omnicanal & Speech Analytics  
-> **Versão Oficial:** v3.2 Enterprise  
+> **Versão Oficial:** v3.5 Enterprise  
 > **Público-Alvo:** Gestores Executivos, Supervisores de Atendimento, Operadores de Call Center e Administradores de TI  
 > **Duração Estimada:** 15 a 30 minutos (Apresentação Completa)  
 > **Data de Atualização:** 20 de Agosto de 2026  

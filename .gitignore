@@ -89,6 +89,7 @@ recordings/
 # --- Backups e arquivos temporários locais ---
 *.bak*
 bkp-config/
+bkp-md/
 security/config/action.d/
 
 # --- Arquivos de estado runtime (gerados em execução, não versionar) ---

@@ -73,15 +73,13 @@ três deste tier.
 
 ---
 
-## Diferencial cross-sistema (requer o SmartHSM)
+## Notificação Proativa & Recuperação de Abandono (Disparador Omnichannel / WhatsApp)
 
-**VoipIA detecta → SmartHSM age.** O VoipIA já tem `AbandonedCalls`/`RepeatCallers`/
-`QueueTimeouts` como sinais de primeira classe (via Insights/relatórios). O SmartHSM já
-dispara WhatsApp em massa com agendamento próprio e webhook de ingestão HMAC pronto para
-receber comando de outro sistema. Ligar os dois: *cliente abandonou a fila após 4 minutos →
-dispara automaticamente um WhatsApp oferecendo retorno com o protocolo*. Resolve o abandono
-em vez de só reportá-lo, e nenhum concorrente consegue copiar porque exige justamente essa
-combinação de ativos que só existe porque os dois produtos são da mesma casa.
+**VoipIA detecta → Disparador proativo age.** O VoipIA já tem `AbandonedCalls`/`RepeatCallers`/
+`QueueTimeouts` como sinais de primeira classe (via Insights/relatórios). Integrando um módulo
+de disparo ativo (WhatsApp/HSM via webhook autenticado por HMAC): *cliente abandonou a fila após 4 minutos →
+o VoipIA dispara automaticamente uma mensagem WhatsApp/SMS oferecendo retorno prioritário com o número de protocolo*.
+Resolve o abandono em vez de apenas reportá-lo, transformando métricas passivas em engajamento resolutivo imediato.
 
 ---
 

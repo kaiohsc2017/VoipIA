@@ -1,0 +1,13 @@
+# Ripgrep, fd and agy ignore file
+bkp-md/
+bkp-config/
+old/
+backups/
+media/*
+!media/.gitignore
+node_modules/
+dist/
+build/
+target/
+.venv/
+__pycache__/

@@ -1,7 +1,7 @@
 # 🌐 Matriz de Conectividade de Rede & Segurança — VoipIA Enterprise
 
 > **Sistema:** VoipIA — Plataforma Corporativa de Telefonia IP, URA Conversacional com IA, Call Center Omnicanal & Speech Analytics  
-> **Versão Oficial:** v3.2 Enterprise  
+> **Versão Oficial:** v3.5 Enterprise  
 > **Ambientes Alvo:** Linux Ubuntu 22.04/24.04 LTS e Oracle Linux 9 (UEK/RHEL)  
 > **Padrão de Segurança:** Zero Trust, DevSecOps, Menor Privilégio e Hardening OWASP ASVS L2  
 > **Data de Atualização:** 20 de Agosto de 2026  

@@ -1,7 +1,7 @@
 # 📘 Manual do Usuário Completo & Guia Operacional — VoipIA Enterprise
 
 > **Sistema:** VoipIA — Plataforma Corporativa de Telefonia IP, URA Conversacional com IA, Call Center Omnicanal & Speech Analytics  
-> **Versão Oficial:** v3.2 Enterprise  
+> **Versão Oficial:** v3.5 Enterprise  
 > **Público-Alvo:** Operadores de Atendimento, Agentes de Call Center, Supervisores de Operação, Analistas de Qualidade, Engenheiros de Telecomunicações e Administradores de TI  
 > **Endereço de Acesso:** `https://app.voiphash.com.br`  
 > **Data de Atualização:** 20 de Agosto de 2026  

@@ -1,7 +1,7 @@
 # 🔬 Referência Técnica de Engenharia — VoipIA Enterprise
 
 > **Sistema:** VoipIA — Plataforma Corporativa de Telefonia IP, URA Conversacional com IA, Call Center Omnicanal & Speech Analytics  
-> **Versão Oficial:** v3.2 Enterprise  
+> **Versão Oficial:** v3.5 Enterprise  
 > **Stack Principal:** Asterisk 21 LTS + Spring Boot 3.3 (Java 21) + Python 3.12 + React (TypeScript Strict) + PostgreSQL 16 (pgvector) + Caddy 2  
 > **Classificação:** Engenharia de Software / Telecomunicações / Inteligência Artificial  
 > **Data de Atualização:** 20 de Agosto de 2026  

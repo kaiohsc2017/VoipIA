@@ -1,7 +1,7 @@
 # 📡 Documentação das APIs & WebSockets — VoipIA Enterprise
 
 > **Sistema:** VoipIA — Plataforma Corporativa de Telefonia IP, URA Conversacional com IA, Call Center Omnicanal & Speech Analytics  
-> **Versão da API:** v1 / v3.2 Enterprise  
+> **Versão da API:** v1 / v3.5 Enterprise  
 > **Autenticação:** Bearer Token JWT (HMAC-SHA256) / Cookie httpOnly / X-Internal-Key  
 > **Padrão:** RESTful JSON, WebSocket STOMP, AudioSocket TCP e Asterisk AMI/WSS  
 > **Data de Atualização:** 20 de Agosto de 2026  

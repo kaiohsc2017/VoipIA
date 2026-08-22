@@ -58,7 +58,7 @@ flowchart TD
     AIAgent -->|REST POST /calls/register| Backend
     InsightsWorker <-->|Processamento Assíncrono| PostgresDB
 
-    Backend <-->|JPA / Dapper / SQL 5432| PostgresDB
+    Backend <-->|JPA / Hibernate / SQL 5432| PostgresDB
     Backend <-->|REST X-Internal-Key :8090| DockerHelper
 
     AIAgent -->|HTTPS 443| GeminiAI
