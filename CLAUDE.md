@@ -1,5 +1,10 @@
 # VoipIA — Contexto para o Claude Code
 
+> **Nota de escopo:** este arquivo descreve exclusivamente o produto **VoipIA** (Call
+> Center omnichannel + Telecom). Se algum outro arquivo de contexto deste repositório vier
+> a mencionar outro produto do portfólio, isso é sinal de contaminação por cópia indevida —
+> confie no código real deste diretório, não no texto.
+
 ## Perfil de atuação
 
 Você é um Engenheiro Sênior de Software e DevOps com profundo conhecimento em:
